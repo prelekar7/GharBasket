@@ -8,7 +8,10 @@ For M1's account deletion (spec §3.3, M1 §3.5): `close_wallet` in the deletion
 source (a referral, a donation).
 
 For M8 (spec §3.5): `accrue_earning` owes a partner for work on an order, once per (partner, basis,
-order); `partner_week` and `partner_rolling_earnings` read the earnings back.
+order); `partner_week` (with that week's `PayoutOut`s) and `partner_rolling_earnings` read the
+earnings back. `billing.payout_sent` tells M11 a weekly payout was paid or failed.
+
+For M12 (M12 §3.1): `earning_facts` and `kindness_facts`, the ledger read back as fact rows.
 """
 
 import copy
@@ -29,9 +32,17 @@ from gharbasket.modules.billing.earnings import (
     partner_week,
 )
 from gharbasket.modules.billing.events import (
+    PAYOUT_SENT,
     POINTS_CREDITED,
+    POINTS_DONATED,
     REFUND_TO_SOURCE_SETTLED,
     WALLET_TOPPED_UP,
+)
+from gharbasket.modules.billing.facts import (
+    EarningFact,
+    KindnessFact,
+    earning_facts,
+    kindness_facts,
 )
 from gharbasket.modules.billing.kindness import credit_points
 from gharbasket.modules.billing.models import (
@@ -42,7 +53,7 @@ from gharbasket.modules.billing.models import (
     Posting,
 )
 from gharbasket.modules.billing.refunds import wallet_closed
-from gharbasket.modules.billing.schemas import RefundOut
+from gharbasket.modules.billing.schemas import PayoutOut, RefundOut
 from gharbasket.modules.billing.wallet import (
     InsufficientBalance,
     balance,
@@ -53,14 +64,19 @@ from gharbasket.modules.billing.wallet import (
 from gharbasket.platform.settings import Settings, get_settings
 
 __all__ = [
+    "PAYOUT_SENT",
     "POINTS_CREDITED",
+    "POINTS_DONATED",
     "REFUND_TO_SOURCE_SETTLED",
     "WALLET_TOPPED_UP",
     "BasisTotal",
     "DayTotal",
     "EarningEntry",
+    "EarningFact",
     "InsufficientBalance",
+    "KindnessFact",
     "PartnerWeek",
+    "PayoutOut",
     "RefundOut",
     "accrue_earning",
     "anonymise_for_user",
@@ -69,7 +85,9 @@ __all__ = [
     "close_wallet",
     "credit_points",
     "debit_for_order",
+    "earning_facts",
     "export_for_user",
+    "kindness_facts",
     "partner_rolling_earnings",
     "partner_week",
     "refund_to_wallet",

@@ -123,6 +123,9 @@ class Settings(DatabaseSettings):
     razorpay_refund_window_days: int = Field(default=180, ge=1, le=365)
     # Kindness points one donated meal ("a meal for a child") takes (M5 §3.6, `goal.points`).
     kindness_goal: int = Field(default=500, ge=1, le=100_000)
+    # Who pays partners their weekly payouts (M5 §3.5). The prototype builds only `simulated` (no
+    # real money moves); `razorpay_route` is for the pilot and refused until it is built.
+    payouts_provider: Literal["simulated", "razorpay_route"] = "simulated"
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
@@ -166,6 +169,11 @@ class Settings(DatabaseSettings):
             missing = [name for name, value in required.items() if value is None]
             if missing:
                 raise ValueError(f"{', '.join(missing)} required when APP_ENV={self.app_env}")
+        if self.payouts_provider == "razorpay_route":
+            raise ValueError(
+                "PAYOUTS_PROVIDER=razorpay_route is not built in the prototype (M5 §3.5, pilot "
+                "only); use PAYOUTS_PROVIDER=simulated"
+            )
         if self.fcm_service_account is not None:
             _ = self.fcm_credentials  # a broken key fails at start, not at the first push
         for name, secret in (

@@ -113,41 +113,6 @@
       "milestone": "after MS-B",
       "note": "M8 §3.7 is an outline, 'refined after MS-B'."
     },
-    "GET /v1/admin/payouts": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M5 §3.5, ships with M8 in S6."
-    },
-    "POST /v1/admin/payouts/{}/retry": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M5 §3.5."
-    },
-    "GET /v1/hubs/{}/surplus-offers": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5."
-    },
-    "POST /v1/hubs/{}/surplus/run": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5, same work as the 12:30 job."
-    },
-    "POST /v1/surplus-offers/{}/settle": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5."
-    },
     "POST /v1/admin/societies": {
       "app": "console",
       "class": "later",
@@ -162,89 +127,12 @@
       "milestone": "MS-D",
       "note": "M9 §3.7 (?scope=me)."
     },
-    "GET /v1/ngos": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "POST /v1/admin/ngos": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5. The body differs (kind, hub_ids, accepts); see M9's 'Mock today' table."
-    },
-    "GET /v1/ngo-handoffs": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "GET /v1/ngo-handoffs/ready": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5 (replaces open_batches)."
-    },
-    "POST /v1/ngo-handoffs": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5. The body is { ngo_id, hub_id, kind, donation_ids|offer_ids|meals, photo_keys, people_reached }."
-    },
-    "POST /v1/ngo-handoffs/{}/confirm": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "GET /v1/ngo/offers": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "POST /v1/ngo/offers/{}/claim": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
     "GET /v1/public/societies/{}": {
       "app": "console",
       "class": "later",
       "owner": "prathamesh",
       "milestone": "MS-D",
       "note": "M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url)."
-    },
-    "GET /v1/analytics/hubs/{}/today": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.3 (S9). F6: wrap the call in orNotShipped; the hub manager's home page crashes against the real API."
-    },
-    "GET /v1/analytics/kpis": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.3."
-    },
-    "GET /v1/analytics/societies": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.3."
     },
     "GET /v1/analytics/partner-earnings": {
       "app": "console",
@@ -517,8 +405,8 @@
     {
       "id": "F6",
       "app": "console",
-      "where": "app/(console)/(hub)/today/page.jsx, app/(console)/(hub)/cutoff/page.jsx",
-      "fix": "Wrap GET /v1/analytics/hubs/{id}/today and GET /v1/hubs/{id}/cutoff in orNotShipped, with a not-available view. The hub manager's home crashes against the real API today.",
+      "where": "app/(console)/(hub)/today/page.jsx, app/(console)/(analytics)/kpis, app/(console)/(franchise)/customers",
+      "fix": "M12 §3.3 ships (GET /v1/analytics/hubs/{id}/today, /kpis, /societies) and replaces the mocks. GET /v1/hubs/{id}/ops-board becomes /v1/analytics/hubs/{id}/today: timestamps and HH:MM, formatted by the console; compose the status line from steps; no markers or route; attention is { kind, count, oldest_at, due_at, link } (copy and tone from kind; issues link to /hub/issues). GET /v1/analytics/customer-summary becomes /v1/analytics/societies (the console totals items and counts status unlocking as joining; paused_households is in the row). /kpis needs data_source real|synthetic, returns periods (ISO dates) and series.<key>.",
       "owner": "yash"
     },
     {
@@ -533,6 +421,13 @@
       "app": "console",
       "where": "lib/hub.js, mocks/README.md",
       "fix": "GET /v1/hubs ships now: update the comments that say it is a 404, and the mocks README (it says API port 8010 and console port 3160; real mode is 8000 and 3000, see docs/SETUP.md 'Real mode').",
+      "owner": "yash"
+    },
+    {
+      "id": "F9",
+      "app": "console",
+      "where": "lib/ngo.js, app/(console)/(community)/handoffs/, app/(console)/(community)/drives/",
+      "fix": "M9 §3.5 ships: build against its shapes, not the mock's (M9 §3.5 'Mock today'). POST /v1/admin/ngos takes { name, kind, hub_ids, accepts, registration_ref, verified, status, note } (coordinators are M1 role grants) and PATCH needs If-Match; GET /v1/ngo-handoffs is Page[Handoff] with `report` (`summary` is structured; `open_batches` is GET /v1/ngo-handoffs/ready); POST /v1/ngo-handoffs takes { ngo_id, hub_id, kind, donation_ids | offer_ids | meals, photo_keys (1 to 3 handoff_photo uploads), people_reached, handed_at, note } with an Idempotency-Key; a drive's ngo_id may be set.",
       "owner": "yash"
     }
   ]

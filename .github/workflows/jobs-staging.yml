@@ -15,6 +15,7 @@
 #   30 13 * * *   19:00 IST  remind_unapproved       (T-1: cutoff_reminder)
 #   25 15 * * *   20:55 IST  apply_auto_approve      (T-1)
 #   30 15 * * *   21:00 IST  cutoff_lock             (T-1)
+#   0 7 * * *     12:30 IST  surplus_cascade         (T: draw-down, close buying, surplus, M6)
 #   0 17 * * *    22:30 IST  sweep_missed_pickups    (T: donation pickups no stop reported)
 #   30 17 * * *   23:00 IST  payment_grace_expiry    (T-1)
 #   45 17 * * *   23:15 IST  solve_routes            (T-1: tomorrow's box plan per hub, M7)
@@ -22,6 +23,7 @@
 #   30 10 * * *   16:00 IST  close_routes            (T: completes routes still in progress, M7)
 #   0 15 * * *    20:30 IST  hold_expiry             (T: bags still at the society, M7)
 #   15 15 * * *   20:45 IST  schedule_redeliveries   (T: free redelivery or second miss, M7)
+#   */15 * * * *             refresh_analytics      (M12: the daily KPI and impact facts and views)
 #   */10 * * * *             build_data_export
 #   every few minutes        outbox_sweep
 # Any of them can be run by hand below with "Run workflow".
@@ -41,6 +43,8 @@ on:
     - cron: "17 * * * *" # hourly safety net: outbox_sweep
     - cron: "3 22 * * 0" # Monday 03:33 IST weekly: compute_vendor_scores (the past IST week)
     - cron: "13 22 * * *" # 03:43 IST daily: purge_gps_pings (pings older than 90 days, M7)
+    - cron: "10 21 * * *" # 02:40 IST daily: refresh_analytics_nightly (M12 §3.2)
+    - cron: "33 4 * * 1" # Monday 10:03 IST weekly: weekly_payouts (the past IST week, M5 §3.5)
   workflow_dispatch:
     inputs:
       job:
@@ -92,6 +96,8 @@ jobs:
             "17 * * * *") job=outbox_sweep ;;
             "3 22 * * 0") job=compute_vendor_scores ;;
             "13 22 * * *") job=purge_gps_pings ;;
+            "10 21 * * *") job=refresh_analytics_nightly ;;
+            "33 4 * * 1") job=weekly_payouts ;;
             "") job="$INPUT_JOB" ;;
             *) echo "::error::No job mapped to schedule '$SCHEDULE'"; exit 1 ;;
           esac

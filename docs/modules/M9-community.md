@@ -384,7 +384,7 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
   - one already verified or rejected gets 409 `community.donation_already_verified`;
   - one still scheduled gets 409 `community.donation_not_picked_up`.
   `community.donation_verified { donation_id, user_id, household_id, hub_id, society_id, drive_id, points }` is published once, and M5's consumer credits the points (`credit_points(…, "donation", donation_id)`, M5 §3.6). A rejected donation earns nothing, and its items are not returned: the scheduling screen says that items the hub cannot use go to a recycler (§11).
-- **Pickup outcomes** come from `logistics.pickup_completed` (M7 §3.6). M9 needs the outcome of each donation: `donations: [ { donation_id, status: "collected" | "not_ready" } ]` (an M7 follow-up; the outline's event carries only `donation_ids`).
+- **Pickup outcomes** come from `logistics.pickup_completed` (M7 §3.6). M9 needs the outcome of each donation: `donations: [ { donation_id, status: "collected" | "not_ready" } ]` (M7 §3.6 carries it).
   - `collected` makes the donation `picked_up`, with `picked_up_on` and the rider's user id.
   - `not_ready` moves `pickup_on` to the society's next delivery date once, and publishes `community.donation_scheduled` again with the new date. A second `not_ready` cancels it with `cancel_reason: "not_ready"`.
   - `sweep_missed_pickups` (22:30 IST) treats a donation whose `pickup_on` is today and that no stop reported as `not_ready`.
@@ -413,7 +413,7 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
 | 403 | `auth.forbidden` | A hub manager writing a drive or verifying outside their hub |
 | 400 / 422 / 412 / 428 | `request.*` | As in M0 (idempotency, If-Match) |
 
-**As built (rates and drives).** `Drive` also carries `version`, its ETag for `PATCH`. A `PATCH` never changes `code`, `scope`, `hub_id` or `society_id`; an ended or cancelled drive keeps its dates, and cancelling an ended drive changes nothing. A hub manager changing a drive outside their hubs gets 404 `community.drive_not_found`, and a platform drive 403. `ngo_id` must be null until NGOs exist (§3.5), so `ngo` is null until then. An unknown hub on a hub drive is 422 `request.invalid`.
+**As built (rates and drives).** `Drive` also carries `version`, its ETag for `PATCH`. A `PATCH` never changes `code`, `scope`, `hub_id` or `society_id`; an ended or cancelled drive keeps its dates, and cancelling an ended drive changes nothing. A hub manager changing a drive outside their hubs gets 404 `community.drive_not_found`, and a platform drive 403. `ngo_id` names an NGO that accepts items and, for a hub or society drive, serves its hub (404 `community.ngo_not_found`, 422 `community.ngo_does_not_accept`); `PATCH` may set or clear it (§3.5). An unknown hub on a hub drive is 422 `request.invalid`.
 
 **As built (scheduling).** `progress` numbers are null for customers while fewer than 5 households took part in the drive (k = 5, §3.7); hub staff see them exactly. `est_kg_tenths` adds up the kg lines only (pieces carry no weight). A customer without a household gets 422 `community.no_pickup_day`, and an unknown `drive_id` 422 `community.drive_not_open`. M3's `delivery_dates(society_id, after, n)` returns the dates strictly after `after`.
 
@@ -535,6 +535,31 @@ POST /v1/ngo-handoffs/{id}/confirm                ngo_coordinator of the hand-of
 | `POST /v1/ngo-handoffs { batch_id, given_to, people_reached, has_photo }` | `{ ngo_id, hub_id, kind, donation_ids \| offer_ids \| meals, photo_keys, people_reached }` with an Idempotency-Key |
 | `GET /v1/ngo-handoffs/report?month=` → PDF | No server PDF in v1: the console prints the month's page (print stylesheet), and M12's impact CSV (M12 §3.6) covers the data |
 
+**As built (S9).**
+- **Roles and scope.** The permissions are §7's. `ngo_coordinator:<ngo id>` grants come from M1's `POST /v1/admin/user-roles`, and a caller with several roles gets all of them. Admins read every NGO, offer and hand-off, but record and confirm none (§3 table). A hub manager sees the NGOs that list one of her hubs. An NGO outside the caller's scope is 404 `community.ngo_not_found`, and a `?hub_id=` outside it is 403 `auth.forbidden`. `coordinator` comes from a new M1 facade function, `identity.api.first_role_holders(session, role, scope_ids)`.
+- **NGOs.** `Ngo` also carries `version`, its ETag for `PATCH` (412 `request.version_mismatch`). `POST` and `PATCH` check each hub through `hub_ops.api.get_hub` (422 `request.invalid`) and are audit-logged (`community.ngo_created`, `community.ngo_updated`). `verified` defaults to false, and an unverified or paused NGO gets no offers and takes no hand-off. `ngos` gains `data_source` and `updated_at`, and a hand-off copies its NGO's `data_source`.
+- **Offers.** The consumer copies one row per M6 offer when at least one active, verified NGO that serves the hub accepts food. Otherwise the hub manager settles the offer by phone (M6). `offer_id` is the primary key, so a redelivered event copies once.
+  - `kg` follows M6's waste-log rule: kg and l count as themselves, a piece or bunch goes through `catalog.api.stock_products`' `unit_g`, and a pack is null. It does not use `grams_of`, which takes a recipe quantity in a product's base unit, not an operations unit.
+  - `GET /v1/ngo/offers` takes `status` (default `open`) and answers at most 200 offers, soonest expiry first. A coordinator sees the offers at hubs where one of her NGOs may take food.
+- **Claiming.** The `ngo_offers` row is locked, so of two concurrent claims the second waits and gets 409 `community.offer_taken`.
+  - M6's offer is settled through M6's facade as built: `settle_surplus(session, offer_id, "taken", taken_by=Taker("ngo", name=<NGO name>), actor_user_id=…)`. M6 records an NGO taker by name (M6 §3.5), and M9's row keeps the NGO id.
+  - An NGO that cannot take food at the hub gets 422 `community.ngo_does_not_accept`.
+  - An offer M6 already settled (by phone, `hub_ops.offer_settled`) gets 409 `community.offer_expired`. Until `hub_ops.surplus_settled` exists (an M6 follow-up), the copy reads `open` until `expires_at`.
+- **Recording a hand-off.** A coordinator of `ngo_id` records it as `ngo`, confirmed at once. Otherwise a hub manager of `hub_id` records it as `hub`, and anyone else gets 403.
+  - The kind must match the ids given: otherwise 422 `community.handoff_empty`.
+  - Photos: 1 to 3 when recorded and up to 3 more at the confirmation (6 in all). Each must be the caller's own `handoff_photo` upload and in no other hand-off. Its `delete_after` is 3 years after the claim.
+  - `handed_at` may not be ahead of now (5 minutes' skew): otherwise 422 `request.invalid`.
+  - **Items.** `summary.items` counts pieces plus counted kilograms (one item per kg, half up), and `summary.kg` the counted kg lines. Each donation's timeline gains `handed_over`.
+  - **Food.** Each offer must be claimed by this NGO at this hub and not handed over yet: otherwise 409 `community.offer_not_ready` with `offer_ids` (added when built, the counterpart of `donation_not_ready`). `summary.kg` adds up the offers' kilograms.
+  - **Meals.** The hub's unserved pledges are locked oldest first, so two meals hand-offs at once never serve one meal twice. `handoff_meals` records the split.
+- **Lists.** `GET /v1/ngo-handoffs` is newest first by `handed_at` (cursor on `handed_at`, `id`), `month` is an IST month, and `report` adds up the whole filter, not the page.
+  - `ready` needs `hub_id`. A coordinator who does not manage the hub sees only the offers her NGOs claimed. A donation's `items` are its counted lines `{ code, unit, qty }`, and `verified_on` is the IST date.
+  - Each photo link is a 5-minute signed GET, and minting the links is audit-logged (`community.handoff_photo_links`). The list is `Cache-Control: no-store`.
+- **Meal pledges.** The `billing.points_donated` consumer stores the pledge at the household's hub, or the society's hub when the household has none. A user without a household gets a pledge with no hub, which no hand-off can serve. Pledges are in the data export (`meal_pledges`: meals, served, pledged_at) and kept as they are on erasure, since they hold no personal field.
+- **Facts.** Hand-offs (`handoff_items`, `handoff_food`, `handoff_meals`, by `handed_at`) and pledges (`meals_pledged`, by `pledged_at`) come through `impact_facts` with `society_id` null, so M12's `fact_community` refresh takes them as it is. There is no separate `handoff_facts`.
+- **Drives.** A drive's `ngo_id` may now be set (§3.4).
+- **Not built here.** `hub_ops.surplus_settled` (M6), the sponsored cost per meal (before the pilot), and `mv_society_impact` (§3.7).
+
 ### 3.6 Society unlock contract (drafted 2026-10-09, frozen on approval)
 This adds to §3.1 how a society moves from `prospect` to `live` and where the threshold comes from (handbook 07 W10). The Society screen's unlock bar and celebration, the public page (M12 §3.7), M3's delivery days and M11 build against it.
 
@@ -643,7 +668,8 @@ GET /v1/impact?scope=society&society_id=&period=all|2027-02
 - `society_impact(session, society_id, period) -> SocietyImpact`: the `society` scope of §3.7 with the k rules applied, for M12's public page.
 - `public_society(session, slug) -> PublicSociety | None`: `{ id, slug, name, area, status, joined, threshold, live_at }` for `unlocking` and `live` societies only; `None` for `prospect`, `paused` or unknown.
 - `pickups_for(session, society_id, on) -> list[DonationPickup]`: `{ donation_id, household_id, items_summary }` for M7's return leg and the captain's flat checklist. M7 adds the flat through `identity.api.delivery_labels`.
-- `impact_facts(session, *, date_from, date_to, hub_ids=None)`, `referral_facts(…)`, `handoff_facts(…)`: rows for M12's refresh (M12 §3.1). They carry no names, flats or phones.
+- `impact_facts(session, *, date_from, date_to, hub_ids=None)`, `referral_facts(…)`, `handoff_facts(…)`: rows for M12's refresh (M12 §3.1). They carry no names, flats or phones. As built, hand-offs and meal pledges come through `impact_facts` (§3.5).
+- `hub_societies(session, *, hub_id) -> list[HubSociety]`: `{ id, name, status, joined, threshold, data_source }` for every society the hub serves, whatever its status, by name; for M12's societies table (M12 §3.3). `joined` comes from one count for all of them (`identity.api.households_in_societies`). No captain, address or household.
 
 **Data export** (M1 §3.3, section `community`): the user's donations (items, counts, points, statuses, dates; photos counted, not included), their referral code, the referrals they made (status, dates and points, never the neighbour), whether they were referred, their donated-meal pledges, and their captain appointments (§3.2).
 
@@ -752,8 +778,8 @@ PATCH /v1/admin/society-requests/{id}          { "status": "received" }: undo of
 **Published:**
 - `community.captain_assigned`, `community.captain_ended` (§3.2).
 - `community.society_live { society_id, hub_id, joined, threshold, live_at }` (§3.6): once per society. M11 tells its households and the hub's managers; M12 marks the date.
-- `community.donation_scheduled { donation_id, user_id, household_id, hub_id, society_id, pickup_on, items: [{code, unit, qty}], est_kg_tenths }` (§3.4): M7 plans the pickup on the society's stop; published again when a pickup rolls to the next date.
-- `community.donation_cancelled { donation_id, hub_id, society_id, pickup_on, reason }` (§3.4): M7 drops the expected pickup.
+- `community.donation_scheduled { donation_id, user_id, household_id, hub_id, society_id, pickup_on, items: [{code, unit, qty}], est_kg_tenths }` (§3.4): published again when a pickup rolls to the next date. M7 does not consume it: it reads `pickups_for` when the society's route starts (M7 §3.6).
+- `community.donation_cancelled { donation_id, hub_id, society_id, pickup_on, reason }` (§3.4): not consumed by M7; a donation cancelled after its route started is skipped when M7 reports it.
 - `community.donation_verified { donation_id, user_id, household_id, hub_id, society_id, drive_id, points }` (§3.4): M5 credits the points; M11 notifies (category `kindness`).
 - `community.donation_rejected { donation_id, user_id, hub_id, reason }` (§3.4): M11 notifies.
 - `community.referral_converted { referral_id, referrer_user_id, referee_user_id, society_id, hub_id, referrer_points, referee_points }` (§3.3): for M12; M11 maps nothing (M5's `points_credited` already notifies).
@@ -765,7 +791,7 @@ No event carries a name, flat, phone or photo key.
 - `identity.household_created`, and `identity.household_updated` when `society_id` changed: the unlock check (§3.6);
 - `identity.deletion_requested`: open referrals of the user become `void` (§3.3);
 - `orders.delivered` (kind `box`): referral conversion (§3.3);
-- `logistics.pickup_completed`: donation pickups, with an outcome per donation (§3.4; M7 follow-up);
+- `logistics.pickup_completed`: donation pickups, with an outcome per donation (§3.4; M7 §3.6);
 - `billing.points_donated`: meal pledges (§3.5);
 - `hub_ops.surplus_offered` (`offered_to: "ngo"`) and `hub_ops.surplus_settled`: NGO offers (§3.5; follows M6 §3.5);
 - `partners.verified` (kind `captain`: automatic appointment, §3.2);

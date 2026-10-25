@@ -140,12 +140,13 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | T 12:30 | `surplus_cascade` | ops |
 | Daily 02:00 | `export_snapshots` (Postgres → Parquet in object storage, S3 API) + data-quality checks | intel |
 | Sun 03:00 | `retrain_models` (champion/challenger) | training (GitHub Actions) |
-| Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
+| Hourly / daily / Mon 10:00 | `reconcile_payments` (hourly); `expire_kindness_points` (daily); `weekly_payouts` (partners' payables up to Sunday, eligible partners only, the simulated provider; GitHub Actions; M5 §3.5) | billing ← partners |
 | Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
 | Daily 03:33 | `purge_deleted_users` (accounts 30 days after `DELETE /v1/me`; M1 §3.5) | identity |
 | Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
 | Every 10 min | `expire_proposals` (cron-job.org) | assistant |
 | Daily 03:33 | `monitor_drift` (realised WAPE per hub, delivery day and data source, acceptance per source → `model_metrics`, drift flags against the same hub and source's backtest) | intel |
+| Every 15 min / daily 02:40 | `refresh_analytics` (facts for delivery dates T-3 to T+1 and community facts since its last run, then the daily KPI and impact views; cron-job.org); `refresh_analytics_nightly` (the last 35 days, every household, 6 weeks of partner earnings, assignment runs, then every view; GitHub Actions); `rebuild_analytics` by hand (M12 §3.2) | analytics ← every module's facade |
 
 ## 10.5 Key endpoints per module (v1)
 
@@ -156,11 +157,11 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals`, `/categories`; console: `/admin/products`, `/admin/recipes`, `/admin/festivals`, `/hubs/{id}/price-lists` (M2 §3.3), `/hubs/{id}/tiffin-menus` with `/tiffin-menus/{id}/approve`, `/send-back`, `/reopen` (M2 §3.4) |
 | M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/unskip`, `/feedback`, `/budget-lock`; console: `/hubs/{id}/cutoff`, `/hubs/{id}/delivery-dates`, `/hubs/{id}/delivery-days`, `/admin/plans` (M3 §3.4, §3.5) |
 | M4 orders | `/orders` (GET; POST for tiffins), `/orders/{id}`, `/orders/{id}/events` (SSE or JSON), `/orders/{id}/pay`, `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots`, `/tiffin-menus`; console: `/admin/order-issues` (M4 §3.3–§3.6) |
-| M5 billing | `/wallet`, `/wallet/topups`, `/wallet/refund-to-source`, `/wallet/refunds`, `/payments/webhook/razorpay`, `/kindness/balance`, `/kindness/entries`, `/statements?period=`, `/payouts`; console: `/admin/reconciliation`, `/admin/payouts`, `/admin/refunds` (read-only, served by M4, M5 §3.8); `/mandates` at the pilot (M5 §3.3–§3.7) |
+| M5 billing | `/wallet`, `/wallet/topups`, `/wallet/refund-to-source`, `/wallet/refunds`, `/payments/webhook/razorpay`, `/kindness/balance`, `/kindness/entries`, `/statements?period=` (`&account=earnings` for a partner), `/payouts`; console: `/admin/reconciliation`, `/admin/payouts`, `/admin/payouts/{id}/retry`, `/admin/refunds` (read-only, served by M4, M5 §3.8); `/mandates` at the pilot (M5 §3.3–§3.7) |
 | M6 ops | `/hubs/{id}/procurement-plans`, `/purchase-orders`, `/grn`, `/packing-tasks`, `/hubs/{id}/shortages` (M6 §3.6), `/waste-logs`, `/vendors` |
 | M7 logistics | `/routes?date&slot`, `/routes/{id}/live` (SSE), `/stops/{id}/handover`, `/deliveries/{order}/proof`, `/pickups` |
 | M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/payouts`; console: `/hubs/{id}/fairness` (M8 §3.8) |
-| M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngo-handoffs`, `/impact`; console: `/admin/societies`, `/admin/society-requests` (M9 §3.9) |
+| M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngos`, `/ngo/offers`, `/ngo-handoffs`, `/impact`; console: `/admin/societies`, `/admin/society-requests` (M9 §3.9) |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
 | M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
 | M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, unit economics, impact) |

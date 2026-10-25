@@ -10,6 +10,9 @@
 
 `reconcile_payments` (hourly at :17) compares Razorpay with our records (spec §3.4).
 
+`weekly_payouts` (Monday 10:00 IST) pays partners what they were owed up to Sunday (spec §3.5,
+payouts.py).
+
 Kindness points (§3.6):
 - `expire_kindness_points` (daily 00:30 IST) takes back what is left of each lot past its expiry.
 - The consumer of M9's `community.donation_verified` credits the donation's points, once per
@@ -25,7 +28,7 @@ import structlog
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.billing import kindness, reconciliation, settlement
+from gharbasket.modules.billing import kindness, payouts, reconciliation, settlement
 from gharbasket.modules.billing.models import Payment, RefundPart
 from gharbasket.modules.billing.razorpay import RazorpayClient
 from gharbasket.platform.errors import ProblemError
@@ -121,6 +124,14 @@ async def reconcile_payments(ctx: JobContext) -> dict[str, Any]:
     return await reconciliation.reconcile(
         ctx.session, _razorpay(ctx), ctx.settings, ctx.scheduled_for
     )
+
+
+@job("weekly_payouts", "Pay partners what they were owed up to last Sunday (IST), if eligible")
+async def weekly_payouts(ctx: JobContext) -> dict[str, Any]:
+    """Monday 10:00 IST (spec §3.5): the ISO week before `scheduled_for`, through the simulated
+    provider in the prototype. A rerun pays nothing twice: one row per (partner, week), and its
+    entries are keyed by it."""
+    return await payouts.run_weekly(ctx.session, ctx.settings, ctx.scheduled_for)
 
 
 # M9's event (M9 §3.4, §5): { donation_id, user_id, household_id, hub_id, society_id, drive_id,

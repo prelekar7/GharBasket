@@ -731,6 +731,83 @@ class WasteLogOut(BaseModel):
     at: datetime
 
 
+OfferStatus = Literal["open", "taken", "declined", "expired"]
+
+
+class SurplusOfferOut(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    lot_id: uuid.UUID
+    product_id: uuid.UUID
+    slug: str
+    name: str = Field(description="In the Accept-Language language")
+    unit: OpsUnit
+    grade: Grade
+    best_before: datetime
+    qty: float
+    offered_to: Literal["kitchen", "ngo"]
+    status: OfferStatus
+    taken_qty: float | None = Field(description="Set when taken")
+    taken_by: TakenBy | None = Field(description="As on the waste log of what was taken")
+    previous_offer_id: uuid.UUID | None = Field(description="The offer it follows in the cascade")
+    expires_at: datetime = Field(description="The next day's 12:30 run moves it on")
+    created_at: datetime
+    settled_at: datetime | None
+
+
+class SurplusOffersOut(BaseModel):
+    items: list[SurplusOfferOut] = Field(description="Oldest first")
+
+
+class KitchenTakerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["kitchen"]
+    partner_id: uuid.UUID = Field(description="An active kitchen partner of the hub (M8)")
+
+
+class NgoTakerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["ngo"]
+    name: str = Field(min_length=1, max_length=80, examples=["Annadaan Seva"])
+
+    _tidy_text = field_validator("name", mode="before")(_tidy)
+
+
+TakerIn = Annotated[KitchenTakerIn | NgoTakerIn, Field(discriminator="kind")]
+
+
+class SettleIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["taken", "declined"]
+    qty: float | None = Field(
+        default=None,
+        allow_inf_nan=False,
+        gt=0,
+        examples=[4.0],
+        description="Taken only; default all of it",
+    )
+    taken_by: TakerIn | None = Field(default=None, description="Taken only: who took it")
+    note: str | None = Field(default=None, max_length=300)
+
+    _tidy_text = field_validator("note", mode="before")(_tidy)
+
+
+class SettleOut(BaseModel):
+    offer: SurplusOfferOut
+    next: SurplusOfferOut | None = Field(description="The offer the rest moved on to, if any")
+    waste_logs: list[WasteLogOut] = Field(description="Written by this settle")
+
+
+class SurplusRunOut(BaseModel):
+    drawn_tasks: int = Field(description="Packed tasks drawn down from stock")
+    closed_purchase_orders: int = Field(description="Today's POs received or not delivered")
+    offers: int = Field(description="Offers made: new surplus and what moved on")
+    binned: int = Field(description="Waste logs to the bin")
+
+
 class RescuedKg(BaseModel):
     kitchen: float
     ngo: float

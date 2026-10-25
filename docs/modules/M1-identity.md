@@ -317,7 +317,7 @@ There is no separate "cancel deletion" endpoint: signing in, confirmed on the "K
 2. **Each module erases its own data.** It calls `delete_for_user(session, user_id, household_id)` and/or `anonymise_for_user(session, user_id, household_id)` from its `api.py`, in the fixed order below. Each returns `{ table: rows }` counts for the tombstone. They are registered like the export sections (`ERASERS` next to `SECTIONS` in `identity/jobs.py`); a module adds its own when it ships.
 3. **M1 deletes its own rows last.** That is `users`, `user_roles`, `sessions`, `refresh_tokens`, `households` (with members and the address, by cascade), `consents` and `data_exports`. It then deletes every stored object under `*/<user_id>/` through `platform.files`.
 4. **A tombstone is kept.** The `identity.deletions` row keeps `user_id`, `requested_at`, `purge_on`, `purged_at` and the counts, with no phone, name or household fields. The user id then refers to nobody: the money and order records that are kept carry an id that no longer leads to a person.
-5. **The purge is announced.** `identity.user_deleted { user_id, household_id }` (already listed in §5) is published for consumers that keep caches (M12 aggregates).
+5. **The purge is announced.** `identity.user_deleted { user_id, household_id }` (already listed in §5) is published for consumers that keep caches: M12 deletes the household's `fact_households` and `fact_cycles` rows and keeps its order facts, as M4 keeps the orders (M12 §4).
 
 Signing up again with the same phone after the purge creates a new user with a new id.
 

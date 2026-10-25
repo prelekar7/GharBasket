@@ -717,8 +717,8 @@ async def complete(
 async def draw_carried(session: AsyncSession, task: PackingTask, by_user_id: uuid.UUID) -> None:
     """The kept items on a packed bag leave the shelf (§3.5): the item of that carry becomes
     `packed` with the task, and a `pack` move for it (no lot) is written; with no kept item (the
-    bag was never scanned) the move stands alone, unlotted. The 12:30 draw-down is not built yet;
-    when it is, it draws paid lines only, as these moves are keyed by the carried item.
+    bag was never scanned) the move stands alone, unlotted. The 12:30 draw-down
+    (`stock.draw_down`) draws paid lines only, as these moves are keyed by the carried item.
 
     The items are the task's own carried lines, which must be exactly what M4 has on the order
     (a programming error otherwise: a box packed without a kept item that M4 marks delivered)."""

@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 EntryKind = Literal[
     "topup",
@@ -246,3 +246,85 @@ class ResolveIn(BaseModel):
         max_length=500,
         description="The decision; a money correction is a separate, manual adjustment entry",
     )
+
+
+# --- partner payouts and the earnings statement (§3.5) ------------------------------------------
+
+PayoutStatus = Literal["held", "pending", "processing", "processed", "failed"]
+HoldReason = Literal["kyc_incomplete", "suspended", "no_payout_account"]
+PartnerKind = Literal["kitchen", "captain", "rider", "packer"]
+
+
+class PayoutPeriod(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: date = Field(alias="from", description="The week's Monday (IST)")
+    to: date = Field(description="The week's Sunday (IST)")
+
+
+class PayoutOut(BaseModel):
+    id: uuid.UUID
+    partner_id: uuid.UUID
+    hub_id: uuid.UUID = Field(description="The partner's hub when the payout was made")
+    week: str = Field(examples=["2027-W03"], description="ISO week, Monday to Sunday, IST")
+    period: PayoutPeriod
+    amount_paise: int = Field(examples=[84000])
+    status: PayoutStatus = Field(
+        description="held: not eligible, nothing paid (see hold_reason); pending: posted, the "
+        "provider is next; processed: paid; failed: the provider refused it and the money is back "
+        "in the partner's earnings for the next run or a retry"
+    )
+    hold_reason: HoldReason | None
+    provider: Literal["simulated", "razorpay_route"]
+    provider_ref: str | None = Field(examples=["pout_sim_0199c2a5"])
+    created_at: datetime
+    processed_at: datetime | None
+
+
+class PayoutPartner(BaseModel):
+    display_name: str
+    kind: PartnerKind
+
+
+class AdminPayoutOut(PayoutOut):
+    partner: PayoutPartner | None = Field(description="Null if the partner record is gone")
+
+
+EarningsEntryKind = Literal["earning", "payout", "payout_reversed"]
+
+
+class EarningOrderRef(BaseModel):
+    type: Literal["order"]
+    id: uuid.UUID
+
+
+class PayoutRef(BaseModel):
+    type: Literal["payout"]
+    id: uuid.UUID
+
+
+class EarningsStatementEntry(BaseModel):
+    id: uuid.UUID
+    kind: EarningsEntryKind = Field(
+        description="Show a generic label for a kind the app doesn't know"
+    )
+    amount_paise: int = Field(
+        description="Into what the partner is owed +, paid out of it -", examples=[-84000]
+    )
+    ref: Annotated[EarningOrderRef | PayoutRef, Field(discriminator="type")] | None
+    at: datetime = Field(description="When it was recorded")
+    balance_after_paise: int = Field(description="What she is owed after this entry")
+
+
+class EarningsStatementOut(BaseModel):
+    """The §3.2 statement over the partner's `partner_payable` accounts (every kind she is)."""
+
+    period: str = Field(examples=["2027-01"])
+    account: Literal["earnings"]
+    currency: Literal["INR"]
+    opening_paise: int = Field(description="Owed at 00:00 IST on the 1st")
+    credits_paise: int = Field(description="Σ positive entries (earnings, reversed payouts)")
+    debits_paise: int = Field(description="Σ negative entries (payouts), signed")
+    closing_paise: int = Field(description="opening + credits + debits")
+    entries: list[EarningsStatementEntry] = Field(description="Every entry, newest first")
+    generated_at: datetime

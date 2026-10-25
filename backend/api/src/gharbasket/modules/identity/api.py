@@ -3,10 +3,10 @@
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Date, cast, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import events, households, service
@@ -35,6 +35,23 @@ async def households_in_society(session: AsyncSession, society_id: uuid.UUID) ->
         select(func.count()).select_from(Household).where(Household.society_id == society_id)
     )
     return count.scalar_one()
+
+
+async def households_in_societies(
+    session: AsyncSession, society_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """`households_in_society` for many societies in one query (M12's societies table); a
+    society without households is 0."""
+    ids = list(set(society_ids))
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Household.society_id, func.count())
+        .where(Household.society_id.in_(ids))
+        .group_by(Household.society_id)
+    )
+    counts = {society_id: int(n) for society_id, n in rows.all()}
+    return {society_id: counts.get(society_id, 0) for society_id in ids}
 
 
 async def household_hub(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID | None:
@@ -380,7 +397,73 @@ async def holds_role(
     return (await session.execute(query.limit(1))).first() is not None
 
 
+async def first_role_holders(
+    session: AsyncSession, role: str, scope_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, UserContact]:
+    """Per scope id, the first active user granted a verified `role` there (by when it was
+    verified): M9 shows an NGO's first coordinator to staff and the NGO's own coordinators. Scopes
+    without one are left out."""
+    wanted = set(scope_ids)
+    if not wanted:
+        return {}
+    rows = await session.execute(
+        select(UserRole.scope_id, User.name, User.phone_e164)
+        .join(User, User.id == UserRole.user_id)
+        .where(
+            UserRole.role == role,
+            UserRole.scope_id.in_(wanted),
+            UserRole.status == "verified",
+            User.status == "active",
+        )
+        .order_by(UserRole.scope_id, UserRole.verified_at.nulls_last(), UserRole.id)
+    )
+    found: dict[uuid.UUID, UserContact] = {}
+    for scope_id, name, phone in rows.all():
+        if scope_id is not None and scope_id not in found:
+            found[scope_id] = UserContact(name, phone)
+    return found
+
+
 async def is_active(session: AsyncSession, user_id: uuid.UUID) -> bool:
     """False while the account's deletion is scheduled, once it is purged, and for a blocked
     account (spec §3.5): M11 checks it before sending anything."""
     return await session.scalar(select(User.status).where(User.id == user_id)) == "active"
+
+
+@dataclass(frozen=True)
+class HouseholdFact:
+    """A household for M12's cohorts (M12 §3.1): ids, the IST signup date and the owner's account
+    status; never a name, phone, flat or health field."""
+
+    household_id: uuid.UUID
+    hub_id: uuid.UUID | None
+    society_id: uuid.UUID
+    created_on: date  # IST
+    status: str  # the owner's account (active | blocked | deleting): a household has no status
+    data_source: str
+
+
+async def household_facts(
+    session: AsyncSession,
+    *,
+    created_from: date | None = None,
+    ids: Iterable[uuid.UUID] | None = None,
+) -> list[HouseholdFact]:
+    """Households created on or after the IST date `created_from` (every one when None), or only
+    `ids`, in id order. A purged household has no row, so it leaves M12's facts at its next full
+    pull."""
+    created_on = cast(func.timezone("Asia/Kolkata", Household.created_at), Date)
+    stmt = select(
+        Household.id,
+        Household.hub_id,
+        Household.society_id,
+        created_on,
+        User.status,
+        Household.data_source,
+    ).join(User, User.id == Household.owner_user_id)
+    if created_from is not None:
+        stmt = stmt.where(created_on >= created_from)
+    if ids is not None:
+        stmt = stmt.where(Household.id.in_(set(ids)))
+    rows = await session.execute(stmt.order_by(Household.id))
+    return [HouseholdFact(*row) for row in rows.all()]

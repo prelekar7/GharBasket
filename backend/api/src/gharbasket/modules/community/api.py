@@ -2,8 +2,10 @@
 
 M1 uses it to check a household's address (spec §3.1): the society exists, the tower belongs to
 it, and the flat's pin lies inside its boundary. M7, M3 and M1 read captains through it (§3.2).
-M4 reads `live_at` for the pre-live box fee (§3.6); M12 reads referral facts and the public
-society page (§3.8); M1 exports and erases through it.
+M4 reads `live_at` for the pre-live box fee (§3.6); M12 reads the public society page (§3.8) and
+its societies table (`hub_societies`, M12 §3.3), and pulls `impact_facts` (donations, hand-offs,
+meal pledges, societies gone live) and `referral_facts` for its analytics refresh (M12 §3.1); M1
+exports and erases through it.
 """
 
 import uuid
@@ -23,11 +25,14 @@ from gharbasket.modules.community.events import (
     DONATION_REJECTED,
     DONATION_SCHEDULED,
     DONATION_VERIFIED,
+    HANDOFF_RECORDED,
     REFERRAL_CONVERTED,
     SOCIETY_LIVE,
 )
+from gharbasket.modules.community.facts import ImpactFact, impact_facts
 from gharbasket.modules.community.models import (
     Captain,
+    MealPledge,
     Referral,
     ReferralCode,
     Society,
@@ -44,11 +49,14 @@ __all__ = [
     "DONATION_REJECTED",
     "DONATION_SCHEDULED",
     "DONATION_VERIFIED",
+    "HANDOFF_RECORDED",
     "REFERRAL_CONVERTED",
     "SOCIETY_LIVE",
     "CaptainCard",
     "CaptainRef",
     "DonationPickup",
+    "HubSociety",
+    "ImpactFact",
     "PublicSociety",
     "ReferralFact",
     "SocietyLabels",
@@ -59,8 +67,10 @@ __all__ = [
     "contains",
     "export_for_user",
     "get_society",
+    "hub_societies",
     "hub_society_ids",
     "hubs_with_societies",
+    "impact_facts",
     "is_active_captain",
     "pickups_for",
     "public_society",
@@ -276,7 +286,7 @@ async def record_pickup(
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
     """M9's section of the user's data export (M1 §3.3, §3.8): her captain appointments, her
     donations (photos counted, not included), her referral code, the referrals she made (never the
-    neighbour) and whether she was referred."""
+    neighbour), whether she was referred, and her donated-meal pledges."""
     rows = await session.execute(
         select(Captain, Society.name)
         .join(Society, Society.id == Captain.society_id)
@@ -296,6 +306,14 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         ],
         "donations": await donations.export(session, user_id),
         **await _referrals_export(session, user_id),
+        "meal_pledges": [
+            {"meals": p.meals, "served": p.served, "pledged_at": p.pledged_at}
+            for p in (
+                await session.execute(
+                    select(MealPledge).where(MealPledge.user_id == user_id).order_by(MealPledge.id)
+                )
+            ).scalars()
+        ],
     }
 
 
@@ -328,7 +346,7 @@ async def anonymise_for_user(
 ) -> dict[str, int]:
     """M1's purge (M1 §3.5, §3.8 here): the referral code and society requests are deleted;
     referrals are kept for the impact numbers, open ones voided, and their user ids no longer
-    lead to a person. Donations and pledges join this when they ship."""
+    lead to a person. Meal pledges are kept as they are: they hold no personal field."""
     codes = await session.execute(delete(ReferralCode).where(ReferralCode.user_id == user_id))
     requests = await session.execute(
         delete(SocietyRequest).where(SocietyRequest.user_id == user_id)
@@ -369,9 +387,12 @@ async def referral_facts(
     date_from: date,
     date_to: date,
     hub_ids: list[uuid.UUID] | None = None,
+    by: Literal["joined", "converted"] = "joined",
 ) -> list[ReferralFact]:
-    """Referrals that joined between the two IST dates (inclusive), oldest first."""
-    stmt = select(Referral).where(Referral.joined_on >= date_from, Referral.joined_on <= date_to)
+    """Referrals that joined (or, with `by="converted"`, converted) between the two IST dates
+    (inclusive), oldest first."""
+    on = Referral.joined_on if by == "joined" else Referral.converted_on
+    stmt = select(Referral).where(on >= date_from, on <= date_to)
     if hub_ids is not None:
         stmt = stmt.where(Referral.hub_id.in_(hub_ids))
     rows = await session.execute(stmt.order_by(Referral.id))
@@ -420,3 +441,39 @@ async def public_society(session: AsyncSession, slug: str) -> PublicSociety | No
         threshold=society.unlock_threshold,
         live_at=society.live_at,
     )
+
+
+@dataclass(frozen=True)
+class HubSociety:
+    id: uuid.UUID
+    name: str
+    status: str  # prospect | unlocking | live | paused
+    joined: int  # households whose address is in it
+    threshold: int  # households that unlock free delivery
+    data_source: str  # real | synthetic
+
+
+async def hub_societies(session: AsyncSession, *, hub_id: uuid.UUID) -> list[HubSociety]:
+    """Every society the hub serves, whatever its status, by name (M12's societies table, §3.3):
+    name, status and unlock progress; no captain, address or household."""
+    societies = (
+        (
+            await session.execute(
+                select(Society).where(Society.hub_id == hub_id).order_by(Society.name, Society.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    joined = await identity_api.households_in_societies(session, [s.id for s in societies])
+    return [
+        HubSociety(
+            id=society.id,
+            name=society.name,
+            status=society.status,
+            joined=joined[society.id],
+            threshold=society.unlock_threshold,
+            data_source=society.data_source,
+        )
+        for society in societies
+    ]

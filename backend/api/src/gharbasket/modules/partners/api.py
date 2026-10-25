@@ -2,7 +2,10 @@
 
 M9 checks a captain through `get_partner` and builds her card from `profile_card`; M7 reads
 partners at handover; M1 puts `export_for_user` into the data export and turns the events below
-into roles.
+into roles. M12 pulls `partner_facts` and `assignment_run_facts` for its analytics refresh
+(M12 §3.1). M5's weekly payouts ask `payout_eligibility` before paying a partner and read names
+and hubs through `get_partners` and `partners_for_user`; a real payout provider (pilot only) would
+read the bank account from `payout_account` (§3.7).
 """
 
 import uuid
@@ -26,7 +29,19 @@ from gharbasket.modules.partners.events import (
     TIFFINS_UNASSIGNED,
     VERIFIED,
 )
+from gharbasket.modules.partners.facts import (
+    AssignmentRunFact,
+    PartnerFact,
+    assignment_run_facts,
+    partner_facts,
+)
 from gharbasket.modules.partners.models import Application, Partner
+from gharbasket.modules.partners.payouts import (
+    PayoutAccount,
+    PayoutEligibility,
+    payout_account,
+    payout_eligibility,
+)
 from gharbasket.modules.partners.pickups import PickupRef
 
 __all__ = [
@@ -40,14 +55,24 @@ __all__ = [
     "SUSPENDED",
     "TIFFINS_UNASSIGNED",
     "VERIFIED",
+    "AssignmentRunFact",
+    "PartnerFact",
     "PartnerRef",
+    "PayoutAccount",
+    "PayoutEligibility",
     "PickupRef",
     "ProfileCard",
     "anonymise_for_user",
     "application_reason",
+    "assignment_run_facts",
     "export_for_user",
     "get_partner",
+    "get_partners",
+    "partner_facts",
     "partner_for_user",
+    "partners_for_user",
+    "payout_account",
+    "payout_eligibility",
     "pickup",
     "profile_card",
     "tiffin_pickups",
@@ -92,6 +117,22 @@ def _ref(partner: Partner) -> PartnerRef:
 async def get_partner(session: AsyncSession, partner_id: uuid.UUID) -> PartnerRef | None:
     partner = await session.get(Partner, partner_id)
     return None if partner is None else _ref(partner)
+
+
+async def get_partners(
+    session: AsyncSession, partner_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, PartnerRef]:
+    """Several partners at once (M5's payout lists); unknown ids are left out."""
+    if not partner_ids:
+        return {}
+    rows = await session.execute(select(Partner).where(Partner.id.in_(set(partner_ids))))
+    return {partner.id: _ref(partner) for partner in rows.scalars()}
+
+
+async def partners_for_user(session: AsyncSession, user_id: uuid.UUID) -> list[PartnerRef]:
+    """Every partner record of a person, one per kind, whatever its status (M5's payouts and
+    the earnings statement she reads herself)."""
+    return [_ref(partner) for partner in await service.for_user(session, user_id)]
 
 
 async def partner_for_user(

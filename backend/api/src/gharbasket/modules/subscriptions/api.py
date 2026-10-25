@@ -1,30 +1,35 @@
 """Facade of M3 Plans & Subscriptions: the only module other modules may import."""
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.subscriptions import service
 from gharbasket.modules.subscriptions.models import (
+    PRODUCT_ACTIONS,
     BoxLine,
     BudgetLock,
     EditFeedback,
     PantryFeedback,
+    Subscription,
     WeeklyCycle,
 )
 from gharbasket.platform.locale import Language, localised
 
 MAX_QTY = service.MAX_QTY  # steps a line may hold
 DailyUseShare = service.DailyUseShare
+PAUSED_BATCH = 5_000  # ids per query: well under asyncpg's 32,767 parameters
 
 __all__ = [
     "MAX_QTY",
+    "CycleFact",
     "DailyUseShare",
     "LineEdit",
     "WeekLineView",
@@ -33,6 +38,7 @@ __all__ = [
     "acceptance_on",
     "current_cycle_of",
     "cycle_after",
+    "cycle_facts",
     "cycle_for",
     "daily_use_history",
     "delete_for_user",
@@ -40,6 +46,7 @@ __all__ = [
     "edit_cycle_lines",
     "export_for_user",
     "mark_locked",
+    "paused_households",
     "skip_cycle",
     "week_view",
 ]
@@ -320,3 +327,104 @@ async def delete_for_user(
 ) -> dict[str, int]:
     """M1's purge (M1 §3.5, order 7): everything M3 holds about the household."""
     return {} if household_id is None else await service.delete_for_user(session, household_id)
+
+
+@dataclass(frozen=True)
+class CycleFact:
+    """A weekly cycle for M12's acceptance KPIs (M12 §3.1): ids, dates, statuses and counts."""
+
+    cycle_id: uuid.UUID
+    household_id: uuid.UUID
+    hub_id: uuid.UUID
+    society_id: uuid.UUID
+    week_start: date
+    delivery_date: date
+    status: str
+    auto_approved: bool
+    approved_before_cutoff: bool  # approved (by the customer or auto-approve) by its cut-off
+    edits: int  # line edits (removed, added, qty up or down, swapped); meal changes not counted
+    plan_source: str  # ml | fallback
+    ran_out_taps: int
+    wasted_taps: int
+    just_right_taps: int  # with the two above, every pantry tap: `pantry_misses_bp`'s denominator
+    data_source: str
+
+
+async def cycle_facts(
+    session: AsyncSession,
+    *,
+    date_from: date,
+    date_to: date,
+    hub_ids: list[uuid.UUID] | None = None,
+) -> list[CycleFact]:
+    """Cycles delivering between the two IST dates (inclusive), every status, in id order. The
+    edits and taps are counted for those cycles only (by their cycle-id indexes), never over the
+    whole feedback tables."""
+    in_window = select(WeeklyCycle.id).where(
+        WeeklyCycle.delivery_date >= date_from, WeeklyCycle.delivery_date <= date_to
+    )
+    if hub_ids is not None:
+        in_window = in_window.where(WeeklyCycle.hub_id.in_(hub_ids))
+    product_edits = (
+        select(EditFeedback.cycle_id, func.count().label("n"))
+        .where(EditFeedback.action.in_(PRODUCT_ACTIONS), EditFeedback.cycle_id.in_(in_window))
+        .group_by(EditFeedback.cycle_id)
+        .subquery()
+    )
+    taps = (
+        select(
+            PantryFeedback.cycle_id,
+            func.count().filter(PantryFeedback.signal == "ran_out").label("ran_out"),
+            func.count().filter(PantryFeedback.signal == "wasted").label("wasted"),
+            func.count().filter(PantryFeedback.signal == "just_right").label("just_right"),
+        )
+        .where(PantryFeedback.cycle_id.in_(in_window))
+        .group_by(PantryFeedback.cycle_id)
+        .subquery()
+    )
+    approved_in_time = func.coalesce(WeeklyCycle.approved_at <= WeeklyCycle.cutoff_at, False)
+    stmt = (
+        select(
+            WeeklyCycle.id,
+            WeeklyCycle.household_id,
+            WeeklyCycle.hub_id,
+            WeeklyCycle.society_id,
+            WeeklyCycle.week_start,
+            WeeklyCycle.delivery_date,
+            WeeklyCycle.status,
+            WeeklyCycle.auto_approved,
+            approved_in_time,
+            func.coalesce(product_edits.c.n, 0),
+            WeeklyCycle.plan_source,
+            func.coalesce(taps.c.ran_out, 0),
+            func.coalesce(taps.c.wasted, 0),
+            func.coalesce(taps.c.just_right, 0),
+            WeeklyCycle.data_source,
+        )
+        .outerjoin(product_edits, product_edits.c.cycle_id == WeeklyCycle.id)
+        .outerjoin(taps, taps.c.cycle_id == WeeklyCycle.id)
+        .where(WeeklyCycle.delivery_date >= date_from, WeeklyCycle.delivery_date <= date_to)
+    )
+    if hub_ids is not None:
+        stmt = stmt.where(WeeklyCycle.hub_id.in_(hub_ids))
+    rows = await session.execute(stmt.order_by(WeeklyCycle.id))
+    return [CycleFact(*row) for row in rows.all()]
+
+
+async def paused_households(
+    session: AsyncSession, *, household_ids: Iterable[uuid.UUID], on: date
+) -> set[uuid.UUID]:
+    """Which of the households have their subscription paused on the IST date `on` (M12's
+    societies table, §3.3): status `paused` and no `paused_until`, or one after `on`. Ids only."""
+    ids = list(set(household_ids))
+    paused: set[uuid.UUID] = set()
+    for start in range(0, len(ids), PAUSED_BATCH):
+        rows = await session.execute(
+            select(Subscription.household_id).where(
+                Subscription.household_id.in_(ids[start : start + PAUSED_BATCH]),
+                Subscription.status == "paused",
+                or_(Subscription.paused_until.is_(None), Subscription.paused_until > on),
+            )
+        )
+        paused.update(rows.scalars())
+    return paused

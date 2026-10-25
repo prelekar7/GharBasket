@@ -109,9 +109,13 @@ async def list_hubs(session: AsyncSession, ids: set[uuid.UUID] | None) -> list[H
 
 
 async def get_hub(session: AsyncSession, hub_id: uuid.UUID, *, for_update: bool = False) -> Hub:
+    """The hub; `for_update` row-locks it so the hub's writers follow one another. The lock is
+    `FOR NO KEY UPDATE`: it never blocks a row that only refers to the hub (a foreign-key check
+    takes `KEY SHARE`), so a settle or a write-off that holds its own rows and inserts a waste log
+    cannot deadlock with the 12:30 run holding the hub and waiting for those rows."""
     stmt = select(Hub).where(Hub.id == hub_id)
     if for_update:
-        stmt = stmt.with_for_update()
+        stmt = stmt.with_for_update(key_share=True)
     hub = (await session.execute(stmt)).scalar_one_or_none()
     if hub is None:
         raise hub_not_found()

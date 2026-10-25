@@ -469,6 +469,32 @@ def test_the_small_hours_before_the_cut_off_run_the_weekly_and_nightly_jobs(
     assert summaries["monitor_drift"]["drifted"] == 0, summaries
 
 
+def test_monday_morning_pays_the_partners_last_week_once(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Monday T-1 10:00 IST (M5 §3.5): `weekly_payouts` pays what partners were owed up to Sunday
+    through the simulated provider and holds those who cannot be paid yet (the seed's captains
+    have no KYC application); a second run pays nothing more. `payouts_match_the_ledger` checks
+    the money at the end of the day."""
+    monday = day.t - timedelta(days=1)
+
+    async def go() -> tuple[dict[str, Any], dict[str, Any]]:
+        first = await app.job("weekly_payouts", ist(monday, 10, 0))
+        again = await app.job("weekly_payouts", ist(monday, 10, 5))
+        await app.sweep(ist(monday, 10, 10))
+        return first, again
+
+    first, again = step(loop, ist(monday, 10, 0), go())
+    assert (first["failed"], first["send_failed"], first["refused"]) == (0, 0, 0), first
+    assert first["processed"] == first["pending"] + first["retried"], first
+    assert (again["pending"], again["held"], again["processed"], again["failed"]) == (0, 0, 0, 0)
+    assert again["existing"] == first["pending"] + first["held"], again
+    entries = loop.run(
+        scalar(config, "SELECT count(*) FROM billing.journal_entries WHERE kind = 'payout'")
+    )
+    assert entries == first["pending"] + first["retried"], (entries, first)
+
+
 def test_reminders_go_to_unapproved_boxes_that_will_not_auto_approve(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:
@@ -747,11 +773,12 @@ def test_the_night_refunds_no_carried_items_when_none_waited(
 
 
 def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner) -> None:
-    """Tuesday T 03:43 to 04:33 IST: the daily logistics, platform, identity and notification
-    jobs."""
+    """Tuesday T 02:40 to 04:33 IST: the nightly analytics refresh (M12 §6), then the daily
+    logistics, platform, identity and notification jobs."""
     out: dict[str, Any] = {}
 
     async def go() -> None:
+        out["analytics"] = await app.job("refresh_analytics_nightly", ist(day.t, 2, 40))
         out["pings"] = await app.job("purge_gps_pings", ist(day.t, 3, 43))
         for name, hour, minute in (
             ("cleanup_idempotency_keys", 4, 3),
@@ -762,6 +789,9 @@ def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner)
 
     step(loop, ist(day.t, 4, 0), go())
     assert out["pings"] == {"deleted": 0, "partitions_dropped": 0}, out  # no rider sent a ping
+    # The simulated weeks delivered boxes within its 35 days, and their households signed up.
+    assert out["analytics"]["read"]["orders"] > 0, out["analytics"]
+    assert out["analytics"]["read"]["households"] > 0, out["analytics"]
 
 
 def test_packing_tasks_are_built_for_every_paid_box(
@@ -844,6 +874,36 @@ def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop
     assert summary["refunded"] == summary["refused"] == 0, summary
 
 
+def test_the_1230_run_closes_the_days_buying_and_has_no_surplus_to_offer(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 12:30: `surplus_cascade` (M6 §3.5). Nobody packs in the simulated day and no
+    goods were received, so nothing is drawn down or offered; the day's plan closes, and a second
+    run changes nothing."""
+    when = ist(day.t, 12, 30)
+
+    async def go() -> tuple[dict[str, Any], dict[str, Any]]:
+        first = await app.job("surplus_cascade", when)
+        again = await app.job("surplus_cascade", when + timedelta(minutes=2))
+        await app.sweep(when)
+        return first, again
+
+    first, again = step(loop, when, go())
+    empty = {"drawn_tasks": 0, "closed_purchase_orders": 0, "offers": 0, "binned": 0}
+    assert first == again == {"date": day.t.isoformat(), "hubs": 1, **empty}, (first, again)
+    status = loop.run(
+        scalar(
+            config,
+            "SELECT status FROM hub_ops.procurement_plans WHERE hub_id = :hub AND "
+            "delivery_date = :d",
+            hub=SEED_HUB_ID,
+            d=day.t,
+        )
+    )
+    assert status == "closed"
+    assert loop.run(scalar(config, "SELECT count(*) FROM hub_ops.surplus_offers")) == 0
+
+
 def test_lunch_tiffins_are_prompted_for_a_rating_at_1430(app: App, day: Day, loop: Runner) -> None:
     """Tuesday T 14:30: `prompt_tiffin_ratings` asks households to rate the day's delivered lunch
     tiffins (the day books no tiffin, so nothing is delivered and nobody is asked)."""
@@ -880,6 +940,27 @@ def test_the_logistics_evening_closes_routes_and_expires_holds_with_nothing_to_d
     }, again
     step(loop, when, app.sweep(when))
     loop.run(logistics_untouched(config, day))
+
+
+def test_the_analytics_refresh_and_a_rebuild_agree(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 20:50, a 15-minute `refresh_analytics` (M12 §3.2), then `rebuild_analytics` by
+    hand: facts are a cache of the source modules, so the rebuild through the facades gives the
+    same daily numbers for the refresh's window (M12 §9)."""
+    when = ist(day.t, 20, 50)
+    refreshed = step(loop, when, app.job("refresh_analytics", when))
+    assert refreshed["read"]["orders"] > 0, refreshed
+    window = (day.t - timedelta(days=3), day.t + timedelta(days=1))
+    sql = (
+        "SELECT * FROM analytics.mv_daily_hub_kpis WHERE date BETWEEN :a AND :b"
+        " ORDER BY hub_id, date, data_source"
+    )
+    before = loop.run(rows(config, sql, a=window[0], b=window[1]))
+    later = when + timedelta(minutes=5)
+    rebuilt = step(loop, later, app.job("rebuild_analytics", later))
+    assert rebuilt["read"]["orders"] >= refreshed["read"]["orders"], rebuilt
+    assert before and loop.run(rows(config, sql, a=window[0], b=window[1])) == before
 
 
 def test_every_event_of_the_day_that_m11_maps_became_a_message(

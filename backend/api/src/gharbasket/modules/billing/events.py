@@ -16,3 +16,7 @@ REFUND_TO_SOURCE_SETTLED = "billing.refund_to_source_settled"
 
 # { run_id, opened, kinds }: a reconciliation run opened items (spec §3.4); M11 tells admins.
 RECONCILIATION_MISMATCH = "billing.reconciliation_mismatch"
+
+# { payout_id, partner_id, amount_paise, status }: a partner's weekly payout ended `processed` or
+# `failed` at the provider (spec §3.5); M11 tells the partner.
+PAYOUT_SENT = "billing.payout_sent"

@@ -1,4 +1,8 @@
-"""Facade of M7 Logistics: the only module other modules may import."""
+"""Facade of M7 Logistics: the only module other modules may import.
+
+M1 exports and erases through it; M12 pulls `route_facts` for its analytics refresh (M12 §3.1) and
+reads `today_routes` for its today board (M12 §3.3).
+"""
 
 import uuid
 from typing import Any
@@ -6,8 +10,17 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.logistics import privacy
+from gharbasket.modules.logistics.facts import RouteFact, route_facts
+from gharbasket.modules.logistics.today import TodayRoutes, today_routes
 
-__all__ = ["anonymise_for_user", "export_for_user"]
+__all__ = [
+    "RouteFact",
+    "TodayRoutes",
+    "anonymise_for_user",
+    "export_for_user",
+    "route_facts",
+    "today_routes",
+]
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:

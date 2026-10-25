@@ -6,6 +6,9 @@
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
 - M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
+- M12 pulls `order_facts` and `issue_facts` for its analytics refresh, from
+  `first_delivery_date` on for a rebuild (M12 §3.1); its today board reads `open_issue_summary`
+  and `today_counts` (M12 §3.3).
 """
 
 import uuid
@@ -33,6 +36,13 @@ from gharbasket.modules.orders.events import (
     PAYMENT_FAILED,
     TIFFIN_BOOKED,
 )
+from gharbasket.modules.orders.facts import (
+    IssueFact,
+    OrderFact,
+    first_delivery_date,
+    issue_facts,
+    order_facts,
+)
 from gharbasket.modules.orders.fees import box_fee
 from gharbasket.modules.orders.models import (
     STATUSES,
@@ -53,6 +63,12 @@ from gharbasket.modules.orders.service import (
     orders_for_delivery,
 )
 from gharbasket.modules.orders.state import FINAL
+from gharbasket.modules.orders.today import (
+    OpenIssueSummary,
+    TodayCounts,
+    open_issue_summary,
+    today_counts,
+)
 from gharbasket.platform import files
 
 __all__ = [
@@ -73,8 +89,11 @@ __all__ = [
     "CarryOver",
     "CutoffCounts",
     "CycleLine",
+    "IssueFact",
     "Move",
+    "OpenIssueSummary",
     "Order",
+    "OrderFact",
     "OrderIssue",
     "OrderLine",
     "OrderRef",
@@ -82,6 +101,7 @@ __all__ = [
     "PaymentFailedOrder",
     "SlotRef",
     "SoldLine",
+    "TodayCounts",
     "anonymise_for_user",
     "box_fee",
     "cancel_from_cycle",
@@ -91,6 +111,7 @@ __all__ = [
     "create_from_cycle",
     "cutoff_for",
     "export_for_user",
+    "first_delivery_date",
     "get",
     "get_order_ref",
     "grace_until_for",
@@ -98,8 +119,11 @@ __all__ = [
     "has_open_issues",
     "has_open_orders",
     "hub_cutoff_counts",
+    "issue_facts",
     "last_move",
     "mark_shortage",
+    "open_issue_summary",
+    "order_facts",
     "order_ids_of_household",
     "orders_for_delivery",
     "refund_carry",
@@ -109,6 +133,7 @@ __all__ = [
     "slot_ref",
     "sold_lines",
     "summaries",
+    "today_counts",
     "transition",
 ]
 
