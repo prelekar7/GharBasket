@@ -444,17 +444,24 @@ class HubSociety:
 async def hub_societies(session: AsyncSession, *, hub_id: uuid.UUID) -> list[HubSociety]:
     """Every society the hub serves, whatever its status, by name (M12's societies table, §3.3):
     name, status and unlock progress; no captain, address or household."""
-    rows = await session.execute(
-        select(Society).where(Society.hub_id == hub_id).order_by(Society.name, Society.id)
+    societies = (
+        (
+            await session.execute(
+                select(Society).where(Society.hub_id == hub_id).order_by(Society.name, Society.id)
+            )
+        )
+        .scalars()
+        .all()
     )
+    joined = await identity_api.households_in_societies(session, [s.id for s in societies])
     return [
         HubSociety(
             id=society.id,
             name=society.name,
             status=society.status,
-            joined=await identity_api.households_in_society(session, society.id),
+            joined=joined[society.id],
             threshold=society.unlock_threshold,
             data_source=society.data_source,
         )
-        for society in rows.scalars()
+        for society in societies
     ]

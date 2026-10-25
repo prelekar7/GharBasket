@@ -28,15 +28,17 @@ async def societies(
     """The societies of the hub (every hub, for an admin who gives none) with the given data
     source, by name."""
     start = today - timedelta(days=WINDOW_DAYS - 1)
-    hub_ids = [hub_id] if hub_id is not None else await community_api.hubs_with_societies(session)
-    listed = [
-        society
-        for one in hub_ids
-        for society in await community_api.hub_societies(session, hub_id=one)
-        if society.data_source == source
-    ]
-    ids = [society.id for society in listed]
     async with read_limit(session):
+        hub_ids = (
+            [hub_id] if hub_id is not None else await community_api.hubs_with_societies(session)
+        )
+        listed = [
+            society
+            for one in hub_ids
+            for society in await community_api.hub_societies(session, hub_id=one)
+            if society.data_source == source
+        ]
+        ids = [society.id for society in listed]
         homes = defaultdict[uuid.UUID, list[uuid.UUID]](list)
         if ids:
             for household_id, society_id in (
