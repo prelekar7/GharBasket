@@ -1,7 +1,7 @@
 """subscriptions.api.cycle_facts: M12's acceptance rows (M12 §3.1)."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -134,3 +134,37 @@ async def test_cycle_facts_count_feedback_of_the_window_only(db_session: AsyncSe
     for table in ("edit_feedback", "pantry_feedback"):
         grouped = statement.split(f"FROM subscriptions.{table}", 1)[1].split("GROUP BY", 1)[0]
         assert "weekly_cycles.delivery_date >=" in grouped, grouped
+
+
+async def test_paused_households_are_those_whose_subscription_is_paused_on_the_day(
+    db_session: AsyncSession,
+) -> None:
+    plan_id = (
+        await db_session.execute(select(Plan.id).where(Plan.code == "autopilot"))
+    ).scalar_one()
+
+    def sub(status: str, paused_until: date | None = None) -> Subscription:
+        return Subscription(
+            household_id=uuid.uuid4(),
+            plan_id=plan_id,
+            payment_mode="wallet",
+            status=status,
+            paused_until=paused_until,
+        )
+
+    active, open_pause, still, over = (
+        sub("active"),
+        sub("paused"),
+        sub("paused", TUESDAY + timedelta(days=3)),
+        sub("paused", TUESDAY),  # resumes on the day itself
+    )
+    db_session.add_all([active, open_pause, still, over])
+    await db_session.flush()
+    ids = [s.household_id for s in (active, open_pause, still, over)]
+
+    paused = await subs_api.paused_households(
+        db_session, household_ids=[*ids, uuid.uuid4()], on=TUESDAY
+    )
+
+    assert paused == {open_pause.household_id, still.household_id}
+    assert await subs_api.paused_households(db_session, household_ids=[], on=TUESDAY) == set()

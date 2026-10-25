@@ -1520,6 +1520,129 @@
         "title": "AssignmentsOut",
         "type": "object"
       },
+      "BoardAttentionOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "kind": {
+            "enum": [
+              "issue_open",
+              "payment_failed",
+              "shortage",
+              "plan_needs_review",
+              "delivery_held",
+              "donations_to_verify",
+              "surplus_open",
+              "society_live"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "link": {
+            "description": "A console route, never a URL with a token",
+            "title": "Link",
+            "type": "string"
+          },
+          "oldest_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest At"
+          }
+        },
+        "required": [
+          "kind",
+          "count",
+          "oldest_at",
+          "due_at",
+          "link"
+        ],
+        "title": "BoardAttentionOut",
+        "type": "object"
+      },
+      "BoardBoxesOut": {
+        "properties": {
+          "by_society": {
+            "items": {
+              "$ref": "#/components/schemas/SocietyBoxesOut"
+            },
+            "title": "By Society",
+            "type": "array"
+          },
+          "cutoff_at": {
+            "format": "date-time",
+            "title": "Cutoff At",
+            "type": "string"
+          },
+          "locked": {
+            "description": "Boxes the cut-off locked (and any status after locked)",
+            "title": "Locked",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Boxes of the day, not cancelled",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "locked",
+          "cutoff_at",
+          "by_society"
+        ],
+        "title": "BoardBoxesOut",
+        "type": "object"
+      },
+      "BoardDeliveriesOut": {
+        "properties": {
+          "at_society": {
+            "title": "At Society",
+            "type": "integer"
+          },
+          "delivered": {
+            "title": "Delivered",
+            "type": "integer"
+          },
+          "held": {
+            "title": "Held",
+            "type": "integer"
+          },
+          "undelivered": {
+            "description": "Failed attempts, whatever happened to them since",
+            "title": "Undelivered",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at_society",
+          "delivered",
+          "held",
+          "undelivered"
+        ],
+        "title": "BoardDeliveriesOut",
+        "type": "object"
+      },
       "BoardMealOut": {
         "properties": {
           "accepted": {
@@ -1579,6 +1702,77 @@
           "unassigned"
         ],
         "title": "BoardMealOut",
+        "type": "object"
+      },
+      "BoardPackingOut": {
+        "properties": {
+          "bags_packed": {
+            "title": "Bags Packed",
+            "type": "integer"
+          },
+          "bags_total": {
+            "title": "Bags Total",
+            "type": "integer"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the last bag was packed, once all are",
+            "title": "Finished At"
+          }
+        },
+        "required": [
+          "bags_total",
+          "bags_packed",
+          "finished_at"
+        ],
+        "title": "BoardPackingOut",
+        "type": "object"
+      },
+      "BoardRoutesOut": {
+        "properties": {
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "late_stops": {
+            "title": "Late Stops",
+            "type": "integer"
+          },
+          "planned": {
+            "title": "Planned",
+            "type": "integer"
+          },
+          "started": {
+            "title": "Started",
+            "type": "integer"
+          },
+          "stops_done": {
+            "description": "Handed over or skipped",
+            "title": "Stops Done",
+            "type": "integer"
+          },
+          "stops_total": {
+            "title": "Stops Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "planned",
+          "started",
+          "completed",
+          "stops_total",
+          "stops_done",
+          "late_stops"
+        ],
+        "title": "BoardRoutesOut",
         "type": "object"
       },
       "BoardRunOut": {
@@ -1652,6 +1846,90 @@
         "title": "BoardRunOut",
         "type": "object"
       },
+      "BoardShortageOut": {
+        "properties": {
+          "bags": {
+            "description": "Bags with at least one step of it short",
+            "title": "Bags",
+            "type": "integer"
+          },
+          "name": {
+            "description": "In the caller's language (`Accept-Language`)",
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "name",
+          "bags"
+        ],
+        "title": "BoardShortageOut",
+        "type": "object"
+      },
+      "BoardStepOut": {
+        "properties": {
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IST HH:MM; the cut-off's is the day before",
+            "title": "Due At"
+          },
+          "key": {
+            "enum": [
+              "cutoff",
+              "procurement",
+              "receiving",
+              "packing",
+              "dispatch",
+              "delivery",
+              "surplus"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "current",
+              "issue",
+              "todo"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "due_at",
+          "state",
+          "note"
+        ],
+        "title": "BoardStepOut",
+        "type": "object"
+      },
       "BoardUnassignedOut": {
         "properties": {
           "order_id": {
@@ -1679,6 +1957,46 @@
           "reason"
         ],
         "title": "BoardUnassignedOut",
+        "type": "object"
+      },
+      "BoardWasteOut": {
+        "properties": {
+          "kg": {
+            "description": "Wasted that day (cascade to the bin)",
+            "title": "Kg",
+            "type": "number"
+          },
+          "previous_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest earlier day with sales or waste",
+            "title": "Previous Date"
+          },
+          "previous_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Kg"
+          }
+        },
+        "required": [
+          "kg",
+          "previous_kg",
+          "previous_date"
+        ],
+        "title": "BoardWasteOut",
         "type": "object"
       },
       "BudgetLockIn": {
@@ -8394,6 +8712,110 @@
           "partner_id"
         ],
         "title": "KitchenTakerIn",
+        "type": "object"
+      },
+      "KpisOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Finish time of the last run that refreshed it",
+            "title": "As Of"
+          },
+          "data_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "grain": {
+            "enum": [
+              "day",
+              "week"
+            ],
+            "title": "Grain",
+            "type": "string"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: every hub (admin only)",
+            "title": "Hub Id"
+          },
+          "periods": {
+            "description": "The first day of each period (ISO weeks start Monday)",
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "series": {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "description": "One value per period for every KPI key; null when undefined",
+            "title": "Series",
+            "type": "object"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "totals": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Over the whole range; rates recomputed from their parts, not averaged",
+            "title": "Totals",
+            "type": "object"
+          }
+        },
+        "required": [
+          "hub_id",
+          "data_source",
+          "grain",
+          "as_of",
+          "stale",
+          "periods",
+          "series",
+          "totals"
+        ],
+        "title": "KpisOut",
         "type": "object"
       },
       "KycCheckOut": {
@@ -19127,6 +19549,72 @@
         "title": "SlotsOut",
         "type": "object"
       },
+      "SocietiesOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hub Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SocietyRowOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "as_of",
+          "items"
+        ],
+        "title": "SocietiesOut",
+        "type": "object"
+      },
+      "SocietyBoxesOut": {
+        "properties": {
+          "boxes": {
+            "title": "Boxes",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "society_id",
+          "name",
+          "boxes"
+        ],
+        "title": "SocietyBoxesOut",
+        "type": "object"
+      },
       "SocietyLoad": {
         "properties": {
           "bags": {
@@ -19355,6 +19843,85 @@
           "created_at"
         ],
         "title": "SocietyRequestOut",
+        "type": "object"
+      },
+      "SocietyRowOut": {
+        "properties": {
+          "active_households": {
+            "description": "Delivered an order in the last 4 weeks",
+            "title": "Active Households",
+            "type": "integer"
+          },
+          "approved_on_time_bp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cycles approved before the cut-off, of the cycles generated, last 4 weeks",
+            "title": "Approved On Time Bp"
+          },
+          "average_box_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Net of refunds and credits, over delivered boxes of the last 4 weeks",
+            "title": "Average Box Paise"
+          },
+          "joined": {
+            "description": "Households whose address is in the society",
+            "title": "Joined",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "paused_households": {
+            "title": "Paused Households",
+            "type": "integer"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "threshold": {
+            "description": "Households that unlock free delivery",
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "society_id",
+          "name",
+          "status",
+          "joined",
+          "threshold",
+          "active_households",
+          "paused_households",
+          "approved_on_time_bp",
+          "average_box_paise"
+        ],
+        "title": "SocietyRowOut",
         "type": "object"
       },
       "SocietySummary": {
@@ -21719,6 +22286,77 @@
           }
         },
         "title": "TimingsPatch",
+        "type": "object"
+      },
+      "TodayOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "attention": {
+            "description": "One row per kind with a count above 0; kinds without a source are never sent",
+            "items": {
+              "$ref": "#/components/schemas/BoardAttentionOut"
+            },
+            "title": "Attention",
+            "type": "array"
+          },
+          "boxes": {
+            "$ref": "#/components/schemas/BoardBoxesOut"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "deliveries": {
+            "$ref": "#/components/schemas/BoardDeliveriesOut"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "packing": {
+            "$ref": "#/components/schemas/BoardPackingOut"
+          },
+          "routes": {
+            "$ref": "#/components/schemas/BoardRoutesOut"
+          },
+          "shortages": {
+            "items": {
+              "$ref": "#/components/schemas/BoardShortageOut"
+            },
+            "title": "Shortages",
+            "type": "array"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/BoardStepOut"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "waste": {
+            "$ref": "#/components/schemas/BoardWasteOut"
+          }
+        },
+        "required": [
+          "hub_id",
+          "date",
+          "as_of",
+          "boxes",
+          "packing",
+          "shortages",
+          "routes",
+          "deliveries",
+          "waste",
+          "steps",
+          "attention"
+        ],
+        "title": "TodayOut",
         "type": "object"
       },
       "TokensOut": {
@@ -29909,6 +30547,483 @@
           }
         ],
         "summary": "Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/analytics/hubs/{hub_id}/today": {
+      "get": {
+        "operationId": "hub_today_v1_analytics_hubs__hub_id__today_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "An IST delivery date from today - 7 to today + 1; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST delivery date from today - 7 to today + 1; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.range_invalid (a date before today - 7 or after today + 1)"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's today board: live counts, the day's steps and what needs attention (hub manager, franchise owner, admin)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/analytics/kpis": {
+      "get": {
+        "operationId": "kpi_series_v1_analytics_kpis_get",
+        "parameters": [
+          {
+            "description": "Left out: every hub (admin only)",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Left out: every hub (admin only)",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "An IST date; default the start of the last 12 weeks",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST date; default the start of the last 12 weeks",
+              "title": "From"
+            }
+          },
+          {
+            "description": "An IST date; default today",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST date; default today",
+              "title": "To"
+            }
+          },
+          {
+            "description": "day (≤ 92 days) or week (≤ 104 weeks)",
+            "in": "query",
+            "name": "grain",
+            "required": false,
+            "schema": {
+              "default": "week",
+              "description": "day (≤ 92 days) or week (≤ 104 weeks)",
+              "enum": [
+                "day",
+                "week"
+              ],
+              "title": "Grain",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required: `real` or `synthetic`, never pooled",
+            "in": "query",
+            "name": "data_source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "real",
+                    "synthetic"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required: `real` or `synthetic`, never pooled",
+              "title": "Data Source"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KpisOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.data_source_required · analytics.range_invalid · analytics.range_too_long"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "KPI series per day or ISO week, from the daily view (hub manager, franchise owner, admin; only an admin may leave the hub out)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/analytics/societies": {
+      "get": {
+        "operationId": "society_table_v1_analytics_societies_get",
+        "parameters": [
+          {
+            "description": "Left out: every hub (admin only)",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Left out: every hub (admin only)",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "Required: `real` or `synthetic`, never pooled",
+            "in": "query",
+            "name": "data_source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "real",
+                    "synthetic"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required: `real` or `synthetic`, never pooled",
+              "title": "Data Source"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietiesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.data_source_required"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Each society's unlock progress and the last 4 weeks' households, approval and box value (hub manager, franchise owner, admin; only an admin may leave the hub out)",
         "tags": [
           "analytics"
         ]
