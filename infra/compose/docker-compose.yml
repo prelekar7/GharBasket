@@ -47,7 +47,8 @@ services:
     image: valkey/valkey:8.1-alpine
     restart: unless-stopped
     # noeviction: the Taskiq queue lives here, so keys must never be silently dropped.
-    command: ["valkey-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    # 128 databases: parallel test workers each get their own (backend/api/tests/conftest.py).
+    command: ["valkey-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes", "--databases", "128"]
     ports:
       - "127.0.0.1:${VALKEY_PORT:-6380}:6379"
     volumes:

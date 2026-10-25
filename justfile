@@ -92,9 +92,9 @@ dev:
 dev-ml:
     APP_ENV=${APP_ENV:-dev} uv run uvicorn gharbasket_ml.main:create_app --factory --reload --port 8100
 
-# Run the Python tests with the coverage gate (single file: `uv run --directory backend/api pytest tests/test_x.py`)
+# Run the Python tests with the coverage gate; the API suite in parallel (4 xdist workers, each with its own Postgres database and Valkey db; single file: `uv run --directory backend/api pytest tests/test_x.py`, serial)
 test:
-    uv run --directory backend/api pytest --cov
+    uv run --directory backend/api pytest --cov -n 4 --dist worksteal
     uv run --directory backend/ml pytest --cov
     uv run --directory data/simulator pytest --cov
     uv run --directory backend/training pytest --cov

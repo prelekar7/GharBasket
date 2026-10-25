@@ -6,8 +6,9 @@ order, slot, society, product and user ids here, are plain UUIDs without a forei
 (ADR-0026 §5). Procurement (§3.3): one plan per hub and delivery date with a line per stocked
 product, and purchase orders per vendor. Receiving (§3.4): goods receipts, a lot per accepted line,
 a ledger of stock moves and weekly vendor scores. Kept items and returned bags (§3.5): what a box
-missed twice leaves on the shelf for its household. Operations quantities are NUMERIC(10,3) in the
-product's operations unit; money is paise; waste follows in a later PR.
+missed twice leaves on the shelf for its household. Waste logs and surplus offers (§3.5): what left
+stock other than by packing. Operations quantities are NUMERIC(10,3) in the product's operations
+unit; money is paise.
 """
 
 import uuid
@@ -503,6 +504,87 @@ class StockMove(Base):
     ref_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     reason: Mapped[str | None] = mapped_column(String(200))
     by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M1; null: a job
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# --- waste and surplus (spec §3.5) ---------------------------------------------------------------
+
+WASTE_REASONS = ("spoiled", "damaged", "expired", "pest", "surplus", "returned", "other")
+CASCADE_TO = ("kitchen", "ngo", "bin")
+OFFER_STATUSES = ("open", "taken", "declined", "expired")
+
+
+class SurplusOffer(Base):
+    """A lot's surplus offered to a kitchen or an NGO until the next 12:30 run moves it on."""
+
+    __tablename__ = "surplus_offers"
+    __table_args__ = (
+        CheckConstraint(_one_of("unit", OPS_UNITS), name="unit"),
+        CheckConstraint(_one_of("offered_to", ("kitchen", "ngo")), name="offered_to"),
+        CheckConstraint(_one_of("status", OFFER_STATUSES), name="status"),
+        CheckConstraint("qty > 0 AND (taken_qty IS NULL OR taken_qty >= 0)", name="qty"),
+        Index("ix_surplus_offers_hub_id_status", "hub_id", "status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    hub_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.hubs.id", ondelete="RESTRICT"))
+    lot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.inventory_lots.id", ondelete="RESTRICT")
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M2
+    qty: Mapped[Decimal] = _qty()
+    unit: Mapped[str] = mapped_column(String(8))
+    offered_to: Mapped[str] = mapped_column(String(8))
+    status: Mapped[str] = mapped_column(String(8), server_default="open")
+    taken_qty: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    # The offer this one follows in the cascade (kitchen, then NGO).
+    previous_offer_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.surplus_offers.id", ondelete="RESTRICT")
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    settled_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M1; null: the 12:30 run
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WasteLog(Base):
+    """A quantity that left stock other than by packing: written off by hub staff, or settled by
+    the cascade (`cascade_to` is where it went; only `bin` is waste for the KPI). `kg` is its
+    weight for the KPI, null when unknown."""
+
+    __tablename__ = "waste_logs"
+    __table_args__ = (
+        CheckConstraint(_one_of("unit", OPS_UNITS), name="unit"),
+        CheckConstraint(_one_of("reason", WASTE_REASONS), name="reason"),
+        CheckConstraint(_one_of("cascade_to", CASCADE_TO), name="cascade_to"),
+        CheckConstraint(
+            "taken_by_kind IS NULL OR taken_by_kind IN ('kitchen', 'ngo')", name="taken_by_kind"
+        ),
+        CheckConstraint("qty > 0 AND (kg IS NULL OR kg >= 0)", name="qty"),
+        Index("ix_waste_logs_hub_id_at", "hub_id", "at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    hub_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.hubs.id", ondelete="RESTRICT"))
+    lot_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.inventory_lots.id", ondelete="RESTRICT")
+    )  # null: stock that was never received in the system
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M2
+    qty: Mapped[Decimal] = _qty()
+    unit: Mapped[str] = mapped_column(String(8))
+    kg: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    reason: Mapped[str] = mapped_column(String(10))
+    cascade_to: Mapped[str] = mapped_column(String(8))
+    offer_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.surplus_offers.id", ondelete="RESTRICT")
+    )
+    taken_by_kind: Mapped[str | None] = mapped_column(String(8))
+    taken_by_partner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M8
+    taken_by_name: Mapped[str | None] = mapped_column(String(80))
+    note: Mapped[str | None] = mapped_column(String(300))
+    logged_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M1; null: the 12:30 job
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

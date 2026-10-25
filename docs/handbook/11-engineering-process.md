@@ -196,6 +196,8 @@ flowchart LR
 | Device / manual | Low-end Android checklist, accessibility audit (axe, TalkBack) | Rhythm Thakur, Manish Raje |
 | Security | OWASP ASVS L1 checklist, gitleaks, pip-audit, pnpm audit, Trivy image scan | All |
 
+**Parallel API tests.** `just test` and CI run the API suite with pytest-xdist (`-n 4`). Each worker gets a Postgres database of its own (`<TEST_DATABASE_URL's name>_gw0`, `_gw1` ..., created and migrated at the start, dropped at the end; `GB_KEEP_TEST_DBS=1` keeps them) and a Valkey database of its own (base index b becomes b + 16 * (n + 1), so Valkey needs `--databases 128`, which the compose file sets). The base database is not used under xdist: run `alembic upgrade head` on it before `alembic check`. A single file runs serially (`pytest tests/test_x.py`); add `-n 4` to a run of many files.
+
 Formal test plan and test-case documents (IEEE 829 style) for the report are written by Rhythm Thakur and Manish Raje.
 
 ## 11.7 Definitions of Ready and Done

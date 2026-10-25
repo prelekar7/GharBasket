@@ -82,12 +82,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect
     if: needs.detect.outputs.api == 'true'
-    services:
-      valkey:
-        image: valkey/valkey:8.1-alpine
-        ports: ["6380:6379"]
-        options: >-
-          --health-cmd "valkey-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
     env:
       # Database and Valkey tests must run here, not skip.
       GB_REQUIRE_SERVICES: "1"
@@ -95,6 +89,14 @@ jobs:
       TEST_VALKEY_URL: redis://localhost:6380/15
     steps:
       - uses: actions/checkout@v7
+
+      # A service container cannot pass arguments to valkey-server: the parallel test workers need
+      # 128 databases (one each; see backend/api/tests/conftest.py), the default is 16.
+      - name: Start Valkey
+        run: |
+          docker run --detach --name valkey --publish 6380:6379 \
+            --health-cmd "valkey-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20 \
+            valkey/valkey:8.1-alpine valkey-server --databases 128
 
       # Same image as local development (PostGIS + pgvector on Postgres 18), built from infra/postgres.
       - name: Start Postgres
@@ -128,7 +130,7 @@ jobs:
           exit 1
 
       - name: Tests (coverage gate in backend/api/pyproject.toml)
-        run: uv run --directory backend/api pytest --cov
+        run: uv run --directory backend/api pytest --cov -n 4 --dist worksteal
 
       - name: ML service tests (coverage gate in backend/ml/pyproject.toml)
         run: uv run --directory backend/ml pytest --cov
@@ -143,7 +145,10 @@ jobs:
         working-directory: backend/api
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
-        run: uv run alembic check
+        # The parallel test workers each migrate a database of their own, so migrate this one first.
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
 
       - name: OpenAPI contract is up to date (run `just openapi` if this fails)
         run: |

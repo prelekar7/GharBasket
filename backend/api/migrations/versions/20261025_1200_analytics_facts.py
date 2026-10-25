@@ -5,7 +5,7 @@ The fact tables are M12's own copy of the source modules' facts, pulled through 
 ever blocked by them.
 
 Revision ID: f5199f44ecf8
-Revises: 5b8e1c3d7a94
+Revises: 8d4f2a6c1e95
 Create Date: 2026-10-25 12:00:00.000000+00:00
 """
 
@@ -16,7 +16,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "f5199f44ecf8"
-down_revision: str | Sequence[str] | None = "5b8e1c3d7a94"
+down_revision: str | Sequence[str] | None = "8d4f2a6c1e95"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
