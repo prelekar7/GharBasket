@@ -282,6 +282,18 @@ class Assumption(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class AssumptionVersion(Base):
+    """The version of one hub's assumptions: the ETag of the GET and the If-Match of the PUT
+    (§3.4). A hub without a row is at version 1 (the defaults); each PUT that changes a value
+    adds 1. The PUT locks the row, so two writers holding the same version cannot both win."""
+
+    __tablename__ = "assumption_versions"
+    __table_args__ = (CheckConstraint("version >= 1", name="version"), {"schema": SCHEMA})
+
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, server_default="1")
+
+
 class AssumptionChange(Base):
     """One changed key of one assumptions PUT: the history the console shows (§3.4)."""
 
@@ -299,6 +311,8 @@ class AssumptionChange(Base):
     to_value: Mapped[int] = mapped_column(BigInteger)
     by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The hub's assumptions version this change produced: the keys of one PUT share it.
+    version: Mapped[int] = mapped_column(Integer, server_default="2")
 
 
 class RefreshRun(Base):

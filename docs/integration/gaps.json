@@ -204,34 +204,6 @@
       "milestone": "MS-D",
       "note": "M12 §3.5."
     },
-    "GET /v1/analytics/unit-economics": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.4."
-    },
-    "GET /v1/analytics/pnl": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.4."
-    },
-    "GET /v1/analytics/hubs/{}/assumptions": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.4."
-    },
-    "PUT /v1/analytics/hubs/{}/assumptions": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.4, needs If-Match."
-    },
     "GET /v1/analytics/impact": {
       "app": "console",
       "class": "later",
