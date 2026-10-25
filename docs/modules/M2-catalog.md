@@ -36,7 +36,7 @@ Everything that can be planned or sold: vegetables, fruits, staples, cut-vegetab
 | GET / PUT / DELETE | `/v1/hubs/{id}/price-lists[/{list_id}]` | hub_manager (hub), admin | — | List, read, replace today's or a future list, delete a future one (§3.3) |
 | GET / POST / PATCH / DELETE | `/v1/admin/festivals[/{date}/{code}/{region}]` | admin | Required (POST) | §3.3 |
 | GET | `/v1/hubs/{id}/tiffin-menus?status=&from=&to=` | catalog_editor, admin; hub_manager (hub, read) | — | §3.4; the review list, every status |
-| POST | `/v1/tiffin-menus/{id}/approve` · `/send-back` · `/reopen` | catalog_editor, admin | — | §3.4; only approved menus are bookable (M4 §3.5) |
+| POST | `/v1/tiffin-menus/{id}/approve` · `/send-back` · `/reopen` | hub_manager (hub), catalog_editor, admin | — | §3.4; only approved menus are bookable (M4 §3.5) |
 
 ### 3.1 Catalog contract (frozen for S1)
 The Box, Substitute and add-on search screens and the backend build against these shapes. Changing them needs a PR reviewed by both Prathamesh and Yash. Every endpoint needs sign-in (Bearer or the web cookie, M1 §3.1).
@@ -338,7 +338,7 @@ GET /v1/hubs/{hub_id}/tiffin-menus?status=&from=&to=&cursor=&limit=
     status: any of the four; from, to: dates, default today to today + 7; limit ≤ 100, default 50
   200 Page[TiffinMenuReview]   submitted first (oldest submitted_at first), then by date and meal
 
-POST /v1/tiffin-menus/{id}/approve      catalog_editor, admin (tiffin_menus:review); body {}
+POST /v1/tiffin-menus/{id}/approve      hub_manager (hub), catalog_editor, admin (tiffin_menus:review); body {}
   200 TiffinMenuReview (approved, version + 1)    an approved menu again: 200, unchanged
   409 "catalog.menu_not_submitted" · 409 "catalog.menu_closed" (past order_by)
   422 "catalog.menu_invalid" { "reasons": ["product_inactive" | "recipe_inactive" | "price_invalid"] }
@@ -369,7 +369,7 @@ every action: 404 "catalog.menu_not_found" (unknown id) · 403 "auth.forbidden" 
 | `is_new`, `proposed_at`, `decided_by: "Vikram Desai"` | `submitted_at`; `decided_by { user_id, name }` |
 | `send-back { note }`, 422 without a note | Same |
 | 404 `tiffin.not_found`, 409 `tiffin.not_waiting` | 404 `catalog.menu_not_found`, 409 `catalog.menu_not_submitted` |
-| Staff roles admin, hub_manager | Review by catalog_editor and admin; a hub manager reads only |
+| Staff roles admin, hub_manager | Same: review by the hub manager (own hub), catalog_editor and admin |
 
 ## 4. Tables owned
 | Table | Key columns |
@@ -407,7 +407,7 @@ Both jobs are outbox consumers of `catalog.product_changed` (ADR-0021).
 | `prices:write` | hub_manager (hub), admin |
 | `tiffin_menus:write` | kitchen_partner (own; the menu write is not specified yet, §3.4) |
 | `tiffin_menus:read` | catalog_editor, admin, hub_manager (hub) (the review list, §3.4) |
-| `tiffin_menus:review` | catalog_editor, admin (approve, send back, reopen; §3.4, owner's provisional decision of 2026-10-25, replacing "hub_manager (approve)") |
+| `tiffin_menus:review` | hub_manager (hub), catalog_editor, admin (approve, send back, reopen; §3.4, owner 2026-10-25) |
 | `catalog:admin_read` | admin, hub_manager (the admin lists in §3.3, to build price lists), catalog_editor |
 
 ## 8. Screens
