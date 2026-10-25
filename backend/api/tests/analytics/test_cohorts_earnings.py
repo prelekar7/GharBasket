@@ -13,10 +13,12 @@ from zoneinfo import ZoneInfo
 import httpx2
 import pytest
 import time_machine
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.analytics import cohorts, earnings, kpis, refresh
 from gharbasket.modules.analytics.models import FactHousehold, RefreshRun
+from gharbasket.modules.identity.models import User, UserRole
 
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
@@ -219,6 +221,29 @@ async def test_a_week_is_reached_once_it_has_ended() -> None:
     assert cohorts.reached(OCT5, 3, sunday) is False
 
 
+async def test_a_week_counts_only_once_the_view_has_been_refreshed_after_it(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    await seed_cohorts(db_session)
+    # The last nightly refresh ran on Saturday 31 Oct: the week of 26 Oct had not ended then, so
+    # its Sunday's deliveries are not in the view yet and its rate would read low
+    ran_nightly(db_session, datetime(2026, 10, 31, 2, 45, tzinfo=IST))
+    await db_session.flush()
+    api, admin = await signed_in(clients, google, NEHA)
+
+    body = (await get_cohorts(api, admin, hub_id=str(HUB), weeks=12)).json()
+
+    assert body["stale"] is True
+    assert body["cohorts"][0]["retention_bp"][:4] == [9_000, 8_000, None, None]
+    assert cohorts.covered_to(date(2026, 11, 3), None) == date(2026, 11, 3)
+    assert cohorts.covered_to(date(2026, 11, 3), datetime(2026, 11, 2, 2, 45, tzinfo=IST)) == date(
+        2026, 11, 2
+    )  # Monday's run has the whole of last week
+    assert cohorts.covered_to(
+        date(2026, 11, 3), datetime(2026, 11, 2, 21, 0, tzinfo=ZoneInfo("UTC"))
+    ) == date(2026, 11, 3)  # 21:00 UTC is already Tuesday in IST
+
+
 async def test_data_sources_are_never_pooled(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
@@ -333,11 +358,11 @@ async def test_the_weekly_distribution_with_percentiles_and_the_gini(
             "p90_paise": 46_000,  # rank 3.6
             "gini_bp": 2_667,
         },
-        # Four kitchens: the total only. Percentiles and the Gini could point at one person
+        # Four kitchens: the count only. The total, percentiles and Gini could point at one person
         {
             "week": "2026-11-02",
             "partners": 4,
-            "total_paise": 100_000,
+            "total_paise": None,
             "p10_paise": None,
             "median_paise": None,
             "p90_paise": None,
@@ -358,7 +383,7 @@ async def test_kinds_are_kept_apart(
 
     assert riders.status_code == 200, riders.text
     weeks = riders.json()["weeks"]
-    assert [(w["partners"], w["total_paise"]) for w in weeks] == [(1, 8_000), (1, 8_000)]
+    assert [(w["partners"], w["total_paise"]) for w in weeks] == [(1, None), (1, None)]
     assert all(w["median_paise"] is None for w in weeks)  # one rider: no distribution at all
     captains = await get_earnings(api, owner, kind="captain", **window)
     assert [w["partners"] for w in captains.json()["weeks"]] == [0, 0]
@@ -421,21 +446,56 @@ async def test_every_hub_is_one_distribution_not_an_average_of_hubs(
     assert (other["partners"], other["median_paise"], other["gini_bp"]) == (3, None, None)
 
 
+async def test_under_five_partners_only_the_count_is_sent_to_anyone(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """One paid captain: their week's total is their earnings, so no caller gets it (the
+    endpoint is "distribution only, no individual"); four is still too few, five is enough."""
+    week = date(2026, 10, 19)
+    db_session.add_all(
+        [
+            earning(1, week, "captain", 4_321),
+            *(earning(i, WEEK1, "captain", 1_000 * i) for i in range(10, 14)),
+            *(earning(i, WEEK2, "captain", 1_000 * i) for i in range(20, 25)),
+        ]
+    )
+    await db_session.flush()
+    await refresh.refresh_views(db_session, refresh.VIEWS)
+    window = {"kind": "captain", "from": "2026-10-19", "to": "2026-11-08"}
+    hidden = {"total_paise", "p10_paise", "median_paise", "p90_paise", "gini_bp"}
+
+    for phone in (VIKRAM, SANJAY, NEHA):
+        api, auth = await signed_in(clients, google, phone)
+        answer = await get_earnings(api, auth, hub_id=str(HUB), **window)
+        assert answer.status_code == 200, answer.text
+        one, four, five = answer.json()["weeks"]
+        assert one["partners"] == 1 and four["partners"] == 4, phone
+        assert all(one[key] is None and four[key] is None for key in hidden), phone
+        assert (five["partners"], five["total_paise"]) == (5, 110_000), phone
+        assert 4_321 not in [value for w in answer.json()["weeks"] for value in w.values()]
+    every = (await get_earnings(api, auth, **window)).json()["weeks"]  # the admin, every hub
+    assert [w["partners"] for w in every] == [1, 4, 5]
+    assert [w["total_paise"] for w in every] == [None, None, 110_000]
+    assert every[0] == {"week": "2026-10-19", "partners": 1} | dict.fromkeys(hidden)
+
+
 async def test_data_sources_are_never_pooled_in_earnings(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     await seed_facts(db_session)  # one synthetic kitchen paid 1 paisa in week 2
     api, admin = await signed_in(clients, google, NEHA)
-    window = {"from": "2026-11-02", "to": "2026-11-08"}
+    window = {"from": "2026-10-26", "to": "2026-11-08"}
 
     synthetic = await get_earnings(api, admin, hub_id=str(HUB), data_source="synthetic", **window)
     real = await get_earnings(api, admin, hub_id=str(HUB), **window)
 
-    assert synthetic.json()["weeks"][0]["partners"] == 1
-    assert synthetic.json()["weeks"][0]["total_paise"] == 1
-    assert real.json()["weeks"][0]["total_paise"] == 100_000
+    assert [w["partners"] for w in synthetic.json()["weeks"]] == [0, 1]
+    # The synthetic kitchen is neither a fifth partner in week 2 nor part of week 1's numbers
+    assert [w["partners"] for w in real.json()["weeks"]] == [5, 4]
+    assert real.json()["weeks"][0]["total_paise"] == 150_000
+    assert real.json()["weeks"][0]["gini_bp"] == 2_667
     pooled = await get_earnings(api, admin, data_source="synthetic", **window)
-    assert pooled.json()["weeks"][0]["total_paise"] == 1
+    assert [w["partners"] for w in pooled.json()["weeks"]] == [0, 1]
 
 
 async def test_empty_ranges_list_every_week_with_nobody_paid(
@@ -453,7 +513,7 @@ async def test_empty_ranges_list_every_week_with_nobody_paid(
         {
             "week": week,
             "partners": 0,
-            "total_paise": 0,
+            "total_paise": None,
             "p10_paise": None,
             "median_paise": None,
             "p90_paise": None,
@@ -495,6 +555,26 @@ async def test_earnings_follow_the_hub_scope(
     admin_api, admin = await signed_in(clients, google, NEHA)
     every = await get_earnings(admin_api, admin)
     assert every.status_code == 200 and every.json()["hub_id"] is None
+
+
+async def test_only_the_role_that_reads_analytics_opens_a_hub(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """Vikram manages the seed hub and also packs at the other one: the packer grant carries no
+    `analytics:read`, so it opens nothing, with or without the role switcher."""
+    await seed_facts(db_session)
+    vikram = await db_session.scalar(select(User.id).where(User.phone_e164 == VIKRAM))
+    db_session.add(UserRole(user_id=vikram, role="packer", scope_type="hub", scope_id=OTHER_HUB))
+    await db_session.flush()
+    api, manager = await signed_in(clients, google, VIKRAM)
+
+    assert (await get_earnings(api, manager, hub_id=str(HUB))).status_code == 200
+    elsewhere = await get_earnings(api, manager, hub_id=str(OTHER_HUB))
+    assert elsewhere.status_code == 403 and elsewhere.json()["code"] == "auth.forbidden"
+    as_packer = {**manager, "X-Active-Role": f"packer:{OTHER_HUB}"}
+    for hub in (HUB, OTHER_HUB):
+        refused = await get_earnings(api, as_packer, hub_id=str(hub))
+        assert refused.status_code == 403 and refused.json()["code"] == "auth.forbidden"
 
 
 @pytest.mark.parametrize(
@@ -548,7 +628,9 @@ async def test_percentiles_interpolate_and_round_half_up() -> None:
     assert earnings.percentile_paise([1, 2], half) == 2  # 1.5 rounds up
     assert earnings.percentile_paise([7], ninth) == 7
     row = earnings.week_row(date(2026, 11, 2), [3, 1, 2, 4])
-    assert (row.partners, row.total_paise, row.median_paise, row.gini_bp) == (4, 10, None, None)
+    assert (row.partners, row.total_paise, row.median_paise, row.gini_bp) == (4, None, None, None)
+    five = earnings.week_row(date(2026, 11, 2), [3, 1, 2, 4, 5])
+    assert (five.partners, five.total_paise, five.median_paise) == (5, 15, 3)
 
 
 # --- the research metrics (§3.5) -------------------------------------------------------------

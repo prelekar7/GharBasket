@@ -229,7 +229,9 @@ class CohortsOut(BaseModel):
 class PartnerEarningsWeekOut(BaseModel):
     week: date = Field(description="The Monday of the ISO week")
     partners: int = Field(description="Partners paid something that week")
-    total_paise: int
+    total_paise: int | None = Field(
+        description="Null under 5 paid partners: one partner's total is their earnings"
+    )
     p10_paise: int | None = Field(description="Null under 5 paid partners")
     median_paise: int | None = Field(description="Null under 5 paid partners")
     p90_paise: int | None = Field(description="Null under 5 paid partners")

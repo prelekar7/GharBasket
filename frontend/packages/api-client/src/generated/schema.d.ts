@@ -9646,8 +9646,11 @@ export interface components {
              * @description Partners paid something that week
              */
             partners: number;
-            /** Total Paise */
-            total_paise: number;
+            /**
+             * Total Paise
+             * @description Null under 5 paid partners: one partner's total is their earnings
+             */
+            total_paise: number | null;
             /**
              * Week
              * Format: date

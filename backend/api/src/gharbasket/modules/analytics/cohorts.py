@@ -5,14 +5,14 @@ source, for one hub or every hub (the households and the active ones are added u
 
 import uuid
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import BigInteger, Date, SmallInteger, String, Uuid, column, func, select, table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.analytics import freshness
 from gharbasket.modules.analytics.kpis import BP, ratio
-from gharbasket.modules.analytics.reads import monday, read_limit
+from gharbasket.modules.analytics.reads import IST, monday, read_limit
 from gharbasket.modules.analytics.schemas import CohortOut, CohortsOut, KpiSource
 from gharbasket.platform.errors import ProblemError
 
@@ -48,6 +48,13 @@ def reached(cohort_week: date, offset: int, today: date) -> bool:
     return cohort_week + timedelta(weeks=offset, days=6) < today
 
 
+def covered_to(today: date, as_of: datetime | None) -> date:
+    """The day the view has seen: today, or the IST day of its last refresh when that is earlier.
+    The view is nightly, so until a refresh has run after a week's Sunday (or when one failed),
+    that week's deliveries are not all in it yet and its rate would read low."""
+    return today if as_of is None else min(today, as_of.astimezone(IST).date())
+
+
 async def cohorts(
     session: AsyncSession, hub_id: uuid.UUID | None, source: KpiSource, weeks: int, today: date
 ) -> CohortsOut:
@@ -72,6 +79,7 @@ async def cohorts(
     async with read_limit(session):
         rows = (await session.execute(stmt)).all()
         fresh = await freshness.freshness(session, "mv_cohorts")
+    seen = covered_to(today, fresh.as_of)
 
     sizes: dict[date, int] = {}
     active = defaultdict[date, dict[int, int]](dict)
@@ -91,7 +99,7 @@ async def cohorts(
                 small=sizes[week] < SMALL_COHORT,
                 retention_bp=[
                     ratio(active[week].get(offset, 0), sizes[week], BP)
-                    if reached(week, offset, today)
+                    if reached(week, offset, seen)
                     else None
                     for offset in range(1, weeks + 1)
                 ],

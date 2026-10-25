@@ -13404,8 +13404,16 @@
             "type": "integer"
           },
           "total_paise": {
-            "title": "Total Paise",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners: one partner's total is their earnings",
+            "title": "Total Paise"
           },
           "week": {
             "description": "The Monday of the ISO week",

@@ -1,8 +1,8 @@
 """Partner earnings (spec §3.5): the weekly distribution of what one kind of partner earned,
 never an individual. One hub reads `mv_partner_earnings_weekly`; an admin who gives no hub gets
 the same numbers over every hub, worked out from the weekly partner facts beside it (one Gini,
-not an average of hubs'). Percentiles and the Gini are `null` under 5 paid partners: fewer says
-nothing and could point at one person.
+not an average of hubs'). Under 5 paid partners only the count is sent: the total, percentiles
+and Gini are `null`, since fewer says nothing and one partner's total is their earnings.
 """
 
 import math
@@ -51,18 +51,36 @@ def percentile_paise(ascending: list[int], p: Fraction) -> int:
     return math.floor(value + Fraction(1, 2))
 
 
+def private(row: PartnerEarningsWeekOut) -> PartnerEarningsWeekOut:
+    """Under 5 paid partners only the count leaves M12, for every caller: with one partner the
+    total is that person's earnings, and with a few it is close to it."""
+    if row.partners >= MIN_PARTNERS:
+        return row
+    return row.model_copy(
+        update={
+            "total_paise": None,
+            "p10_paise": None,
+            "median_paise": None,
+            "p90_paise": None,
+            "gini_bp": None,
+        }
+    )
+
+
 def week_row(week: date, paid: list[int]) -> PartnerEarningsWeekOut:
     """One week's distribution over what each paid partner earned."""
     ranked = sorted(paid)
     enough = len(ranked) >= MIN_PARTNERS
-    return PartnerEarningsWeekOut(
-        week=week,
-        partners=len(ranked),
-        total_paise=sum(ranked),
-        p10_paise=percentile_paise(ranked, Fraction(1, 10)) if enough else None,
-        median_paise=percentile_paise(ranked, Fraction(1, 2)) if enough else None,
-        p90_paise=percentile_paise(ranked, Fraction(9, 10)) if enough else None,
-        gini_bp=gini_bp(ranked),
+    return private(
+        PartnerEarningsWeekOut(
+            week=week,
+            partners=len(ranked),
+            total_paise=sum(ranked),
+            p10_paise=percentile_paise(ranked, Fraction(1, 10)) if enough else None,
+            median_paise=percentile_paise(ranked, Fraction(1, 2)) if enough else None,
+            p90_paise=percentile_paise(ranked, Fraction(9, 10)) if enough else None,
+            gini_bp=gini_bp(ranked),
+        )
     )
 
 
@@ -91,14 +109,16 @@ async def _from_view(
         )
     )
     return {
-        week: PartnerEarningsWeekOut(
-            week=week,
-            partners=int(partners),
-            total_paise=int(total),
-            p10_paise=p10,
-            median_paise=median,
-            p90_paise=p90,
-            gini_bp=gini,
+        week: private(
+            PartnerEarningsWeekOut(
+                week=week,
+                partners=int(partners),
+                total_paise=int(total),
+                p10_paise=p10,
+                median_paise=median,
+                p90_paise=p90,
+                gini_bp=gini,
+            )
         )
         for week, partners, total, p10, median, p90, gini in rows.all()
     }
@@ -135,8 +155,8 @@ async def partner_earnings(
     start: date,
     end: date,
 ) -> PartnerEarningsOut:
-    """Every ISO week from `start` to `end`; a week nobody was paid in has 0 partners and no
-    percentiles."""
+    """Every ISO week from `start` to `end`; a week nobody was paid in has 0 partners and nothing
+    else."""
     first, last = monday(start), monday(end)
     async with read_limit(session):
         found = (
