@@ -20,6 +20,7 @@ from gharbasket.modules.community.models import Donation, DonationDrive, Donatio
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform import files
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
@@ -281,11 +282,14 @@ async def record_pickup(
 ) -> Donation | None:
     """`collected` makes a scheduled donation `picked_up`; `not_ready` rolls it once to the
     society's next delivery date, then cancels it. None (nothing done) when it is not scheduled
-    any more, so a redelivered report changes nothing."""
+    any more, so a redelivered report changes nothing. A `not_ready` for a day before its pickup
+    date is one already rolled (a redelivered report): it would otherwise cancel it."""
     donation = await session.get(Donation, donation_id, with_for_update=True)
     if donation is None or donation.status != "scheduled":
         return None
     if outcome != "collected":
+        if donation.pickup_on > on:
+            return None
         await not_ready(session, donation, by_user_id, today=on)
         return donation
     donation.picked_up_on, donation.picked_up_by_user_id = on, by_user_id
@@ -295,6 +299,22 @@ async def record_pickup(
         await files.set_delete_after(session, key, kept_until)
     await record_event(session, donation, "picked_up", by_user_id)
     return donation
+
+
+async def on_pickup_completed(session: AsyncSession, event: OutboxEvent) -> None:
+    """`logistics.pickup_completed` (M7 §3.6): each donation's outcome at the stop, by its rider
+    on the route's date. A donation no longer scheduled is skipped, so a replay changes nothing."""
+    payload = event.payload
+    rider = payload.get("rider_user_id")
+    on = date.fromisoformat(payload["delivery_date"])
+    for outcome in payload.get("donations", []):
+        await record_pickup(
+            session,
+            uuid.UUID(outcome["donation_id"]),
+            outcome["status"],
+            by_user_id=None if rider is None else uuid.UUID(rider),
+            on=on,
+        )
 
 
 async def not_ready(

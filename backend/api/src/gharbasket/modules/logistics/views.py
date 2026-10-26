@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import plans
+from gharbasket.modules.logistics import pickups, plans
 from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop, booked
 from gharbasket.modules.logistics.routing import clock
 from gharbasket.modules.logistics.schemas import (
@@ -116,6 +116,7 @@ async def stop_views(session: AsyncSession, route: Route, stops: list[RouteStop]
     }
     back = await _redelivery_bags(session, [s.id for s in stops])
     etas = eta_now(route, stops)
+    taken_back = await pickups.stop_pickups(session, route, stops)
     out = []
     for stop in stops:
         society = slot = point = card = None
@@ -146,6 +147,7 @@ async def stop_views(session: AsyncSession, route: Route, stops: list[RouteStop]
                 bags=stop.bags,
                 redelivery_bags=back.get(stop.id, 0),
                 empties_expected=stop.empties_expected,
+                pickups=taken_back.get(stop.id),
                 captain=None if card is None else CaptainOut(**vars(card)),
                 rider_mode=stop.rider_mode,
                 handover_code=stop.handover_code if route.status == "in_progress" else None,

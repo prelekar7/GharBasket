@@ -1757,6 +1757,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/pickups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A hub's return-leg pickups for a date, per stop, with totals
+         * @description Made when each route starts, so the list is empty before. Flat labels for hub staff; no names or phones.
+         */
+        get: operations["hub_pickups_v1_hubs__hub_id__pickups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/price-lists": {
         parameters: {
             query?: never;
@@ -3791,6 +3811,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stops/{stop_id}/pickups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report the empties, donations and bags taken back at a stop (Idempotency-Key)
+         * @description The route's rider, while it is in progress. A report may name a part: `empties` replaces the stop's count; each donation and bag is set once. Each change publishes logistics.pickup_completed (M9 records the donations, M6 unpacks the bags).
+         */
+        post: operations["report_pickups_v1_stops__stop_id__pickups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stops/{stop_id}/skip": {
         parameters: {
             query?: never;
@@ -4775,6 +4815,25 @@ export interface components {
         AssignmentsOut: {
             /** Items */
             items: components["schemas"]["AssignmentOut"][];
+        };
+        /** BagPickupOut */
+        BagPickupOut: {
+            /**
+             * Flat Label
+             * @description As for donations
+             * @example B wing, 402
+             */
+            flat_label: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "expected" | "collected" | "not_ready";
         };
         /** BoardAttentionOut */
         BoardAttentionOut: {
@@ -5843,6 +5902,44 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** DonationPickupOut */
+        DonationPickupOut: {
+            /**
+             * Donation Id
+             * Format: uuid
+             */
+            donation_id: string;
+            /**
+             * Flat Label
+             * @description Rider-mode stops of a route in progress (and the hub's list) only
+             * @example B wing, 402
+             */
+            flat_label: string | null;
+            /**
+             * Items
+             * @description M9's summary
+             * @example clothes 3 kg, toys 2
+             */
+            items: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "expected" | "collected" | "not_ready";
+        };
+        /** DonationReport */
+        DonationReport: {
+            /**
+             * Donation Id
+             * Format: uuid
+             */
+            donation_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "collected" | "not_ready";
+        };
         /** DonationsOut */
         DonationsOut: {
             /** Items */
@@ -6333,6 +6430,13 @@ export interface components {
              * @example 2027-W02
              */
             week: string;
+        };
+        /** EmptiesTotal */
+        EmptiesTotal: {
+            /** Collected */
+            collected: number;
+            /** Expected */
+            expected: number;
         };
         /** Entry */
         Entry: {
@@ -7453,6 +7557,51 @@ export interface components {
             /** Status */
             status?: ("active" | "paused") | null;
             timings?: components["schemas"]["TimingsPatch"] | null;
+        };
+        /** HubPickupStop */
+        HubPickupStop: {
+            /** Empties Expected */
+            empties_expected: number;
+            /** @description Flat labels always (hub staff) */
+            pickups: components["schemas"]["StopPickups"];
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /** Seq */
+            seq: number;
+            society: components["schemas"]["gharbasket__modules__logistics__schemas__SocietyRef"];
+            /**
+             * Stop Id
+             * Format: uuid
+             */
+            stop_id: string;
+            /**
+             * Stop Status
+             * @enum {string}
+             */
+            stop_status: "pending" | "arrived" | "handed_over" | "skipped";
+            vehicle: components["schemas"]["VehicleRef"];
+        };
+        /** HubPickupsOut */
+        HubPickupsOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Items
+             * @description By departure, vehicle label, seq
+             */
+            items: components["schemas"]["HubPickupStop"][];
+            totals: components["schemas"]["PickupTotals"];
         };
         /** HubSummary */
         HubSummary: {
@@ -10430,6 +10579,51 @@ export interface components {
         PickedUpBy: {
             /** Name */
             name: string | null;
+        };
+        /** PickupCount */
+        PickupCount: {
+            /** Collected */
+            collected: number;
+            /** Expected */
+            expected: number;
+            /**
+             * Not Ready
+             * @default 0
+             */
+            not_ready: number;
+        };
+        /** PickupTotals */
+        PickupTotals: {
+            bags: components["schemas"]["PickupCount"];
+            donations: components["schemas"]["PickupCount"];
+            empties: components["schemas"]["EmptiesTotal"];
+        };
+        /**
+         * PickupsIn
+         * @description A part of a stop's pickups: `empties` replaces the stop's count; each donation and bag is
+         *     set once.
+         */
+        PickupsIn: {
+            /**
+             * Bags
+             * @description Scanned bag QRs: collected
+             * @example [
+             *       "GB1:0199a0000000700080000000000000ab"
+             *     ]
+             */
+            bags?: string[];
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /** Donations */
+            donations?: components["schemas"]["DonationReport"][];
+            /**
+             * Empties
+             * @example 4
+             */
+            empties?: number | null;
         };
         /**
          * PingIn
@@ -13934,7 +14128,7 @@ export interface components {
             crates: number;
             /**
              * Empties Expected
-             * @description §3.6
+             * @description §3.6: planned at the solve, set again at start
              * @example 2
              */
             empties_expected: number;
@@ -13979,6 +14173,8 @@ export interface components {
              * @example https://www.google.com/maps/dir/?api=1&destination=19.03,73.03
              */
             navigate_url: string | null;
+            /** @description §3.6: what the van takes back here, from route start */
+            pickups?: components["schemas"]["StopPickups"] | null;
             /**
              * Redelivery Bags
              * @description Redelivery bags the van carries for this stop (§3.4)
@@ -14010,6 +14206,19 @@ export interface components {
              * @description True: the rider hands over and does the doors today
              */
             rider_mode: boolean;
+        };
+        /** StopPickups */
+        StopPickups: {
+            /** Bags */
+            bags: components["schemas"]["BagPickupOut"][];
+            /** Donations */
+            donations: components["schemas"]["DonationPickupOut"][];
+            /**
+             * Empties Collected
+             * @description Crates the van took back here; null until reported
+             * @example 4
+             */
+            empties_collected: number | null;
         };
         /** StopSlot */
         StopSlot: {
@@ -24045,6 +24254,69 @@ export interface operations {
             };
         };
     };
+    hub_pickups_v1_hubs__hub_id__pickups_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubPickupsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_price_lists_v1_hubs__hub_id__price_lists_get: {
         parameters: {
             query?: {
@@ -32912,6 +33184,89 @@ export interface operations {
             };
             /** @description logistics.code_attempts_exceeded */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    report_pickups_v1_stops__stop_id__pickups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                stop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PickupsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_your_route */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stop_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_started, logistics.route_closed, logistics.stop_skipped, logistics.pickup_already_reported (donation_ids, order_ids) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.pickup_unknown (donation_ids, bags), request.invalid, request.idempotency_mismatch */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
