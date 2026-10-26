@@ -358,6 +358,15 @@ every action: 404 "catalog.menu_not_found" (unknown id) · 403 "auth.forbidden" 
 - **New dependency:** M2 reads the kitchen's display name through `partners.api.profile_card` (M8) and the reviewer's name through `identity.api.user_names` (M1). Both are read-only facades.
 - **Permissions:** `tiffin_menus:read` and `tiffin_menus:review` are new (§7).
 
+**As built (§3.4).**
+- **Scope.** A hub manager reads and reviews only the menus of their own hubs (403 `auth.forbidden` otherwise, after the 404 for an unknown id). A catalog editor or an admin covers every hub. The list answers 422 `request.invalid` when `to` is before `from`.
+- **Order of refusals.** Approve: 404, 403, then an approved menu is a 200 (even after its cut-off); `catalog.menu_not_submitted`; `catalog.menu_closed`; `catalog.menu_invalid`. Send back is allowed after the cut-off (a menu that was never approved was never bookable). Reopen: `catalog.menu_not_decided` (a `submitted` or `withdrawn` menu), then `catalog.menu_closed`. `reasons` come in the order `product_inactive`, `recipe_inactive`, `price_invalid`.
+- **Audit and event.** Reopen is audit-logged and published like the other two (`status: "submitted"`). A repeated approve of an approved menu writes nothing and publishes nothing.
+- **The list.** Paged by a cursor on the same order (waiting first by `submitted_at`, then date, meal and id). `from` and `to` default to today and today + 7 (IST). `contains` lists the dishes' non-optional ingredients in dish order, then by English name, each name once. `rules` are all false for a menu without dishes. `kitchen.display_name` is null if the partner record is gone; the card is read once per kitchen through `partners.api.profile_card`.
+- **Send-back note.** Trimmed; blank is 422 like a missing one.
+- **Migration.** One file shared with M9 §3.9 (`20261025_1500_catalog_community_review_columns`): `submitted_at` starts as the menu's `created_at`, `version` at 1, and `draft` rows become `submitted`.
+- **Seed.** `just seed` does not write tiffin menus yet (menus are written by tests until the kitchen's own flow is specified), so there is nothing to change there.
+
 | Mock today (`mocks/tiffin.js`) | Contract |
 |---|---|
 | `GET /v1/hubs/{id}/tiffin-menus?status=` → `{ items: TiffinDish[] }` | Same path and Page, every status; items are `TiffinMenuReview` |

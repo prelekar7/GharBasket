@@ -43,6 +43,7 @@ from gharbasket.modules.catalog.schemas import (
     Substitutes,
 )
 from gharbasket.modules.catalog.substitutes import substitutes as rank_substitutes
+from gharbasket.modules.catalog.tiffin_review_router import router as tiffin_review_router
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
@@ -57,6 +58,7 @@ router = APIRouter(tags=["catalog"])
 router.include_router(admin_router)  # the console's editor (§3.3)
 router.include_router(recipe_admin_router)
 router.include_router(calendar_prices_router)
+router.include_router(tiffin_review_router)  # the tiffin menu review (§3.4)
 
 # Products change rarely; the PWA's service worker caches them per language (spec §3.1).
 CATALOG_CACHE = "private, max-age=300"
