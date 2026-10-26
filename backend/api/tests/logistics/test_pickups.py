@@ -13,6 +13,7 @@ import time_machine
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.community import donations
 from gharbasket.modules.community.models import Donation
 from gharbasket.modules.hub_ops import jobs as hub_jobs
 from gharbasket.modules.hub_ops.models import KeptItem
@@ -292,6 +293,17 @@ async def test_the_rider_takes_back_donations_and_a_held_bag_and_m9_records_them
         assert (rows[clothes].status, rows[clothes].picked_up_on) == ("picked_up", DAY)
         assert str(rows[clothes].picked_up_by_user_id) == rider_id
         assert (rows[toys].status, rows[toys].pickup_on) == ("scheduled", NEXT_TUESDAY)
+        # A redelivered event changes nothing: the rolled donation is not cancelled.
+        for payload in sent:
+            await donations.on_pickup_completed(
+                db_session, OutboxEvent(event_type="logistics.pickup_completed", payload=payload)
+            )
+        await db_session.refresh(rows[toys])
+        assert (rows[toys].status, rows[toys].pickup_on, rows[toys].pickup_misses) == (
+            "scheduled",
+            NEXT_TUESDAY,
+            1,
+        )
         unsent = await db_session.scalar(
             select(func.count())
             .select_from(OutboxEvent)
@@ -371,6 +383,16 @@ async def test_only_the_routes_rider_reports_and_hub_managers_and_admins_list(
         other = await rider_of(SEED_HUB_ID, "+919800000951")
         theirs = await report(api, other, stop_id, {"empties": 1})
         assert (theirs.status_code, theirs.json()["code"]) == (403, "logistics.not_your_route")
+        # A hub manager who also rides does not report for the route's rider (§11, decision 5).
+        boss, _ = await find_or_create_user(db_session, "+919800000953")
+        for role in ("rider", "hub_manager"):
+            db_session.add(
+                UserRole(user_id=boss.id, role=role, scope_type="hub", scope_id=SEED_HUB_ID)
+            )
+        await db_session.commit()
+        both = await as_user(api, google, "+919800000953")
+        for_him = await report(api, both, stop_id, {"empties": 1})
+        assert (for_him.status_code, for_him.json()["code"]) == (403, "logistics.not_your_route")
         elsewhere = await rider_of(OTHER_HUB, "+919800000952")
         lost = await report(api, elsewhere, stop_id, {"empties": 1})
         assert (lost.status_code, lost.json()["code"]) == (404, "logistics.stop_not_found")

@@ -18,7 +18,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import case, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
@@ -100,13 +100,23 @@ async def open_empties(session: AsyncSession, society_ids: list[uuid.UUID]) -> d
 
 async def expect(session: AsyncSession, route: Route, stops: list[RouteStop]) -> None:
     """The expected pickups of each drop stop that has none yet (route start, or the first report
-    on a route that started before §3.6 shipped)."""
+    on a route that started before §3.6 shipped).
+
+    Each society is locked first, in id order, so two routes starting at once with a stop at the
+    same society neither both expect its donations and bags nor count its open empties twice."""
+    todo: list[tuple[RouteStop, uuid.UUID]] = []
     for stop in stops:
-        society_id = stop.society_id
-        if stop.kind != "drop" or society_id is None:
+        if stop.kind != "drop" or stop.society_id is None:
             continue
         if await session.scalar(select(Pickup.id).where(Pickup.stop_id == stop.id).limit(1)):
             continue
+        todo.append((stop, stop.society_id))
+    for society_id in sorted({s for _, s in todo}):
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"logistics:pickups:{society_id}"},
+        )
+    for stop, society_id in todo:
         base = {
             "stop_id": stop.id,
             "route_id": route.id,

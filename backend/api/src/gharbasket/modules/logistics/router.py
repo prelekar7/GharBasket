@@ -670,7 +670,8 @@ async def report_pickups(
     stop_id: uuid.UUID, body: PickupsIn, permit: CanDrive, session: DbSession, idem: Idempotent
 ) -> StopOut:
     stop, route, who = await execution.get_stop(session, stop_id, permit)
-    execution.ensure_driver(route, who)
+    if route.rider_user_id != who.user_id:  # not a hub manager for him either (§11, decision 5)
+        raise ProblemError(403, "logistics.not_your_route", "This route is another rider's.")
     execution.ensure_running(route)
     changed = await pickups.report(session, route, stop, who.user_id, body)
     if changed is not None:

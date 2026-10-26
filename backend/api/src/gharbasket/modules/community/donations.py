@@ -282,11 +282,14 @@ async def record_pickup(
 ) -> Donation | None:
     """`collected` makes a scheduled donation `picked_up`; `not_ready` rolls it once to the
     society's next delivery date, then cancels it. None (nothing done) when it is not scheduled
-    any more, so a redelivered report changes nothing."""
+    any more, so a redelivered report changes nothing. A `not_ready` for a day before its pickup
+    date is one already rolled (a redelivered report): it would otherwise cancel it."""
     donation = await session.get(Donation, donation_id, with_for_update=True)
     if donation is None or donation.status != "scheduled":
         return None
     if outcome != "collected":
+        if donation.pickup_on > on:
+            return None
         await not_ready(session, donation, by_user_id, today=on)
         return donation
     donation.picked_up_on, donation.picked_up_by_user_id = on, by_user_id
