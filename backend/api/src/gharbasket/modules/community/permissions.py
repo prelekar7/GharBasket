@@ -25,3 +25,7 @@ for role in ("hub_manager", "admin", "ngo_coordinator"):
 PERMISSIONS.allow("ngo_coordinator", "ngo_offers:claim", "ngo_handoffs:confirm")
 for role in ("hub_manager", "ngo_coordinator"):
     PERMISSIONS.allow(role, "ngo_handoffs:write")
+# The staff society list and the society request review (§3.9). Requests have no hub until they are
+# accepted, so any hub manager reviews; a society's hub is checked per request.
+for role in ("hub_manager", "admin"):
+    PERMISSIONS.allow(role, "societies:read", "society_requests:review")

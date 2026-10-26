@@ -32,6 +32,7 @@ from gharbasket.modules.community.schemas import (
     Tower,
     UnlockOut,
 )
+from gharbasket.modules.community.staff_router import router as staff_router
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
@@ -48,6 +49,7 @@ router.include_router(referral_router)
 router.include_router(drive_router)
 router.include_router(donation_router)
 router.include_router(ngo_router)
+router.include_router(staff_router)
 
 SEARCH_LIMIT = 50
 # Society requests per user per day (spec §3.1).

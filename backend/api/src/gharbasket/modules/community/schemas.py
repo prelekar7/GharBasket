@@ -218,3 +218,89 @@ class ReferralClaimOut(BaseModel):
     status: Literal["joined"]
     referee_points: int = Field(examples=[250])
     converts_on: Literal["first_delivered_box"]
+
+
+# --- the staff society list and society request review (§3.9) -------------------------------------
+
+
+class GeoPolygon(BaseModel):
+    """GeoJSON, WGS 84, `[lng, lat]` (M6 §3.1's shape)."""
+
+    type: Literal["Polygon"]
+    coordinates: list[list[list[float]]]
+
+
+class HubRef(BaseModel):
+    id: uuid.UUID
+    name: str | None = Field(examples=["Kharghar hub"])
+
+
+class AdminSociety(BaseModel):
+    """A society as hub staff and admins see it: never a captain or a requester."""
+
+    id: uuid.UUID
+    slug: str
+    name: str
+    area: str | None
+    status: SocietyStatus
+    hub: HubRef | None = Field(description="null: no hub yet (admins only)")
+    households: int = Field(description="Households whose address is in it (the unlock count)")
+    unlock_threshold: int
+    unlock_threshold_pinned: bool
+    threshold_source: Literal["model", "hub", "default"]
+    live_at: datetime | None
+    flats: int | None
+    towers: list[Tower]
+    boundary: GeoPolygon | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class LatLngOut(BaseModel):
+    lat: float
+    lng: float
+
+
+class SocietyRequestAdmin(BaseModel):
+    """A society request in the review queue: never the requester's id, name or phone."""
+
+    id: uuid.UUID
+    name: str
+    area: str | None
+    location: LatLngOut | None
+    note: str | None
+    status: Literal["received", "accepted", "duplicate", "rejected"]
+    society_id: uuid.UUID | None = Field(description="The society it became (accepted)")
+    duplicate_of: uuid.UUID | None = Field(description="The society it repeats (duplicate)")
+    created_at: datetime
+    reviewed_at: datetime | None
+
+
+class SocietyRequestAcceptIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hub_id: uuid.UUID | None = Field(
+        default=None,
+        description="Default: the caller's hub for a hub manager, none for an admin",
+    )
+
+
+class SocietyRequestDuplicateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    society_id: uuid.UUID | None = Field(
+        default=None, description="Any listed society; missing or unknown is 422"
+    )
+
+
+class SocietyRequestUndoIn(BaseModel):
+    """The undo of "Duplicate": `{ "status": "received" }` and nothing else."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["received"]
+
+
+class SocietyRequestAccepted(BaseModel):
+    request: SocietyRequestAdmin
+    society: AdminSociety

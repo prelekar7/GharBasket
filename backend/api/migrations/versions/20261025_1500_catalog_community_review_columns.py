@@ -18,6 +18,7 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 CATALOG = "catalog"
+COMMUNITY = "community"
 
 
 def upgrade() -> None:
@@ -62,9 +63,22 @@ def upgrade() -> None:
         "char_length(decision_note) <= 500",
         schema=CATALOG,
     )
+    # M9 §3.9: who reviewed a society request, and when.
+    op.add_column(
+        "society_requests",
+        sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
+        schema=COMMUNITY,
+    )
+    op.add_column(
+        "society_requests",
+        sa.Column("reviewed_by_user_id", sa.Uuid(), nullable=True),
+        schema=COMMUNITY,
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("society_requests", "reviewed_by_user_id", schema=COMMUNITY)
+    op.drop_column("society_requests", "reviewed_at", schema=COMMUNITY)
     op.drop_constraint(op.f("ck_tiffin_menus_decision_note"), "tiffin_menus", schema=CATALOG)
     op.drop_constraint(op.f("ck_tiffin_menus_status"), "tiffin_menus", schema=CATALOG)
     op.execute("UPDATE catalog.tiffin_menus SET status = 'withdrawn' WHERE status = 'sent_back'")
