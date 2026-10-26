@@ -174,13 +174,6 @@
       "fix": "PATCH /v1/admin/hubs/{hub_id} with If-Match (the version from the GET) and any of { name, address, location, service_area, status, timings, procurement_buffer_pct, pre_live_box_fee_paise }; 412 request.version_mismatch → reload. No switches, languages or quiet hours; the change history is the audit log, not shown.",
       "note": "M6 §3.1 (admin; audit-logged)."
     },
-    "GET /v1/hubs/{}/staff": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M1 §3.6: HubStaff with names and masked phones; no today or last_week_paise."
-    },
     "POST /v1/hubs/{}/staff-invitations": {
       "app": "console",
       "class": "drop",
@@ -246,20 +239,6 @@
       "owner": "prathamesh",
       "milestone": "MS-A",
       "note": "M9 §3.9."
-    },
-    "GET /v1/admin/users": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M1 §3.6 (drafted 2026-10-25): ?phone=, ?q=, ?staff=true, ?pending=true; admin only, audit-logged."
-    },
-    "DELETE /v1/admin/user-roles/{}": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M1 §3.6: revokes a staff grant or cancels a pending one; partner and customer roles are 409 identity.role_not_removable."
     },
     "POST /v1/tiffin-menus/{}/approve": {
       "app": "console",

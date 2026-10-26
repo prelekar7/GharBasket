@@ -36,6 +36,7 @@ on:
     - cron: "3 22 * * *" # 03:33 IST daily: monitor_drift
     - cron: "43 22 * * *" # 04:13 IST daily: sweep_uploads
     - cron: "53 22 * * *" # 04:23 IST daily: expire_data_exports
+    - cron: "48 22 * * *" # 04:18 IST daily: expire_pending_grants
     - cron: "40 20 * * 0" # 02:10 IST Monday: recompute_unlock_thresholds
     - cron: "40 21 * * *" # 03:10 IST daily: expire_referrals
     - cron: "03 19 * * *" # 00:33 IST daily: expire_kindness_points
@@ -89,6 +90,7 @@ jobs:
             "3 22 * * *") job=monitor_drift ;;
             "43 22 * * *") job=sweep_uploads ;;
             "53 22 * * *") job=expire_data_exports ;;
+            "48 22 * * *") job=expire_pending_grants ;;
             "40 20 * * 0") job=recompute_unlock_thresholds ;;
             "40 21 * * *") job=expire_referrals ;;
             "03 19 * * *") job=expire_kindness_points ;;
