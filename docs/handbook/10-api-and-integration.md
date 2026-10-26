@@ -164,7 +164,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngos`, `/ngo/offers`, `/ngo-handoffs`, `/impact`; console: `/admin/societies`, `/admin/society-requests` (M9 §3.9) |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
 | M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
-| M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, unit economics, impact) |
+| M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, cohorts, partner earnings, unit economics, impact) |
 | M13 assistant | `/assistant/messages` (JSON in v0; SSE later), `/assistant/sessions/{id}`, `/assistant/confirm/{proposal}`, `/assistant/proposals/{id}/reject` |
 
 ## 10.6 External integrations
