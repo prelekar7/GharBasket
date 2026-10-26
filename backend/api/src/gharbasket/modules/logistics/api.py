@@ -1,7 +1,7 @@
 """Facade of M7 Logistics: the only module other modules may import.
 
 M1 exports and erases through it; M12 pulls `route_facts` for its analytics refresh (M12 §3.1) and
-reads `today_routes` for its today board (M12 §3.3).
+reads `today_routes` for its today board (M12 §3.3). M9 and M6 consume `PICKUP_COMPLETED` (§3.6).
 """
 
 import uuid
@@ -10,10 +10,12 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.logistics import privacy
+from gharbasket.modules.logistics.events import PICKUP_COMPLETED
 from gharbasket.modules.logistics.facts import RouteFact, route_facts
 from gharbasket.modules.logistics.today import TodayRoutes, today_routes
 
 __all__ = [
+    "PICKUP_COMPLETED",
     "RouteFact",
     "TodayRoutes",
     "anonymise_for_user",

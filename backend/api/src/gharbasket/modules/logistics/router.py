@@ -1,5 +1,5 @@
-"""HTTP endpoints of M7 Logistics: vehicles (spec §3.1), route plans (§3.2) and rider execution
-(§3.3)."""
+"""HTTP endpoints of M7 Logistics: vehicles (spec §3.1), route plans (§3.2), rider execution
+(§3.3), the handover and doors (§3.4), the delivery card (§3.5) and return-leg pickups (§3.6)."""
 
 import uuid
 from datetime import date, datetime, timedelta
@@ -20,6 +20,7 @@ from gharbasket.modules.logistics import (
     handover,
     jobs,
     live,
+    pickups,
     plans,
     service,
     tracking,
@@ -42,8 +43,10 @@ from gharbasket.modules.logistics.schemas import (
     FlatsOut,
     HandoverIn,
     HandoverOut,
+    HubPickupsOut,
     LocationIn,
     LocationOut,
+    PickupsIn,
     PlanKind,
     PlanSummary,
     ProofIn,
@@ -636,6 +639,76 @@ async def skip_stop(
         session, route, stop, who, reason=body.reason, note=body.note, client_at=body.client_at
     )
     return await _stop_answer(session, idem, route, stop)
+
+
+# --- return-leg pickups (§3.6) ------------------------------------------------------------------
+
+CanReadPickups = Annotated[Permit, require("pickups:read")]
+
+
+@router.post(
+    "/stops/{stop_id}/pickups",
+    summary="Report the empties, donations and bags taken back at a stop (Idempotency-Key)",
+    description="The route's rider, while it is in progress. A report may name a part: `empties` "
+    "replaces the stop's count; each donation and bag is set once. Each change publishes "
+    "logistics.pickup_completed (M9 records the donations, M6 unpacks the bags).",
+    responses={
+        **CREATES,
+        404: _problem("logistics.stop_not_found"),
+        403: _problem("auth.forbidden, logistics.not_your_route"),
+        409: _problem(
+            "logistics.route_not_started, logistics.route_closed, logistics.stop_skipped, "
+            "logistics.pickup_already_reported (donation_ids, order_ids)"
+        ),
+        422: _problem(
+            "logistics.pickup_unknown (donation_ids, bags), request.invalid, "
+            "request.idempotency_mismatch"
+        ),
+    },
+)
+async def report_pickups(
+    stop_id: uuid.UUID, body: PickupsIn, permit: CanDrive, session: DbSession, idem: Idempotent
+) -> StopOut:
+    stop, route, who = await execution.get_stop(session, stop_id, permit)
+    if route.rider_user_id != who.user_id:  # not a hub manager for him either (§11, decision 5)
+        raise ProblemError(403, "logistics.not_your_route", "This route is another rider's.")
+    execution.ensure_running(route)
+    changed = await pickups.report(session, route, stop, who.user_id, body)
+    if changed is not None:
+        counts = {
+            "empties": changed["empties"],
+            "donations": len(changed["donations"]),
+            "bags": len(changed["bag_order_ids"]),
+        }
+        execution.tap(session, route, "pickup", who, body.client_at, stop=stop, payload=counts)
+        await session.flush()
+    return await _stop_answer(session, idem, route, stop)
+
+
+@router.get(
+    "/hubs/{hub_id}/pickups",
+    summary="A hub's return-leg pickups for a date, per stop, with totals",
+    description="Made when each route starts, so the list is empty before. Flat labels for hub "
+    "staff; no names or phones.",
+    responses={
+        **SIGNED_IN,
+        404: _problem("hub_ops.hub_not_found"),
+        422: _problem("logistics.date_out_of_range"),
+    },
+)
+async def hub_pickups(
+    hub_id: uuid.UUID,
+    permit: CanReadPickups,
+    session: DbSession,
+    response: Response,
+    day: Day = None,
+) -> HubPickupsOut:
+    permit.ensure(hub_id)
+    await service.ensure_hub(session, hub_id)
+    on = _within(day or datetime.now(IST).date(), -7, 1)
+    totals, items = await pickups.hub_list(session, hub_id, on)
+    response.headers["Cache-Control"] = "no-store"
+    return HubPickupsOut(hub_id=hub_id, date=on, totals=totals, items=items)
 
 
 # --- GPS and live tracking (§3.3) ---------------------------------------------------------------

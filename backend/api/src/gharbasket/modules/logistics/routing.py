@@ -34,6 +34,7 @@ class Stop:
     orders: int
     crates: int
     kg_tenths: int
+    empties: int = 0  # crates to take back (§3.6); the fallback ignores them
 
 
 @dataclass(frozen=True)
