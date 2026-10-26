@@ -134,20 +134,6 @@
       "milestone": "MS-D",
       "note": "M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url)."
     },
-    "GET /v1/analytics/partner-earnings": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.5."
-    },
-    "GET /v1/analytics/cohorts": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.5."
-    },
     "GET /v1/analytics/impact": {
       "app": "console",
       "class": "later",
