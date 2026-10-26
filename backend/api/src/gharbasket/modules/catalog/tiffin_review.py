@@ -111,8 +111,12 @@ async def list_menus(
 
 
 async def get(session: AsyncSession, menu_id: uuid.UUID, *, lock: bool = False) -> TiffinMenu:
+    """The menu; `lock` takes the row lock and reloads it, since the router's scope check has
+    already put an unlocked copy in the session (a concurrent decision must be seen)."""
     stmt = select(TiffinMenu).where(TiffinMenu.id == menu_id)
-    menu = (await session.execute(stmt.with_for_update() if lock else stmt)).scalar_one_or_none()
+    if lock:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    menu = (await session.execute(stmt)).scalar_one_or_none()
     if menu is None:
         raise not_found()
     return menu
@@ -187,7 +191,7 @@ async def reviews(
                     "submitted_at": menu.submitted_at,
                     "decided_at": menu.decided_at,
                     "decided_by": menu.decided_by
-                    and {"id": menu.decided_by, "name": reviewers.get(menu.decided_by)},
+                    and {"user_id": menu.decided_by, "name": reviewers.get(menu.decided_by)},
                     "note": menu.decision_note,
                     "version": menu.version,
                 }

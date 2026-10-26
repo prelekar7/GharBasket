@@ -9765,6 +9765,16 @@ export interface components {
             /** Tags */
             tags: string[];
         };
+        /** MenuReviewer */
+        MenuReviewer: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /**
          * MenuRules
          * @description True only when every dish's recipe has the rule (§3.2); false for a menu without dishes.
@@ -15557,7 +15567,8 @@ export interface components {
             date: string;
             /** Decided At */
             decided_at: string | null;
-            decided_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /** @description The reviewer (staff) */
+            decided_by: components["schemas"]["MenuReviewer"] | null;
             /** Dishes */
             dishes: components["schemas"]["MenuDish"][];
             /**

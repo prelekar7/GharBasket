@@ -9,13 +9,14 @@ from typing import Any
 import httpx2
 import pytest
 import time_machine
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import tiffin_review
 from gharbasket.modules.catalog.models import Product, Recipe, TiffinMenu
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.modules.partners import api as partners_api
+from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID, seed_partners
 
@@ -172,7 +173,7 @@ async def test_a_menu_is_approved_then_booked_and_reopened_by_the_hub_manager(
     assert approved.status_code == 200, approved.text
     one = approved.json()
     assert one["status"] == "approved" and one["version"] == 2 and one["note"] is None
-    assert one["decided_by"] == {"id": str(vikram_id), "name": "Vikram Desai"}
+    assert one["decided_by"] == {"user_id": str(vikram_id), "name": "Vikram Desai"}
     assert one["decided_at"] == "2026-10-10T10:00:00Z"
     assert again.status_code == 200 and again.json() == one  # unchanged, version too
     assert [m["id"] for m in after.json()["items"]] == [str(waiting)]
@@ -246,7 +247,7 @@ async def test_a_menu_is_sent_back_with_a_reason_and_undone(
     one = sent.json()
     assert sent.status_code == 200, sent.text
     assert one["status"] == "sent_back" and one["note"] == "Add the dal" and one["version"] == 2
-    assert one["decided_by"]["id"] == str(rekha_id)
+    assert one["decided_by"]["user_id"] == str(rekha_id)
     assert code(twice) == (409, "catalog.menu_not_submitted")
     assert code(approve_sent) == (409, "catalog.menu_not_submitted")
     assert code(on_approved) == (409, "catalog.menu_not_submitted")
@@ -328,3 +329,25 @@ async def test_who_may_review_which_hub(
     assert anonymous.status_code == 401
     other_menu = await db_session.get(TiffinMenu, elsewhere)
     assert other_menu is not None and other_menu.status == "approved"  # by the editor, not Vikram
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_decision_reads_the_locked_row_not_the_scope_checks_copy(
+    db_session: AsyncSession,
+) -> None:
+    """Approve and send-back at once: the router's scope check loads the menu unlocked, so the
+    locked read must reload it, or the second request would overwrite the first's decision."""
+    made = await menu(db_session, TOMORROW, status="submitted")
+    menu_id = made.id
+    await db_session.commit()
+    await tiffin_review.get(db_session, menu_id)  # the scope check's unlocked copy
+    # Another request approves it meanwhile (plain SQL: this session's copy is not told).
+    await db_session.execute(
+        text("UPDATE catalog.tiffin_menus SET status = 'approved', version = 2 WHERE id = :id"),
+        {"id": menu_id},
+    )
+
+    with pytest.raises(ProblemError) as refused:
+        await tiffin_review.send_back(db_session, menu_id, uuid.uuid4(), "Too late")
+
+    assert refused.value.code == "catalog.menu_not_submitted"

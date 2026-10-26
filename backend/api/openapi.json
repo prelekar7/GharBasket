@@ -12452,6 +12452,32 @@
         "title": "MenuProduct",
         "type": "object"
       },
+      "MenuReviewer": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "MenuReviewer",
+        "type": "object"
+      },
       "MenuRules": {
         "description": "True only when every dish's recipe has the rule (§3.2); false for a menu without dishes.",
         "properties": {
@@ -25975,12 +26001,13 @@
           "decided_by": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/gharbasket__modules__catalog__schemas__UserRef"
+                "$ref": "#/components/schemas/MenuReviewer"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The reviewer (staff)"
           },
           "dishes": {
             "items": {

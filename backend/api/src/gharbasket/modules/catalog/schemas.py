@@ -558,6 +558,11 @@ class MenuDish(BaseModel):
     name: str
 
 
+class MenuReviewer(BaseModel):
+    user_id: uuid.UUID
+    name: str | None
+
+
 class MenuRules(BaseModel):
     """True only when every dish's recipe has the rule (§3.2); false for a menu without dishes."""
 
@@ -582,7 +587,7 @@ class TiffinMenuReview(BaseModel):
     order_by: datetime = Field(description="The date's cut-off: 21:00 IST the day before")
     submitted_at: datetime
     decided_at: datetime | None
-    decided_by: UserRef | None
+    decided_by: MenuReviewer | None = Field(description="The reviewer (staff)")
     note: str | None = Field(description="The send-back reason")
     version: int
 
