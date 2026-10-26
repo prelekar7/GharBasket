@@ -345,6 +345,11 @@ GET /v1/admin/plans          admin (plans:admin_read); names in Accept-Language
 - **Plans stay seeded.** There is no plan write. `POST /v1/admin/plans` and `PATCH /v1/admin/plans/{code}` are dropped: a plan's fee is a price, and the catalogue is the seed's (`subscriptions.plans`, §4). A change is a PR.
 - **Permissions:** `plans:admin_read` is new; `delivery_days:read` (§3.4) covers the hub read (§7).
 
+**As built (§3.5).**
+- **Facade name.** `community.api.hub_societies` already exists with another shape (M12's societies table, with unlock progress). The hub's delivery days read the new `community.api.hub_society_cards(session, hub_id) -> list[SocietyCard]` instead, `SocietyCard { id, name, area, status }`, ordered live, unlocking, prospect, paused, then by name. A society with no hub is on no hub's page.
+- **Delivery days.** The days of every society come in one read, by weekday; each slot is read once through `orders.api.slot_ref`. The call needs `delivery_days:read` and a grant for the hub (403 `auth.forbidden` otherwise); an admin may ask for a hub that has no societies and gets `"items": []`.
+- **Admin plans.** `state` is `live` for an active plan and `draft` for the rest; `subscriber_count` counts subscriptions that are `active` or `paused` (anything not `ended`). Names follow `Accept-Language`; the answer is `no-store`.
+
 | Mock today | Contract |
 |---|---|
 | `GET /v1/hubs/{id}/delivery-days` → `{ items: [ { society_id, name, area, items } ], not_live: [names] }`, live societies only (`mocks/cycles.js`) | Same path and item fields, plus `hub_id` and each society's `status`; every society of the hub; no `not_live` |

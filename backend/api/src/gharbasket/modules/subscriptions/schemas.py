@@ -36,6 +36,19 @@ class PlansOut(BaseModel):
     items: list[PlanOut]
 
 
+class AdminPlanOut(PlanOut):
+    state: Literal["live", "draft"] = Field(
+        description="live: the plan's active flag; GET /v1/plans lists live plans only"
+    )
+    subscriber_count: int = Field(
+        ge=0, description="Subscriptions on the plan that are not ended; 0, never null"
+    )
+
+
+class AdminPlansOut(BaseModel):
+    items: list[AdminPlanOut] = Field(description="Every plan, by code")
+
+
 class SubscriptionIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -75,6 +88,21 @@ class DeliveryDayOut(BaseModel):
 
 class DeliveryDaysOut(BaseModel):
     items: list[DeliveryDayOut]
+
+
+class HubSocietyDaysOut(BaseModel):
+    society_id: uuid.UUID
+    name: str
+    area: str | None
+    status: Literal["prospect", "unlocking", "live", "paused"]
+    items: list[DeliveryDayOut] = Field(description="Empty for a society with no delivery days")
+
+
+class HubDeliveryDaysOut(BaseModel):
+    hub_id: uuid.UUID
+    items: list[HubSocietyDaysOut] = Field(
+        description="Every society of the hub: live, unlocking, prospect, paused, then by name"
+    )
 
 
 class DeliveryDayIn(BaseModel):

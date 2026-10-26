@@ -59,6 +59,7 @@ __all__ = [
     "ImpactFact",
     "PublicSociety",
     "ReferralFact",
+    "SocietyCard",
     "SocietyLabels",
     "SocietyRef",
     "anonymise_for_user",
@@ -68,6 +69,7 @@ __all__ = [
     "export_for_user",
     "get_society",
     "hub_societies",
+    "hub_society_cards",
     "hub_society_ids",
     "hubs_with_societies",
     "impact_facts",
@@ -135,6 +137,29 @@ async def hub_society_ids(session: AsyncSession, hub_id: uuid.UUID) -> list[uuid
         select(Society.id).where(Society.hub_id == hub_id).order_by(Society.id)
     )
     return list(rows.scalars())
+
+
+@dataclass(frozen=True)
+class SocietyCard:
+    id: uuid.UUID
+    name: str
+    area: str | None
+    status: str  # prospect | unlocking | live | paused
+
+
+_STATUS_ORDER = {"live": 0, "unlocking": 1, "prospect": 2, "paused": 3}
+
+
+async def hub_society_cards(session: AsyncSession, hub_id: uuid.UUID) -> list[SocietyCard]:
+    """Every society the hub serves, whatever its status: live, unlocking, prospect, paused, then
+    by name (M3's hub delivery days, §3.5). Name, area and status only."""
+    rows = await session.execute(
+        select(Society.id, Society.name, Society.area, Society.status).where(
+            Society.hub_id == hub_id
+        )
+    )
+    cards = [SocietyCard(*row) for row in rows.all()]
+    return sorted(cards, key=lambda c: (_STATUS_ORDER.get(c.status, 9), c.name, str(c.id)))
 
 
 @dataclass(frozen=True)
