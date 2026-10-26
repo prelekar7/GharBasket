@@ -564,8 +564,45 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Admin: give a user a staff role (Idempotency-Key required; audit-logged) */
+        /**
+         * Admin: give a user a staff role (Idempotency-Key required; audit-logged)
+         * @description A number with no account and a staff role gets a pending grant (202) that the first sign-in turns into the role; a partner role still needs the account.
+         */
         post: operations["grant_role_v1_admin_user_roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/user-roles/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Admin: revoke a staff grant or cancel a pending one (audit-logged; reaches the person's token within 15 minutes) */
+        delete: operations["revoke_role_v1_admin_user_roles__grant_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin: find a user by phone or name, list the staff or the pending grants (audit-logged) */
+        get: operations["admin_users_v1_admin_users_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1858,6 +1895,23 @@ export interface paths {
         };
         /** A hub's routes for a date, by departure and vehicle */
         get: operations["list_routes_v1_hubs__hub_id__routes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's role grants: names and masked phones (hub staff of the hub, admin) */
+        get: operations["hub_staff_v1_hubs__hub_id__staff_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4318,6 +4372,38 @@ export interface components {
             updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
             /** Version */
             version: number;
+        };
+        /** AdminUser */
+        AdminUser: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Seen At
+             * @description The latest session's
+             */
+            last_seen_at: string | null;
+            /**
+             * Locale
+             * @enum {string}
+             */
+            locale: "en-IN" | "hi-IN" | "mr-IN";
+            /** Name */
+            name: string | null;
+            /** Phone E164 */
+            phone_e164: string;
+            /**
+             * Roles
+             * @description Every role, the customer one included
+             */
+            roles: components["schemas"]["StaffGrant"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "blocked" | "deleting";
         };
         /** AiHealthOut */
         AiHealthOut: {
@@ -7318,6 +7404,61 @@ export interface components {
             status?: ("active" | "paused") | null;
             timings?: components["schemas"]["TimingsPatch"] | null;
         };
+        /** HubStaff */
+        HubStaff: {
+            /**
+             * Grant Id
+             * Format: uuid
+             * @description The user_roles row, or the pending grant
+             */
+            grant_id: string;
+            /** Name */
+            name: string | null;
+            /**
+             * Phone Masked
+             * @description The last 4 digits only
+             * @example ******1011
+             */
+            phone_masked: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "customer" | "captain" | "kitchen_partner" | "rider" | "packer" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "admin" | "catalog_editor";
+            /**
+             * Since
+             * @description verified_at, or the pending grant's granted_at; null before verification
+             */
+            since: string | null;
+            /** @description Captains: the society they serve */
+            society: components["schemas"]["HubStaffSociety"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "verified" | "suspended" | "invited";
+            /**
+             * User Id
+             * @description Null for an invited number
+             */
+            user_id: string | null;
+            /**
+             * Works As
+             * @description partner: kitchen_partner, captain, rider, packer
+             * @enum {string}
+             */
+            works_as: "staff" | "partner";
+        };
+        /** HubStaffSociety */
+        HubStaffSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
         /** HubSummary */
         HubSummary: {
             /**
@@ -9864,6 +10005,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[AdminUser] */
+        Page_AdminUser_: {
+            /** Items */
+            items: components["schemas"]["AdminUser"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[ApplicationReviewOut] */
         Page_ApplicationReviewOut_: {
             /** Items */
@@ -9875,6 +10023,13 @@ export interface components {
         Page_Entry_: {
             /** Items */
             items: components["schemas"]["Entry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[HubStaff] */
+        Page_HubStaff_: {
+            /** Items */
+            items: components["schemas"]["HubStaff"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -9910,6 +10065,13 @@ export interface components {
         Page_PayoutOut_: {
             /** Items */
             items: components["schemas"]["PayoutOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PendingGrant] */
+        Page_PendingGrant_: {
+            /** Items */
+            items: components["schemas"]["PendingGrant"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -10248,6 +10410,49 @@ export interface components {
              * @enum {string}
              */
             type: "payout";
+        };
+        /**
+         * PendingGrant
+         * @description A staff role given to a number that has not signed in yet; it waits up to 30 days.
+         */
+        PendingGrant: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Granted At
+             * Format: date-time
+             */
+            granted_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Phone Masked
+             * @example ******1011
+             */
+            phone_masked: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "catalog_editor";
+            /** Scope Id */
+            scope_id: string | null;
+            /** Scope Label */
+            scope_label: string | null;
+            /** Scope Type */
+            scope_type: ("society" | "hub" | "ngo") | null;
+            /**
+             * Status
+             * @default pending
+             * @constant
+             */
+            status: "pending";
         };
         /** PhotoUrl */
         PhotoUrl: {
@@ -13418,6 +13623,39 @@ export interface components {
              * @example A wing
              */
             tower: string | null;
+        };
+        /**
+         * StaffGrant
+         * @description One `user_roles` row; DELETE /v1/admin/user-roles/{id} takes its id.
+         */
+        StaffGrant: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "customer" | "captain" | "kitchen_partner" | "rider" | "packer" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "admin" | "catalog_editor";
+            /** Scope Id */
+            scope_id: string | null;
+            /**
+             * Scope Label
+             * @example Kharghar hub
+             * @example Sunrise Towers
+             */
+            scope_label: string | null;
+            /** Scope Type */
+            scope_type: ("society" | "hub" | "ngo") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "verified" | "suspended";
+            /** Verified At */
+            verified_at: string | null;
         };
         /** StaffSociety */
         StaffSociety: {
@@ -18496,7 +18734,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RoleGrantOut"];
+                    "application/json": components["schemas"]["RoleGrantOut"] | components["schemas"]["PendingGrant"];
+                };
+            };
+            /** @description The number has not signed in: waiting */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingGrant"];
                 };
             };
             /** @description http.400: the body cannot be read */
@@ -18526,7 +18773,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description identity.user_not_found */
+            /** @description identity.user_not_found (a partner role for a number with no account) */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -18545,6 +18792,135 @@ export interface operations {
                 };
             };
             /** @description identity.invalid_scope, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_role_v1_admin_user_roles__grant_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                grant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.role_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.role_not_removable (customer or partner role), identity.cannot_remove_own_admin, identity.last_admin */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    admin_users_v1_admin_users_get: {
+        parameters: {
+            query?: {
+                /** @description An Indian mobile, any usual way of typing */
+                phone?: string | null;
+                /** @description 2 to 60 characters of a name */
+                q?: string | null;
+                /** @description true: everyone holding a staff role */
+                staff?: boolean | null;
+                /** @description true: staff roles waiting for a sign-in */
+                pending?: boolean | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page (default 20) */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdminUser_"] | components["schemas"]["Page_PendingGrant_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (not exactly one filter, a bad number), request.invalid_cursor */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -24456,6 +24832,63 @@ export interface operations {
                 };
             };
             /** @description logistics.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_staff_v1_hubs__hub_id__staff_get: {
+        parameters: {
+            query?: {
+                role?: ("customer" | "captain" | "kitchen_partner" | "rider" | "packer" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "admin" | "catalog_editor") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page (default 100) */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_HubStaff_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

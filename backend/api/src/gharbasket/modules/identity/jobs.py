@@ -23,7 +23,7 @@ from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.identity import deletion, events, service
+from gharbasket.modules.identity import deletion, events, service, staff_admin
 from gharbasket.modules.identity.exports import KEEP, MAX_ATTEMPTS
 from gharbasket.modules.identity.models import DataExport, Deletion
 from gharbasket.modules.identity.partner_roles import sync_partner_role
@@ -131,6 +131,12 @@ async def expire_data_exports(ctx: JobContext) -> dict[str, Any]:
         .returning(DataExport.id)
     )
     return {"expired": len(expired.all())}
+
+
+@job("expire_pending_grants", "Delete pending staff role grants past their 30 days (M1 §3.6)")
+async def expire_pending_grants(ctx: JobContext) -> dict[str, Any]:
+    # A phone number is personal data: a grant nobody claimed does not stay.
+    return {"expired": await staff_admin.expire_pending(ctx.session, ctx.scheduled_for)}
 
 
 # --- the captain role from M9's appointments (ADR-0026 §4) --------------------------------------

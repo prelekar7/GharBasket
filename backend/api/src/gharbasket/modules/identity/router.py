@@ -11,13 +11,19 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
 
-from gharbasket.modules.identity import deletion, service
+from gharbasket.modules.identity import deletion, service, staff_admin
 from gharbasket.modules.identity import jobs as _jobs  # noqa: F401 (registers the jobs)
 from gharbasket.modules.identity import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.identity.exports import router as exports_router
 from gharbasket.modules.identity.firebase import FirebaseTokenVerifier
 from gharbasket.modules.identity.household_router import router as household_router
-from gharbasket.modules.identity.models import Deletion, LoginSession, User, UserRole
+from gharbasket.modules.identity.models import (
+    Deletion,
+    LoginSession,
+    PendingRoleGrant,
+    User,
+    UserRole,
+)
 from gharbasket.modules.identity.schemas import (
     DeletionOut,
     DeviceOut,
@@ -25,6 +31,7 @@ from gharbasket.modules.identity.schemas import (
     ExchangeOut,
     MeOut,
     MeUpdate,
+    PendingGrant,
     PushTokenIn,
     RefreshIn,
     RoleGrantIn,
@@ -33,6 +40,7 @@ from gharbasket.modules.identity.schemas import (
     TokensOut,
     UserOut,
 )
+from gharbasket.modules.identity.staff_router import router as staff_router
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
@@ -53,6 +61,7 @@ from gharbasket.platform.web_session import (
 
 router = APIRouter(tags=["identity"])
 router.include_router(household_router)
+router.include_router(staff_router)
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
@@ -408,9 +417,14 @@ async def put_push_token(
     "/admin/user-roles",
     status_code=status.HTTP_201_CREATED,
     summary="Admin: give a user a staff role (Idempotency-Key required; audit-logged)",
+    description=(
+        "A number with no account and a staff role gets a pending grant (202) that the first "
+        "sign-in turns into the role; a partner role still needs the account."
+    ),
     responses={
+        202: {"model": PendingGrant, "description": "The number has not signed in: waiting"},
         403: _problem("auth.forbidden"),
-        404: _problem("identity.user_not_found"),
+        404: _problem("identity.user_not_found (a partner role for a number with no account)"),
         409: _problem("identity.role_exists"),
         422: _problem("identity.invalid_scope, request.idempotency_mismatch, request.invalid"),
     },
@@ -419,16 +433,22 @@ async def grant_role(
     body: RoleGrantIn,
     permit: Annotated[Permit, require("roles:grant")],
     session: DbSession,
+    response: Response,
     idem: Idempotent,
-) -> RoleGrantOut:
-    grant = await service.grant_role(
+) -> RoleGrantOut | PendingGrant:
+    granted = await service.grant_role_or_wait(
         session,
         phone_e164=body.phone_e164,
         role=body.role,
         scope_id=body.scope_id,
         granted_by=permit.principal.user_id,
     )
-    result = RoleGrantOut.model_validate(grant)
-    await idem.save(201, result)
+    result: RoleGrantOut | PendingGrant
+    if isinstance(granted, PendingRoleGrant):
+        result = await staff_admin.pending_view_of(session, granted)
+        response.status_code = status.HTTP_202_ACCEPTED
+    else:
+        result = RoleGrantOut.model_validate(granted)
+    await idem.save(response.status_code or status.HTTP_201_CREATED, result)
     await session.commit()
     return result

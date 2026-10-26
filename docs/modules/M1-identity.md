@@ -433,6 +433,15 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
 - **Facades.** The scope labels come from `community.api.society_labels` and `hub_ops.api.get_hub`, which both exist; an NGO's label is null until M9 §3.5 ships an NGO facade. New in `identity.api`: `households_per_society(session, society_ids) -> dict[UUID, int]`, for M9's staff society list (M9 §3.9).
 - **Permissions:** `users:read`, `roles:revoke` and `staff:read` are new (§7).
 
+- **As built (2026-10-25).**
+  - `expire_pending_grants` runs at 04:18 IST, not 04:13: 04:13 is `sweep_uploads`' slot in the Actions schedule, which maps one job to each cron line.
+  - `GET /v1/admin/users`: `phone` also accepts spaces and a `91` prefix. A bad number, no filter, two filters, `staff=false` or `pending=false` is 422 `request.invalid`; a cursor from another filter is 422 `request.invalid_cursor`. `q` is trimmed and its inner spaces collapsed. It matches by pg_trgm word similarity (0.4) or by containing the typed text, ranks by word similarity, and pages by offset. `staff` pages by name then id, `pending` by newest then id.
+  - The lookup audit entry is `identity.users_looked_up` with entity `user_lookup` and the admin's id; `after` holds the filter kind and the ids returned (`user_ids`, or `pending_grant_ids` for `pending`). A refused or invalid call writes none.
+  - `?pending=true` lists only unexpired grants. A pending grant's audit entry has entity `pending_role_grant` and the grant id, never the number.
+  - A number's grant and its first sign-in take the same Postgres advisory lock, so a grant given at the moment of sign-up is either claimed or made directly, never stranded. The operator command and the seed still need the account (`grant_role`).
+  - Revoke takes the admin rows `FOR UPDATE`, so two admins removing each other cannot leave none. `last_admin` counts verified admin grants; a suspended admin grant can always be removed. An admin whose own role was just revoked still holds an admin token for up to 15 minutes, and the database check is what stops them removing the last admin.
+  - `GET /v1/hubs/{id}/staff`: an unknown hub gives an empty page for an admin. Pages by (role, name, grant id). `scope_label` for a hub is the hub's name ("Kharghar hub").
+
 | Mock today (`mocks/identity.js`, `mocks/team.js`) | Contract |
 |---|---|
 | `GET /v1/admin/users?phone=` → `{ items: AdminUser[] }` (422 for a bad number) | Same; `AdminUser` gains `status`; `roles[]` are `StaffGrant` |
