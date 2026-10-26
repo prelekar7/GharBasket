@@ -1727,6 +1727,200 @@
         "title": "AssignmentsOut",
         "type": "object"
       },
+      "AssumptionsIn": {
+        "additionalProperties": false,
+        "description": "The PUT body: every key, whole numbers (a range error is 422 `analytics.assumptions_invalid`\nwith `errors[]`).",
+        "properties": {
+          "aov_paise": {
+            "title": "Aov Paise",
+            "type": "integer"
+          },
+          "cac_paise": {
+            "title": "Cac Paise",
+            "type": "integer"
+          },
+          "captain_paise": {
+            "title": "Captain Paise",
+            "type": "integer"
+          },
+          "delivery_paise": {
+            "title": "Delivery Paise",
+            "type": "integer"
+          },
+          "margin_bp": {
+            "title": "Margin Bp",
+            "type": "integer"
+          },
+          "packing_paise": {
+            "title": "Packing Paise",
+            "type": "integer"
+          },
+          "payment_fee_bp": {
+            "title": "Payment Fee Bp",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "aov_paise",
+          "margin_bp",
+          "delivery_paise",
+          "packing_paise",
+          "captain_paise",
+          "payment_fee_bp",
+          "cac_paise"
+        ],
+        "title": "AssumptionsIn",
+        "type": "object"
+      },
+      "AssumptionsOut": {
+        "description": "The seven editable inputs of a box's economics; money in paise, rates in basis points.",
+        "properties": {
+          "aov_paise": {
+            "description": "Average box value, add-ons included, delivery fee not",
+            "title": "Aov Paise",
+            "type": "integer"
+          },
+          "cac_paise": {
+            "description": "Customer acquisition cost spread per box",
+            "title": "Cac Paise",
+            "type": "integer"
+          },
+          "captain_paise": {
+            "description": "Society Captain pay per box",
+            "title": "Captain Paise",
+            "type": "integer"
+          },
+          "delivery_paise": {
+            "description": "Delivery cost per box",
+            "title": "Delivery Paise",
+            "type": "integer"
+          },
+          "margin_bp": {
+            "description": "Margin on produce, after vendor cost",
+            "title": "Margin Bp",
+            "type": "integer"
+          },
+          "packing_paise": {
+            "description": "Packing cost per box",
+            "title": "Packing Paise",
+            "type": "integer"
+          },
+          "payment_fee_bp": {
+            "description": "Share of the box value paid to the payment provider",
+            "title": "Payment Fee Bp",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "aov_paise",
+          "margin_bp",
+          "delivery_paise",
+          "packing_paise",
+          "captain_paise",
+          "payment_fee_bp",
+          "cac_paise"
+        ],
+        "title": "AssumptionsOut",
+        "type": "object"
+      },
+      "BagPickupOut": {
+        "properties": {
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "As for donations",
+            "examples": [
+              "B wing, 402"
+            ],
+            "title": "Flat Label"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "expected",
+              "collected",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "flat_label",
+          "status"
+        ],
+        "title": "BagPickupOut",
+        "type": "object"
+      },
+      "BasisShare": {
+        "properties": {
+          "bp": {
+            "title": "Bp",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "share",
+            "default": "share",
+            "title": "Kind",
+            "type": "string"
+          },
+          "of": {
+            "const": "box_revenue",
+            "default": "box_revenue",
+            "title": "Of",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bp"
+        ],
+        "title": "BasisShare",
+        "type": "object"
+      },
+      "BasisTimes": {
+        "properties": {
+          "kind": {
+            "const": "times",
+            "default": "times",
+            "title": "Kind",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "integer"
+          },
+          "rate_paise": {
+            "title": "Rate Paise",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "box",
+              "tiffin"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qty",
+          "unit",
+          "rate_paise"
+        ],
+        "title": "BasisTimes",
+        "type": "object"
+      },
       "BoardAttentionOut": {
         "properties": {
           "count": {
@@ -2898,6 +3092,58 @@
           "name"
         ],
         "title": "CategoryRef",
+        "type": "object"
+      },
+      "ChangeOut": {
+        "properties": {
+          "from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: the key had no value before",
+            "title": "From"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "from",
+          "to"
+        ],
+        "title": "ChangeOut",
+        "type": "object"
+      },
+      "ChangedByOut": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The editor's name; null when they have none on record",
+            "title": "Name"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ChangedByOut",
         "type": "object"
       },
       "ClaimIn": {
@@ -4245,6 +4491,86 @@
         "title": "DonationNgo",
         "type": "object"
       },
+      "DonationPickupOut": {
+        "properties": {
+          "donation_id": {
+            "format": "uuid",
+            "title": "Donation Id",
+            "type": "string"
+          },
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rider-mode stops of a route in progress (and the hub's list) only",
+            "examples": [
+              "B wing, 402"
+            ],
+            "title": "Flat Label"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "M9's summary",
+            "examples": [
+              "clothes 3 kg, toys 2"
+            ],
+            "title": "Items"
+          },
+          "status": {
+            "enum": [
+              "expected",
+              "collected",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "donation_id",
+          "items",
+          "flat_label",
+          "status"
+        ],
+        "title": "DonationPickupOut",
+        "type": "object"
+      },
+      "DonationReport": {
+        "additionalProperties": false,
+        "properties": {
+          "donation_id": {
+            "format": "uuid",
+            "title": "Donation Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "collected",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "donation_id",
+          "status"
+        ],
+        "title": "DonationReport",
+        "type": "object"
+      },
       "DonationsOut": {
         "properties": {
           "items": {
@@ -5329,6 +5655,24 @@
         "title": "EarningsWeekOut",
         "type": "object"
       },
+      "EmptiesTotal": {
+        "properties": {
+          "collected": {
+            "title": "Collected",
+            "type": "integer"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected",
+          "collected"
+        ],
+        "title": "EmptiesTotal",
+        "type": "object"
+      },
       "Entry": {
         "properties": {
           "amount_paise": {
@@ -5540,6 +5884,173 @@
           "redelivery_bags"
         ],
         "title": "Expected",
+        "type": "object"
+      },
+      "FairnessOut": {
+        "properties": {
+          "fallback_active": {
+            "description": "The newest run's model is greedy-m8",
+            "title": "Fallback Active",
+            "type": "boolean"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "lambda_paise": {
+            "description": "PARTNERS_FAIRNESS_LAMBDA now: paise of cost per portion of earnings imbalance (M10 §3.5); 0 = cost only; one value for every hub",
+            "examples": [
+              300
+            ],
+            "title": "Lambda Paise",
+            "type": "integer"
+          },
+          "runs": {
+            "description": "Newest first",
+            "items": {
+              "$ref": "#/components/schemas/FairnessRunOut"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "lambda_paise",
+          "fallback_active",
+          "runs"
+        ],
+        "title": "FairnessOut",
+        "type": "object"
+      },
+      "FairnessRunOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "gini": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Of the earnings of every kitchen in the request",
+            "title": "Gini"
+          },
+          "gini_eligible": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Of the kitchens that could take an order",
+            "title": "Gini Eligible"
+          },
+          "kitchens_used": {
+            "title": "Kitchens Used",
+            "type": "integer"
+          },
+          "km_per_portion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Km Per Portion"
+          },
+          "lambda_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The λ the run sent; null for earlier runs",
+            "title": "Lambda Paise"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "portions": {
+            "title": "Portions",
+            "type": "integer"
+          },
+          "round": {
+            "title": "Round",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "ml",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "description": "M10's answer, or fallback for M8's own",
+            "examples": [
+              "solved"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unassigned": {
+            "title": "Unassigned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "date",
+          "meal",
+          "round",
+          "source",
+          "model",
+          "status",
+          "portions",
+          "kitchens_used",
+          "unassigned",
+          "gini",
+          "gini_eligible",
+          "km_per_portion",
+          "lambda_paise",
+          "at"
+        ],
+        "title": "FairnessRunOut",
         "type": "object"
       },
       "FastingRules": {
@@ -6864,6 +7375,32 @@
         "title": "HistoryEntry",
         "type": "object"
       },
+      "HistoryOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "$ref": "#/components/schemas/ChangedByOut"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeOut"
+            },
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "by",
+          "changes"
+        ],
+        "title": "HistoryOut",
+        "type": "object"
+      },
       "HouseholdIn": {
         "additionalProperties": false,
         "description": "Onboarding in one call: household, members, address and consents together.",
@@ -7296,6 +7833,39 @@
           "display_name"
         ],
         "title": "HubApplicationIn",
+        "type": "object"
+      },
+      "HubAssumptionsOut": {
+        "properties": {
+          "assumptions": {
+            "$ref": "#/components/schemas/AssumptionsOut"
+          },
+          "history": {
+            "description": "The newest 20 saves",
+            "items": {
+              "$ref": "#/components/schemas/HistoryOut"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "version": {
+            "description": "Also the ETag; send it back as If-Match",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hub_id",
+          "assumptions",
+          "version",
+          "history"
+        ],
+        "title": "HubAssumptionsOut",
         "type": "object"
       },
       "HubCutoffOut": {
@@ -7778,6 +8348,93 @@
           }
         },
         "title": "HubPatch",
+        "type": "object"
+      },
+      "HubPickupStop": {
+        "properties": {
+          "empties_expected": {
+            "title": "Empties Expected",
+            "type": "integer"
+          },
+          "pickups": {
+            "$ref": "#/components/schemas/StopPickups",
+            "description": "Flat labels always (hub staff)"
+          },
+          "route_id": {
+            "format": "uuid",
+            "title": "Route Id",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "society": {
+            "$ref": "#/components/schemas/gharbasket__modules__logistics__schemas__SocietyRef"
+          },
+          "stop_id": {
+            "format": "uuid",
+            "title": "Stop Id",
+            "type": "string"
+          },
+          "stop_status": {
+            "enum": [
+              "pending",
+              "arrived",
+              "handed_over",
+              "skipped"
+            ],
+            "title": "Stop Status",
+            "type": "string"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/VehicleRef"
+          }
+        },
+        "required": [
+          "stop_id",
+          "route_id",
+          "vehicle",
+          "seq",
+          "society",
+          "stop_status",
+          "empties_expected",
+          "pickups"
+        ],
+        "title": "HubPickupStop",
+        "type": "object"
+      },
+      "HubPickupsOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "items": {
+            "description": "By departure, vehicle label, seq",
+            "items": {
+              "$ref": "#/components/schemas/HubPickupStop"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PickupTotals"
+          }
+        },
+        "required": [
+          "hub_id",
+          "date",
+          "totals",
+          "items"
+        ],
+        "title": "HubPickupsOut",
         "type": "object"
       },
       "HubStaff": {
@@ -11315,6 +11972,75 @@
         "title": "MealSet",
         "type": "object"
       },
+      "MeasuredOut": {
+        "description": "What the pilot (or the simulator) measured; null: not measurable yet. The payment fee is\nnever measured in v1 and the CAC never, so neither is here.",
+        "properties": {
+          "aov_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aov Paise"
+          },
+          "captain_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captain Paise"
+          },
+          "delivery_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Paise"
+          },
+          "margin_bp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin Bp"
+          },
+          "packing_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packing Paise"
+          }
+        },
+        "required": [
+          "aov_paise",
+          "margin_bp",
+          "delivery_paise",
+          "packing_paise",
+          "captain_paise"
+        ],
+        "title": "MeasuredOut",
+        "type": "object"
+      },
       "MemberIn": {
         "additionalProperties": false,
         "properties": {
@@ -14204,6 +14930,34 @@
         "title": "Page[RefundOut]",
         "type": "object"
       },
+      "Page_RefundRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RefundRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[RefundRow]",
+        "type": "object"
+      },
       "Page_SocietySummary_": {
         "properties": {
           "items": {
@@ -14669,6 +15423,34 @@
         "title": "PartnersOut",
         "type": "object"
       },
+      "PartnersPaidOut": {
+        "properties": {
+          "captains": {
+            "title": "Captains",
+            "type": "integer"
+          },
+          "kitchens": {
+            "title": "Kitchens",
+            "type": "integer"
+          },
+          "packers": {
+            "title": "Packers",
+            "type": "integer"
+          },
+          "riders": {
+            "title": "Riders",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "captains",
+          "kitchens",
+          "riders",
+          "packers"
+        ],
+        "title": "PartnersPaidOut",
+        "type": "object"
+      },
       "PaymentDueOut": {
         "description": "What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay.",
         "properties": {
@@ -14990,6 +15772,57 @@
         "title": "PendingGrant",
         "type": "object"
       },
+      "PerBoxOut": {
+        "properties": {
+          "cac_paise": {
+            "title": "Cac Paise",
+            "type": "integer"
+          },
+          "captain_paise": {
+            "title": "Captain Paise",
+            "type": "integer"
+          },
+          "contribution_paise": {
+            "description": "May be negative",
+            "title": "Contribution Paise",
+            "type": "integer"
+          },
+          "delivery_fee_paise": {
+            "description": "Revenue: the pre-live fee",
+            "title": "Delivery Fee Paise",
+            "type": "integer"
+          },
+          "delivery_paise": {
+            "title": "Delivery Paise",
+            "type": "integer"
+          },
+          "fee_paise": {
+            "description": "The payment fee, a cost",
+            "title": "Fee Paise",
+            "type": "integer"
+          },
+          "margin_paise": {
+            "title": "Margin Paise",
+            "type": "integer"
+          },
+          "packing_paise": {
+            "title": "Packing Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "margin_paise",
+          "delivery_fee_paise",
+          "delivery_paise",
+          "packing_paise",
+          "captain_paise",
+          "fee_paise",
+          "cac_paise",
+          "contribution_paise"
+        ],
+        "title": "PerBoxOut",
+        "type": "object"
+      },
       "PhotoUrl": {
         "properties": {
           "expires_at": {
@@ -15067,6 +15900,108 @@
           "name"
         ],
         "title": "PickedUpBy",
+        "type": "object"
+      },
+      "PickupCount": {
+        "properties": {
+          "collected": {
+            "title": "Collected",
+            "type": "integer"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          },
+          "not_ready": {
+            "default": 0,
+            "title": "Not Ready",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected",
+          "collected"
+        ],
+        "title": "PickupCount",
+        "type": "object"
+      },
+      "PickupTotals": {
+        "properties": {
+          "bags": {
+            "$ref": "#/components/schemas/PickupCount"
+          },
+          "donations": {
+            "$ref": "#/components/schemas/PickupCount"
+          },
+          "empties": {
+            "$ref": "#/components/schemas/EmptiesTotal"
+          }
+        },
+        "required": [
+          "empties",
+          "donations",
+          "bags"
+        ],
+        "title": "PickupTotals",
+        "type": "object"
+      },
+      "PickupsIn": {
+        "additionalProperties": false,
+        "description": "A part of a stop's pickups: `empties` replaces the stop's count; each donation and bag is\nset once.",
+        "properties": {
+          "bags": {
+            "description": "Scanned bag QRs: collected",
+            "examples": [
+              [
+                "GB1:0199a0000000700080000000000000ab"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Bags",
+            "type": "array"
+          },
+          "client_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the tap happened on the phone (stored for audit)",
+            "title": "Client At"
+          },
+          "donations": {
+            "items": {
+              "$ref": "#/components/schemas/DonationReport"
+            },
+            "maxItems": 50,
+            "title": "Donations",
+            "type": "array"
+          },
+          "empties": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              4
+            ],
+            "title": "Empties"
+          }
+        },
+        "title": "PickupsIn",
         "type": "object"
       },
       "PingIn": {
@@ -15330,6 +16265,179 @@
           "items"
         ],
         "title": "PlansOut",
+        "type": "object"
+      },
+      "PnlLineOut": {
+        "properties": {
+          "amount_paise": {
+            "description": "Costs are negative; exact paise",
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BasisTimes"
+              },
+              {
+                "$ref": "#/components/schemas/BasisShare"
+              }
+            ],
+            "title": "Basis"
+          },
+          "key": {
+            "enum": [
+              "box_revenue",
+              "delivery_fee_revenue",
+              "tiffin_revenue",
+              "produce",
+              "kitchen",
+              "delivery",
+              "packing",
+              "captain",
+              "fees",
+              "acquisition"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "measured",
+              "assumed"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "amount_paise",
+          "source",
+          "basis"
+        ],
+        "title": "PnlLineOut",
+        "type": "object"
+      },
+      "PnlOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "boxes": {
+            "title": "Boxes",
+            "type": "integer"
+          },
+          "contribution_paise": {
+            "title": "Contribution Paise",
+            "type": "integer"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PnlLineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "partners_paise": {
+            "$ref": "#/components/schemas/PartnersPaidOut"
+          },
+          "per_box_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Contribution ÷ boxes; null without boxes",
+            "title": "Per Box Paise"
+          },
+          "period": {
+            "examples": [
+              "2027-02"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "previous_contribution_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The month before's; null when it has no data",
+            "title": "Previous Contribution Paise"
+          },
+          "revenue_paise": {
+            "title": "Revenue Paise",
+            "type": "integer"
+          },
+          "tiffins": {
+            "title": "Tiffins",
+            "type": "integer"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/PnlWeekOut"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "period",
+          "as_of",
+          "boxes",
+          "tiffins",
+          "revenue_paise",
+          "contribution_paise",
+          "previous_contribution_paise",
+          "per_box_paise",
+          "partners_paise",
+          "lines",
+          "weeks"
+        ],
+        "title": "PnlOut",
+        "type": "object"
+      },
+      "PnlWeekOut": {
+        "properties": {
+          "contribution_paise": {
+            "title": "Contribution Paise",
+            "type": "integer"
+          },
+          "week": {
+            "description": "The week's Monday",
+            "format": "date",
+            "title": "Week",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week",
+          "contribution_paise"
+        ],
+        "title": "PnlWeekOut",
         "type": "object"
       },
       "PointRateIn": {
@@ -19738,6 +20846,177 @@
         "title": "RefundRef",
         "type": "object"
       },
+      "RefundRow": {
+        "properties": {
+          "amount_paise": {
+            "examples": [
+              4000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tower and flat only; never a name or a phone",
+            "examples": [
+              "B wing, B-402"
+            ],
+            "title": "Flat Label"
+          },
+          "id": {
+            "description": "The journal entry's id",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issue_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Issue: the order issue (§3.2)",
+            "title": "Issue Id"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_kind": {
+            "enum": [
+              "box",
+              "tiffin",
+              "addon"
+            ],
+            "title": "Order Kind",
+            "type": "string"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shortage and carry-over: the line's product",
+            "title": "Product Id"
+          },
+          "reason": {
+            "enum": [
+              "shortage",
+              "issue",
+              "undelivered",
+              "no_kitchen",
+              "carry_over",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "refund_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "To source: the Refund that sends it back",
+            "title": "Refund Id"
+          },
+          "society": {
+            "$ref": "#/components/schemas/RefundSociety"
+          },
+          "status": {
+            "description": "credited for the wallet; the Refund's status for a source",
+            "enum": [
+              "credited",
+              "pending",
+              "processing",
+              "processed",
+              "partly_failed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "to": {
+            "enum": [
+              "wallet",
+              "source"
+            ],
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "order_kind",
+          "delivery_date",
+          "society",
+          "flat_label",
+          "reason",
+          "product_id",
+          "issue_id",
+          "amount_paise",
+          "to",
+          "refund_id",
+          "status",
+          "created_at"
+        ],
+        "title": "RefundRow",
+        "type": "object"
+      },
+      "RefundSociety": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Sunrise Towers"
+            ],
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "RefundSociety",
+        "type": "object"
+      },
       "ReinstateIn": {
         "additionalProperties": false,
         "properties": {
@@ -21273,6 +22552,154 @@
         "title": "SettleOut",
         "type": "object"
       },
+      "ShortBag": {
+        "properties": {
+          "bag_qr": {
+            "title": "Bag Qr",
+            "type": "string"
+          },
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "B wing, B-402"
+            ],
+            "title": "Flat Label"
+          },
+          "outcome": {
+            "description": "Bags: what §3.2 would allow. Reported: what was recorded",
+            "enum": [
+              "substitute",
+              "refund"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Steps open on the line (bags) or short (reported)",
+            "title": "Qty",
+            "type": "integer"
+          },
+          "refund_paise": {
+            "description": "0 for a substitute that costs the same",
+            "title": "Refund Paise",
+            "type": "integer"
+          },
+          "society": {
+            "examples": [
+              "Sunrise Towers"
+            ],
+            "title": "Society",
+            "type": "string"
+          },
+          "substitute": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackingSubstitute"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bags: the first listed substitute in stock; reported: the one packed"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "bag_qr",
+          "society",
+          "flat_label",
+          "qty",
+          "outcome",
+          "substitute",
+          "refund_paise"
+        ],
+        "title": "ShortBag",
+        "type": "object"
+      },
+      "ShortItem": {
+        "properties": {
+          "bags": {
+            "description": "The open bags the gap falls on, last in queue first",
+            "items": {
+              "$ref": "#/components/schemas/ShortBag"
+            },
+            "title": "Bags",
+            "type": "array"
+          },
+          "name": {
+            "description": "In the requested language",
+            "title": "Name",
+            "type": "string"
+          },
+          "needed": {
+            "description": "Steps on the date's packing lines (carried lines left out)",
+            "title": "Needed",
+            "type": "integer"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "received": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Steps the hub has for the date; null when the step does not convert",
+            "title": "Received"
+          },
+          "reported": {
+            "description": "Bags with a shortage already recorded",
+            "items": {
+              "$ref": "#/components/schemas/ShortBag"
+            },
+            "title": "Reported",
+            "type": "array"
+          },
+          "short_by": {
+            "description": "needed less received, at least 0; 0 when received is null",
+            "title": "Short By",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "step": {
+            "$ref": "#/components/schemas/PackingStep"
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name",
+          "step",
+          "needed",
+          "received",
+          "short_by",
+          "bags",
+          "reported"
+        ],
+        "title": "ShortItem",
+        "type": "object"
+      },
       "ShortOrderOut": {
         "properties": {
           "box_paise": {
@@ -21366,6 +22793,41 @@
           "short_qty"
         ],
         "title": "ShortageIn",
+        "type": "object"
+      },
+      "ShortagesOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "items": {
+            "description": "Largest short_by first, then by name",
+            "items": {
+              "$ref": "#/components/schemas/ShortItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "date",
+          "as_of",
+          "items"
+        ],
+        "title": "ShortagesOut",
         "type": "object"
       },
       "SkipIn": {
@@ -22212,6 +23674,95 @@
         "title": "SolveIn",
         "type": "object"
       },
+      "SourcesOut": {
+        "properties": {
+          "aov_paise": {
+            "enum": [
+              "measured",
+              "assumed",
+              "override"
+            ],
+            "title": "Aov Paise",
+            "type": "string"
+          },
+          "cac_paise": {
+            "enum": [
+              "measured",
+              "assumed",
+              "override"
+            ],
+            "title": "Cac Paise",
+            "type": "string"
+          },
+          "captain_paise": {
+            "enum": [
+              "measured",
+              "assumed",
+              "override"
+            ],
+            "title": "Captain Paise",
+            "type": "string"
+          },
+          "delivery_fee_paise": {
+            "description": "Measured, or an override",
+            "enum": [
+              "measured",
+              "assumed",
+              "override"
+            ],
+            "title": "Delivery Fee Paise",
+            "type": "string"
+          },
+          "delivery_paise": {
+            "enum": [
+              "measured",
+              "assumed",
+              "override"
+            ],
+            "title": "Delivery Paise",
+            "type": "string"
+          },
+          "margin_bp": {
+            "enum": [
+              "measured",
+              "assumed",
+              "override"
+            ],
+            "title": "Margin Bp",
+            "type": "string"
+          },
+          "packing_paise": {
+            "enum": [
+              "measured",
+              "assumed",
+              "override"
+            ],
+            "title": "Packing Paise",
+            "type": "string"
+          },
+          "payment_fee_bp": {
+            "enum": [
+              "measured",
+              "assumed",
+              "override"
+            ],
+            "title": "Payment Fee Bp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "aov_paise",
+          "margin_bp",
+          "delivery_paise",
+          "packing_paise",
+          "captain_paise",
+          "payment_fee_bp",
+          "cac_paise",
+          "delivery_fee_paise"
+        ],
+        "title": "SourcesOut",
+        "type": "object"
+      },
       "StaffDonationOut": {
         "description": "The verification queue's row: tower and flat match the bag's label at the hub.",
         "properties": {
@@ -22922,7 +24473,7 @@
             "type": "integer"
           },
           "empties_expected": {
-            "description": "§3.6",
+            "description": "§3.6: planned at the solve, set again at start",
             "examples": [
               2
             ],
@@ -23015,6 +24566,17 @@
             ],
             "title": "Navigate Url"
           },
+          "pickups": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopPickups"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "§3.6: what the van takes back here, from route start"
+          },
           "redelivery_bags": {
             "description": "Redelivery bags the van carries for this stop (§3.4)",
             "examples": [
@@ -23103,6 +24665,46 @@
           "rider_mode"
         ],
         "title": "StopPatch",
+        "type": "object"
+      },
+      "StopPickups": {
+        "properties": {
+          "bags": {
+            "items": {
+              "$ref": "#/components/schemas/BagPickupOut"
+            },
+            "title": "Bags",
+            "type": "array"
+          },
+          "donations": {
+            "items": {
+              "$ref": "#/components/schemas/DonationPickupOut"
+            },
+            "title": "Donations",
+            "type": "array"
+          },
+          "empties_collected": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Crates the van took back here; null until reported",
+            "examples": [
+              4
+            ],
+            "title": "Empties Collected"
+          }
+        },
+        "required": [
+          "empties_collected",
+          "donations",
+          "bags"
+        ],
+        "title": "StopPickups",
         "type": "object"
       },
       "StopSlot": {
@@ -25088,6 +26690,132 @@
           "reason"
         ],
         "title": "UndeliveredIn",
+        "type": "object"
+      },
+      "UnitEconomicsOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Finish time of the last run that refreshed it",
+            "title": "As Of"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/AssumptionsOut",
+            "description": "The hub's saved values"
+          },
+          "boxes": {
+            "description": "Delivered boxes",
+            "title": "Boxes",
+            "type": "integer"
+          },
+          "data_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "delivery_fee_paise": {
+            "description": "Per box: Σ fees of delivered boxes ÷ boxes, 0 with no pre-live boxes; or the override",
+            "title": "Delivery Fee Paise",
+            "type": "integer"
+          },
+          "from": {
+            "description": "The Monday of the first week",
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "measured": {
+            "$ref": "#/components/schemas/MeasuredOut"
+          },
+          "per_box": {
+            "$ref": "#/components/schemas/PerBoxOut"
+          },
+          "sources": {
+            "$ref": "#/components/schemas/SourcesOut"
+          },
+          "to": {
+            "description": "The Sunday of the last week",
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "used": {
+            "$ref": "#/components/schemas/AssumptionsOut",
+            "description": "Override, else measured (prefer=measured), else saved"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/UnitWeekOut"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "data_source",
+          "from",
+          "to",
+          "as_of",
+          "boxes",
+          "assumptions",
+          "measured",
+          "used",
+          "sources",
+          "delivery_fee_paise",
+          "per_box",
+          "weeks"
+        ],
+        "title": "UnitEconomicsOut",
+        "type": "object"
+      },
+      "UnitWeekOut": {
+        "properties": {
+          "boxes": {
+            "title": "Boxes",
+            "type": "integer"
+          },
+          "contribution_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per box, from that week's own inputs; null in a week without boxes",
+            "title": "Contribution Paise"
+          },
+          "week": {
+            "description": "The week's Monday",
+            "format": "date",
+            "title": "Week",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week",
+          "boxes",
+          "contribution_paise"
+        ],
+        "title": "UnitWeekOut",
         "type": "object"
       },
       "UnlockOut": {
@@ -32605,6 +34333,213 @@
         ]
       }
     },
+    "/v1/admin/refunds": {
+      "get": {
+        "operationId": "order_refunds_v1_admin_refunds_get",
+        "parameters": [
+          {
+            "description": "Required for hub staff",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for hub staff",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "First delivery date (IST); default 7 days before to",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First delivery date (IST); default 7 days before to",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last delivery date (IST); default today, at most 31 days on",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last delivery date (IST); default today, at most 31 days on",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "shortage",
+                    "issue",
+                    "undelivered",
+                    "no_kitchen",
+                    "carry_over",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            }
+          },
+          {
+            "in": "query",
+            "name": "destination",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "wallet",
+                    "source"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Destination"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RefundRow_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.hub_required (hub staff), request.invalid (a window over 31 days, an unknown value), request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The money that went back for a hub's orders, newest first (read only)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/v1/admin/slots": {
       "post": {
         "operationId": "create_slot_v1_admin_slots_post",
@@ -33581,6 +35516,281 @@
         ]
       }
     },
+    "/v1/analytics/hubs/{hub_id}/assumptions": {
+      "get": {
+        "operationId": "hub_assumptions_v1_analytics_hubs__hub_id__assumptions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubAssumptionsOut"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "ETag": {
+                "description": "The assumptions version, e.g. \"3\"; send it back in If-Match"
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's saved assumptions, their version (ETag) and the last 20 saves (franchise owner, admin)",
+        "tags": [
+          "analytics"
+        ]
+      },
+      "put": {
+        "operationId": "put_hub_assumptions_v1_analytics_hubs__hub_id__assumptions_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssumptionsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubAssumptionsOut"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "ETag": {
+                "description": "The assumptions version, e.g. \"3\"; send it back in If-Match"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_failed (the version moved on; reload)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.assumptions_invalid (a value out of range, with errors[])"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required (send If-Match)"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Save the hub's assumptions (all keys; If-Match: the version; audit-logged) (franchise owner, admin)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/v1/analytics/hubs/{hub_id}/today": {
       "get": {
         "operationId": "hub_today_v1_analytics_hubs__hub_id__today_get",
@@ -33922,6 +36132,166 @@
         ]
       }
     },
+    "/v1/analytics/pnl": {
+      "get": {
+        "operationId": "pnl_v1_analytics_pnl_get",
+        "parameters": [
+          {
+            "description": "The month, `YYYY-MM`",
+            "in": "query",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "description": "The month, `YYYY-MM`",
+              "examples": [
+                "2027-02"
+              ],
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The hub (required)",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The hub (required)",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "Required: `real` or `synthetic`, never pooled",
+            "in": "query",
+            "name": "data_source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "real",
+                    "synthetic"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required: `real` or `synthetic`, never pooled",
+              "title": "Data Source"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PnlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.data_source_required · analytics.range_invalid (not a month, or one that has not begun) · analytics.range_too_long (over the last 24 months)"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A month's statement: revenue, costs and contribution, each line measured or assumed (franchise owner, admin)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/v1/analytics/societies": {
       "get": {
         "operationId": "society_table_v1_analytics_societies_get",
@@ -34053,6 +36423,350 @@
           }
         ],
         "summary": "Each society's unlock progress and the last 4 weeks' households, approval and box value (hub manager, franchise owner, admin; only an admin may leave the hub out)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/analytics/unit-economics": {
+      "get": {
+        "operationId": "unit_economics_v1_analytics_unit_economics_get",
+        "parameters": [
+          {
+            "description": "The hub (required)",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The hub (required)",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "An IST date; moves back to its Monday. Default: 12 weeks",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST date; moves back to its Monday. Default: 12 weeks",
+              "title": "From"
+            }
+          },
+          {
+            "description": "An IST date; moves on to its Sunday. Default today",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST date; moves on to its Sunday. Default today",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Required: `real` or `synthetic`, never pooled",
+            "in": "query",
+            "name": "data_source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "real",
+                    "synthetic"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required: `real` or `synthetic`, never pooled",
+              "title": "Data Source"
+            }
+          },
+          {
+            "description": "`measured`: use what was measured; `assumed`: only the saved values",
+            "in": "query",
+            "name": "prefer",
+            "required": false,
+            "schema": {
+              "default": "measured",
+              "description": "`measured`: use what was measured; `assumed`: only the saved values",
+              "enum": [
+                "measured",
+                "assumed"
+              ],
+              "title": "Prefer",
+              "type": "string"
+            }
+          },
+          {
+            "description": "What-if: average box value (paise)",
+            "in": "query",
+            "name": "aov_paise",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What-if: average box value (paise)",
+              "title": "Aov Paise"
+            }
+          },
+          {
+            "description": "What-if: margin (basis points)",
+            "in": "query",
+            "name": "margin_bp",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What-if: margin (basis points)",
+              "title": "Margin Bp"
+            }
+          },
+          {
+            "description": "What-if: delivery cost per box",
+            "in": "query",
+            "name": "delivery_paise",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What-if: delivery cost per box",
+              "title": "Delivery Paise"
+            }
+          },
+          {
+            "description": "What-if: packing cost per box",
+            "in": "query",
+            "name": "packing_paise",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What-if: packing cost per box",
+              "title": "Packing Paise"
+            }
+          },
+          {
+            "description": "What-if: captain pay per box",
+            "in": "query",
+            "name": "captain_paise",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What-if: captain pay per box",
+              "title": "Captain Paise"
+            }
+          },
+          {
+            "description": "What-if: payment fee (basis points)",
+            "in": "query",
+            "name": "payment_fee_bp",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What-if: payment fee (basis points)",
+              "title": "Payment Fee Bp"
+            }
+          },
+          {
+            "description": "What-if: acquisition cost per box",
+            "in": "query",
+            "name": "cac_paise",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What-if: acquisition cost per box",
+              "title": "Cac Paise"
+            }
+          },
+          {
+            "description": "What-if: the pre-live delivery fee per box",
+            "in": "query",
+            "name": "delivery_fee_paise",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What-if: the pre-live delivery fee per box",
+              "title": "Delivery Fee Paise"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitEconomicsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.data_source_required · analytics.assumptions_invalid (an override out of range, with errors[]) · analytics.range_invalid · analytics.range_too_long"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A box's contribution from measured inputs, saved assumptions and what-if overrides (franchise owner, admin)",
         "tags": [
           "analytics"
         ]
@@ -40731,6 +43445,104 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/fairness": {
+      "get": {
+        "operationId": "fairness_v1_hubs__hub_id__fairness_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "runs",
+            "required": false,
+            "schema": {
+              "default": 28,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Runs",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FairnessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The fairness weight in use and the hub's latest assignment runs (hub staff, admin)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/goods-receipts": {
       "get": {
         "operationId": "list_goods_receipts_v1_hubs__hub_id__goods_receipts_get",
@@ -42658,6 +45470,121 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/pickups": {
+      "get": {
+        "description": "Made when each route starts, so the list is empty before. Flat labels for hub staff; no names or phones.",
+        "operationId": "hub_pickups_v1_hubs__hub_id__pickups_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubPickupsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A hub's return-leg pickups for a date, per stop, with totals",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/price-lists": {
       "get": {
         "operationId": "list_price_lists_v1_hubs__hub_id__price_lists_get",
@@ -44352,6 +47279,127 @@
         "summary": "A hub's routes for a date, by departure and vehicle",
         "tags": [
           "logistics"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/shortages": {
+      "get": {
+        "operationId": "hub_shortages_v1_hubs__hub_id__shortages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShortagesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Items short for a date's packing and the bags the gap falls on (read only)",
+        "tags": [
+          "hub_ops"
         ]
       }
     },
@@ -58509,6 +61557,148 @@
           }
         ],
         "summary": "Hand a stop's crates to its captain by count and code or photo (Idempotency-Key)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
+    "/v1/stops/{stop_id}/pickups": {
+      "post": {
+        "description": "The route's rider, while it is in progress. A report may name a part: `empties` replaces the stop's count; each donation and bag is set once. Each change publishes logistics.pickup_completed (M9 records the donations, M6 unpacks the bags).",
+        "operationId": "report_pickups_v1_stops__stop_id__pickups_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stop_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stop Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PickupsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, logistics.not_your_route"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.stop_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.route_not_started, logistics.route_closed, logistics.stop_skipped, logistics.pickup_already_reported (donation_ids, order_ids)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.pickup_unknown (donation_ids, bags), request.invalid, request.idempotency_mismatch"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Report the empties, donations and bags taken back at a stop (Idempotency-Key)",
         "tags": [
           "logistics"
         ]

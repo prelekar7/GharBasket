@@ -2,7 +2,7 @@
 user names for the admin lookup (M1 §3.6)
 
 Revision ID: 3e9a4c71b5d8
-Revises: a9390a28e336
+Revises: 5b8e1d3a7c42
 Create Date: 2026-10-25 18:02:41.703806+00:00
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "3e9a4c71b5d8"
-down_revision: str | Sequence[str] | None = "a9390a28e336"
+down_revision: str | Sequence[str] | None = "5b8e1d3a7c42"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

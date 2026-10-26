@@ -31,3 +31,6 @@ for role in ("captain", "rider", "hub_manager"):
     PERMISSIONS.allow(role, "deliveries:write")
 for role in ("hub_manager", "admin"):
     PERMISSIONS.allow(role, "deliveries:resolve")
+# Return-leg pickups (§3.6): the hub's list; riders report theirs with routes:execute.
+for role in ("hub_manager", "admin"):
+    PERMISSIONS.allow(role, "pickups:read")
