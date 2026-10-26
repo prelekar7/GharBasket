@@ -1,5 +1,6 @@
 """HTTP endpoints of M12 Console & Analytics: the AI health table, the hub's today board, KPIs,
-the societies table, unit economics, the P&L and the hub's assumptions (impact follows)."""
+the societies table, cohorts, partner earnings, unit economics, the P&L and the hub's assumptions
+(impact follows)."""
 
 import uuid
 from datetime import date
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.analytics import (
     assumptions,
+    cohorts,
+    earnings,
     economics,
     kpis,
     reads,
@@ -27,9 +30,12 @@ from gharbasket.modules.analytics.economics_schemas import (
 )
 from gharbasket.modules.analytics.schemas import (
     AiHealthOut,
+    CohortsOut,
     Grain,
     KpiSource,
     KpisOut,
+    PartnerEarningsOut,
+    PartnerKind,
     SocietiesOut,
     TodayOut,
 )
@@ -46,6 +52,7 @@ from gharbasket.platform.valkey import Valkey
 router = APIRouter(tags=["analytics"])
 
 CanRead = Annotated[Permit, require("analytics:read")]
+CanSeeCohorts = Annotated[Permit, require("analytics:cohorts")]
 CanSeeAiHealth = Annotated[Permit, require("analytics:ai_health")]
 # Calendar dates the console can ask for; the day arithmetic around them never leaves the range.
 CalendarDate = Annotated[date, Field(ge=date(2000, 1, 1), le=date(2100, 12, 31))]
@@ -392,3 +399,78 @@ async def put_hub_assumptions(
     response.headers["Cache-Control"] = NO_CACHE
     set_etag(response, out.version)
     return out
+
+
+@router.get(
+    "/analytics/cohorts",
+    summary="Retention of each signup week's households, per data source (admin)",
+    dependencies=[Limited],
+    responses={
+        **READ_ERRORS,
+        422: _problem(
+            "analytics.data_source_required · analytics.range_too_long (weeks over 26) · "
+            "analytics.range_invalid (weeks under 4)"
+        ),
+    },
+)
+async def cohort_retention(
+    permit: CanSeeCohorts,
+    session: DbSession,
+    response: Response,
+    hub_id: Annotated[uuid.UUID | None, Query(description="Left out: every hub")] = None,
+    data_source: Annotated[
+        KpiSource | None,
+        Query(description="Required: `real` or `synthetic`, never pooled"),
+    ] = None,
+    weeks: Annotated[
+        int, Query(description="Signup weeks to show, and the weeks of retention: 4 to 26")
+    ] = cohorts.DEFAULT_WEEKS,
+) -> CohortsOut:
+    reads.ensure_scope(permit, hub_id)
+    if data_source is None:
+        raise ProblemError(
+            422, "analytics.data_source_required", "Say which data: `real` or `synthetic`."
+        )
+    cohorts.check_weeks(weeks)
+    response.headers["Cache-Control"] = "private, max-age=60"
+    return await cohorts.cohorts(session, hub_id, data_source, weeks, reads.ist_today())
+
+
+@router.get(
+    "/analytics/partner-earnings",
+    summary="The weekly spread of what one kind of partner earned, never an individual (hub "
+    "manager, franchise owner, admin; only an admin may leave the hub out)",
+    dependencies=[Limited],
+    responses={
+        **READ_ERRORS,
+        422: _problem(
+            "analytics.data_source_required · analytics.range_invalid · analytics.range_too_long"
+        ),
+    },
+)
+async def partner_earnings(
+    permit: CanRead,
+    session: DbSession,
+    response: Response,
+    hub_id: Annotated[
+        uuid.UUID | None, Query(description="Left out: every hub (admin only)")
+    ] = None,
+    kind: Annotated[PartnerKind, Query(description="Which partners")] = "kitchen",
+    from_: Annotated[
+        CalendarDate | None,
+        Query(alias="from", description="An IST date; default the start of the last 12 weeks"),
+    ] = None,
+    to: Annotated[CalendarDate | None, Query(description="An IST date; default today")] = None,
+    data_source: Annotated[
+        KpiSource | None,
+        Query(description="Required: `real` or `synthetic`, never pooled"),
+    ] = None,
+) -> PartnerEarningsOut:
+    reads.ensure_scope(permit, hub_id)
+    if data_source is None:
+        raise ProblemError(
+            422, "analytics.data_source_required", "Say which data: `real` or `synthetic`."
+        )
+    start, end = kpis.resolve_range(from_, to, "week", reads.ist_today())
+    response.headers["Cache-Control"] = "private, max-age=60"
+    return await earnings.partner_earnings(session, hub_id, kind, data_source, start, end)
