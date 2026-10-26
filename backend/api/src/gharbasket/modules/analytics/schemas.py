@@ -173,7 +173,10 @@ class KpisOut(BaseModel):
     stale: bool
     periods: list[date] = Field(description="The first day of each period (ISO weeks start Monday)")
     series: dict[str, list[int | None]] = Field(
-        description="One value per period for every KPI key; null when undefined"
+        description=(
+            "One value per period for every KPI key; null when undefined. "
+            "`partner_earnings_paise` is null under 5 paid partners (never an individual's pay)"
+        )
     )
     totals: dict[str, int | None] = Field(
         description="Over the whole range; rates recomputed from their parts, not averaged"

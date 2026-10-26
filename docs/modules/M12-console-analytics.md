@@ -193,7 +193,7 @@ GET /v1/analytics/societies?hub_id=&data_source=real
 | `waste_g_per_100kg` | Σ waste with `cascade_to = bin` ÷ Σ packed × 100 kg (M-E waste). Only the bin is waste: food a kitchen or an NGO took is rescued, not wasted. M6 §3.5 owns the definition (owner, 2026-10-25; the draft's `{ngo, bin}` is superseded) |
 | `delivery_cost_per_order_paise` · `km_per_order_m` | Route cost and route km of box routes ÷ orders on them (M-F) |
 | `issues_per_1000_orders` · `issue_auto_credit_bp` | Issues ÷ delivered orders × 1,000; issues credited automatically ÷ issues |
-| `partner_earnings_paise` · `partners_paid` | Σ earnings accrued (M5 §3.5) and the partners who earned anything |
+| `partner_earnings_paise` · `partners_paid` | Σ earnings accrued (M5 §3.5), `null` under 5 paid partners, and the partners who earned anything |
 | `kitchen_gini_bp` | Gini of kitchen partners' weekly earnings (M-G; week grain only) |
 | `donations_verified` · `meals_donated` · `referrals_converted` · `societies_live` | From M9's facts |
 
@@ -230,6 +230,7 @@ GET /v1/analytics/societies?hub_id=&data_source=real
   - Every key of the table is always present. `totals` are rates recomputed from the summed parts of the range.
   - `active_households` is the distinct households with a delivered order in the period (`fact_orders`, not the view's daily count); its total is the last 7 days of the range.
   - `partner_earnings_paise`, `partners_paid` and `kitchen_gini_bp` come from `fact_partner_weeks` (not the view, so an admin's all-hub series is one Gini), by ISO week. They are `null` at day grain, and over the range a partner paid in two weeks counts once. The Gini is `null` under 5 paid kitchens and equals `mv_partner_earnings_weekly`'s.
+  - **Never an individual's pay** (2026-10-26). Under 5 paid partners (`analytics.kpis.MIN_PAID_PARTNERS`, the rule of §3.5's `/partner-earnings`), `partner_earnings_paise` is `null` in that week's series entry and in the range's total, for every caller; `partners_paid`, the count, is still sent. A week with no earnings rows is `null` with a count of 0. No other KPI divides partner earnings, so none needs the rule.
   - `delivery_cost_per_order_paise` is `null` when the range's box-route cost is 0: a plan without a recorded cost is not free.
   - `edits_per_100_boxes` and `issues_per_1000_orders` are rounded half up to integers.
   - `waste_g_per_100kg` is the bin grams over the packed grams × 100,000 (grams per 100 kg), `null` when nothing was packed. It counts `cascade_to = bin` only: M6 §3.5 owns the definition and rescued food (kitchen, NGO) is not waste, which the owner confirmed over the draft's `{ngo, bin}` on 2026-10-25. `hub_ops.api.hub_day_facts` fills `waste_bin_g`, `waste_ngo_g` and `waste_kitchen_g` from `hub_ops.waste_logs` (`kg` × 1,000 by IST day and `cascade_to`; a log without a weight is left out, as in M6's summary), and a day with waste logs but no packing is a hub-day too. `waste_imperfect_g` stays 0 (Imperfect Sabzi is not in v1), and surplus offered and taken stay 0 until the surplus cascade lands.
