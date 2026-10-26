@@ -487,6 +487,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The money that went back for a hub's orders, newest first (read only) */
+        get: operations["order_refunds_v1_admin_refunds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -1585,6 +1602,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/fairness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The fairness weight in use and the hub's latest assignment runs (hub staff, admin) */
+        get: operations["fairness_v1_hubs__hub_id__fairness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/goods-receipts": {
         parameters: {
             query?: never;
@@ -1930,6 +1964,23 @@ export interface paths {
         };
         /** A hub's routes for a date, by departure and vehicle */
         get: operations["list_routes_v1_hubs__hub_id__routes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/shortages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Items short for a date's packing and the bags the gap falls on (read only) */
+        get: operations["hub_shortages_v1_hubs__hub_id__shortages_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6638,6 +6689,91 @@ export interface components {
             /** Redelivery Bags */
             redelivery_bags: number;
         };
+        /** FairnessOut */
+        FairnessOut: {
+            /**
+             * Fallback Active
+             * @description The newest run's model is greedy-m8
+             */
+            fallback_active: boolean;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Lambda Paise
+             * @description PARTNERS_FAIRNESS_LAMBDA now: paise of cost per portion of earnings imbalance (M10 §3.5); 0 = cost only; one value for every hub
+             * @example 300
+             */
+            lambda_paise: number;
+            /**
+             * Runs
+             * @description Newest first
+             */
+            runs: components["schemas"]["FairnessRunOut"][];
+        };
+        /** FairnessRunOut */
+        FairnessRunOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Gini
+             * @description Of the earnings of every kitchen in the request
+             */
+            gini: number | null;
+            /**
+             * Gini Eligible
+             * @description Of the kitchens that could take an order
+             */
+            gini_eligible: number | null;
+            /** Kitchens Used */
+            kitchens_used: number;
+            /** Km Per Portion */
+            km_per_portion: number | null;
+            /**
+             * Lambda Paise
+             * @description The λ the run sent; null for earlier runs
+             */
+            lambda_paise: number | null;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Model */
+            model: string;
+            /** Portions */
+            portions: number;
+            /** Round */
+            round: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+            /**
+             * Status
+             * @description M10's answer, or fallback for M8's own
+             * @example solved
+             */
+            status: string;
+            /** Unassigned */
+            unassigned: number;
+        };
         /** FastingRules */
         FastingRules: {
             /** Fasts */
@@ -10306,6 +10442,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[RefundRow] */
+        Page_RefundRow_: {
+            /** Items */
+            items: components["schemas"]["RefundRow"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[SocietySummary] */
         Page_SocietySummary_: {
             /** Items */
@@ -12810,6 +12953,91 @@ export interface components {
              */
             type: "refund";
         };
+        /** RefundRow */
+        RefundRow: {
+            /**
+             * Amount Paise
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower and flat only; never a name or a phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Id
+             * Format: uuid
+             * @description The journal entry's id
+             */
+            id: string;
+            /**
+             * Issue Id
+             * @description Issue: the order issue (§3.2)
+             */
+            issue_id: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "tiffin" | "addon";
+            /**
+             * Product Id
+             * @description Shortage and carry-over: the line's product
+             */
+            product_id: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "shortage" | "issue" | "undelivered" | "no_kitchen" | "carry_over" | "other";
+            /**
+             * Refund Id
+             * @description To source: the Refund that sends it back
+             */
+            refund_id: string | null;
+            society: components["schemas"]["RefundSociety"];
+            /**
+             * Status
+             * @description credited for the wallet; the Refund's status for a source
+             * @enum {string}
+             */
+            status: "credited" | "pending" | "processing" | "processed" | "partly_failed" | "failed";
+            /**
+             * To
+             * @enum {string}
+             */
+            to: "wallet" | "source";
+        };
+        /** RefundSociety */
+        RefundSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Sunrise Towers
+             */
+            name: string;
+        };
         /** ReinstateIn */
         ReinstateIn: {
             /**
@@ -13425,6 +13653,85 @@ export interface components {
              */
             waste_logs: components["schemas"]["WasteLogOut"][];
         };
+        /** ShortBag */
+        ShortBag: {
+            /** Bag Qr */
+            bag_qr: string;
+            /**
+             * Flat Label
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Outcome
+             * @description Bags: what §3.2 would allow. Reported: what was recorded
+             * @enum {string}
+             */
+            outcome: "substitute" | "refund";
+            /**
+             * Qty
+             * @description Steps open on the line (bags) or short (reported)
+             */
+            qty: number;
+            /**
+             * Refund Paise
+             * @description 0 for a substitute that costs the same
+             */
+            refund_paise: number;
+            /**
+             * Society
+             * @example Sunrise Towers
+             */
+            society: string;
+            /** @description Bags: the first listed substitute in stock; reported: the one packed */
+            substitute: components["schemas"]["PackingSubstitute"] | null;
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+        };
+        /** ShortItem */
+        ShortItem: {
+            /**
+             * Bags
+             * @description The open bags the gap falls on, last in queue first
+             */
+            bags: components["schemas"]["ShortBag"][];
+            /**
+             * Name
+             * @description In the requested language
+             */
+            name: string;
+            /**
+             * Needed
+             * @description Steps on the date's packing lines (carried lines left out)
+             */
+            needed: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Received
+             * @description Steps the hub has for the date; null when the step does not convert
+             */
+            received: number | null;
+            /**
+             * Reported
+             * @description Bags with a shortage already recorded
+             */
+            reported: components["schemas"]["ShortBag"][];
+            /**
+             * Short By
+             * @description needed less received, at least 0; 0 when received is null
+             */
+            short_by: number;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+        };
         /** ShortOrderOut */
         ShortOrderOut: {
             /** Box Paise */
@@ -13474,6 +13781,29 @@ export interface components {
             short_qty: number;
             /** Substitute Product Id */
             substitute_product_id?: string | null;
+        };
+        /** ShortagesOut */
+        ShortagesOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Items
+             * @description Largest short_by first, then by name
+             */
+            items: components["schemas"]["ShortItem"][];
         };
         /** SkipIn */
         SkipIn: {
@@ -18842,6 +19172,67 @@ export interface operations {
             };
         };
     };
+    order_refunds_v1_admin_refunds_get: {
+        parameters: {
+            query?: {
+                /** @description Required for hub staff */
+                hub_id?: string | null;
+                /** @description First delivery date (IST); default 7 days before to */
+                from?: string | null;
+                /** @description Last delivery date (IST); default today, at most 31 days on */
+                to?: string | null;
+                reason?: ("shortage" | "issue" | "undelivered" | "no_kitchen" | "carry_over" | "other") | null;
+                destination?: ("wallet" | "source") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RefundRow_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.hub_required (hub staff), request.invalid (a window over 31 days, an unknown value), request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     create_slot_v1_admin_slots_post: {
         parameters: {
             query?: never;
@@ -23672,6 +24063,59 @@ export interface operations {
             };
         };
     };
+    fairness_v1_hubs__hub_id__fairness_get: {
+        parameters: {
+            query?: {
+                runs?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FairnessOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_goods_receipts_v1_hubs__hub_id__goods_receipts_get: {
         parameters: {
             query?: {
@@ -25521,6 +25965,61 @@ export interface operations {
                 };
             };
             /** @description logistics.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_shortages_v1_hubs__hub_id__shortages_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShortagesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -13,7 +13,7 @@ from fastapi.sse import EventSourceResponse
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.api import step_label
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import carry, issues, live, service, tiffins, triage
+from gharbasket.modules.orders import carry, issues, live, refund_list, service, tiffins, triage
 from gharbasket.modules.orders import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.orders import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.orders.models import Order, OrderIssue, Slot
@@ -39,6 +39,9 @@ from gharbasket.modules.orders.schemas import (
     OrderStep,
     OrderSummaryOut,
     ProductRef,
+    RefundDestination,
+    RefundReason,
+    RefundRow,
     ResolveIn,
     SlotIn,
     SlotOut,
@@ -67,6 +70,7 @@ router.include_router(tiffin_router)
 CanRead = Annotated[Permit, require("orders:read")]
 CanWrite = Annotated[Permit, require("orders:write")]
 CanDefineSlots = Annotated[Permit, require("slots:write")]
+CanReadRefunds = Annotated[Permit, require("order_refunds:read")]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -773,3 +777,53 @@ async def resolve_issue(
     await idem.save(200, out)
     await session.commit()
     return out
+
+
+@router.get(
+    "/admin/refunds",
+    summary="The money that went back for a hub's orders, newest first (read only)",
+    responses={
+        403: _problem("auth.forbidden: another hub"),
+        422: _problem(
+            "orders.hub_required (hub staff), request.invalid (a window over 31 days, an unknown "
+            "value), request.invalid_cursor"
+        ),
+    },
+)
+async def order_refunds(
+    permit: CanReadRefunds,
+    session: DbSession,
+    response: Response,
+    hub_id: Annotated[uuid.UUID | None, Query(description="Required for hub staff")] = None,
+    start: Annotated[
+        date | None,
+        Query(alias="from", description="First delivery date (IST); default 7 days before to"),
+    ] = None,
+    end: Annotated[
+        date | None,
+        Query(
+            alias="to", description="Last delivery date (IST); default today, at most 31 days on"
+        ),
+    ] = None,
+    reason: RefundReason | None = None,
+    destination: RefundDestination | None = None,
+    cursor: Cursor = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> Page[RefundRow]:
+    if hub_id is not None:
+        permit.ensure(hub_id)
+    elif not any(g.role == "admin" for g in permit.grants):
+        raise ProblemError(422, "orders.hub_required", "Hub staff pass hub_id.")
+    first, last = refund_list.window(start, end, service.now().astimezone(IST).date())
+    rows, next_cursor = await refund_list.page(
+        session,
+        hub_id=hub_id,
+        start=first,
+        end=last,
+        reason=reason,
+        destination=destination,
+        cursor=cursor,
+        limit=limit,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=rows, next_cursor=next_cursor)

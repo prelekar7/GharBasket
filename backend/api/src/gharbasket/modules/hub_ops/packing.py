@@ -317,6 +317,14 @@ async def lines_of(session: AsyncSession, task_id: uuid.UUID) -> list[PackingLin
     return list(rows.scalars())
 
 
+def flat_label_of(task: PackingTask, society: "community_api.SocietyLabels | None") -> str | None:
+    """ "B wing, B-402": the tower's label and the flat, never a name or a phone."""
+    if task.flat is None:
+        return None
+    tower = society.towers.get(task.tower_id or "") if society else None
+    return f"{tower}, {task.flat}" if tower else task.flat
+
+
 async def views(session: AsyncSession, tasks: list[PackingTask]) -> list[PackingTaskOut]:
     """Tasks as the API shows them: slot, society, tower label, packer and line counts."""
     if not tasks:
@@ -351,11 +359,7 @@ async def views(session: AsyncSession, tasks: list[PackingTask]) -> list[Packing
         )
 
     def flat_label(task: PackingTask) -> str | None:
-        if task.flat is None:
-            return None
-        society = societies.get(task.society_id)
-        tower = society.towers.get(task.tower_id or "") if society else None
-        return f"{tower}, {task.flat}" if tower else task.flat
+        return flat_label_of(task, societies.get(task.society_id))
 
     out: list[PackingTaskOut] = []
     for task in tasks:

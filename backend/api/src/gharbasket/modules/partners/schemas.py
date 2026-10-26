@@ -544,6 +544,35 @@ class RunOut(BaseModel):
     unassigned: int
 
 
+class FairnessRunOut(BaseModel):
+    run_id: uuid.UUID
+    date: date
+    meal: Literal["lunch", "dinner"]
+    round: int
+    source: Literal["ml", "fallback"]
+    model: str
+    status: str = Field(examples=["solved"], description="M10's answer, or fallback for M8's own")
+    portions: int
+    kitchens_used: int
+    unassigned: int
+    gini: float | None = Field(description="Of the earnings of every kitchen in the request")
+    gini_eligible: float | None = Field(description="Of the kitchens that could take an order")
+    km_per_portion: float | None
+    lambda_paise: int | None = Field(description="The λ the run sent; null for earlier runs")
+    at: datetime
+
+
+class FairnessOut(BaseModel):
+    hub_id: uuid.UUID
+    lambda_paise: int = Field(
+        examples=[300],
+        description="PARTNERS_FAIRNESS_LAMBDA now: paise of cost per portion of earnings "
+        "imbalance (M10 §3.5); 0 = cost only; one value for every hub",
+    )
+    fallback_active: bool = Field(description="The newest run's model is greedy-m8")
+    runs: list[FairnessRunOut] = Field(description="Newest first")
+
+
 # --- cooking, manual assignment and the tiffin board (§3.4) -------------------------------------
 
 

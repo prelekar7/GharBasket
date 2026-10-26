@@ -19,6 +19,7 @@ from gharbasket.modules.hub_ops import (
     receiving,
     scores,
     service,
+    shortages,
     stock,
     surplus,
     waste,
@@ -71,6 +72,7 @@ from gharbasket.modules.hub_ops.schemas import (
     SettleIn,
     SettleOut,
     ShortageIn,
+    ShortagesOut,
     StartIn,
     SurplusOffersOut,
     SurplusRunOut,
@@ -842,6 +844,25 @@ async def packing_summary(
     return PackingSummary(
         date=on, **counts, societies=await packing.society_loads(session, hub_id, on)
     )
+
+
+@router.get(
+    "/hubs/{hub_id}/shortages",
+    summary="Items short for a date's packing and the bags the gap falls on (read only)",
+    responses={**SIGNED_IN, 422: _problem("hub_ops.date_out_of_range")},
+)
+async def hub_shortages(
+    hub_id: uuid.UUID,
+    permit: CanReadPacking,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    day: Day = None,
+) -> ShortagesOut:
+    permit.ensure(hub_id)
+    on = packing.packing_day(day)
+    response.headers["Cache-Control"] = "no-store"
+    return await shortages.read(session, hub_id, on, lang)
 
 
 @router.post(
