@@ -8,7 +8,7 @@
 #
 # Needs the local stack (`just up`), uv, corepack (pnpm), gitleaks and an authenticated `gh`.
 # Each run gets its own worktree and a fresh test database, and removes both at the end, so runs
-# for different PRs can go side by side (use CI_VALKEY_DB to give each a different Valkey db).
+# for different PRs can go side by side (use CI_VALKEY_DB, 0 to 47, to give each a different Valkey db).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
@@ -46,6 +46,7 @@ status() { # context state description
 cleanup() {
   git -C "$ROOT" worktree remove --force "$work" >/dev/null 2>&1
   psql_ -d postgres -c "drop database if exists $db" >/dev/null 2>&1
+  psql_ -d postgres -c "drop database if exists ${db}_e2e with (force)" >/dev/null 2>&1
 }
 trap cleanup EXIT
 
@@ -117,8 +118,12 @@ if [[ -f backend/api/pyproject.toml ]]; then
   step python "alembic check" env DATABASE_URL="$TEST_DATABASE_URL" uv run --directory backend/api alembic check
   step python "openapi up to date" bash -c \
     "uv run python -m gharbasket.tools.export_openapi '$work/.openapi.json' && diff -u backend/api/openapi.json '$work/.openapi.json'"
-  # The simulated day (its own database gharbasket_e2e and Valkey db 14), when the branch has it.
-  [[ -d e2e/backend ]] && step python "simulated day" uv run --directory e2e/backend pytest -q -p no:cacheprovider
+  # The simulated day, when the branch has it, on a database and Valkey db of this run's own: two runs side
+  # by side would otherwise share the harness defaults (gharbasket_e2e, Valkey db 14) and drop each other's.
+  [[ -d e2e/backend ]] && step python "simulated day" env \
+    E2E_DATABASE_URL="postgresql+asyncpg://gharbasket:gharbasket@localhost:5432/${db}_e2e" \
+    E2E_VALKEY_URL="redis://localhost:6380/$((valkey_db + 80))" \
+    uv run --directory e2e/backend pytest -q -p no:cacheprovider
   finish python "passed; api ${coverage:-coverage n/a}"
 else
   status python success "no backend/api"
