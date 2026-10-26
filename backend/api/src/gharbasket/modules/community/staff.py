@@ -255,7 +255,11 @@ async def accept(
     if request.status != "received":
         raise request_closed()
     society = await service.create_society(
-        session, name=request.name, area=request.area, hub_id=hub_id
+        session,
+        name=request.name,
+        area=request.area,
+        hub_id=hub_id,
+        data_source=request.data_source,
     )
     request.status = "accepted"
     request.society_id = society.id
