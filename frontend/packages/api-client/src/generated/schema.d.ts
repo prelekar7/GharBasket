@@ -606,6 +606,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/hubs/{hub_id}/assumptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's saved assumptions, their version (ETag) and the last 20 saves (franchise owner, admin) */
+        get: operations["hub_assumptions_v1_analytics_hubs__hub_id__assumptions_get"];
+        /** Save the hub's assumptions (all keys; If-Match: the version; audit-logged) (franchise owner, admin) */
+        put: operations["put_hub_assumptions_v1_analytics_hubs__hub_id__assumptions_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/analytics/hubs/{hub_id}/today": {
         parameters: {
             query?: never;
@@ -640,6 +658,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/pnl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A month's statement: revenue, costs and contribution, each line measured or assumed (franchise owner, admin) */
+        get: operations["pnl_v1_analytics_pnl_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/analytics/societies": {
         parameters: {
             query?: never;
@@ -649,6 +684,23 @@ export interface paths {
         };
         /** Each society's unlock progress and the last 4 weeks' households, approval and box value (hub manager, franchise owner, admin; only an admin may leave the hub out) */
         get: operations["society_table_v1_analytics_societies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/unit-economics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A box's contribution from measured inputs, saved assumptions and what-if overrides (franchise owner, admin) */
+        get: operations["unit_economics_v1_analytics_unit_economics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4816,6 +4868,68 @@ export interface components {
             /** Items */
             items: components["schemas"]["AssignmentOut"][];
         };
+        /**
+         * AssumptionsIn
+         * @description The PUT body: every key, whole numbers (a range error is 422 `analytics.assumptions_invalid`
+         *     with `errors[]`).
+         */
+        AssumptionsIn: {
+            /** Aov Paise */
+            aov_paise: number;
+            /** Cac Paise */
+            cac_paise: number;
+            /** Captain Paise */
+            captain_paise: number;
+            /** Delivery Paise */
+            delivery_paise: number;
+            /** Margin Bp */
+            margin_bp: number;
+            /** Packing Paise */
+            packing_paise: number;
+            /** Payment Fee Bp */
+            payment_fee_bp: number;
+        };
+        /**
+         * AssumptionsOut
+         * @description The seven editable inputs of a box's economics; money in paise, rates in basis points.
+         */
+        AssumptionsOut: {
+            /**
+             * Aov Paise
+             * @description Average box value, add-ons included, delivery fee not
+             */
+            aov_paise: number;
+            /**
+             * Cac Paise
+             * @description Customer acquisition cost spread per box
+             */
+            cac_paise: number;
+            /**
+             * Captain Paise
+             * @description Society Captain pay per box
+             */
+            captain_paise: number;
+            /**
+             * Delivery Paise
+             * @description Delivery cost per box
+             */
+            delivery_paise: number;
+            /**
+             * Margin Bp
+             * @description Margin on produce, after vendor cost
+             */
+            margin_bp: number;
+            /**
+             * Packing Paise
+             * @description Packing cost per box
+             */
+            packing_paise: number;
+            /**
+             * Payment Fee Bp
+             * @description Share of the box value paid to the payment provider
+             */
+            payment_fee_bp: number;
+        };
         /** BagPickupOut */
         BagPickupOut: {
             /**
@@ -4834,6 +4948,41 @@ export interface components {
              * @enum {string}
              */
             status: "expected" | "collected" | "not_ready";
+        };
+        /** BasisShare */
+        BasisShare: {
+            /** Bp */
+            bp: number;
+            /**
+             * Kind
+             * @default share
+             * @constant
+             */
+            kind: "share";
+            /**
+             * Of
+             * @default box_revenue
+             * @constant
+             */
+            of: "box_revenue";
+        };
+        /** BasisTimes */
+        BasisTimes: {
+            /**
+             * Kind
+             * @default times
+             * @constant
+             */
+            kind: "times";
+            /** Qty */
+            qty: number;
+            /** Rate Paise */
+            rate_paise: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "box" | "tiffin";
         };
         /** BoardAttentionOut */
         BoardAttentionOut: {
@@ -5363,6 +5512,26 @@ export interface components {
              * @example leafy-greens
              */
             slug: string;
+        };
+        /** ChangeOut */
+        ChangeOut: {
+            /**
+             * From
+             * @description Null: the key had no value before
+             */
+            from: number | null;
+            /** Key */
+            key: string;
+            /** To */
+            to: number;
+        };
+        /** ChangedByOut */
+        ChangedByOut: {
+            /**
+             * Name
+             * @description The editor's name; null when they have none on record
+             */
+            name: string | null;
         };
         /** ClaimIn */
         ClaimIn: {
@@ -7195,6 +7364,17 @@ export interface components {
                 [key: string]: components["schemas"]["FieldChange"];
             };
         };
+        /** HistoryOut */
+        HistoryOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            by: components["schemas"]["ChangedByOut"];
+            /** Changes */
+            changes: components["schemas"]["ChangeOut"][];
+        };
         /**
          * HouseholdIn
          * @description Onboarding in one call: household, members, address and consents together.
@@ -7344,6 +7524,25 @@ export interface components {
              * @example +919812345678
              */
             phone_e164: string;
+        };
+        /** HubAssumptionsOut */
+        HubAssumptionsOut: {
+            assumptions: components["schemas"]["AssumptionsOut"];
+            /**
+             * History
+             * @description The newest 20 saves
+             */
+            history: components["schemas"]["HistoryOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Version
+             * @description Also the ETag; send it back as If-Match
+             */
+            version: number;
         };
         /** HubCutoffOut */
         HubCutoffOut: {
@@ -9121,6 +9320,23 @@ export interface components {
              */
             slot: "breakfast" | "lunch" | "dinner";
         };
+        /**
+         * MeasuredOut
+         * @description What the pilot (or the simulator) measured; null: not measurable yet. The payment fee is
+         *     never measured in v1 and the CAC never, so neither is here.
+         */
+        MeasuredOut: {
+            /** Aov Paise */
+            aov_paise: number | null;
+            /** Captain Paise */
+            captain_paise: number | null;
+            /** Delivery Paise */
+            delivery_paise: number | null;
+            /** Margin Bp */
+            margin_bp: number | null;
+            /** Packing Paise */
+            packing_paise: number | null;
+        };
         /** MemberIn */
         MemberIn: {
             /**
@@ -10418,6 +10634,17 @@ export interface components {
             /** Items */
             items: components["schemas"]["PartnerOut"][];
         };
+        /** PartnersPaidOut */
+        PartnersPaidOut: {
+            /** Captains */
+            captains: number;
+            /** Kitchens */
+            kitchens: number;
+            /** Packers */
+            packers: number;
+            /** Riders */
+            riders: number;
+        };
         /**
          * PaymentDueOut
          * @description What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay.
@@ -10540,6 +10767,34 @@ export interface components {
              * @enum {string}
              */
             type: "payout";
+        };
+        /** PerBoxOut */
+        PerBoxOut: {
+            /** Cac Paise */
+            cac_paise: number;
+            /** Captain Paise */
+            captain_paise: number;
+            /**
+             * Contribution Paise
+             * @description May be negative
+             */
+            contribution_paise: number;
+            /**
+             * Delivery Fee Paise
+             * @description Revenue: the pre-live fee
+             */
+            delivery_fee_paise: number;
+            /** Delivery Paise */
+            delivery_paise: number;
+            /**
+             * Fee Paise
+             * @description The payment fee, a cost
+             */
+            fee_paise: number;
+            /** Margin Paise */
+            margin_paise: number;
+            /** Packing Paise */
+            packing_paise: number;
         };
         /** PhotoUrl */
         PhotoUrl: {
@@ -10757,6 +11012,75 @@ export interface components {
         PlansOut: {
             /** Items */
             items: components["schemas"]["PlanOut"][];
+        };
+        /** PnlLineOut */
+        PnlLineOut: {
+            /**
+             * Amount Paise
+             * @description Costs are negative; exact paise
+             */
+            amount_paise: number;
+            /** Basis */
+            basis: components["schemas"]["BasisTimes"] | components["schemas"]["BasisShare"];
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "box_revenue" | "delivery_fee_revenue" | "tiffin_revenue" | "produce" | "kitchen" | "delivery" | "packing" | "captain" | "fees" | "acquisition";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "measured" | "assumed";
+        };
+        /** PnlOut */
+        PnlOut: {
+            /** As Of */
+            as_of: string | null;
+            /** Boxes */
+            boxes: number;
+            /** Contribution Paise */
+            contribution_paise: number;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /** Lines */
+            lines: components["schemas"]["PnlLineOut"][];
+            partners_paise: components["schemas"]["PartnersPaidOut"];
+            /**
+             * Per Box Paise
+             * @description Contribution ÷ boxes; null without boxes
+             */
+            per_box_paise: number | null;
+            /**
+             * Period
+             * @example 2027-02
+             */
+            period: string;
+            /**
+             * Previous Contribution Paise
+             * @description The month before's; null when it has no data
+             */
+            previous_contribution_paise: number | null;
+            /** Revenue Paise */
+            revenue_paise: number;
+            /** Tiffins */
+            tiffins: number;
+            /** Weeks */
+            weeks: components["schemas"]["PnlWeekOut"][];
+        };
+        /** PnlWeekOut */
+        PnlWeekOut: {
+            /** Contribution Paise */
+            contribution_paise: number;
+            /**
+             * Week
+             * Format: date
+             * @description The week's Monday
+             */
+            week: string;
         };
         /**
          * PointRateIn
@@ -13870,6 +14194,50 @@ export interface components {
              */
             kind: "box";
         };
+        /** SourcesOut */
+        SourcesOut: {
+            /**
+             * Aov Paise
+             * @enum {string}
+             */
+            aov_paise: "measured" | "assumed" | "override";
+            /**
+             * Cac Paise
+             * @enum {string}
+             */
+            cac_paise: "measured" | "assumed" | "override";
+            /**
+             * Captain Paise
+             * @enum {string}
+             */
+            captain_paise: "measured" | "assumed" | "override";
+            /**
+             * Delivery Fee Paise
+             * @description Measured, or an override
+             * @enum {string}
+             */
+            delivery_fee_paise: "measured" | "assumed" | "override";
+            /**
+             * Delivery Paise
+             * @enum {string}
+             */
+            delivery_paise: "measured" | "assumed" | "override";
+            /**
+             * Margin Bp
+             * @enum {string}
+             */
+            margin_bp: "measured" | "assumed" | "override";
+            /**
+             * Packing Paise
+             * @enum {string}
+             */
+            packing_paise: "measured" | "assumed" | "override";
+            /**
+             * Payment Fee Bp
+             * @enum {string}
+             */
+            payment_fee_bp: "measured" | "assumed" | "override";
+        };
         /**
          * StaffDonationOut
          * @description The verification queue's row: tower and flat match the bag's label at the hub.
@@ -15140,6 +15508,71 @@ export interface components {
              * @enum {string}
              */
             reason: "not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other";
+        };
+        /** UnitEconomicsOut */
+        UnitEconomicsOut: {
+            /**
+             * As Of
+             * @description Finish time of the last run that refreshed it
+             */
+            as_of: string | null;
+            /** @description The hub's saved values */
+            assumptions: components["schemas"]["AssumptionsOut"];
+            /**
+             * Boxes
+             * @description Delivered boxes
+             */
+            boxes: number;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Delivery Fee Paise
+             * @description Per box: Σ fees of delivered boxes ÷ boxes, 0 with no pre-live boxes; or the override
+             */
+            delivery_fee_paise: number;
+            /**
+             * From
+             * Format: date
+             * @description The Monday of the first week
+             */
+            from: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            measured: components["schemas"]["MeasuredOut"];
+            per_box: components["schemas"]["PerBoxOut"];
+            sources: components["schemas"]["SourcesOut"];
+            /**
+             * To
+             * Format: date
+             * @description The Sunday of the last week
+             */
+            to: string;
+            /** @description Override, else measured (prefer=measured), else saved */
+            used: components["schemas"]["AssumptionsOut"];
+            /** Weeks */
+            weeks: components["schemas"]["UnitWeekOut"][];
+        };
+        /** UnitWeekOut */
+        UnitWeekOut: {
+            /** Boxes */
+            boxes: number;
+            /**
+             * Contribution Paise
+             * @description Per box, from that week's own inputs; null in a week without boxes
+             */
+            contribution_paise: number | null;
+            /**
+             * Week
+             * Format: date
+             * @description The week's Monday
+             */
+            week: string;
         };
         /**
          * UnlockOut
@@ -19204,6 +19637,180 @@ export interface operations {
             };
         };
     };
+    hub_assumptions_v1_analytics_hubs__hub_id__assumptions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description The assumptions version, e.g. "3"; send it back in If-Match */
+                    ETag?: unknown;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubAssumptionsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_hub_assumptions_v1_analytics_hubs__hub_id__assumptions_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssumptionsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description The assumptions version, e.g. "3"; send it back in If-Match */
+                    ETag?: unknown;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubAssumptionsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_failed (the version moved on; reload) */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.assumptions_invalid (a value out of range, with errors[]) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required (send If-Match) */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     hub_today_v1_analytics_hubs__hub_id__today_get: {
         parameters: {
             query?: {
@@ -19364,6 +19971,89 @@ export interface operations {
             };
         };
     };
+    pnl_v1_analytics_pnl_get: {
+        parameters: {
+            query: {
+                /** @description The month, `YYYY-MM` */
+                period: string;
+                /** @description The hub (required) */
+                hub_id?: string | null;
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PnlOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required · analytics.range_invalid (not a month, or one that has not begun) · analytics.range_too_long (over the last 24 months) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     society_table_v1_analytics_societies_get: {
         parameters: {
             query?: {
@@ -19408,6 +20098,109 @@ export interface operations {
                 };
             };
             /** @description analytics.data_source_required */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    unit_economics_v1_analytics_unit_economics_get: {
+        parameters: {
+            query?: {
+                /** @description The hub (required) */
+                hub_id?: string | null;
+                /** @description An IST date; moves back to its Monday. Default: 12 weeks */
+                from?: string | null;
+                /** @description An IST date; moves on to its Sunday. Default today */
+                to?: string | null;
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+                /** @description `measured`: use what was measured; `assumed`: only the saved values */
+                prefer?: "measured" | "assumed";
+                /** @description What-if: average box value (paise) */
+                aov_paise?: number | null;
+                /** @description What-if: margin (basis points) */
+                margin_bp?: number | null;
+                /** @description What-if: delivery cost per box */
+                delivery_paise?: number | null;
+                /** @description What-if: packing cost per box */
+                packing_paise?: number | null;
+                /** @description What-if: captain pay per box */
+                captain_paise?: number | null;
+                /** @description What-if: payment fee (basis points) */
+                payment_fee_bp?: number | null;
+                /** @description What-if: acquisition cost per box */
+                cac_paise?: number | null;
+                /** @description What-if: the pre-live delivery fee per box */
+                delivery_fee_paise?: number | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitEconomicsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required · analytics.assumptions_invalid (an override out of range, with errors[]) · analytics.range_invalid · analytics.range_too_long */
             422: {
                 headers: {
                     [name: string]: unknown;
