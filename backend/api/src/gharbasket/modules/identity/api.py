@@ -65,6 +65,14 @@ async def society_owners(
     return {user_id: household_id for user_id, household_id in rows.all()}
 
 
+async def households_per_society(
+    session: AsyncSession, society_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Households per society for M9's staff society list (M9 §3.9); a society without
+    households is 0."""
+    return await households_in_societies(session, society_ids)
+
+
 async def household_hub(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID | None:
     """The hub that serves this user's household (for prices, M2); None without one."""
     hub = await session.execute(select(Household.hub_id).where(Household.owner_user_id == user_id))

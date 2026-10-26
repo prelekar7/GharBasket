@@ -8,8 +8,8 @@ The classes come from `docs/integration/gaps.json`, which is edited by hand.
 
 | App | Call sites | Found | Wrong method | Missing | Unresolved | Wrapped (not shipped / @proposal) |
 |---|--:|--:|--:|--:|--:|--:|
-| mobile | 115 | 99 | 1 | 12 | 3 | 9 |
-| console | 185 | 147 | 1 | 37 | 0 | 19 |
+| mobile | 115 | 97 | 1 | 14 | 3 | 9 |
+| console | 185 | 149 | 1 | 35 | 0 | 19 |
 
 Distinct endpoints called: mobile 98, console 147. A call site is one `request(`/`apiGet(` … in the source.
 
@@ -21,7 +21,7 @@ Distinct endpoints called: mobile 98, console 147. A call site is one `request(`
 | pending-pr | 0 | 0 call sites | 0 call sites |
 | fix-frontend | 15 | 5 call sites | 10 call sites |
 | fix-backend | 0 | 0 call sites | 0 call sites |
-| later | 16 | 3 call sites | 19 call sites |
+| later | 16 | 5 call sites | 17 call sites |
 | drop | 14 | 5 call sites | 9 call sites |
 
 45 gap endpoints in all (a call that is missing, or exists only with another method).
@@ -55,15 +55,15 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
-| `DELETE /v1/admin/user-roles/{}` | console | `console/app/(console)/(admin)/users/actions.js:34` | M1 §3.6: revokes a staff grant or cancels a pending one; partner and customer roles are 409 identity.role_not_removable. | prathamesh | MS-A |
 | `GET /v1/admin/plans` (guarded) | console | `console/app/(console)/(admin)/plans/page.jsx:10` | M3 §3.5: AdminPlan with state and subscriber_count; read-only (plan writes dropped). | prathamesh | MS-A |
 | `GET /v1/admin/societies` (guarded) | console | `console/app/(console)/(admin)/hubs/page.jsx:16`, `console/app/(console)/(admin)/societies/page.jsx:25` | M9 §3.9 (drafted 2026-10-25): the staff list with hub, households and the edited fields; with_unassigned is admin-only. | prathamesh | MS-A |
 | `GET /v1/admin/society-requests` (guarded) | console | `console/app/(console)/(admin)/societies/page.jsx:65`, `console/app/(console)/(admin)/societies/requests/page.jsx:15` | M9 §3.9. | prathamesh | MS-A |
-| `GET /v1/admin/users` (partly guarded) | console | `console/app/(console)/(admin)/delivery-log/page.jsx:44`, `console/app/(console)/(admin)/users/page.jsx:22` +1 | M1 §3.6 (drafted 2026-10-25): ?phone=, ?q=, ?staff=true, ?pending=true; admin only, audit-logged. | prathamesh | MS-A |
+| `GET /v1/analytics/impact` | console | `console/app/(console)/(community)/impact/page.jsx:26`, `console/app/(console)/(community)/impact/report/route.js:20` | M12 §3.6 (JSON and CSV). | prathamesh | MS-D |
 | `GET /v1/earnings/certificate` | mobile | `mobile/src/features/captain/queries.js:168`, `mobile/src/features/logistics/queries.js:256` +1 | M8 §3.7 is an outline, 'refined after MS-B'. | prathamesh | after MS-B |
 | `GET /v1/hubs/{}/delivery-days` (guarded) | console | `console/app/(console)/(hub)/delivery-days/page.jsx:24` | M3 §3.5 (drafted 2026-10-25): every society of the hub with its status; no not_live list. | prathamesh | MS-A |
-| `GET /v1/hubs/{}/staff` | console | `console/app/(console)/(franchise)/staff/data.js:18` | M1 §3.6: HubStaff with names and masked phones; no today or last_week_paise. | prathamesh | MS-B |
 | `GET /v1/hubs/{}/tiffin-menus` (guarded) | console | `console/app/(console)/(admin)/tiffin-menus/page.jsx:16` | M2 §3.4: the review list, every status, at the mock's path. Supersedes F5 for this page: GET /v1/tiffin-menus (M4 §3.5) lists approved menus only. | prathamesh | MS-B |
+| `GET /v1/impact` | mobile | `mobile/src/features/community/queries.js:123`, `mobile/src/features/community/queries.js:135` | M9 §3.7 (?scope=me). | prathamesh | MS-D |
+| `GET /v1/public/societies/{}` | console | `console/lib/public-api.js:63` | M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url). | prathamesh | MS-D |
 | `PATCH /v1/admin/society-requests/{}` | console | `console/app/(console)/(admin)/societies/requests/actions.js:49` | M9 §3.9: only { status: "received" }, the undo of a duplicate. | prathamesh | MS-A |
 | `POST /v1/admin/societies` | console | `console/app/(console)/(admin)/societies/actions.js:26` | M9 §3.1 lists POST /v1/admin/societies (frozen for S1) but main has only PATCH /v1/admin/societies/{id}. | prathamesh | MS-A |
 | `POST /v1/admin/society-requests/{}/accept` | console | `console/app/(console)/(admin)/societies/requests/actions.js:14` | M9 §3.9: creates a prospect society through POST /v1/admin/societies's create path (itself later, MS-A). | prathamesh | MS-A |

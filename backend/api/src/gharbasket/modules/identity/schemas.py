@@ -132,6 +132,9 @@ def _normalise_phone(value: str) -> str:
     return phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.E164)
 
 
+normalise_phone = _normalise_phone
+
+
 class MeUpdate(BaseModel):
     """Only the fields sent are changed. `name: null` clears the name."""
 
@@ -455,3 +458,80 @@ class DataExportOut(BaseModel):
     expires_at: datetime | None = Field(description="When the file is deleted (7 days after ready)")
     ready_within_hours: int = Field(examples=[24])
     download: DataExportDownload | None = Field(description="Only while ready")
+
+
+# --- staff lookup, revoke and the hub's staff (spec §3.6) ----------------------------------------
+
+ScopeKind = Literal["society", "hub", "ngo"]
+RoleStatus = Literal["applied", "kyc_pending", "verified", "suspended"]
+# The roles a pending grant can hold: staff roles but admin, which needs the account.
+PendingRole = Literal["hub_manager", "franchise_owner", "ngo_coordinator", "catalog_editor"]
+AnyRole = Literal[
+    "customer",
+    "captain",
+    "kitchen_partner",
+    "rider",
+    "packer",
+    "hub_manager",
+    "franchise_owner",
+    "ngo_coordinator",
+    "admin",
+    "catalog_editor",
+]
+
+
+class StaffGrant(BaseModel):
+    """One `user_roles` row; DELETE /v1/admin/user-roles/{id} takes its id."""
+
+    id: uuid.UUID
+    role: AnyRole
+    scope_type: ScopeKind | None
+    scope_id: uuid.UUID | None
+    scope_label: str | None = Field(examples=["Kharghar hub", "Sunrise Towers"])
+    status: RoleStatus
+    verified_at: datetime | None
+
+
+class AdminUser(BaseModel):
+    id: uuid.UUID
+    name: str | None
+    phone_e164: str
+    locale: Locale
+    status: Literal["active", "blocked", "deleting"]
+    last_seen_at: datetime | None = Field(description="The latest session's")
+    roles: list[StaffGrant] = Field(description="Every role, the customer one included")
+
+
+class PendingGrant(BaseModel):
+    """A staff role given to a number that has not signed in yet; it waits up to 30 days."""
+
+    id: uuid.UUID
+    phone_masked: str = Field(examples=["******1011"])
+    role: PendingRole
+    scope_type: ScopeKind | None
+    scope_id: uuid.UUID | None
+    scope_label: str | None
+    status: Literal["pending"] = "pending"
+    granted_at: datetime
+    expires_at: datetime
+
+
+class HubStaffSociety(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class HubStaff(BaseModel):
+    grant_id: uuid.UUID = Field(description="The user_roles row, or the pending grant")
+    user_id: uuid.UUID | None = Field(description="Null for an invited number")
+    name: str | None
+    phone_masked: str = Field(description="The last 4 digits only", examples=["******1011"])
+    role: AnyRole
+    works_as: Literal["staff", "partner"] = Field(
+        description="partner: kitchen_partner, captain, rider, packer"
+    )
+    society: HubStaffSociety | None = Field(description="Captains: the society they serve")
+    status: Literal["applied", "kyc_pending", "verified", "suspended", "invited"]
+    since: datetime | None = Field(
+        description="verified_at, or the pending grant's granted_at; null before verification"
+    )

@@ -782,6 +782,7 @@ def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner)
         out["pings"] = await app.job("purge_gps_pings", ist(day.t, 3, 43))
         for name, hour, minute in (
             ("cleanup_idempotency_keys", 4, 3),
+            ("expire_pending_grants", 4, 18),
             ("expire_data_exports", 4, 23),
             ("purge_notifications", 4, 33),
         ):

@@ -702,6 +702,80 @@
         "title": "AdminRecipe",
         "type": "object"
       },
+      "AdminUser": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest session's",
+            "title": "Last Seen At"
+          },
+          "locale": {
+            "enum": [
+              "en-IN",
+              "hi-IN",
+              "mr-IN"
+            ],
+            "title": "Locale",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_e164": {
+            "title": "Phone E164",
+            "type": "string"
+          },
+          "roles": {
+            "description": "Every role, the customer one included",
+            "items": {
+              "$ref": "#/components/schemas/StaffGrant"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "blocked",
+              "deleting"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "phone_e164",
+          "locale",
+          "status",
+          "last_seen_at",
+          "roles"
+        ],
+        "title": "AdminUser",
+        "type": "object"
+      },
       "AiHealthOut": {
         "properties": {
           "generated_at": {
@@ -8542,6 +8616,140 @@
         "title": "HubPickupsOut",
         "type": "object"
       },
+      "HubStaff": {
+        "properties": {
+          "grant_id": {
+            "description": "The user_roles row, or the pending grant",
+            "format": "uuid",
+            "title": "Grant Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_masked": {
+            "description": "The last 4 digits only",
+            "examples": [
+              "******1011"
+            ],
+            "title": "Phone Masked",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "customer",
+              "captain",
+              "kitchen_partner",
+              "rider",
+              "packer",
+              "hub_manager",
+              "franchise_owner",
+              "ngo_coordinator",
+              "admin",
+              "catalog_editor"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "verified_at, or the pending grant's granted_at; null before verification",
+            "title": "Since"
+          },
+          "society": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HubStaffSociety"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Captains: the society they serve"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "verified",
+              "suspended",
+              "invited"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for an invited number",
+            "title": "User Id"
+          },
+          "works_as": {
+            "description": "partner: kitchen_partner, captain, rider, packer",
+            "enum": [
+              "staff",
+              "partner"
+            ],
+            "title": "Works As",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_id",
+          "user_id",
+          "name",
+          "phone_masked",
+          "role",
+          "works_as",
+          "society",
+          "status",
+          "since"
+        ],
+        "title": "HubStaff",
+        "type": "object"
+      },
+      "HubStaffSociety": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "HubStaffSociety",
+        "type": "object"
+      },
       "HubSummary": {
         "properties": {
           "id": {
@@ -14969,6 +15177,34 @@
         "title": "Page[AdminRecipe]",
         "type": "object"
       },
+      "Page_AdminUser_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminUser"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[AdminUser]",
+        "type": "object"
+      },
       "Page_ApplicationReviewOut_": {
         "properties": {
           "items": {
@@ -15023,6 +15259,34 @@
           "next_cursor"
         ],
         "title": "Page[Entry]",
+        "type": "object"
+      },
+      "Page_HubStaff_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HubStaff"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[HubStaff]",
         "type": "object"
       },
       "Page_IssueTriage_": {
@@ -15163,6 +15427,34 @@
           "next_cursor"
         ],
         "title": "Page[PayoutOut]",
+        "type": "object"
+      },
+      "Page_PendingGrant_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PendingGrant"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[PendingGrant]",
         "type": "object"
       },
       "Page_PointsEntry_": {
@@ -16178,6 +16470,100 @@
           "id"
         ],
         "title": "PayoutRef",
+        "type": "object"
+      },
+      "PendingGrant": {
+        "description": "A staff role given to a number that has not signed in yet; it waits up to 30 days.",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "granted_at": {
+            "format": "date-time",
+            "title": "Granted At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "phone_masked": {
+            "examples": [
+              "******1011"
+            ],
+            "title": "Phone Masked",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "hub_manager",
+              "franchise_owner",
+              "ngo_coordinator",
+              "catalog_editor"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "scope_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Label"
+          },
+          "scope_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "society",
+                  "hub",
+                  "ngo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Type"
+          },
+          "status": {
+            "const": "pending",
+            "default": "pending",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "phone_masked",
+          "role",
+          "scope_type",
+          "scope_id",
+          "scope_label",
+          "granted_at",
+          "expires_at"
+        ],
+        "title": "PendingGrant",
         "type": "object"
       },
       "PerBoxOut": {
@@ -24617,6 +25003,108 @@
           "photo_urls"
         ],
         "title": "StaffDonationOut",
+        "type": "object"
+      },
+      "StaffGrant": {
+        "description": "One `user_roles` row; DELETE /v1/admin/user-roles/{id} takes its id.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "customer",
+              "captain",
+              "kitchen_partner",
+              "rider",
+              "packer",
+              "hub_manager",
+              "franchise_owner",
+              "ngo_coordinator",
+              "admin",
+              "catalog_editor"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "scope_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Kharghar hub",
+              "Sunrise Towers"
+            ],
+            "title": "Scope Label"
+          },
+          "scope_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "society",
+                  "hub",
+                  "ngo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Type"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "verified",
+              "suspended"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "scope_type",
+          "scope_id",
+          "scope_label",
+          "status",
+          "verified_at"
+        ],
+        "title": "StaffGrant",
         "type": "object"
       },
       "StaffSociety": {
@@ -35548,6 +36036,7 @@
     },
     "/v1/admin/user-roles": {
       "post": {
+        "description": "A number with no account and a staff role other than admin gets a pending grant (202) that the first sign-in turns into the role; admin and the partner roles still need the account. The caller must still be a verified admin in the database.",
         "operationId": "grant_role_v1_admin_user_roles_post",
         "parameters": [
           {
@@ -35599,11 +36088,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RoleGrantOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RoleGrantOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PendingGrant"
+                    }
+                  ],
+                  "title": "Response Grant Role V1 Admin User Roles Post"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingGrant"
+                }
+              }
+            },
+            "description": "The number has not signed in: waiting"
           },
           "400": {
             "content": {
@@ -35633,7 +36140,7 @@
                 }
               }
             },
-            "description": "auth.forbidden"
+            "description": "auth.forbidden, identity.not_admin (the admin role was removed)"
           },
           "404": {
             "content": {
@@ -35643,7 +36150,7 @@
                 }
               }
             },
-            "description": "identity.user_not_found"
+            "description": "identity.user_not_found (admin or a partner role, no account)"
           },
           "409": {
             "content": {
@@ -35673,6 +36180,295 @@
         ],
         "summary": "Admin: give a user a staff role (Idempotency-Key required; audit-logged)",
         "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/admin/user-roles/{grant_id}": {
+      "delete": {
+        "operationId": "revoke_role_v1_admin_user_roles__grant_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Grant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted, identity.not_admin (the admin role was removed)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.role_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.role_not_removable (customer or partner role), identity.cannot_remove_own_admin, identity.last_admin"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: revoke a staff grant or cancel a pending one (audit-logged; reaches the person's token within 15 minutes)",
+        "tags": [
+          "identity",
+          "identity"
+        ]
+      }
+    },
+    "/v1/admin/users": {
+      "get": {
+        "operationId": "admin_users_v1_admin_users_get",
+        "parameters": [
+          {
+            "description": "An Indian mobile, any usual way of typing",
+            "in": "query",
+            "name": "phone",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An Indian mobile, any usual way of typing",
+              "title": "Phone"
+            }
+          },
+          {
+            "description": "2 to 60 characters of a name",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "2 to 60 characters of a name",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "true: everyone holding a staff role",
+            "in": "query",
+            "name": "staff",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true: everyone holding a staff role",
+              "title": "Staff"
+            }
+          },
+          {
+            "description": "true: staff roles waiting for a sign-in",
+            "in": "query",
+            "name": "pending",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true: staff roles waiting for a sign-in",
+              "title": "Pending"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page (default 20)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page (default 20)",
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Page_AdminUser_"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Page_PendingGrant_"
+                    }
+                  ],
+                  "title": "Response Admin Users V1 Admin Users Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (not exactly one filter, a bad number), request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: find a user by phone or name, list the staff or the pending grants (audit-logged)",
+        "tags": [
+          "identity",
           "identity"
         ]
       }
@@ -48195,6 +48991,153 @@
         "summary": "Items short for a date's packing and the bags the gap falls on (read only)",
         "tags": [
           "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/staff": {
+      "get": {
+        "operationId": "hub_staff_v1_hubs__hub_id__staff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "customer",
+                    "captain",
+                    "kitchen_partner",
+                    "rider",
+                    "packer",
+                    "hub_manager",
+                    "franchise_owner",
+                    "ngo_coordinator",
+                    "admin",
+                    "catalog_editor"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page (default 100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "description": "Items per page (default 100)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_HubStaff_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's role grants: names and masked phones (hub staff of the hub, admin)",
+        "tags": [
+          "identity",
+          "identity"
         ]
       }
     },
