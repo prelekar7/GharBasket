@@ -439,7 +439,7 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
   - The lookup audit entry is `identity.users_looked_up` with entity `user_lookup` and the admin's id; `after` holds the filter kind and the ids returned (`user_ids`, or `pending_grant_ids` for `pending`). A refused or invalid call writes none.
   - `?pending=true` lists only unexpired grants. A pending grant's audit entry has entity `pending_role_grant` and the grant id, never the number.
   - A number's grant and its first sign-in take the same Postgres advisory lock, so a grant given at the moment of sign-up is either claimed or made directly, never stranded. The operator command and the seed still need the account (`grant_role`).
-  - Revoke takes the admin rows `FOR UPDATE`, so two admins removing each other cannot leave none. `last_admin` counts verified admin grants; a suspended admin grant can always be removed. An admin whose own role was just revoked still holds an admin token for up to 15 minutes, and the database check is what stops them removing the last admin.
+  - Revoking an admin grant takes every verified admin row `FOR UPDATE`, in id order and before the target row, so two admins removing each other wait for one another (no deadlock) and cannot leave none. `last_admin` counts verified admin grants; a suspended admin grant can always be removed. An admin whose own role was just revoked still holds an admin token for up to 15 minutes, and the database check is what stops them removing the last admin.
   - `GET /v1/hubs/{id}/staff`: an unknown hub gives an empty page for an admin. Pages by (role, name, grant id). `scope_label` for a hub is the hub's name ("Kharghar hub").
 
 | Mock today (`mocks/identity.js`, `mocks/team.js`) | Contract |
@@ -481,7 +481,7 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
 |---|---|---|
 | `build_data_export` | Every 10 minutes (cron-job.org); takes `queued` exports | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; publishes `identity.data_export_ready` for M11. A job rather than the consumer of `identity.data_export_requested`, because outbox consumers get no object storage |
 | `expire_data_exports` | Daily (04:23 IST, before `sweep_uploads` the next night) | Marks exports past `expires_at` (7 days) `expired`; M0's `sweep_uploads` deletes the file (`delete_after`) |
-| `expire_pending_grants` | Daily 04:13 IST (GitHub Actions) | Deletes pending role grants past `expires_at` (§3.6): a phone number is personal data |
+| `expire_pending_grants` | Daily 04:18 IST (GitHub Actions) | Deletes pending role grants past `expires_at` (§3.6): a phone number is personal data |
 | `purge_deleted_users` | Daily 03:33 IST (GitHub Actions) | Deletions past `purge_on` (30 days after the request): checks the preconditions, calls each module's `delete_for_user` / `anonymise_for_user`, then deletes M1's rows and the user's files; not ready → `blocked`, retried nightly (§3.5) |
 
 ## 7. Permissions

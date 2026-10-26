@@ -314,9 +314,37 @@ def _scope_json(scope_type: str | None, scope_id: uuid.UUID | None) -> dict[str,
 
 async def revoke_grant(session: AsyncSession, grant_id: uuid.UUID, admin_id: uuid.UUID) -> None:
     """Delete a staff grant, or cancel a pending one; audit-logged with the admin."""
-    row = (
-        await session.execute(select(UserRole).where(UserRole.id == grant_id).with_for_update())
+    role = (
+        await session.execute(select(UserRole.role).where(UserRole.id == grant_id))
     ).scalar_one_or_none()
+    admins: list[UserRole] = []
+    if role == "admin":
+        # Lock every verified admin row, in one order, before the target row: two admins removing
+        # each other then wait for one another (and the second finds the last admin) instead of
+        # each holding its target and deadlocking on the other's.
+        admins = list(
+            (
+                await session.execute(
+                    select(UserRole)
+                    .where(UserRole.role == "admin", UserRole.status == "verified")
+                    .order_by(UserRole.id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    row = (
+        await session.execute(
+            select(UserRole)
+            .where(UserRole.id == grant_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if row is None and role is not None:
+        raise ProblemError(404, "identity.role_not_found", "No such role grant.")  # just revoked
     if row is None:
         waiting = await session.get(PendingRoleGrant, grant_id, with_for_update=True)
         if waiting is None:
@@ -344,19 +372,6 @@ async def revoke_grant(session: AsyncSession, grant_id: uuid.UUID, admin_id: uui
             else "Every account is a customer; that role stays.",
         )
     if row.role == "admin":
-        # Lock every admin row, so two admins removing each other cannot both succeed.
-        admins = (
-            (
-                await session.execute(
-                    select(UserRole)
-                    .where(UserRole.role == "admin", UserRole.status == "verified")
-                    .order_by(UserRole.id)
-                    .with_for_update()
-                )
-            )
-            .scalars()
-            .all()
-        )
         if row.user_id == admin_id:
             raise ProblemError(
                 409, "identity.cannot_remove_own_admin", "You cannot remove your own admin role."
