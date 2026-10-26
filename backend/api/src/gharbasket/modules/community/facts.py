@@ -1,10 +1,8 @@
-"""Impact fact rows of M9 for M12's analytics refresh (M12 §3.1): verified donations and
+"""Impact fact rows of M9 for M12's analytics refresh (M12 §3.1): verified donations, NGO hand-offs
+(`handoff_items`, `handoff_food`, `handoff_meals`), donated-meal pledges (`meals_pledged`) and
 societies going live, one row each, with ids, counts and points only (no name, flat, phone, photo
-or note). Referrals come from `referral_facts`.
-
-NGO hand-offs, donated-meal pledges and the meals served (M9 §3.5) are not built, so there are no
-`handoff_*` or `meals_pledged` rows yet and `ngo_id` and `people_reached` are always None: a
-donation reaches an NGO only through a hand-off.
+or note). Referrals come from `referral_facts`. Hand-offs and pledges belong to a hub, not a
+society (`society_id` None); a donation row keeps `ngo_id` None (its hand-off row names the NGO).
 """
 
 import uuid
@@ -16,18 +14,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.drives import IST, half_up
-from gharbasket.modules.community.models import Donation, Society
+from gharbasket.modules.community.models import Donation, MealPledge, NgoHandoff, Society
 
 
 @dataclass(frozen=True)
 class ImpactFact:
-    source: str  # donation | society
+    source: str  # donation | handoff | pledge | society
     source_id: uuid.UUID
-    kind: str  # donation_verified | society_live
+    kind: str  # donation_verified | handoff_items | handoff_food | handoff_meals | meals_pledged
+    #            | society_live
     hub_id: uuid.UUID | None
-    society_id: uuid.UUID
+    society_id: uuid.UUID | None
     ngo_id: uuid.UUID | None
-    on: date  # IST: verified, or went live
+    on: date  # IST: verified, handed over, pledged, or went live
     items: int  # pieces, and kilograms counted as one item per kg (half up)
     kg_tenths: int  # the kilograms counted
     meals: int
@@ -56,8 +55,8 @@ async def impact_facts(
     date_to: date,
     hub_ids: list[uuid.UUID] | None = None,
 ) -> list[ImpactFact]:
-    """Donations verified, and societies that went live, between the two IST dates (inclusive):
-    donations first, each kind in id order."""
+    """Donations verified, hand-offs made, meals pledged and societies that went live between the
+    two IST dates (inclusive), in that order, each kind in id order."""
     start, end = _bounds(date_from, date_to)
     donations = select(Donation).where(
         Donation.status.in_(("verified", "handed_over")),
@@ -90,6 +89,7 @@ async def impact_facts(
                 data_source=donation.data_source,
             )
         )
+    facts += await _gift_facts(session, start, end, hub_ids)
     for society in (await session.execute(societies.order_by(Society.id))).scalars():
         assert society.live_at is not None
         facts.append(
@@ -110,4 +110,54 @@ async def impact_facts(
                 data_source=society.data_source,
             )
         )
+    return facts
+
+
+async def _gift_facts(
+    session: AsyncSession, start: datetime, end: datetime, hub_ids: list[uuid.UUID] | None
+) -> list[ImpactFact]:
+    """Hand-offs by `handed_at`, then pledges by `pledged_at`."""
+    handoffs = select(NgoHandoff).where(NgoHandoff.handed_at >= start, NgoHandoff.handed_at <= end)
+    pledges = select(MealPledge).where(MealPledge.pledged_at >= start, MealPledge.pledged_at <= end)
+    if hub_ids is not None:
+        handoffs = handoffs.where(NgoHandoff.hub_id.in_(hub_ids))
+        pledges = pledges.where(MealPledge.hub_id.in_(hub_ids))
+    facts = [
+        ImpactFact(
+            source="handoff",
+            source_id=h.id,
+            kind=f"handoff_{h.kind}",
+            hub_id=h.hub_id,
+            society_id=None,
+            ngo_id=h.ngo_id,
+            on=h.handed_at.astimezone(IST).date(),
+            items=h.items_count,
+            kg_tenths=h.kg_tenths,
+            meals=h.meals,
+            points=0,
+            people_reached=h.people_reached,
+            household_id=None,
+            data_source=h.data_source,
+        )
+        for h in (await session.execute(handoffs.order_by(NgoHandoff.id))).scalars()
+    ]
+    facts += [
+        ImpactFact(
+            source="pledge",
+            source_id=p.id,
+            kind="meals_pledged",
+            hub_id=p.hub_id,
+            society_id=None,
+            ngo_id=None,
+            on=p.pledged_at.astimezone(IST).date(),
+            items=0,
+            kg_tenths=0,
+            meals=p.meals,
+            points=0,
+            people_reached=None,
+            household_id=None,
+            data_source=p.data_source,
+        )
+        for p in (await session.execute(pledges.order_by(MealPledge.id))).scalars()
+    ]
     return facts

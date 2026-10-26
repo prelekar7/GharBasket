@@ -4,16 +4,22 @@
   not consumed: the hub manager decides whether a reinstated captain serves again.
 - A new household, or one that moved society, may unlock its society (§3.6).
 - A delivered box converts its household's referral; a deletion request voids open ones (§3.3).
-- `sweep_missed_pickups` closes each delivery day's donation pickups (§3.4).
+- `sweep_missed_pickups` closes each delivery day's donation pickups (§3.4), and M7's
+  `logistics.pickup_completed` records each one a stop reported (M7 §3.6).
+- M6's surplus offers to NGOs are copied for the NGO coordinators, and M5's donated meals become
+  pledges that `meals` hand-offs serve (§3.5).
 """
 
 from datetime import timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from gharbasket.modules.community import donations, drives, referrals, unlock
+from gharbasket.modules.billing import api as billing_api
+from gharbasket.modules.community import donations, drives, handoffs, ngos, referrals, unlock
 from gharbasket.modules.community.captains import on_partner_suspended, on_partner_verified
+from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.logistics import api as logistics_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.jobs import JobContext, job
@@ -27,6 +33,9 @@ subscribe(identity_api.HOUSEHOLD_CREATED, unlock.on_household_created)
 subscribe(identity_api.HOUSEHOLD_UPDATED, unlock.on_household_updated)
 subscribe(identity_api.DELETION_REQUESTED, referrals.on_deletion_requested)
 subscribe(orders_api.DELIVERED, referrals.on_order_delivered)
+subscribe(hub_ops_api.SURPLUS_OFFERED, ngos.on_surplus_offered)
+subscribe(billing_api.POINTS_DONATED, handoffs.on_points_donated)
+subscribe(logistics_api.PICKUP_COMPLETED, donations.on_pickup_completed)
 
 
 @job(

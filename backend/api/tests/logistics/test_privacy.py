@@ -157,4 +157,5 @@ async def test_export_and_erasure_of_a_rider_and_a_household(
         "field_events": 0,
         "routes": 0,
         "vehicles": 0,
+        "pickups": 0,
     }

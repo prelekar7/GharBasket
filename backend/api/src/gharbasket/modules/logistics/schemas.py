@@ -249,6 +249,50 @@ class CaptainOut(BaseModel):
     photo_url: str | None
 
 
+PickupStatus = Literal["expected", "collected", "not_ready"]
+
+
+class DonationPickupOut(BaseModel):
+    donation_id: uuid.UUID
+    items: str | None = Field(examples=["clothes 3 kg, toys 2"], description="M9's summary")
+    flat_label: str | None = Field(
+        examples=["B wing, 402"],
+        description="Rider-mode stops of a route in progress (and the hub's list) only",
+    )
+    status: PickupStatus
+
+
+class BagPickupOut(BaseModel):
+    order_id: uuid.UUID
+    flat_label: str | None = Field(examples=["B wing, 402"], description="As for donations")
+    status: PickupStatus
+
+
+class StopPickups(BaseModel):
+    empties_collected: int | None = Field(
+        examples=[4], description="Crates the van took back here; null until reported"
+    )
+    donations: list[DonationPickupOut]
+    bags: list[BagPickupOut]
+
+
+class PickupCount(BaseModel):
+    expected: int
+    collected: int
+    not_ready: int = 0
+
+
+class EmptiesTotal(BaseModel):
+    expected: int
+    collected: int
+
+
+class PickupTotals(BaseModel):
+    empties: EmptiesTotal
+    donations: PickupCount
+    bags: PickupCount
+
+
 class StopOut(BaseModel):
     id: uuid.UUID
     seq: int = Field(examples=[1])
@@ -269,7 +313,12 @@ class StopOut(BaseModel):
     redelivery_bags: int = Field(
         examples=[1], description="Redelivery bags the van carries for this stop (§3.4)"
     )
-    empties_expected: int = Field(examples=[2], description="§3.6")
+    empties_expected: int = Field(
+        examples=[2], description="§3.6: planned at the solve, set again at start"
+    )
+    pickups: StopPickups | None = Field(
+        default=None, description="§3.6: what the van takes back here, from route start"
+    )
     captain: CaptainOut | None = Field(description="Null: no active captain (rider mode)")
     rider_mode: bool = Field(description="The rider does the handover and the doors")
     handover_code: str | None = Field(
@@ -573,3 +622,54 @@ class DeliveryCard(BaseModel):
     )
     proof: ProofView | None
     redelivery: Redelivery | None
+
+
+# --- return-leg pickups, the hub's list (§3.6) ----------------------------------------------------
+
+
+class HubPickupStop(BaseModel):
+    stop_id: uuid.UUID
+    route_id: uuid.UUID
+    vehicle: VehicleRef
+    seq: int
+    society: SocietyRef
+    stop_status: StopStatus
+    empties_expected: int
+    pickups: StopPickups = Field(description="Flat labels always (hub staff)")
+
+
+class HubPickupsOut(BaseModel):
+    hub_id: uuid.UUID
+    date: date
+    totals: PickupTotals
+    items: list[HubPickupStop] = Field(description="By departure, vehicle label, seq")
+
+
+class DonationReport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    donation_id: uuid.UUID
+    status: Literal["collected", "not_ready"]
+
+
+class PickupsIn(FieldTap):
+    """A part of a stop's pickups: `empties` replaces the stop's count; each donation and bag is
+    set once."""
+
+    empties: int | None = Field(default=None, ge=0, le=100, examples=[4])
+    donations: list[DonationReport] = Field(default_factory=list, max_length=50)
+    bags: list[str] = Field(
+        default_factory=list,
+        max_length=50,
+        examples=[["GB1:0199a0000000700080000000000000ab"]],
+        description="Scanned bag QRs: collected",
+    )
+
+    @model_validator(mode="after")
+    def _something_once(self) -> Self:
+        if self.empties is None and not self.donations and not self.bags:
+            raise ValueError("send empties, donations or bags")
+        ids = [d.donation_id for d in self.donations]
+        if len(set(ids)) != len(ids) or len(set(self.bags)) != len(self.bags):
+            raise ValueError("a donation or bag is named twice")
+        return self

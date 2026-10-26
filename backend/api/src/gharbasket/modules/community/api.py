@@ -3,8 +3,9 @@
 M1 uses it to check a household's address (spec §3.1): the society exists, the tower belongs to
 it, and the flat's pin lies inside its boundary. M7, M3 and M1 read captains through it (§3.2).
 M4 reads `live_at` for the pre-live box fee (§3.6); M12 reads the public society page (§3.8) and
-its societies table (`hub_societies`, M12 §3.3), and pulls `impact_facts` and `referral_facts` for
-its analytics refresh (M12 §3.1); M1 exports and erases through it.
+its societies table (`hub_societies`, M12 §3.3), and pulls `impact_facts` (donations, hand-offs,
+meal pledges, societies gone live) and `referral_facts` for its analytics refresh (M12 §3.1); M1
+exports and erases through it.
 """
 
 import uuid
@@ -24,12 +25,14 @@ from gharbasket.modules.community.events import (
     DONATION_REJECTED,
     DONATION_SCHEDULED,
     DONATION_VERIFIED,
+    HANDOFF_RECORDED,
     REFERRAL_CONVERTED,
     SOCIETY_LIVE,
 )
 from gharbasket.modules.community.facts import ImpactFact, impact_facts
 from gharbasket.modules.community.models import (
     Captain,
+    MealPledge,
     Referral,
     ReferralCode,
     Society,
@@ -46,6 +49,7 @@ __all__ = [
     "DONATION_REJECTED",
     "DONATION_SCHEDULED",
     "DONATION_VERIFIED",
+    "HANDOFF_RECORDED",
     "REFERRAL_CONVERTED",
     "SOCIETY_LIVE",
     "CaptainCard",
@@ -272,7 +276,8 @@ async def record_pickup(
     """One donation's outcome from a stop (M7's `logistics.pickup_completed`, §3.4), in the
     caller's transaction: `collected` makes it `picked_up` (by the rider or captain, on `on`);
     `not_ready` rolls it once to the next delivery date, then cancels it. False when it was no
-    longer scheduled (a redelivered report), so calling twice is harmless."""
+    longer scheduled, or a `not_ready` already rolled it past `on` (a redelivered report), so
+    calling twice is harmless."""
     done = await donations.record_pickup(
         session, donation_id, outcome, by_user_id=by_user_id, on=on
     )
@@ -282,7 +287,7 @@ async def record_pickup(
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
     """M9's section of the user's data export (M1 §3.3, §3.8): her captain appointments, her
     donations (photos counted, not included), her referral code, the referrals she made (never the
-    neighbour) and whether she was referred."""
+    neighbour), whether she was referred, and her donated-meal pledges."""
     rows = await session.execute(
         select(Captain, Society.name)
         .join(Society, Society.id == Captain.society_id)
@@ -302,6 +307,14 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         ],
         "donations": await donations.export(session, user_id),
         **await _referrals_export(session, user_id),
+        "meal_pledges": [
+            {"meals": p.meals, "served": p.served, "pledged_at": p.pledged_at}
+            for p in (
+                await session.execute(
+                    select(MealPledge).where(MealPledge.user_id == user_id).order_by(MealPledge.id)
+                )
+            ).scalars()
+        ],
     }
 
 
@@ -334,7 +347,7 @@ async def anonymise_for_user(
 ) -> dict[str, int]:
     """M1's purge (M1 §3.5, §3.8 here): the referral code and society requests are deleted;
     referrals are kept for the impact numbers, open ones voided, and their user ids no longer
-    lead to a person. Donations and pledges join this when they ship."""
+    lead to a person. Meal pledges are kept as they are: they hold no personal field."""
     codes = await session.execute(delete(ReferralCode).where(ReferralCode.user_id == user_id))
     requests = await session.execute(
         delete(SocietyRequest).where(SocietyRequest.user_id == user_id)

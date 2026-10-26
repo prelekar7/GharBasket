@@ -310,6 +310,7 @@ async def _meal_round(
     available = await cooks(session, hub_id, day, meal)
     matches, rest = matching.preferred_first(orders, available, rate)
     plan = None
+    sent_lambda: float | None = None  # the λ of the request this run built (§3.8); None: no request
     eligible = matching.eligible_ids(rest, available)
     if rest and available:
         request = AssignRequest.model_validate(
@@ -331,6 +332,7 @@ async def _meal_round(
                 "time_limit_s": TIME_LIMIT_S,
             }
         )
+        sent_lambda = request.fairness_lambda
         plan = await _solve(http, settings, request, session, hub_id, day)
     if plan is not None:
         problem = matching.plan_problem(
@@ -367,6 +369,8 @@ async def _meal_round(
         model = "preferred-m8" if not rest else "no-kitchens-m8"
         unassigned |= {order.id: "no_room" for order in rest}
         summary = matching.summary([], available, eligible)
+    if sent_lambda is not None:  # additive: the fairness read shows which λ made which Gini
+        summary = {**summary, "fairness_lambda": sent_lambda}
     run = AssignmentRun(
         hub_id=hub_id,
         on_date=day,

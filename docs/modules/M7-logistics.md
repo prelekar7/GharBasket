@@ -1,6 +1,6 @@
 # M7 — Logistics
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md) and its amendments in [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (vehicles), §3.2 (route plans: solve, fallback, publish), §3.3 (rider execution, GPS and live tracking), §3.4 (handover, door proof, undelivered, hold and redelivery) and §3.5 (the customer's delivery view) are frozen for S5 when this spec is approved; §3.6 (return-leg pickups) and §3.7 (tiffin routes) are outlines, refined in the PR that builds each.
+**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md) and its amendments in [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (vehicles), §3.2 (route plans: solve, fallback, publish), §3.3 (rider execution, GPS and live tracking), §3.4 (handover, door proof, undelivered, hold and redelivery) and §3.5 (the customer's delivery view) are frozen for S5 when this spec is approved; §3.6 (return-leg pickups) was refined on 2026-10-25 and is frozen on approval; §3.7 (tiffin routes) is an outline, refined in the PR that builds it.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S5
 **Postgres schema:** `logistics` · **Python package:** `gharbasket.modules.logistics`
@@ -8,7 +8,7 @@
 ## 1. Purpose
 Getting bags from the hub to each society and each flat: vehicles, route plans (solved by M10's OR-Tools CVRPTW through `intel_gateway.api.solve_routes`, with a fallback in M7 when the ML service is down), rider execution, live location, the **Society Captain handover**, the last 50 metres with proof, failed deliveries (hold, one redelivery, refund) and return-leg pickups. M7 moves orders only through `orders.api` (M4 owns the order and its states), reads the captain of a society only through `community.api` (M9 is the source of truth, ADR-0026 §4) and reads bag counts from `hub_ops.api` (M6). It does not pack, pay anyone or send messages.
 
-**Build order for MS-B** ("OR-Tools routes → captain handover → delivered"): (a) vehicles and route plans → (b) rider execution with GPS and live tracking → (c) handover, door proof, undelivered, hold and redelivery → (d) return-leg pickups (with M9 donations, P5) and tiffin routes (with M8, S6). (a)–(c) are frozen below.
+**Build order for MS-B** ("OR-Tools routes → captain handover → delivered"): (a) vehicles and route plans → (b) rider execution with GPS and live tracking → (c) handover, door proof, undelivered, hold and redelivery → (d) return-leg pickups (with M9 donations, P5) and tiffin routes (with M8, S6). (a)–(c) are frozen below; (d)'s pickups are specified in §3.6.
 
 ## 2. User stories
 | # | Story | Acceptance criteria |
@@ -50,8 +50,8 @@ Getting bags from the hub to each society and each flat: vehicles, route plans (
 | POST | `/v1/deliveries/{order_id}/resolve` | hub_manager (hub) | Required | §3.4; triage |
 | GET | `/v1/hubs/{id}/deliveries?date=&status=` | hub_manager, franchise_owner (hub) | — | §3.4; exceptions board; cursor |
 | GET | `/v1/deliveries/{order_id}` | customer (own household), hub staff | — | §3.5 |
-| POST | `/v1/stops/{id}/pickups` | rider (own route) | Required | §3.6 (outline) |
-| GET | `/v1/hubs/{id}/pickups?date=` | hub_manager (hub) | — | §3.6 (outline) |
+| POST | `/v1/stops/{id}/pickups` | rider (own route) | Required | §3.6; empties, donations and bags taken back at a stop |
+| GET | `/v1/hubs/{id}/pickups?date=` | hub_manager (hub), admin | — | §3.6 |
 | POST | `/v1/internal/jobs/solve_routes` · `persist_gps_pings` · `hold_expiry` · `schedule_redeliveries` · `close_routes` · `purge_gps_pings` | operator token | — | §6 |
 
 **For every section.** Every endpoint needs sign-in (M1 §3.1). Hub staff and riders act in one hub (`X-Active-Role` `hub_manager:<hub>`, `rider:<hub>`, …); a captain acts for one society (`captain:<society>`), **and** M7 checks on every write that `community.api.captain_for_society(society_id).user_id` is the caller (the role grant and the M9 assignment must agree; ADR-0026 §4). A request outside the caller's scope is 403 `auth.forbidden`. Dates are IST calendar dates (`date` defaults to today in IST; allowed today − 7 … today + 1, else 422 `logistics.date_out_of_range`); clock times (windows, ETAs) are IST `HH:MM`; timestamps are UTC. Money is integer paise. Reads send `Cache-Control: no-store`. **Field writes** (rider and captain) follow M6's offline rule: the `Idempotency-Key` is made when the person taps, the phone's outbox sends taps in order, a replay answers what the first call answered (M0, keys live 24 h), and `client_at` (when the tap happened) is stored for audit while the server's time decides everything else. M7 never writes `orders.*`; every order move is `orders.api.transition(…, actor=<kind>, actor_user_id=<caller>)`, and an illegal move comes back as 409 `orders.illegal_transition` with nothing changed in M7.
@@ -119,7 +119,7 @@ POST /v1/route-plans/{id}/publish     hub_manager; Idempotency-Key
 
 **What a solve sends** (M7 builds `intel_gateway.api.solve_routes`' `RouteRequest`, M10 §3.4):
 - **Orders:** `orders.api.orders_for_delivery(hub, date, statuses=("locked", "picking", "packed"), kinds=("box", "addon"))`, plus the redeliveries M7 has scheduled for that date (§3.4). At 23:15 the set is fixed: the cut-off was at 21:00 and `payment_grace_expiry` at 23:00.
-- **Stops:** one per (society, slot) with orders, `id = "<society_id>/<slot_id>"`; location from `community.api.society_points` (the gate, else a point inside the boundary; a society without either is left out and named in `problems`, so the plan cannot auto-publish); window = the slot's start and end (M4 `slot_ref`); `orders` and bags = the number of orders (one bag per order, M6); `crates = ceil(bags / 3)` (M6's three bags to a crate; the actual counts come from `hub_ops.api.society_loads` at route start); `kg_tenths` from the order lines through `catalog.api.grams_of` (0.5 kg a step when a product has no weight); `empties` = crates handed over at that society on its last delivery and not yet collected (0 until §3.6); `donation_kg_tenths` = 0 until §3.6.
+- **Stops:** one per (society, slot) with orders, `id = "<society_id>/<slot_id>"`; location from `community.api.society_points` (the gate, else a point inside the boundary; a society without either is left out and named in `problems`, so the plan cannot auto-publish); window = the slot's start and end (M4 `slot_ref`); `orders` and bags = the number of orders (one bag per order, M6); `crates = ceil(bags / 3)` (M6's three bags to a crate; the actual counts come from `hub_ops.api.society_loads` at route start); `kg_tenths` from the order lines through `catalog.api.grams_of` (0.5 kg a step when a product has no weight); `empties` = the society's open empties (§3.6), on its earliest-window stop; `donation_kg_tenths` = 0 and no `food_bank` (donations ride back to the hub, §3.6).
 - **Vans:** the fleet above; `depart_s` = the hub's `timings.dispatch` (06:30, M6 §3.1); `return_by_s` = the latest window end + 90 min; `time_limit_s` 20 (two waves of 10 s); service, cost and lateness at the M10 defaults.
 - **Mapping the answer:** each element of `routes[]` is a trip; van index *i* is the *i*-th vehicle by label; trips of one van are numbered by start time. ETAs are `eta_s` as IST clock times. The route's rider is the vehicle's `default_rider` (or null). The whole answer is kept in `intel.predictions` by the gateway and its summary on the plan.
 
@@ -160,7 +160,9 @@ Stop : { "id", "seq": 1, "kind": "drop" | "bank" | "kitchen",
   "redelivery_bags": 1,                            redelivery bags the van carries for this stop
                                                    (they came back to the hub); bags the captain
                                                    kept overnight are not counted (§3.4)
-  "empties_expected": 2,                           §3.6
+  "empties_expected": 2,                           §3.6: planned at the solve, set again at start
+  "pickups": StopPickups | null,                   §3.6: from route start; null before, and on
+                                                   bank and kitchen stops
   "captain": { "display_name", "photo_url" } | null,   null: no active captain (rider mode)
   "rider_mode": false,                             true: the rider does the handover and the doors
   "handover_code": "4821" | null,                  only to the route's rider and hub staff, while
@@ -346,10 +348,76 @@ GET /v1/deliveries/{order_id}     the order's household (any member) or hub staf
 | No live tracking | `tracking.route_id` → `GET /v1/routes/{id}/live` (SSE, fetch-based reader) until the handover |
 | Outbox test posts `/v1/stops/1/handover` with `{ bags: 3 }` | Same path; the body needs `crates`, `bags` and `handover_code` or `photo_key` |
 
-### 3.6 Return-leg pickups (outline; refined at its PR)
-- Every drop stop can carry pickups: **empties** (crates handed over earlier at that society), **donations** (M9 `community.donation_scheduled`, P5; donation weight goes into `donation_kg_tenths` and the food bank becomes a `bank` stop on the same van, as in M10 §3.4) and **bags** (bags going back after a second miss, §3.4).
-- `POST /v1/stops/{id}/pickups` (rider, Idempotency-Key): `{ "empties": 4, "donations": [ { "donation_id", "status": "collected" | "not_ready" } ], "bags": [ "GB1:…" ], "client_at"? }` → `logistics.pickup_completed { stop_id, route_id, hub_id, society_id, empties, donation_ids, bag_order_ids }`; M9 consumes it for donations, M6 for returned bags.
-- Empties expected per society = crates handed over minus crates collected since; the count is a number per society, never per crate (ADR-0026 §6).
+### 3.6 Return-leg pickups (drafted 2026-10-25, frozen on approval)
+The rider's Pickups screen and stop detail, and the console's pickups list, build against this. Same review rule as §3.1. When the van is at a society it also takes back what the society has for the hub: **empties** (crates left there at earlier handovers), **donations** (M9 §3.4 donations scheduled for that society and day) and **bags** (a box missed twice whose bag the captain kept, §3.4). Everything rides back to the hub on the same van: the hub counts and verifies donations (M9 §3.4) before any hand-off to an NGO (M9 §3.5), so no `bank` stop is planned yet.
+
+```
+StopPickups : {                                  Stop.pickups (§3.3), from route start
+  "empties_collected": 4 | null,                 crates the van took back here; null until
+                                                 reported (the expected count is Stop.empties_expected)
+  "donations": [ { "donation_id",
+                   "items": "clothes 3 kg, toys 2",       M9's summary (community.api.pickups_for)
+                   "flat_label": "B wing, 402" | null,    rider-mode stops of a route in progress only
+                   "status": "expected" | "collected" | "not_ready" } ],
+  "bags": [ { "order_id", "flat_label": "B wing, 402" | null,   same rule
+              "status": "expected" | "collected" | "not_ready" } ] }
+
+POST /v1/stops/{id}/pickups       the route's rider; Idempotency-Key
+  request : { "empties"?: 4,                     0 to 100: the stop's count so far (replaces it)
+              "donations"?: [ { "donation_id", "status": "collected" | "not_ready" } ],
+              "bags"?: [ "GB1:0199a0000000700080000000000000ab" ],   scanned: collected
+              "client_at"? }                     at least one of empties, donations, bags; no id twice
+  200 : Stop                                     with its pickups as they are now
+
+GET  /v1/hubs/{id}/pickups?date=  hub_manager (hub), admin; Cache-Control: no-store
+  200 : { "hub_id", "date",
+          "totals": { "empties": { "expected": 12, "collected": 10 },
+                      "donations": { "expected": 0, "collected": 2, "not_ready": 1 },   by status
+                      "bags": { "expected": 0, "collected": 1, "not_ready": 0 } },
+          "items": [ { "stop_id", "route_id", "vehicle": { "id", "label" }, "seq",
+                       "society": { "id", "name" }, "stop_status": "pending" | …,
+                       "empties_expected": 3,
+                       "pickups": StopPickups } ] }      flat labels always (hub staff);
+                                                         by departure, vehicle label, seq
+      date: today − 7 … today + 1 (IST), default today; [] before the day's routes start
+  404 "hub_ops.hub_not_found" · 403 "auth.forbidden" (another hub)
+```
+
+**Expected pickups** are made when the route starts (§3.3), as `logistics.pickups` rows, for every `drop` stop with a society. Like the crate counts, they are a snapshot of that moment:
+- **Empties:** one row per stop (also with nothing to expect, so a report has a row to set). `qty` = the society's **open empties**: the crates counted at its handovers (`handovers.crates_counted`; a rider-mode handover leaves none, the rider keeps his crates), minus the empties collected there since, minus empties still expected on another stop, never below 0. The count is a number per society, never per crate (ADR-0026 §6). `Stop.empties_expected` takes this value at start; the solve set a first figure (§3.2).
+- **Donations:** one row per donation of `community.api.pickups_for(session, society_id, delivery_date)` (M9: `scheduled`, `pickup_on` = the route's date), with M9's item summary.
+- **Bags:** one row per order of the society whose attempt 2 was `refunded` with the bag in the captain's hands (`kept_by_captain`, §3.4), on a day before the route's, and that no stop has collected.
+- **One stop takes them.** A donation or bag already `expected` or `collected` on another stop is not expected again, so a society with two stops that day (two slots, or two trips) has its donations and bags on the first stop to start. A stop of a route that started before this shipped gets its rows at its first report.
+
+**Reporting** (`POST /v1/stops/{id}/pickups`)
+- **Who and when.** Only the route's rider (another rider of the hub: 403 `logistics.not_your_route`; a role without `routes:execute`: 403 `auth.forbidden`; outside the rider's hubs: 404 `logistics.stop_not_found`), while the route is in progress (409 `logistics.route_not_started` · `logistics.route_closed`), at a stop that was not skipped (409 `logistics.stop_skipped`). Arrive and handover are not required first.
+- **A report may name a part.** The app taps empties, then each donation or bag, through its outbox. `empties` replaces the stop's count (a correction is allowed until the route completes). Each donation and bag is set once: naming it again with the same status changes nothing; with the other status → 409 `logistics.pickup_already_reported` (`donation_ids`, `order_ids`), nothing changed.
+- **Only what is expected here.** A donation id that is not expected at this stop, or a bag code that is not `GB1:` + an order expected here → 422 `logistics.pickup_unknown` (`donation_ids`, `bags`), nothing changed. An empty report or an id named twice → 422 `request.invalid`.
+- Each report that changes something writes a `pickup` field event (with `client_at`), bumps the route's version and publishes `logistics.pickup_completed` with what it changed. A replay of the same key answers the first call (M0).
+- **At route complete** (and `close_routes`), rows still `expected` become `not_ready`, without an event: M9's `sweep_missed_pickups` (22:30) treats an unreported donation as not ready, and a bag not collected is expected again at the society's next stop.
+
+**`logistics.pickup_completed { stop_id, route_id, hub_id, society_id, delivery_date, rider_user_id, empties: 4 | null, donations: [ { donation_id, status } ], bag_order_ids: [ … ], at }`** carries only what that report changed (`empties`: the stop's new count, or null when the report did not send it). No name, flat or phone. Consumers:
+- **M9** (`community/jobs.py`): per donation, `community.api.record_pickup(session, donation_id, status, by_user_id=rider_user_id, on=delivery_date)`: `collected` makes it `picked_up`; `not_ready` rolls it once to the society's next delivery date, then cancels it (M9 §3.4). A donation no longer `scheduled` is skipped, so a redelivered event changes nothing.
+- **M6** (`hub_ops/jobs.py`): each bag goes through §3.5's returned-bag intake (the code behind `POST /v1/hubs/{id}/returned-bags`, `scanned_by` = the rider): its carried non-perishables become kept items and the rest returned lots. The hub's scan when the van is back answers the same result. A bag the intake refuses (`hub_ops.bag_unknown`, `hub_ops.bag_not_returned`) is logged and skipped.
+- Not mapped in M11; nothing else consumes it yet.
+
+**The solve** (§3.2): a stop's `empties` in M10's request is its society's open empties (on the society's earliest-window stop when it has two). `donation_kg_tenths` stays 0 and no `food_bank` is sent: M10 refuses donations without a food bank, and donations go to the hub. The fallback planner ignores empties, and M7's structural check counts crates leaving the hub only (§3.2).
+
+**Privacy.** Riders see flat labels only on rider-mode stops of their route while it is in progress (§Privacy); at a captain's stop the rider tells donations apart by their items. Hub staff see flat labels on the hub's list, as on M9's donations queue. `logistics.pickups` keeps the household id of a donation or bag row for the label; M1's erasure nulls it and the reporter's user id.
+
+**Permissions** (§7): `routes:execute` (rider, own route) covers the report; `pickups:read` (new) is hub_manager (hub) and admin.
+
+**Deferred**
+- A `bank` stop and `donation_kg_tenths` in the solve: when donations go straight from a society to a food bank (M10 §3.4 supports it), which waits for M9 §3.5's hand-offs to settle what goes where.
+- Pickup-only stops: a society with pickups but no delivery that day gets no stop; its donations roll (M9's sweep), and its empties and bag wait for its next stop.
+- The captain's view of what the van takes back (`CaptainDay`), a hub manager reporting for a rider, a label or QR on donation bags, pickups on tiffin routes, and an M12 facade for pickups.
+
+| Mock today (`frontend/mobile/src/mocks/logistics.js`, rider Pickups screen) | Contract |
+|---|---|
+| `Stop.pickups` shown before the route starts | `pickups` is null until start; `empties_expected` is there the night before |
+| `pickups.donations[]`: `{ donation_id, ref: "B-402", qty, note, status }` | `{ donation_id, items, flat_label, status }`: `items` is M9's summary (replaces `qty` and `note`); `flat_label` (replaces `ref`) is null at a captain's stop, so the rider taps the donation instead of typing its flat |
+| No bags | `pickups.bags[]` (`order_id`, `flat_label`, `status`); the rider scans the bag's `GB1:` QR and sends it in `bags` |
+| POST answers `{ stop_id, empties, donations }`; an unknown donation is 422 `request.invalid` | The answer is the `Stop`; an unknown donation or bag is 422 `logistics.pickup_unknown`, a changed status 409 `logistics.pickup_already_reported` |
 
 ### 3.7 Tiffin routes (outline; refined at the M8 tiffin PR, S6)
 - A `tiffin` plan per hub at T 10:30, from the day's kitchen assignments, so riders know their kitchens before READY (11:30): two-wheeler routes from M8's assignments (`partners.api`), `kitchen` stops first, then societies, window 12:30–13:30; ordered by nearest neighbour in M7 (the v0 solver has no kitchen pickups).
@@ -391,6 +459,8 @@ GET /v1/deliveries/{order_id}     the order's household (any member) or hub staf
 | 409 | `logistics.count_mismatch` · `logistics.already_handed_over` | Handover (§3.4) |
 | 409 | `logistics.delivery_closed` · `logistics.not_undelivered` | Door and triage (§3.4) |
 | 409 | `logistics.photo_already_used` | A proof photo that a handover or a delivery already holds (as built) |
+| 409 | `logistics.stop_skipped` · `logistics.pickup_already_reported` | Pickups at a skipped stop; a donation or bag reported again with the other status (`donation_ids`, `order_ids`) (§3.6) |
+| 422 | `logistics.pickup_unknown` | A donation or bag that is not expected at this stop (`donation_ids`, `bags`) (§3.6) |
 | 422 | `logistics.rider_invalid` · `logistics.vehicle_too_small` · `logistics.capacity_invalid` | Vehicles and route edits |
 | 422 | `logistics.code_invalid` · `logistics.bag_mismatch` · `logistics.proof_required` · `logistics.photo_key_invalid` | Proof (§3.4) |
 | 422 | `logistics.reason_invalid` · `logistics.refund_invalid` · `logistics.partial_refund_not_final` | Undelivered and triage (a refund below what is left needs `final: true`) |
@@ -410,7 +480,7 @@ GET /v1/deliveries/{order_id}     the order's household (any member) or hub staf
 | `logistics.handovers` | id, stop_id (unique) → route_stops, society_id, by_actor (captain, rider, hub), user_id null, partner_id null, crates_expected, crates_counted, bags_expected, bags_counted, mismatch, proof (code, photo, rider_mode), photo_key null, distance_m null, note, client_at, at |
 | `logistics.deliveries` | id, order_id, attempt (1, 2), hub_id, society_id, order_kind, delivery_date (the attempt's day), slot_id, stop_id null, status, reason null, hold_until null, proof (scan, otp, photo) null, photo_key null, kept_by_captain (the bag is in the captain's hands overnight), hub_ride (attempt 1 booked again after the hub left the bag behind), delivery_code, code_attempts, by_actor null, user_id null, refund_paise null, client_at, at; unique (order_id, attempt) |
 | `logistics.field_events` | id, route_id, stop_id null, order_id null, action (start, arrive, skip, handover, proof, undelivered, hold, resolve, complete, pickup, rider_mode), user_id, payload jsonb, client_at null, at |
-| `logistics.pickups` | (§3.6) id, stop_id, society_id, kind (empties, donation, bag), ref_id null, qty, status (expected, collected, not_ready), at |
+| `logistics.pickups` | (§3.6) id, stop_id → route_stops, route_id → routes, hub_id, delivery_date, society_id, kind (empties, donation, bag), ref_id null (the donation or the order; null for empties), household_id null (donation and bag rows, for the flat label; nulled by the erasure), items null (M9's summary of a donation), qty (expected: the open empties, or 1), collected_qty null (empties: the count reported; 1 or 0 otherwise), status (expected, collected, not_ready), by_user_id null, client_at null, created_at, reported_at null; unique (stop_id, kind, ref_id) with nulls not distinct; index (hub_id, delivery_date) and (society_id, kind, status) |
 | `logistics.gps_pings` | rider_user_id, route_id, at, location geography(Point, 4326), accuracy_m, speed_mps null, heading null; partitioned by month on `at`, BRIN on `at`, index on (route_id, at DESC) for a route's newest ping, unique (rider_user_id, at) |
 
 Foreign keys stay inside `logistics`; hub, order, society, slot and user ids are plain UUIDs (ADR-0026 §5).
@@ -425,11 +495,11 @@ Foreign keys stay inside `logistics`; hub, order, society, slot and user ids are
 - `logistics.delivery_held { order_id, household_id, society_id, hold_until }` — M11 tells the family to collect.
 - `logistics.redelivery_scheduled { order_id, household_id, society_id, delivery_date, window }` — M11.
 - `logistics.route_completed { route_id, hub_id, delivery_date, rider_user_id, vehicle_id, stops_done, stops_skipped, km, started_at, completed_at }` — M12. (A rider is paid per order on `orders.dispatched` with actor `rider`, M8 §3.6.)
-- `logistics.pickup_completed` (§3.6) — M9, M6.
+- `logistics.pickup_completed { stop_id, route_id, hub_id, society_id, delivery_date, rider_user_id, empties, donations: [ { donation_id, status } ], bag_order_ids, at }` (§3.6) — M9 (donation outcomes), M6 (returned bags).
 - `logistics.carry_over_pending { order_id, household_id, hub_id, society_id, lines: [ { product_id, steps, paid_paise } ] }` — the non-perishable lines of a box missed twice, kept unrefunded for the household's next delivery (§3.4). Nothing consumes it until M4's `carry_over` and M6's kept items exist; it is the record the next packing can read. The carry-over of the non-perishables (this event's consumer) will be built next as an M4 follow-up, contract first, before MS-B.
 - Order events (`orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` with `reason`, `billing.refund_issued`) are published by M4 and M5 when M7 calls their facades.
 
-**Consumed:** `community.donation_scheduled` (§3.6, P5).
+**Consumed:** none. M7 reads a society's donations through `community.api.pickups_for` when a route starts (§3.6), so `community.donation_scheduled` and `community.donation_cancelled` are not consumed: a donation cancelled after the start is skipped by M9 when it is reported.
 
 **For M11's event map** (added when M7 lands; categories and push rules are M11's): `logistics.route_published` (rider, captain), `logistics.route_cancelled` (rider), `logistics.plan_needs_review` (hub managers), `logistics.stop_arrived` (captain), `logistics.delivery_held` (customer, category `delivery`, link `/orders`), `logistics.redelivery_scheduled` (customer, `delivery`, `/orders`). Not mapped: `handover_completed`, `route_completed`, `pickup_completed`.
 
@@ -458,6 +528,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 | `deliveries:read` | customer (own household), captain (her society), rider (rider-mode stop), hub staff (hub) |
 | `deliveries:write` | captain (society), rider (rider-mode stops and tiffins on own route), hub_manager (hub) |
 | `deliveries:resolve` | hub_manager (hub), admin |
+| `pickups:read` | hub_manager (hub), admin: the hub's pickups list (§3.6); riders read their stops' pickups on the route |
 
 ## 8. Screens
 **Mobile:** Rider — Today (routes, tonight's and today's), Route map with stops, Stop detail (handover code, crates, navigation, rider-mode flat list with proof), Pickups, offline indicator. Captain — Today (van ETA, expected crates and bags), Handover (counts, code or photo, bag scan on mismatch), Flat checklist (scan at the door, hold, undelivered), Exceptions. Customer — delivery card and live map in the order detail (§3.5). The rider and captain routes on `main` are placeholders (`FieldShell`). **Console:** Route plans (solve, problems, publish), Routes live map (MapLibre + deck.gl), Deliveries exceptions board with triage, Vehicles.
@@ -474,6 +545,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 - SSE: the audience rules (rider, hub manager, captain, customer, stranger 403); the customer stream ends at handover; positions rounded for customers; snapshot first; 3-stream limit.
 - Handover (§3.4): matching counts move every order with actor `captain`; mismatch without scans refused, with scans moves only scanned ones; wrong code and the attempts limit; rider mode for a society without a captain; a captain whose M9 assignment ended is refused; replay returns the first answer.
 - Door and exceptions: bag QR must match; rider needs otp or photo; hold keeps `at_society` until `hold_expiry`; `hold_expiry` reasons; first miss → one redelivery on T+1's plan, and a bag the captain kept overnight is counted neither in `redelivery_bags` nor at the handover yet moves to `at_society` with it; second miss → refund of perishables minus ₹20, never negative, and the non-perishable lines passed to `orders.api.carry_over`; damaged/missing refunded in full; tiffin failure refunded at once; a tiffin is picked up by its assignment's `GB1A:` QR and delivered with its `short_code` and `otp` or `photo`, by a captain too; triage refund bounded by what is left of the paid total.
+- Pickups (§3.6): route start makes the expected empties (handover crates minus collected, rider-mode handovers left out), donations (`pickups_for`) and bags (attempt 2 refunded in the captain's hands), each on one stop only; a report by the route's rider only (another rider 403, a hub manager 403, another hub 404), not before start, after completion or at a skipped stop; partial reports, empties replaced, a changed status 409, an unexpected donation or bag 422; the idempotent replay; `pickup_completed` and its consumers (M9 `picked_up`, `not_ready` rolled then cancelled; M6 kept items and returned lots); rows still expected become `not_ready` at complete; the hub list's scope (hub manager of the hub, admin; another hub 403); the solve sends the open empties.
 - Privacy: captain views never contain names or phones and only her society; no event payload carries a code, phone, flat or coordinate; data export and erasure.
 - Solver integration (with M10): golden routes from fixed seeds are feasible; the 26 s gateway timeout leads to the fallback, never a missing plan.
 - E2E (MS-B): seeded hub → cut-off → 23:15 plan published → packing in route order → start → handover → every flat delivered, plus one held bag that becomes a redelivery and is delivered the next morning; on the simulator seed.
@@ -483,7 +555,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 - **M4** (`orders.api`), changes from ADR-0026 made in the M6 packing PR: the field actors and `actor_user_id` on `transition`, the per-kind state machine, `kinds` on `orders_for_delivery`, `system` on `at_society → undelivered`, `kind` in fulfilment events. **Further M4 changes this spec needs** (in the M7 PR, reviewed by both owners; recorded in [ADR-0027](../adr/0027-operations-contract-amendments.md), which extends ADR-0026 §2's table): `system` on `undelivered → redelivery` (the automatic free redelivery); `dispatched → undelivered` for box and add-on orders by `rider`, `system` and `hub` (bags that ride back to the hub: a skipped stop, a count mismatch, `close_routes`); `rider` on `dispatched → at_society` and `at_society → delivered / undelivered` also where a hub manager switched the stop to rider mode for an absent captain (M7 checks it); `transition(…, "refunded")` takes `payload.refund_paise` (default: what is left of the paid total) and `payload.reason`; `orders.delivery_failed` carries `reason`; `orders_for_delivery` accepts `statuses=("locked", "packed")`; **`orders.api.carry_over(session, order_id, lines)`** (the owner's decision of 2026-10-09 on a box missed twice): M4 keeps the given non-perishable lines (product, steps) for the order's household and adds them to its next box or add-on order at no charge, with `carried_from_order_id` on the line: the household's next box or add-on order whose delivery date is after the missed attempt and that is not yet packed. Carried lines wait at most 14 days, then M4 refunds them at their paid price without the fee (ADR-0027 default, §3.4).
 - **M9** captains PR (before M7): `community.captains` with one active captain per society, `community.api.captain_for_society`, the `captain_assigned`/`captain_ended` events. **Also needed from M9:** `community.api.society_points(society_ids) -> {id: (lat, lng)}` (a nullable gate point on societies, else a point inside the boundary) and tower labels (already needed by M6).
 - **M6** (`hub_ops.api.society_loads`, `bag_for_order`; consumes `logistics.route_published` and `route_cancelled`; **follow-up:** a bag back after a second miss sends its perishables to the surplus cascade and keeps its non-perishables aside for the household, and packing adds a carried-over line from those kept items), **M1** (`identity.api.delivery_labels`, rider grants for a hub, the data export section `logistics`, the erase hook), **M0** (a new upload purpose `delivery_photo`: JPEG/WebP, 5 MB, 90 days after the delivery), **M2** (`catalog.api.grams_of` and shelf life per product), **M10** (`intel_gateway.api.solve_routes`, PR on `feat/M10-route-solve`), **M5** (refunds through M4), **M11** (the event map above), **M8** (tiffin assignments and the `GB1A:` pickup in §3.7; partner pay comes from M4's fulfilment events with `actor`, not from M7's events, M8 §3.6).
-- **Missing, found building M7:** (1) ~~a `billing.api` facade that refunds an order's money to its **original payment source** (M5's refund-to-source works from the wallet balance and has no per-order entry point), which triage needs when the wallet is at its cap~~. Done by M5 §3.3 "Order refunds when the wallet is full" (2026-10-21): `refund_to_wallet` sends the refund to the payment source itself, so triage needs no change; (2) M4's `carry_over` and its 14-day expiry job, and M6's kept items, for the non-perishables of a box missed twice; (3) §3.6 pickups (`bag` kind), which would bring a bag the captain holds back to the hub after a second miss.
+- **Missing, found building M7:** (1) ~~a `billing.api` facade that refunds an order's money to its **original payment source** (M5's refund-to-source works from the wallet balance and has no per-order entry point), which triage needs when the wallet is at its cap~~. Done by M5 §3.3 "Order refunds when the wallet is full" (2026-10-21): `refund_to_wallet` sends the refund to the payment source itself, so triage needs no change; (2) M4's `carry_over` and its 14-day expiry job, and M6's kept items, for the non-perishables of a box missed twice; (3) ~~§3.6 pickups (`bag` kind), which would bring a bag the captain holds back to the hub after a second miss~~. Specified in §3.6 (2026-10-25): the bag is a pickup at the society's next stop, and M6's consumer of `logistics.pickup_completed` unpacks it.
 - **Docs to update with this spec:** handbook 07 §7.1 and W5 (solve at T-1 23:15 per hub, not T 07:00 per slot; crates by count and handover code, not crate QR; hold until 20:00, the held bag overnight with the captain, one redelivery, then the refund rule with the non-perishables carried to the next delivery; the fallback is the previous day's order or nearest neighbour), handbook 10 §10.4 (`solve_routes` T-1 23:15; the new M7 jobs) and §10.3 (the M7 events), handbook 05 §5.5 ERD for `logistics`, handbook 06 §6.2 (hold and redelivery triggers), M10 §3.4 (stop ids and the 23:15 trigger), M11 §3.1 event map (the six events above and a category for partner messages).
 
 ## 11. Open questions and decisions
@@ -494,3 +566,14 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - ~~A box missed twice: should non-perishables (atta, oil) be refunded too, or ride on the family's next delivery?~~ Decided: the perishables are refunded minus the ₹20 fee as drafted; the non-perishables ride on the household's next delivery, neither surplus nor refunded. The bag stays at the hub, and its non-perishable lines are carried to the next order through a new `orders.api.carry_over` (M4) and packed from the kept items (M6) (§3.4, §10). This narrows ADR-0026's decided item 1 ("the box goes to the surplus cascade") to the perishables; [ADR-0027](../adr/0027-operations-contract-amendments.md) records the amendment.
 - Pilot data (Rhythm Thakur, Manish Raje): real vehicles and their speed against OSRM (GPS traces), captains' real windows, orders per crate.
 - **Defaults set by [ADR-0027](../adr/0027-operations-contract-amendments.md) (2026-10-09), which the owner may change:** carried-over non-perishables wait up to 14 days for the household's next delivery, then are refunded at their paid price without the fee (§3.4, §10); a captain earns nothing for tiffins she delivers (§3.7).
+
+**Decisions for the owner (§3.6, 2026-10-25).** The outline left these open; each is the simplest choice consistent with ADR-0026 and ADR-0027, and §3.6 is built on it until the owner says otherwise.
+1. **Expected pickups are a snapshot at route start**, like the crate counts, not made at publish and not kept up to date from `community.donation_scheduled` or `donation_cancelled` (M7 consumes neither; M9 §5's notes on them change to match). A pickup date closes at 22:00 the day before (M9 §3.4), so the snapshot misses no donation; one cancelled after the start is skipped by M9 when it is reported.
+2. **Everything rides back to the hub.** No `bank` stop and no `donation_kg_tenths` in the solve: M9 §3.4 has the hub count and verify donations before a hand-off (M9 §3.5), and M10 refuses donation weight without a food bank. Donation weight is not in the van's kg check.
+3. **A rider-mode handover leaves no empties** at the society: the rider does the doors and keeps his crates. Only captain and hub-manager handovers add to a society's open empties.
+4. **Reports are partial and repeatable**, because the app taps empties and each donation separately through its outbox: `empties` replaces the stop's count until the route completes; a donation or bag is set once.
+5. **Only the route's rider reports**, as the outline said; a hub manager cannot report for him yet.
+6. **M6 unpacks a returned bag when the event arrives** (kept items and returned lots), not only when the hub scans it; the scan then answers the same result.
+7. **No pickup-only stops.** A society without a delivery that day gets no stop for its pickups.
+8. **A rider at a captain's stop sees no flat labels**, also for donations (§Privacy): he tells donations apart by their item summary. M9's `pickups_for` gives no label or code for a donation bag.
+9. **Unreported pickups become `not_ready` at route complete**, without an event; M9's 22:30 sweep already handles unreported donations, and a bag or empties not collected are expected again at the society's next stop.

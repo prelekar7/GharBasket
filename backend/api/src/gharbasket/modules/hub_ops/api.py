@@ -14,7 +14,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import kept, packing, service, surplus, waste
+from gharbasket.modules.hub_ops import events, kept, packing, service, surplus, waste
 from gharbasket.modules.hub_ops.facts import HubDayFact, hub_day_facts
 from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask, SurplusOffer, WasteLog
 from gharbasket.modules.hub_ops.surplus import Taker
@@ -27,7 +27,12 @@ from gharbasket.modules.hub_ops.today import (
 )
 from gharbasket.modules.orders import api as orders_api
 
+# What M8 (kitchens) and M9 (NGOs) consume: { offer_id, hub_id, lot_id, product_id, qty, unit,
+# grade, best_before, offered_to, expires_at } (§3.5).
+SURPLUS_OFFERED = events.SURPLUS_OFFERED
+
 __all__ = [
+    "SURPLUS_OFFERED",
     "BagRef",
     "HubDayFact",
     "HubRef",

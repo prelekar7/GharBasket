@@ -26,3 +26,7 @@ REDELIVERY_SCHEDULED = "logistics.redelivery_scheduled"
 # household's next delivery (ADR-0027 §2). M4's `carry_over` keeps them in the same transaction
 # (M4 §3.8); this event stays M7's record.
 CARRY_OVER_PENDING = "logistics.carry_over_pending"
+# stop_id, route_id, hub_id, society_id, delivery_date, rider_user_id, empties (the stop's new count
+# or null), donations: [{donation_id, status}], bag_order_ids, at — what one report changed (§3.6):
+# M9 records each donation's outcome, M6 unpacks each returned bag
+PICKUP_COMPLETED = "logistics.pickup_completed"

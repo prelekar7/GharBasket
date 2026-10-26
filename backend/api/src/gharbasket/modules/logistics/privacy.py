@@ -23,6 +23,7 @@ from gharbasket.modules.logistics.models import (
     FieldEvent,
     GpsPing,
     Handover,
+    Pickup,
     Route,
     Vehicle,
 )
@@ -167,6 +168,17 @@ async def anonymise(
         .where(Vehicle.default_rider_user_id == user_id)
         .values(default_rider_user_id=None)
     )
+    # Pickups (§3.6) keep their counts: no reporter, and no household for the flat label.
+    reported = await session.execute(
+        update(Pickup).where(Pickup.by_user_id == user_id).values(by_user_id=None)
+    )
+    labelled = 0
+    if household_id is not None:
+        labelled = (
+            await session.execute(
+                update(Pickup).where(Pickup.household_id == household_id).values(household_id=None)
+            )
+        ).rowcount  # pyright: ignore[reportAttributeAccessIssue]
     return {
         "delivery_proofs": len(proofs),
         "gps_pings": pings.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
@@ -175,4 +187,5 @@ async def anonymise(
         "field_events": events.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
         "routes": routes.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
         "vehicles": vehicles.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
+        "pickups": reported.rowcount + labelled,  # pyright: ignore[reportAttributeAccessIssue]
     }

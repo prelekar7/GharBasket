@@ -1,6 +1,6 @@
 # M5 — Billing & Ledger
 
-**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able)
+**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (wallet); UPI Autopay in the pilot phase (P6)
 **Postgres schema:** `billing` · **Python package:** `gharbasket.modules.billing`
@@ -39,6 +39,7 @@ All money and points: the closed-loop prepaid wallet, Razorpay top-ups, UPI Auto
 | GET | `/v1/statements?period=YYYY-MM` | customer | — | The wallet's month from the ledger, JSON (§3.2); PDF later; a partner's earnings with `account=earnings` (§3.5) |
 | GET | `/v1/admin/reconciliation` | admin | — | Mismatch report (§3.4) |
 | POST | `/v1/admin/reconciliation/{id}/resolve` | admin | — | Close an item with a note; moves no money (§3.4) |
+| GET | `/v1/admin/refunds?hub_id=&from=&to=` | hub_manager (hub), admin | — | Read-only list of order refunds; served by M4's router from M5's facade (§3.8) |
 
 UPI Autopay mandates (US-3, `/v1/mandates`) are built in the pilot phase; for MS-A the box is paid from the prepaid wallet, topped up through Razorpay Checkout in test mode and debited at the 21:00 cut-off.
 
@@ -450,6 +451,59 @@ UPI Autopay is third in the plan's cut order (handbook 14 §14.3) and is planned
 
 If the pilot keeps Autopay, its contract follows handbook 06 §6.5 (the mandate states, the 24-hour pre-debit notice at T-3 18:30, the capture at cut-off, `CAPTURED → POSTED` as the only ledger write) and is written at the start of P6.
 
+### 3.8 Order refunds list (drafted 2026-10-25, frozen on approval)
+The console's Refunds page (`(admin)/refunds`) builds against this, as a read-only list of the money that went back for orders. Today it calls `GET /v1/admin/refunds?status=pending` as a review queue with approve, reject and reopen (`mocks/billing.js`). Order refunds are automatic, though: shortages, issue credits, moves to `refunded`, carry-over expiry and lost kept items all post at once through `refund_to_wallet` (§3.3). So there is nothing to approve. A disputed delivery goes through M4's issue triage (M4 §3.6).
+
+**Who serves it.** M5 does not read orders or households: M4 and M1 depend on M5, not the reverse (§3.3, Rules). The list is per hub, society and flat, so **M4's router serves the path** (M4 §3, §7). It joins its own orders to the rows of the new M5 facade below. The money fields are M5's.
+
+```
+billing.api.order_refunds(session, order_ids) -> list[OrderRefund]      new
+  OrderRefund : { entry_id, order_id, reason (the entry's code, e.g. "short_<hex>"), amount_paise,
+                  refund_id | None, refund_status | None, created_at }
+                every `refund` journal entry whose ref is one of the orders; refund_id and its
+                status when the entry's details carry "to_source" (a full wallet, §3.3)
+
+RefundRow : {
+  "id": "<journal entry id>",
+  "order_id", "order_kind": "box" | "addon" | "tiffin", "delivery_date",
+  "society": { "id", "name" }, "flat_label": "B wing, B-402" | null,   as M6 §3.2; never a name or phone
+  "reason": "shortage" | "issue" | "undelivered" | "no_kitchen" | "carry_over" | "other",
+  "product_id": "<uuid>" | null,          shortage and carry_over: the line's product
+  "issue_id": "<uuid>" | null,            issue: the order issue (M4 §3.2)
+  "amount_paise": 4000,
+  "to": "wallet" | "source",
+  "refund_id": "<uuid>" | null,           to source: the Refund that sends it back (§3.3)
+  "status": "credited" | "pending" | "processing" | "processed" | "partly_failed" | "failed",
+                                          credited for the wallet; the Refund's status for a source
+  "created_at" }
+
+GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit=
+    hub_manager (hub), admin (order_refunds:read, M4 §7). Cache-Control: no-store
+    hub_id: required for hub staff (their hub), optional for admins (every hub)
+    from, to: delivery dates (IST), default the last 7 days to today; at most 31 days apart
+    reason: one of the six; destination: wallet | source; limit ≤ 100, default 50
+  200 Page[RefundRow]   newest first (created_at, then id)
+  403 "auth.forbidden" (another hub) · 422 "request.invalid" (a window over 31 days, an unknown value)
+```
+
+- **Reasons.** They map the entry's code: `short_<hex>` is `shortage`, `issue_<hex>` is `issue`, `carry_<hex>` is `carry_over` (expiry and lost kept items alike), `undelivered` and `no_kitchen` keep their names, and any other code is `other`. The hex part gives `product_id` or `issue_id`.
+- **No money moves here, and no new state.** A wallet refund is final when posted (`credited`). A refund to source follows `send_refunds` and the webhook (§3.3), and a stuck part shows up in reconciliation (§3.4).
+- **What hub staff do not see.** A household's wallet balance or top-ups, the customer's name or phone, and customers' own refunds to source (`reason` customer or account_deleted): those are wallet matters, not order refunds.
+- **New facade:** `billing.api.order_refunds`, above. It reads M5's own tables only, so M5 gains no dependency.
+
+| Mock today (`mocks/billing.js`) | Contract |
+|---|---|
+| `GET /v1/admin/refunds?status=pending`, a queue of `pending` refunds | A read-only Page of what was refunded, filtered by hub, delivery dates, reason and destination |
+| `flat`, `society` (strings) | `flat_label` and `society { id, name }` |
+| `order_label: "Box · Tue 6 Oct"` | `order_kind` and `delivery_date`; the console words it |
+| `why`, `what_happened`, `reported_by` | `reason` with `product_id` or `issue_id`; who reported an issue is on the issue (M4 §3.6) |
+| `to: "wallet"` | `to: "wallet" \| "source"`, with `refund_id` for a source |
+| `wallet_before_paise` | Not in the contract: hub staff do not see a household's balance |
+| `status: "pending" \| "approved" \| "rejected"` | `credited`, or the Refund's own status |
+| `POST /v1/admin/refunds/{id}/approve \| reject \| reopen` | Dropped: refunds are automatic (§3.3); disputes are M4's issue triage (M4 §3.6) |
+
+**As built (the list, with the M4 PR).** `billing.api.order_refunds` and the `OrderRefund` row are in `billing/refunds.py`; the amount is the entry's debit leg and a missing Refund row reads `pending`. M4's `GET /v1/admin/refunds` (`orders/refund_list.py`) takes the delivery-date window's orders (the hub's, or every hub's for an admin), asks the facade in chunks of 2,000 ids, then filters by `reason` and `destination`, orders by (created_at, id) newest first and keysets the page on that pair, all in memory: the window is at most 31 days. A hub manager without `hub_id` gets 422 `orders.hub_required` (as the issue queue); `from` defaults to seven days before `to`, and `from` after `to` is 422 `request.invalid` too. A refund of an order whose code the table does not know (`returned_to_hub`, `left_behind`) is `other`. Permission `order_refunds:read` is registered in M4's `permissions.py`.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -497,6 +551,7 @@ Scheduled jobs run as internal job endpoints (`POST /v1/internal/jobs/<name>`) c
 | `statements:read` | customer (own wallet, §3.2); partner (own earnings, with M8); franchise_owner (hub aggregates, later) |
 | `reconciliation:read` · `reconciliation:resolve` | admin |
 | `refunds:write` | customer (own wallet, §3.3) |
+| `order_refunds:read` | hub_manager (hub), admin (§3.8; registered and checked by M4, which serves the path) |
 | `payouts:read` | partner (own), hub_manager (hub), admin |
 | `payouts:write` | admin (retry) |
 | `kindness:read` · `kindness:donate` | customer (own) |

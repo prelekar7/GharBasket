@@ -159,6 +159,40 @@ export interface paths {
         patch: operations["patch_hub_v1_admin_hubs__hub_id__patch"];
         trace?: never;
     };
+    "/v1/admin/ngos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List an NGO partner (admin; Idempotency-Key; coordinators are M1 role grants) */
+        post: operations["create_ngo_v1_admin_ngos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ngos/{ngo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change an NGO partner (admin; If-Match: its version; audit-logged) */
+        patch: operations["patch_ngo_v1_admin_ngos__ngo_id__patch"];
+        trace?: never;
+    };
     "/v1/admin/notification-templates": {
         parameters: {
             query?: never;
@@ -453,6 +487,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The money that went back for a hub's orders, newest first (read only) */
+        get: operations["order_refunds_v1_admin_refunds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -572,6 +623,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/hubs/{hub_id}/assumptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's saved assumptions, their version (ETag) and the last 20 saves (franchise owner, admin) */
+        get: operations["hub_assumptions_v1_analytics_hubs__hub_id__assumptions_get"];
+        /** Save the hub's assumptions (all keys; If-Match: the version; audit-logged) (franchise owner, admin) */
+        put: operations["put_hub_assumptions_v1_analytics_hubs__hub_id__assumptions_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/analytics/hubs/{hub_id}/today": {
         parameters: {
             query?: never;
@@ -623,6 +692,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/pnl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A month's statement: revenue, costs and contribution, each line measured or assumed (franchise owner, admin) */
+        get: operations["pnl_v1_analytics_pnl_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/analytics/societies": {
         parameters: {
             query?: never;
@@ -632,6 +718,23 @@ export interface paths {
         };
         /** Each society's unlock progress and the last 4 weeks' households, approval and box value (hub manager, franchise owner, admin; only an admin may leave the hub out) */
         get: operations["society_table_v1_analytics_societies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/unit-economics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A box's contribution from measured inputs, saved assumptions and what-if overrides (franchise owner, admin) */
+        get: operations["unit_economics_v1_analytics_unit_economics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1533,6 +1636,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/fairness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The fairness weight in use and the hub's latest assignment runs (hub staff, admin) */
+        get: operations["fairness_v1_hubs__hub_id__fairness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/goods-receipts": {
         parameters: {
             query?: never;
@@ -1723,6 +1843,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/pickups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A hub's return-leg pickups for a date, per stop, with totals
+         * @description Made when each route starts, so the list is empty before. Flat labels for hub staff; no names or phones.
+         */
+        get: operations["hub_pickups_v1_hubs__hub_id__pickups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/price-lists": {
         parameters: {
             query?: never;
@@ -1858,6 +1998,23 @@ export interface paths {
         };
         /** A hub's routes for a date, by departure and vehicle */
         get: operations["list_routes_v1_hubs__hub_id__routes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/shortages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Items short for a date's packing and the bags the gap falls on (read only) */
+        get: operations["hub_shortages_v1_hubs__hub_id__shortages_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2415,6 +2572,109 @@ export interface paths {
         };
         /** All roles of the signed-in user, with scope and status (for the role switcher) */
         get: operations["my_roles_v1_me_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ngo-handoffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Hand-offs, newest first, with the report over the whole filter */
+        get: operations["list_handoffs_v1_ngo_handoffs_get"];
+        put?: never;
+        /** Record a hand-off of items, food or meals with photos (Idempotency-Key) */
+        post: operations["record_handoff_v1_ngo_handoffs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ngo-handoffs/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the hub can hand over: verified donations, claimed offers, meals waiting */
+        get: operations["ready_v1_ngo_handoffs_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ngo-handoffs/{handoff_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm receipt of a hand-off the hub recorded (your NGO's; Idempotency-Key) */
+        post: operations["confirm_handoff_v1_ngo_handoffs__handoff_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ngo/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Surplus food offered to NGOs, soonest expiry first (at most 200) */
+        get: operations["list_offers_v1_ngo_offers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ngo/offers/{offer_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim a surplus offer for your NGO: the first claim wins (Idempotency-Key) */
+        post: operations["claim_offer_v1_ngo_offers__offer_id__claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ngos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** NGO partners: every one (admin), your hubs' (hub manager), your own (coordinator) */
+        get: operations["list_ngos_v1_ngos_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3637,6 +3897,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stops/{stop_id}/pickups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report the empties, donations and bags taken back at a stop (Idempotency-Key)
+         * @description The route's rider, while it is in progress. A report may name a part: `empties` replaces the stop's count; each donation and bag is set once. Each change publishes logistics.pickup_completed (M9 records the donations, M6 unpacks the bags).
+         */
+        post: operations["report_pickups_v1_stops__stop_id__pickups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stops/{stop_id}/skip": {
         parameters: {
             query?: never;
@@ -4622,6 +4902,122 @@ export interface components {
             /** Items */
             items: components["schemas"]["AssignmentOut"][];
         };
+        /**
+         * AssumptionsIn
+         * @description The PUT body: every key, whole numbers (a range error is 422 `analytics.assumptions_invalid`
+         *     with `errors[]`).
+         */
+        AssumptionsIn: {
+            /** Aov Paise */
+            aov_paise: number;
+            /** Cac Paise */
+            cac_paise: number;
+            /** Captain Paise */
+            captain_paise: number;
+            /** Delivery Paise */
+            delivery_paise: number;
+            /** Margin Bp */
+            margin_bp: number;
+            /** Packing Paise */
+            packing_paise: number;
+            /** Payment Fee Bp */
+            payment_fee_bp: number;
+        };
+        /**
+         * AssumptionsOut
+         * @description The seven editable inputs of a box's economics; money in paise, rates in basis points.
+         */
+        AssumptionsOut: {
+            /**
+             * Aov Paise
+             * @description Average box value, add-ons included, delivery fee not
+             */
+            aov_paise: number;
+            /**
+             * Cac Paise
+             * @description Customer acquisition cost spread per box
+             */
+            cac_paise: number;
+            /**
+             * Captain Paise
+             * @description Society Captain pay per box
+             */
+            captain_paise: number;
+            /**
+             * Delivery Paise
+             * @description Delivery cost per box
+             */
+            delivery_paise: number;
+            /**
+             * Margin Bp
+             * @description Margin on produce, after vendor cost
+             */
+            margin_bp: number;
+            /**
+             * Packing Paise
+             * @description Packing cost per box
+             */
+            packing_paise: number;
+            /**
+             * Payment Fee Bp
+             * @description Share of the box value paid to the payment provider
+             */
+            payment_fee_bp: number;
+        };
+        /** BagPickupOut */
+        BagPickupOut: {
+            /**
+             * Flat Label
+             * @description As for donations
+             * @example B wing, 402
+             */
+            flat_label: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "expected" | "collected" | "not_ready";
+        };
+        /** BasisShare */
+        BasisShare: {
+            /** Bp */
+            bp: number;
+            /**
+             * Kind
+             * @default share
+             * @constant
+             */
+            kind: "share";
+            /**
+             * Of
+             * @default box_revenue
+             * @constant
+             */
+            of: "box_revenue";
+        };
+        /** BasisTimes */
+        BasisTimes: {
+            /**
+             * Kind
+             * @default times
+             * @constant
+             */
+            kind: "times";
+            /** Qty */
+            qty: number;
+            /** Rate Paise */
+            rate_paise: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "box" | "tiffin";
+        };
         /** BoardAttentionOut */
         BoardAttentionOut: {
             /** Count */
@@ -5151,6 +5547,35 @@ export interface components {
              */
             slug: string;
         };
+        /** ChangeOut */
+        ChangeOut: {
+            /**
+             * From
+             * @description Null: the key had no value before
+             */
+            from: number | null;
+            /** Key */
+            key: string;
+            /** To */
+            to: number;
+        };
+        /** ChangedByOut */
+        ChangedByOut: {
+            /**
+             * Name
+             * @description The editor's name; null when they have none on record
+             */
+            name: string | null;
+        };
+        /** ClaimIn */
+        ClaimIn: {
+            /**
+             * Ngo Id
+             * Format: uuid
+             * @description One of your NGOs
+             */
+            ngo_id: string;
+        };
         /** CohortOut */
         CohortOut: {
             /** Households */
@@ -5199,6 +5624,16 @@ export interface components {
             /** Weeks */
             weeks: number;
         };
+        /** ConfirmIn */
+        ConfirmIn: {
+            /** People Reached */
+            people_reached?: number | null;
+            /**
+             * Photo Keys
+             * @description More `handoff_photo` uploads
+             */
+            photo_keys?: string[];
+        };
         /** ConfirmOut */
         ConfirmOut: {
             proposal: components["schemas"]["ProposalOut"];
@@ -5233,6 +5668,13 @@ export interface components {
             revoked_at: string | null;
             /** Version */
             version: string;
+        };
+        /** Coordinator */
+        Coordinator: {
+            /** Name */
+            name: string | null;
+            /** Phone E164 */
+            phone_e164: string;
         };
         /** CountIn */
         CountIn: {
@@ -5711,6 +6153,44 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** DonationPickupOut */
+        DonationPickupOut: {
+            /**
+             * Donation Id
+             * Format: uuid
+             */
+            donation_id: string;
+            /**
+             * Flat Label
+             * @description Rider-mode stops of a route in progress (and the hub's list) only
+             * @example B wing, 402
+             */
+            flat_label: string | null;
+            /**
+             * Items
+             * @description M9's summary
+             * @example clothes 3 kg, toys 2
+             */
+            items: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "expected" | "collected" | "not_ready";
+        };
+        /** DonationReport */
+        DonationReport: {
+            /**
+             * Donation Id
+             * Format: uuid
+             */
+            donation_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "collected" | "not_ready";
+        };
         /** DonationsOut */
         DonationsOut: {
             /** Items */
@@ -5759,9 +6239,9 @@ export interface components {
             name: components["schemas"]["Label"];
             /**
              * Ngo Id
-             * @description Accepted once NGOs exist (§3.5)
+             * @description An NGO that accepts items (and serves the drive's hub)
              */
-            ngo_id?: null;
+            ngo_id?: string | null;
             /**
              * Scope
              * @enum {string}
@@ -5835,7 +6315,7 @@ export interface components {
              * @example Diwali drive
              */
             name: string;
-            /** @description Who receives the items; null until NGOs (§3.5) */
+            /** @description Who receives the items (§3.5) */
             ngo: components["schemas"]["DriveNgo"] | null;
             progress: components["schemas"]["DriveProgress"];
             /**
@@ -5878,6 +6358,11 @@ export interface components {
             /** Multiplier */
             multiplier?: number | string | null;
             name?: components["schemas"]["Label"] | null;
+            /**
+             * Ngo Id
+             * @description null removes the NGO
+             */
+            ngo_id?: string | null;
             /** Starts On */
             starts_on?: string | null;
             /**
@@ -6197,6 +6682,13 @@ export interface components {
              */
             week: string;
         };
+        /** EmptiesTotal */
+        EmptiesTotal: {
+            /** Collected */
+            collected: number;
+            /** Expected */
+            expected: number;
+        };
         /** Entry */
         Entry: {
             /**
@@ -6278,6 +6770,91 @@ export interface components {
             crates: number;
             /** Redelivery Bags */
             redelivery_bags: number;
+        };
+        /** FairnessOut */
+        FairnessOut: {
+            /**
+             * Fallback Active
+             * @description The newest run's model is greedy-m8
+             */
+            fallback_active: boolean;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Lambda Paise
+             * @description PARTNERS_FAIRNESS_LAMBDA now: paise of cost per portion of earnings imbalance (M10 §3.5); 0 = cost only; one value for every hub
+             * @example 300
+             */
+            lambda_paise: number;
+            /**
+             * Runs
+             * @description Newest first
+             */
+            runs: components["schemas"]["FairnessRunOut"][];
+        };
+        /** FairnessRunOut */
+        FairnessRunOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Gini
+             * @description Of the earnings of every kitchen in the request
+             */
+            gini: number | null;
+            /**
+             * Gini Eligible
+             * @description Of the kitchens that could take an order
+             */
+            gini_eligible: number | null;
+            /** Kitchens Used */
+            kitchens_used: number;
+            /** Km Per Portion */
+            km_per_portion: number | null;
+            /**
+             * Lambda Paise
+             * @description The λ the run sent; null for earlier runs
+             */
+            lambda_paise: number | null;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Model */
+            model: string;
+            /** Portions */
+            portions: number;
+            /** Round */
+            round: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+            /**
+             * Status
+             * @description M10's answer, or fallback for M8's own
+             * @example solved
+             */
+            status: string;
+            /** Unassigned */
+            unassigned: number;
         };
         /** FastingRules */
         FastingRules: {
@@ -6626,6 +7203,147 @@ export interface components {
             /** Items */
             items: components["schemas"]["GoodsReceiptOut"][];
         };
+        /** HandoffIn */
+        HandoffIn: {
+            /** Donation Ids */
+            donation_ids?: string[];
+            /**
+             * Handed At
+             * @description Default now; never ahead
+             */
+            handed_at?: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "items" | "food" | "meals";
+            /**
+             * Meals
+             * @default 0
+             */
+            meals: number;
+            /**
+             * Ngo Id
+             * Format: uuid
+             */
+            ngo_id: string;
+            /** Note */
+            note?: string | null;
+            /** Offer Ids */
+            offer_ids?: string[];
+            /** People Reached */
+            people_reached?: number | null;
+            /**
+             * Photo Keys
+             * @description 1 to 3 of your own `handoff_photo` uploads: goods and the hand-over, never beneficiaries' faces
+             */
+            photo_keys?: string[];
+        };
+        /** HandoffOut */
+        HandoffOut: {
+            /**
+             * Confirmed At
+             * @description When the NGO's coordinator confirmed
+             */
+            confirmed_at: string | null;
+            /**
+             * Donation Ids
+             * @description items: the verified donations handed over
+             */
+            donation_ids: string[];
+            /**
+             * Handed At
+             * Format: date-time
+             */
+            handed_at: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "items" | "food" | "meals";
+            /**
+             * Meals
+             * @description meals: the donated meals this hand-off serves
+             */
+            meals: number;
+            ngo: components["schemas"]["NgoCard"];
+            /** Note */
+            note: string | null;
+            /**
+             * Offer Ids
+             * @description food: the offers this NGO claimed
+             */
+            offer_ids: string[];
+            /**
+             * People Reached
+             * @description As the NGO reports it
+             */
+            people_reached: number | null;
+            /**
+             * Photo Urls
+             * @description 5-minute links; minting them is audit-logged
+             */
+            photo_urls: components["schemas"]["PhotoUrl"][];
+            /** Photos */
+            photos: number;
+            /**
+             * Recorded By
+             * @enum {string}
+             */
+            recorded_by: "hub" | "ngo";
+            summary: components["schemas"]["HandoffSummary"];
+        };
+        /**
+         * HandoffReport
+         * @description Totals over every hand-off the filter matches, not only this page.
+         */
+        HandoffReport: {
+            /** Handoffs */
+            handoffs: number;
+            /** Items */
+            items: number;
+            /** Kg */
+            kg: number;
+            /** Meals */
+            meals: number;
+            /** People Reached */
+            people_reached: number;
+        };
+        /** HandoffSummary */
+        HandoffSummary: {
+            /**
+             * Items
+             * @description Pieces, plus kilograms counted as one item per kg
+             */
+            items: number;
+            /** Kg */
+            kg: number;
+            /** Meals */
+            meals: number;
+        };
+        /** HandoffsOut */
+        HandoffsOut: {
+            /** Items */
+            items: components["schemas"]["HandoffOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            report: components["schemas"]["HandoffReport"];
+        };
         /** HandoverIn */
         HandoverIn: {
             /**
@@ -6727,6 +7445,17 @@ export interface components {
             changed: {
                 [key: string]: components["schemas"]["FieldChange"];
             };
+        };
+        /** HistoryOut */
+        HistoryOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            by: components["schemas"]["ChangedByOut"];
+            /** Changes */
+            changes: components["schemas"]["ChangeOut"][];
         };
         /**
          * HouseholdIn
@@ -6877,6 +7606,25 @@ export interface components {
              * @example +919812345678
              */
             phone_e164: string;
+        };
+        /** HubAssumptionsOut */
+        HubAssumptionsOut: {
+            assumptions: components["schemas"]["AssumptionsOut"];
+            /**
+             * History
+             * @description The newest 20 saves
+             */
+            history: components["schemas"]["HistoryOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Version
+             * @description Also the ETag; send it back as If-Match
+             */
+            version: number;
         };
         /** HubCutoffOut */
         HubCutoffOut: {
@@ -7090,6 +7838,51 @@ export interface components {
             /** Status */
             status?: ("active" | "paused") | null;
             timings?: components["schemas"]["TimingsPatch"] | null;
+        };
+        /** HubPickupStop */
+        HubPickupStop: {
+            /** Empties Expected */
+            empties_expected: number;
+            /** @description Flat labels always (hub staff) */
+            pickups: components["schemas"]["StopPickups"];
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /** Seq */
+            seq: number;
+            society: components["schemas"]["gharbasket__modules__logistics__schemas__SocietyRef"];
+            /**
+             * Stop Id
+             * Format: uuid
+             */
+            stop_id: string;
+            /**
+             * Stop Status
+             * @enum {string}
+             */
+            stop_status: "pending" | "arrived" | "handed_over" | "skipped";
+            vehicle: components["schemas"]["VehicleRef"];
+        };
+        /** HubPickupsOut */
+        HubPickupsOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Items
+             * @description By departure, vehicle label, seq
+             */
+            items: components["schemas"]["HubPickupStop"][];
+            totals: components["schemas"]["PickupTotals"];
         };
         /** HubSummary */
         HubSummary: {
@@ -8609,6 +9402,23 @@ export interface components {
              */
             slot: "breakfast" | "lunch" | "dinner";
         };
+        /**
+         * MeasuredOut
+         * @description What the pilot (or the simulator) measured; null: not measurable yet. The payment fee is
+         *     never measured in v1 and the CAC never, so neither is here.
+         */
+        MeasuredOut: {
+            /** Aov Paise */
+            aov_paise: number | null;
+            /** Captain Paise */
+            captain_paise: number | null;
+            /** Delivery Paise */
+            delivery_paise: number | null;
+            /** Margin Bp */
+            margin_bp: number | null;
+            /** Packing Paise */
+            packing_paise: number | null;
+        };
         /** MemberIn */
         MemberIn: {
             /**
@@ -8814,6 +9624,168 @@ export interface components {
             /** Mr */
             mr?: string | null;
         };
+        /**
+         * NgoCard
+         * @description All anyone outside staff and the NGO ever sees of an NGO.
+         */
+        NgoCard: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * NgoIn
+         * @description Coordinators are M1 role grants (`ngo_coordinator:<id>`, POST /v1/admin/user-roles).
+         */
+        NgoIn: {
+            /** Accepts */
+            accepts: ("items" | "food" | "meals")[];
+            /** Hub Ids */
+            hub_ids: string[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "food_bank" | "shelter" | "school" | "other";
+            /**
+             * Name
+             * @example Annapurna Food Bank
+             */
+            name: string;
+            /** Note */
+            note?: string | null;
+            /** Registration Ref */
+            registration_ref?: string | null;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "paused";
+            /**
+             * Verified
+             * @default false
+             */
+            verified: boolean;
+        };
+        /** NgoOfferOut */
+        NgoOfferOut: {
+            claimed_by: components["schemas"]["NgoCard"] | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Kg
+             * @description Null when the weight is unknown
+             * @example 12.5
+             */
+            kg: number | null;
+            /**
+             * Offer Id
+             * Format: uuid
+             * @description M6's surplus offer id
+             */
+            offer_id: string;
+            product: components["schemas"]["OfferProduct"];
+            /**
+             * Qty
+             * @example 12.5
+             */
+            qty: number;
+            /**
+             * Status
+             * @description An open offer past expires_at is expired
+             * @enum {string}
+             */
+            status: "open" | "claimed" | "expired";
+            /**
+             * Unit
+             * @description kg, l, piece, bunch or pack
+             * @example kg
+             */
+            unit: string;
+        };
+        /** NgoOffersOut */
+        NgoOffersOut: {
+            /** Items */
+            items: components["schemas"]["NgoOfferOut"][];
+        };
+        /** NgoOut */
+        NgoOut: {
+            /** Accepts */
+            accepts: ("items" | "food" | "meals")[];
+            /** @description The first active ngo_coordinator (an M1 role grant); staff and the NGO only */
+            coordinator: components["schemas"]["Coordinator"] | null;
+            /**
+             * Hub Ids
+             * @description Hubs it collects from
+             */
+            hub_ids: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "food_bank" | "shelter" | "school" | "other";
+            /**
+             * Name
+             * @example Annapurna Food Bank
+             */
+            name: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Registration Ref
+             * @example DARPAN MH/2019/0123456
+             */
+            registration_ref: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused";
+            /** Verified */
+            verified: boolean;
+            /**
+             * Version
+             * @description Send it back in If-Match to change the NGO
+             */
+            version: number;
+        };
+        /** NgoPatch */
+        NgoPatch: {
+            /** Accepts */
+            accepts?: ("items" | "food" | "meals")[] | null;
+            /** Hub Ids */
+            hub_ids?: string[] | null;
+            /** Kind */
+            kind?: ("food_bank" | "shelter" | "school" | "other") | null;
+            /** Name */
+            name?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Registration Ref */
+            registration_ref?: string | null;
+            /** Status */
+            status?: ("active" | "paused") | null;
+            /** Verified */
+            verified?: boolean | null;
+        };
         /** NgoTakerIn */
         NgoTakerIn: {
             /**
@@ -8826,6 +9798,11 @@ export interface components {
              * @example Annadaan Seva
              */
             name: string;
+        };
+        /** NgosOut */
+        NgosOut: {
+            /** Items */
+            items: components["schemas"]["NgoOut"][];
         };
         /** NotificationOut */
         NotificationOut: {
@@ -8888,6 +9865,19 @@ export interface components {
             source: "ifct2017" | "nin_nvif" | "label" | "manual";
             /** Unit G */
             unit_g?: number | null;
+        };
+        /** OfferProduct */
+        OfferProduct: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @description In the request language
+             */
+            name: string;
         };
         /**
          * OrderEventsOut
@@ -9534,6 +10524,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[RefundRow] */
+        Page_RefundRow_: {
+            /** Items */
+            items: components["schemas"]["RefundRow"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[SocietySummary] */
         Page_SocietySummary_: {
             /** Items */
@@ -9788,6 +10785,17 @@ export interface components {
             /** Items */
             items: components["schemas"]["PartnerOut"][];
         };
+        /** PartnersPaidOut */
+        PartnersPaidOut: {
+            /** Captains */
+            captains: number;
+            /** Kitchens */
+            kitchens: number;
+            /** Packers */
+            packers: number;
+            /** Riders */
+            riders: number;
+        };
         /**
          * PaymentDueOut
          * @description What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay.
@@ -9911,6 +10919,34 @@ export interface components {
              */
             type: "payout";
         };
+        /** PerBoxOut */
+        PerBoxOut: {
+            /** Cac Paise */
+            cac_paise: number;
+            /** Captain Paise */
+            captain_paise: number;
+            /**
+             * Contribution Paise
+             * @description May be negative
+             */
+            contribution_paise: number;
+            /**
+             * Delivery Fee Paise
+             * @description Revenue: the pre-live fee
+             */
+            delivery_fee_paise: number;
+            /** Delivery Paise */
+            delivery_paise: number;
+            /**
+             * Fee Paise
+             * @description The payment fee, a cost
+             */
+            fee_paise: number;
+            /** Margin Paise */
+            margin_paise: number;
+            /** Packing Paise */
+            packing_paise: number;
+        };
         /** PhotoUrl */
         PhotoUrl: {
             /**
@@ -9949,6 +10985,51 @@ export interface components {
         PickedUpBy: {
             /** Name */
             name: string | null;
+        };
+        /** PickupCount */
+        PickupCount: {
+            /** Collected */
+            collected: number;
+            /** Expected */
+            expected: number;
+            /**
+             * Not Ready
+             * @default 0
+             */
+            not_ready: number;
+        };
+        /** PickupTotals */
+        PickupTotals: {
+            bags: components["schemas"]["PickupCount"];
+            donations: components["schemas"]["PickupCount"];
+            empties: components["schemas"]["EmptiesTotal"];
+        };
+        /**
+         * PickupsIn
+         * @description A part of a stop's pickups: `empties` replaces the stop's count; each donation and bag is
+         *     set once.
+         */
+        PickupsIn: {
+            /**
+             * Bags
+             * @description Scanned bag QRs: collected
+             * @example [
+             *       "GB1:0199a0000000700080000000000000ab"
+             *     ]
+             */
+            bags?: string[];
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /** Donations */
+            donations?: components["schemas"]["DonationReport"][];
+            /**
+             * Empties
+             * @example 4
+             */
+            empties?: number | null;
         };
         /**
          * PingIn
@@ -10082,6 +11163,75 @@ export interface components {
         PlansOut: {
             /** Items */
             items: components["schemas"]["PlanOut"][];
+        };
+        /** PnlLineOut */
+        PnlLineOut: {
+            /**
+             * Amount Paise
+             * @description Costs are negative; exact paise
+             */
+            amount_paise: number;
+            /** Basis */
+            basis: components["schemas"]["BasisTimes"] | components["schemas"]["BasisShare"];
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "box_revenue" | "delivery_fee_revenue" | "tiffin_revenue" | "produce" | "kitchen" | "delivery" | "packing" | "captain" | "fees" | "acquisition";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "measured" | "assumed";
+        };
+        /** PnlOut */
+        PnlOut: {
+            /** As Of */
+            as_of: string | null;
+            /** Boxes */
+            boxes: number;
+            /** Contribution Paise */
+            contribution_paise: number;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /** Lines */
+            lines: components["schemas"]["PnlLineOut"][];
+            partners_paise: components["schemas"]["PartnersPaidOut"];
+            /**
+             * Per Box Paise
+             * @description Contribution ÷ boxes; null without boxes
+             */
+            per_box_paise: number | null;
+            /**
+             * Period
+             * @example 2027-02
+             */
+            period: string;
+            /**
+             * Previous Contribution Paise
+             * @description The month before's; null when it has no data
+             */
+            previous_contribution_paise: number | null;
+            /** Revenue Paise */
+            revenue_paise: number;
+            /** Tiffins */
+            tiffins: number;
+            /** Weeks */
+            weeks: components["schemas"]["PnlWeekOut"][];
+        };
+        /** PnlWeekOut */
+        PnlWeekOut: {
+            /** Contribution Paise */
+            contribution_paise: number;
+            /**
+             * Week
+             * Format: date
+             * @description The week's Monday
+             */
+            week: string;
         };
         /**
          * PointRateIn
@@ -11210,6 +12360,25 @@ export interface components {
              */
             status: "ok";
         };
+        /**
+         * ReadyDonation
+         * @description A verified donation not yet handed over: items and the date, never a household or flat.
+         */
+        ReadyDonation: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["ReadyLine"][];
+            /**
+             * Verified On
+             * Format: date
+             * @description IST
+             */
+            verified_on: string;
+        };
         /** ReadyIn */
         ReadyIn: {
             /**
@@ -11226,6 +12395,39 @@ export interface components {
              * @description Default: every assigned order not yet ready
              */
             order_ids?: string[] | null;
+        };
+        /** ReadyLine */
+        ReadyLine: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Qty
+             * @description What the hub counted
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
+        };
+        /** ReadyOut */
+        ReadyOut: {
+            /** Donations */
+            donations: components["schemas"]["ReadyDonation"][];
+            /**
+             * Meals Waiting
+             * @description Donated meals of the hub not yet served
+             */
+            meals_waiting: number;
+            /**
+             * Offers
+             * @description Claimed, not yet handed over
+             */
+            offers: components["schemas"]["NgoOfferOut"][];
         };
         /** ReceiptIn */
         ReceiptIn: {
@@ -11902,6 +13104,91 @@ export interface components {
              */
             type: "refund";
         };
+        /** RefundRow */
+        RefundRow: {
+            /**
+             * Amount Paise
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower and flat only; never a name or a phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Id
+             * Format: uuid
+             * @description The journal entry's id
+             */
+            id: string;
+            /**
+             * Issue Id
+             * @description Issue: the order issue (§3.2)
+             */
+            issue_id: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "tiffin" | "addon";
+            /**
+             * Product Id
+             * @description Shortage and carry-over: the line's product
+             */
+            product_id: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "shortage" | "issue" | "undelivered" | "no_kitchen" | "carry_over" | "other";
+            /**
+             * Refund Id
+             * @description To source: the Refund that sends it back
+             */
+            refund_id: string | null;
+            society: components["schemas"]["RefundSociety"];
+            /**
+             * Status
+             * @description credited for the wallet; the Refund's status for a source
+             * @enum {string}
+             */
+            status: "credited" | "pending" | "processing" | "processed" | "partly_failed" | "failed";
+            /**
+             * To
+             * @enum {string}
+             */
+            to: "wallet" | "source";
+        };
+        /** RefundSociety */
+        RefundSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Sunrise Towers
+             */
+            name: string;
+        };
         /** ReinstateIn */
         ReinstateIn: {
             /**
@@ -12517,6 +13804,85 @@ export interface components {
              */
             waste_logs: components["schemas"]["WasteLogOut"][];
         };
+        /** ShortBag */
+        ShortBag: {
+            /** Bag Qr */
+            bag_qr: string;
+            /**
+             * Flat Label
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Outcome
+             * @description Bags: what §3.2 would allow. Reported: what was recorded
+             * @enum {string}
+             */
+            outcome: "substitute" | "refund";
+            /**
+             * Qty
+             * @description Steps open on the line (bags) or short (reported)
+             */
+            qty: number;
+            /**
+             * Refund Paise
+             * @description 0 for a substitute that costs the same
+             */
+            refund_paise: number;
+            /**
+             * Society
+             * @example Sunrise Towers
+             */
+            society: string;
+            /** @description Bags: the first listed substitute in stock; reported: the one packed */
+            substitute: components["schemas"]["PackingSubstitute"] | null;
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+        };
+        /** ShortItem */
+        ShortItem: {
+            /**
+             * Bags
+             * @description The open bags the gap falls on, last in queue first
+             */
+            bags: components["schemas"]["ShortBag"][];
+            /**
+             * Name
+             * @description In the requested language
+             */
+            name: string;
+            /**
+             * Needed
+             * @description Steps on the date's packing lines (carried lines left out)
+             */
+            needed: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Received
+             * @description Steps the hub has for the date; null when the step does not convert
+             */
+            received: number | null;
+            /**
+             * Reported
+             * @description Bags with a shortage already recorded
+             */
+            reported: components["schemas"]["ShortBag"][];
+            /**
+             * Short By
+             * @description needed less received, at least 0; 0 when received is null
+             */
+            short_by: number;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+        };
         /** ShortOrderOut */
         ShortOrderOut: {
             /** Box Paise */
@@ -12566,6 +13932,29 @@ export interface components {
             short_qty: number;
             /** Substitute Product Id */
             substitute_product_id?: string | null;
+        };
+        /** ShortagesOut */
+        ShortagesOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Items
+             * @description Largest short_by first, then by name
+             */
+            items: components["schemas"]["ShortItem"][];
         };
         /** SkipIn */
         SkipIn: {
@@ -12956,6 +14345,50 @@ export interface components {
              */
             kind: "box";
         };
+        /** SourcesOut */
+        SourcesOut: {
+            /**
+             * Aov Paise
+             * @enum {string}
+             */
+            aov_paise: "measured" | "assumed" | "override";
+            /**
+             * Cac Paise
+             * @enum {string}
+             */
+            cac_paise: "measured" | "assumed" | "override";
+            /**
+             * Captain Paise
+             * @enum {string}
+             */
+            captain_paise: "measured" | "assumed" | "override";
+            /**
+             * Delivery Fee Paise
+             * @description Measured, or an override
+             * @enum {string}
+             */
+            delivery_fee_paise: "measured" | "assumed" | "override";
+            /**
+             * Delivery Paise
+             * @enum {string}
+             */
+            delivery_paise: "measured" | "assumed" | "override";
+            /**
+             * Margin Bp
+             * @enum {string}
+             */
+            margin_bp: "measured" | "assumed" | "override";
+            /**
+             * Packing Paise
+             * @enum {string}
+             */
+            packing_paise: "measured" | "assumed" | "override";
+            /**
+             * Payment Fee Bp
+             * @enum {string}
+             */
+            payment_fee_bp: "measured" | "assumed" | "override";
+        };
         /**
          * StaffDonationOut
          * @description The verification queue's row: tower and flat match the bag's label at the hub.
@@ -13214,7 +14647,7 @@ export interface components {
             crates: number;
             /**
              * Empties Expected
-             * @description §3.6
+             * @description §3.6: planned at the solve, set again at start
              * @example 2
              */
             empties_expected: number;
@@ -13259,6 +14692,8 @@ export interface components {
              * @example https://www.google.com/maps/dir/?api=1&destination=19.03,73.03
              */
             navigate_url: string | null;
+            /** @description §3.6: what the van takes back here, from route start */
+            pickups?: components["schemas"]["StopPickups"] | null;
             /**
              * Redelivery Bags
              * @description Redelivery bags the van carries for this stop (§3.4)
@@ -13290,6 +14725,19 @@ export interface components {
              * @description True: the rider hands over and does the doors today
              */
             rider_mode: boolean;
+        };
+        /** StopPickups */
+        StopPickups: {
+            /** Bags */
+            bags: components["schemas"]["BagPickupOut"][];
+            /** Donations */
+            donations: components["schemas"]["DonationPickupOut"][];
+            /**
+             * Empties Collected
+             * @description Crates the van took back here; null until reported
+             * @example 4
+             */
+            empties_collected: number | null;
         };
         /** StopSlot */
         StopSlot: {
@@ -14211,6 +15659,71 @@ export interface components {
              * @enum {string}
              */
             reason: "not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other";
+        };
+        /** UnitEconomicsOut */
+        UnitEconomicsOut: {
+            /**
+             * As Of
+             * @description Finish time of the last run that refreshed it
+             */
+            as_of: string | null;
+            /** @description The hub's saved values */
+            assumptions: components["schemas"]["AssumptionsOut"];
+            /**
+             * Boxes
+             * @description Delivered boxes
+             */
+            boxes: number;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Delivery Fee Paise
+             * @description Per box: Σ fees of delivered boxes ÷ boxes, 0 with no pre-live boxes; or the override
+             */
+            delivery_fee_paise: number;
+            /**
+             * From
+             * Format: date
+             * @description The Monday of the first week
+             */
+            from: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            measured: components["schemas"]["MeasuredOut"];
+            per_box: components["schemas"]["PerBoxOut"];
+            sources: components["schemas"]["SourcesOut"];
+            /**
+             * To
+             * Format: date
+             * @description The Sunday of the last week
+             */
+            to: string;
+            /** @description Override, else measured (prefer=measured), else saved */
+            used: components["schemas"]["AssumptionsOut"];
+            /** Weeks */
+            weeks: components["schemas"]["UnitWeekOut"][];
+        };
+        /** UnitWeekOut */
+        UnitWeekOut: {
+            /** Boxes */
+            boxes: number;
+            /**
+             * Contribution Paise
+             * @description Per box, from that week's own inputs; null in a week without boxes
+             */
+            contribution_paise: number | null;
+            /**
+             * Week
+             * Format: date
+             * @description The week's Monday
+             */
+            week: string;
         };
         /**
          * UnlockOut
@@ -15597,7 +17110,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description community.society_not_found */
+            /** @description community.society_not_found, community.ngo_not_found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15615,7 +17128,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch */
+            /** @description community.item_code_unknown, community.drive_dates_invalid, community.ngo_does_not_accept, request.invalid, request.idempotency_mismatch */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15681,7 +17194,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description community.drive_not_found */
+            /** @description community.drive_not_found, community.ngo_not_found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -15699,7 +17212,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch */
+            /** @description community.item_code_unknown, community.drive_dates_invalid, community.ngo_does_not_accept, request.invalid, request.idempotency_mismatch */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16136,6 +17649,161 @@ export interface operations {
                 };
             };
             /** @description hub_ops.area_invalid, hub_ops.timings_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_ngo_v1_admin_ngos_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NgoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NgoOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (an unknown hub), request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_ngo_v1_admin_ngos__ngo_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                ngo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NgoPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NgoOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.ngo_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (an unknown hub) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17655,6 +19323,67 @@ export interface operations {
             };
         };
     };
+    order_refunds_v1_admin_refunds_get: {
+        parameters: {
+            query?: {
+                /** @description Required for hub staff */
+                hub_id?: string | null;
+                /** @description First delivery date (IST); default 7 days before to */
+                from?: string | null;
+                /** @description Last delivery date (IST); default today, at most 31 days on */
+                to?: string | null;
+                reason?: ("shortage" | "issue" | "undelivered" | "no_kitchen" | "carry_over" | "other") | null;
+                destination?: ("wallet" | "source") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RefundRow_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.hub_required (hub staff), request.invalid (a window over 31 days, an unknown value), request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     create_slot_v1_admin_slots_post: {
         parameters: {
             query?: never;
@@ -18133,6 +19862,180 @@ export interface operations {
             };
         };
     };
+    hub_assumptions_v1_analytics_hubs__hub_id__assumptions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description The assumptions version, e.g. "3"; send it back in If-Match */
+                    ETag?: unknown;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubAssumptionsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_hub_assumptions_v1_analytics_hubs__hub_id__assumptions_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssumptionsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description The assumptions version, e.g. "3"; send it back in If-Match */
+                    ETag?: unknown;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubAssumptionsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_failed (the version moved on; reload) */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.assumptions_invalid (a value out of range, with errors[]) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required (send If-Match) */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     hub_today_v1_analytics_hubs__hub_id__today_get: {
         parameters: {
             query?: {
@@ -18371,6 +20274,89 @@ export interface operations {
             };
         };
     };
+    pnl_v1_analytics_pnl_get: {
+        parameters: {
+            query: {
+                /** @description The month, `YYYY-MM` */
+                period: string;
+                /** @description The hub (required) */
+                hub_id?: string | null;
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PnlOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required · analytics.range_invalid (not a month, or one that has not begun) · analytics.range_too_long (over the last 24 months) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     society_table_v1_analytics_societies_get: {
         parameters: {
             query?: {
@@ -18415,6 +20401,109 @@ export interface operations {
                 };
             };
             /** @description analytics.data_source_required */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    unit_economics_v1_analytics_unit_economics_get: {
+        parameters: {
+            query?: {
+                /** @description The hub (required) */
+                hub_id?: string | null;
+                /** @description An IST date; moves back to its Monday. Default: 12 weeks */
+                from?: string | null;
+                /** @description An IST date; moves on to its Sunday. Default today */
+                to?: string | null;
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+                /** @description `measured`: use what was measured; `assumed`: only the saved values */
+                prefer?: "measured" | "assumed";
+                /** @description What-if: average box value (paise) */
+                aov_paise?: number | null;
+                /** @description What-if: margin (basis points) */
+                margin_bp?: number | null;
+                /** @description What-if: delivery cost per box */
+                delivery_paise?: number | null;
+                /** @description What-if: packing cost per box */
+                packing_paise?: number | null;
+                /** @description What-if: captain pay per box */
+                captain_paise?: number | null;
+                /** @description What-if: payment fee (basis points) */
+                payment_fee_bp?: number | null;
+                /** @description What-if: acquisition cost per box */
+                cac_paise?: number | null;
+                /** @description What-if: the pre-live delivery fee per box */
+                delivery_fee_paise?: number | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitEconomicsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required · analytics.assumptions_invalid (an override out of range, with errors[]) · analytics.range_invalid · analytics.range_too_long */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -22277,6 +24366,59 @@ export interface operations {
             };
         };
     };
+    fairness_v1_hubs__hub_id__fairness_get: {
+        parameters: {
+            query?: {
+                runs?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FairnessOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_goods_receipts_v1_hubs__hub_id__goods_receipts_get: {
         parameters: {
             query?: {
@@ -23208,6 +25350,69 @@ export interface operations {
             };
         };
     };
+    hub_pickups_v1_hubs__hub_id__pickups_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubPickupsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_price_lists_v1_hubs__hub_id__price_lists_get: {
         parameters: {
             query?: {
@@ -24063,6 +26268,61 @@ export interface operations {
                 };
             };
             /** @description logistics.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_shortages_v1_hubs__hub_id__shortages_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShortagesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -26441,6 +28701,496 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_handoffs_v1_ngo_handoffs_get: {
+        parameters: {
+            query?: {
+                hub_id?: string | null;
+                ngo_id?: string | null;
+                /** @description An IST month */
+                month?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandoffsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: a hub you and your NGO do not serve */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.ngo_not_found (not an NGO you see) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    record_handoff_v1_ngo_handoffs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoffIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandoffOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not your NGO, nor a hub you manage */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.ngo_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_ready (donation_ids), community.offer_not_ready (offer_ids) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.ngo_does_not_accept, community.handoff_empty, community.meals_exceed_pledged (meals_waiting), community.photo_key_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ready_v1_ngo_handoffs_ready_get: {
+        parameters: {
+            query: {
+                hub_id: string;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadyOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: a hub you and your NGO do not serve */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    confirm_handoff_v1_ngo_handoffs__handoff_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                handoff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandoffOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.handoff_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.handoff_already_confirmed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.photo_key_invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_offers_v1_ngo_offers_get: {
+        parameters: {
+            query?: {
+                hub_id?: string | null;
+                /** @description Default: open */
+                status?: "open" | "claimed" | "expired";
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NgoOffersOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: a hub you and your NGO do not serve */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    claim_offer_v1_ngo_offers__offer_id__claim_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                offer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NgoOfferOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.offer_not_found, community.ngo_not_found (not your NGO) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.offer_taken, community.offer_expired */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.ngo_does_not_accept, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_ngos_v1_ngos_get: {
+        parameters: {
+            query?: {
+                hub_id?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NgosOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -31530,6 +34280,89 @@ export interface operations {
             };
             /** @description logistics.code_attempts_exceeded */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    report_pickups_v1_stops__stop_id__pickups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                stop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PickupsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_your_route */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stop_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_started, logistics.route_closed, logistics.stop_skipped, logistics.pickup_already_reported (donation_ids, order_ids) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.pickup_unknown (donation_ids, bags), request.invalid, request.idempotency_mismatch */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

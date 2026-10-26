@@ -45,10 +45,10 @@
     },
     "GET /v1/hubs/{}/tiffin-menus": {
       "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "F5: GET /v1/tiffin-menus?date= (the hub comes from the caller's role). Built on main (#317).",
-      "note": "M4 §3.5."
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M2 §3.4: the review list, every status, at the mock's path. Supersedes F5 for this page: GET /v1/tiffin-menus (M4 §3.5) lists approved menus only."
     },
     "GET /v1/tiffin-offers": {
       "app": "mobile",
@@ -127,96 +127,12 @@
       "milestone": "MS-D",
       "note": "M9 §3.7 (?scope=me)."
     },
-    "GET /v1/ngos": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "POST /v1/admin/ngos": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5. The body differs (kind, hub_ids, accepts); see M9's 'Mock today' table."
-    },
-    "GET /v1/ngo-handoffs": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "GET /v1/ngo-handoffs/ready": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5 (replaces open_batches)."
-    },
-    "POST /v1/ngo-handoffs": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5. The body is { ngo_id, hub_id, kind, donation_ids|offer_ids|meals, photo_keys, people_reached }."
-    },
-    "POST /v1/ngo-handoffs/{}/confirm": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "GET /v1/ngo/offers": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "POST /v1/ngo/offers/{}/claim": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
     "GET /v1/public/societies/{}": {
       "app": "console",
       "class": "later",
       "owner": "prathamesh",
       "milestone": "MS-D",
       "note": "M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url)."
-    },
-    "GET /v1/analytics/unit-economics": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.4."
-    },
-    "GET /v1/analytics/pnl": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.4."
-    },
-    "GET /v1/analytics/hubs/{}/assumptions": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.4."
-    },
-    "PUT /v1/analytics/hubs/{}/assumptions": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.4, needs If-Match."
     },
     "GET /v1/analytics/impact": {
       "app": "console",
@@ -227,159 +143,156 @@
     },
     "GET /v1/hubs/{}/delivery-days": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "Not in a module spec; the societies' own GET /v1/societies/{id}/delivery-days and PUT /v1/admin/societies/{id}/delivery-days exist. The page marks it @proposal."
+      "milestone": "MS-A",
+      "note": "M3 §3.5 (drafted 2026-10-25): every society of the hub with its status; no not_live list."
     },
     "GET /v1/hubs/{}/cycles": {
       "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Not in a module spec: a hub-level view of the weekly cycles (M3 serves only the customer's own)."
-    },
-    "GET /v1/hubs/{}/fairness": {
-      "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Not in a module spec; the page says so. M8 reads PARTNERS_FAIRNESS_LAMBDA and exposes no read; the Gini itself comes from M12."
+      "class": "drop",
+      "owner": "yash",
+      "note": "Dropped (M3 §3.5, owner 2026-10-25): the Cut-off page (M3 §3.4) has the counts per delivery date; take the Cycles page out of the nav."
     },
     "PUT /v1/hubs/{}/fairness-weight": {
       "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Not in a module spec; the weight is an env setting in M8 §3.4."
+      "class": "drop",
+      "owner": "yash",
+      "note": "Dropped (M8 §3.8, owner 2026-10-25): λ is PARTNERS_FAIRNESS_LAMBDA, chosen by the offline λ sweep (M10 §3.5, handbook 08); remove the page's Change control."
     },
     "GET /v1/hubs/{}/settings": {
       "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Franchise settings; not in a module spec."
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "Read GET /v1/hubs/{hub_id} (M6 §3.1, HubOut, ETag = version). Map hub_id → id, hub_name → name; the clock's receiving, packing, dispatch and surplus rows → timings; show status, address, procurement_buffer_pct and pre_live_box_fee_paise. Remove switches (ai_planner, auto_approve, tiffins, upi_autopay), languages, quiet_hours and changes: no backend has them. The other clock rows are fixed job times (handbook 10 §10.4): console copy, not data.",
+      "note": "M6 §3.1. Admin only in the nav, as today."
     },
     "PATCH /v1/hubs/{}/settings": {
       "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Franchise settings; not in a module spec."
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "PATCH /v1/admin/hubs/{hub_id} with If-Match (the version from the GET) and any of { name, address, location, service_area, status, timings, procurement_buffer_pct, pre_live_box_fee_paise }; 412 request.version_mismatch → reload. No switches, languages or quiet hours; the change history is the audit log, not shown.",
+      "note": "M6 §3.1 (admin; audit-logged)."
     },
     "GET /v1/hubs/{}/staff": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "Not in a module spec."
+      "milestone": "MS-B",
+      "note": "M1 §3.6: HubStaff with names and masked phones; no today or last_week_paise."
     },
     "POST /v1/hubs/{}/staff-invitations": {
       "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Not in a module spec."
+      "class": "drop",
+      "owner": "yash",
+      "note": "Dropped (M1 §3.6, owner 2026-10-25): staff roles through POST /v1/admin/user-roles (admin; a new number gets a pending grant), riders and packers through M8's POST /v1/hubs/{id}/partner-applications (hub manager); kitchens and captains apply in the app. Remove the Invite sheet from the franchise Staff page."
     },
     "GET /v1/admin/plans": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "Admin list; M3 serves only GET /v1/plans."
+      "milestone": "MS-A",
+      "note": "M3 §3.5: AdminPlan with state and subscriber_count; read-only (plan writes dropped)."
     },
     "POST /v1/admin/plans": {
       "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Not in a module spec."
+      "class": "drop",
+      "owner": "yash",
+      "note": "Dropped (M3 §3.5, owner 2026-10-25): plans are seeded and a fee is a price. Keep the Plans page read-only even when GET /v1/admin/plans answers."
     },
     "PATCH /v1/admin/plans/{}": {
       "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Not in a module spec."
-    },
-    "GET /v1/admin/refunds": {
-      "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "Admin list; M5 §3.3 serves the customer's own refunds only."
+      "class": "drop",
+      "owner": "yash",
+      "note": "As POST /v1/admin/plans (M3 §3.5)."
     },
     "POST /v1/admin/refunds/{}/{}": {
       "app": "console",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "approve, reject, reopen; not in a module spec. Order issues are resolved with M4's order-issue endpoints."
+      "class": "drop",
+      "owner": "yash",
+      "note": "Dropped (M5 §3.8, owner 2026-10-25): refunds are automatic (M5 §3.3); disputes are M4's issue triage (M4 §3.6). The Refunds page becomes a read-only list."
     },
     "GET /v1/admin/societies": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "Admin list that says which hub a society is on; M9 serves GET /v1/societies (search) only."
+      "milestone": "MS-A",
+      "note": "M9 §3.9 (drafted 2026-10-25): the staff list with hub, households and the edited fields; with_unassigned is admin-only."
     },
     "GET /v1/admin/society-requests": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "M9 has POST /v1/society-requests (the customer) and no review."
+      "milestone": "MS-A",
+      "note": "M9 §3.9."
     },
     "PATCH /v1/admin/society-requests/{}": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "Not in a module spec."
+      "milestone": "MS-A",
+      "note": "M9 §3.9: only { status: \"received\" }, the undo of a duplicate."
     },
     "POST /v1/admin/society-requests/{}/accept": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "Not in a module spec."
+      "milestone": "MS-A",
+      "note": "M9 §3.9: creates a prospect society through POST /v1/admin/societies's create path (itself later, MS-A)."
     },
     "POST /v1/admin/society-requests/{}/duplicate": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "Not in a module spec."
+      "milestone": "MS-A",
+      "note": "M9 §3.9."
     },
     "GET /v1/admin/users": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "User lookup and staff list; M1 has POST /v1/admin/user-roles only."
+      "milestone": "MS-A",
+      "note": "M1 §3.6 (drafted 2026-10-25): ?phone=, ?q=, ?staff=true, ?pending=true; admin only, audit-logged."
     },
     "DELETE /v1/admin/user-roles/{}": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "Revoking a staff role; M1 specs the grant only."
+      "milestone": "MS-A",
+      "note": "M1 §3.6: revokes a staff grant or cancels a pending one; partner and customer roles are 409 identity.role_not_removable."
     },
     "POST /v1/tiffin-menus/{}/approve": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "M4 §3.5: M2 has no endpoints to write or approve menus 'until that flow is specified'. The page marks the paths @proposal."
+      "milestone": "MS-B",
+      "note": "M2 §3.4 (drafted 2026-10-25): catalog_editor and admin; only approved menus are bookable."
     },
     "POST /v1/tiffin-menus/{}/send-back": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "As approve."
+      "milestone": "MS-B",
+      "note": "M2 §3.4: { note } required; status sent_back."
     },
     "POST /v1/tiffin-menus/{}/reopen": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
-      "note": "As approve."
-    },
-    "GET /v1/hubs/{}/shortages": {
-      "app": "mobile",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "A mock-only proposal ('Items short today and the bags they fall on'); M6 has POST /v1/packing-tasks/{id}/shortage but no hub-level read."
+      "milestone": "MS-B",
+      "note": "M2 §3.4: from approved or sent_back, before order_by."
     },
     "GET /v1/budget-lock/preferences": {
       "app": "mobile",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "A proposal { when_over: swap|trim|ask }; M3 describes only 'swap to cheaper'. The app hides the question while it 404s."
+      "class": "drop",
+      "owner": "yash",
+      "note": "Dropped (M3 §11, owner 2026-10-25): the planner only swaps to cheaper (M3 §3.1); the app already hides the question. Remove useBudgetPreferences and the when_over PUT."
     },
     "PUT /v1/budget-lock/preferences": {
       "app": "mobile",
-      "class": "fix-backend",
-      "owner": "prathamesh",
-      "note": "As GET."
+      "class": "drop",
+      "owner": "yash",
+      "note": "As GET /v1/budget-lock/preferences."
     },
     "POST /v1/mandates": {
       "app": "mobile",
@@ -445,6 +358,13 @@
       "app": "console",
       "where": "lib/hub.js, mocks/README.md",
       "fix": "GET /v1/hubs ships now: update the comments that say it is a 404, and the mocks README (it says API port 8010 and console port 3160; real mode is 8000 and 3000, see docs/SETUP.md 'Real mode').",
+      "owner": "yash"
+    },
+    {
+      "id": "F9",
+      "app": "console",
+      "where": "lib/ngo.js, app/(console)/(community)/handoffs/, app/(console)/(community)/drives/",
+      "fix": "M9 §3.5 ships: build against its shapes, not the mock's (M9 §3.5 'Mock today'). POST /v1/admin/ngos takes { name, kind, hub_ids, accepts, registration_ref, verified, status, note } (coordinators are M1 role grants) and PATCH needs If-Match; GET /v1/ngo-handoffs is Page[Handoff] with `report` (`summary` is structured; `open_batches` is GET /v1/ngo-handoffs/ready); POST /v1/ngo-handoffs takes { ngo_id, hub_id, kind, donation_ids | offer_ids | meals, photo_keys (1 to 3 handoff_photo uploads), people_reached, handed_at, note } with an Idempotency-Key; a drive's ngo_id may be set.",
       "owner": "yash"
     }
   ]

@@ -669,6 +669,7 @@ async def test_every_module_erases_its_part(
         "field_events": 0,
         "routes": 0,
         "vehicles": 0,
+        "pickups": 0,
     }
     assert counts["subscriptions"] == {
         "edit_feedback": 0,

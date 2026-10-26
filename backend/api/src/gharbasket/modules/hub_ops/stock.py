@@ -237,6 +237,25 @@ async def _picked(
     return found
 
 
+async def drawn_picks(
+    session: AsyncSession, hub_id: uuid.UUID, day: date
+) -> dict[tuple[uuid.UUID, str], Decimal]:
+    """What the day's packed tasks that were already drawn down took off the shelves, by
+    (product in the bag, operations unit): shortages (§3.6) add it back to the lots on hand to
+    get the stock the day started with."""
+    drawn = select(PackingTask).where(
+        PackingTask.hub_id == hub_id,
+        PackingTask.delivery_date == day,
+        PackingTask.status == "packed",
+        PackingTask.drawn_at.is_not(None),
+    )
+    totals: dict[tuple[uuid.UUID, str], Decimal] = defaultdict(Decimal)
+    for by_product in (await _picked(session, drawn)).values():
+        for product_id, (qty, unit) in by_product.items():
+            totals[(product_id, unit)] += qty
+    return dict(totals)
+
+
 async def draw_down(session: AsyncSession, hub_id: uuid.UUID, today: date, now: datetime) -> int:
     """Draw every packed task of the hub not drawn yet (delivery dates up to `today`) down from
     stock: for each product in the bag, `pack` moves from its grade A and B lots with stock, first

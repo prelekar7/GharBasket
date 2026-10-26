@@ -1,6 +1,6 @@
 # M9 — Community & Kindness
 
-**Status:** Draft v1.3. §3.1 (societies and society requests) is frozen for S1. §3.2 (captains, with [ADR-0026](../adr/0026-operations-contract.md)) is frozen for S5 once it is approved. §3.3–§3.8 (referrals; point rates, drives and donations; NGOs, surplus offers, donated meals and hand-offs; society unlock; impact; facade, export and erasure) were drafted on 2026-10-09 and are frozen for S9 on approval.
+**Status:** Draft v1.3. §3.1 (societies and society requests) is frozen for S1. §3.2 (captains, with [ADR-0026](../adr/0026-operations-contract.md)) is frozen for S5 once it is approved. §3.3–§3.8 (referrals; point rates, drives and donations; NGOs, surplus offers, donated meals and hand-offs; society unlock; impact; facade, export and erasure) were drafted on 2026-10-09 and are frozen for S9 on approval. §3.9 (the staff society list and society request review) was drafted on 2026-10-25, frozen on approval.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (also NGO tie-ups and drive content)
 **Phase / Sprint:** P5 / S9. Societies, the unlock count and society requests (§3.1) are built in P2 / S1, and captains (§3.2) in P3 / S5, before M7's handover.
 **Postgres schema:** `community` · **Python package:** `gharbasket.modules.community`
@@ -30,6 +30,11 @@ The neighbourhood layer: societies (polygons, towers, captain), society onboardi
 | GET | `/v1/societies/{id}/unlock` | Authenticated | — | Threshold, count |
 | POST | `/v1/society-requests` | customer | Required | Location optional (no pin placed) |
 | POST / PATCH | `/v1/admin/societies[/{id}]` | hub_manager (hub) | Required (POST) | Polygon, towers, threshold |
+| GET | `/v1/admin/societies?q=&hub_id=&status=&with_unassigned=` | hub_manager (hub), admin | — | The staff list: hub, households and the edited fields (§3.9) |
+| GET | `/v1/admin/society-requests?status=` | hub_manager, admin | — | The review queue, newest first (§3.9) |
+| PATCH | `/v1/admin/society-requests/{id}` | hub_manager, admin | — | A duplicate back to `received` (§3.9) |
+| POST | `/v1/admin/society-requests/{id}/accept` | hub_manager (hub), admin | Required | Creates a prospect society (§3.9) |
+| POST | `/v1/admin/society-requests/{id}/duplicate` | hub_manager, admin | Required | Marks it a duplicate of a listed society (§3.9) |
 | GET | `/v1/societies/{id}/captains` | hub_manager (society's hub), admin | — | Appointments, newest first (§3.2) |
 | POST | `/v1/societies/{id}/captains` | hub_manager (society's hub), admin | Required | Appoint (§3.2) |
 | POST | `/v1/captains/{id}/end` | hub_manager (society's hub), admin | Required | End an appointment (§3.2) |
@@ -379,7 +384,7 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
   - one already verified or rejected gets 409 `community.donation_already_verified`;
   - one still scheduled gets 409 `community.donation_not_picked_up`.
   `community.donation_verified { donation_id, user_id, household_id, hub_id, society_id, drive_id, points }` is published once, and M5's consumer credits the points (`credit_points(…, "donation", donation_id)`, M5 §3.6). A rejected donation earns nothing, and its items are not returned: the scheduling screen says that items the hub cannot use go to a recycler (§11).
-- **Pickup outcomes** come from `logistics.pickup_completed` (M7 §3.6). M9 needs the outcome of each donation: `donations: [ { donation_id, status: "collected" | "not_ready" } ]` (an M7 follow-up; the outline's event carries only `donation_ids`).
+- **Pickup outcomes** come from `logistics.pickup_completed` (M7 §3.6). M9 needs the outcome of each donation: `donations: [ { donation_id, status: "collected" | "not_ready" } ]` (M7 §3.6 carries it).
   - `collected` makes the donation `picked_up`, with `picked_up_on` and the rider's user id.
   - `not_ready` moves `pickup_on` to the society's next delivery date once, and publishes `community.donation_scheduled` again with the new date. A second `not_ready` cancels it with `cancel_reason: "not_ready"`.
   - `sweep_missed_pickups` (22:30 IST) treats a donation whose `pickup_on` is today and that no stop reported as `not_ready`.
@@ -408,11 +413,11 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
 | 403 | `auth.forbidden` | A hub manager writing a drive or verifying outside their hub |
 | 400 / 422 / 412 / 428 | `request.*` | As in M0 (idempotency, If-Match) |
 
-**As built (rates and drives).** `Drive` also carries `version`, its ETag for `PATCH`. A `PATCH` never changes `code`, `scope`, `hub_id` or `society_id`; an ended or cancelled drive keeps its dates, and cancelling an ended drive changes nothing. A hub manager changing a drive outside their hubs gets 404 `community.drive_not_found`, and a platform drive 403. `ngo_id` must be null until NGOs exist (§3.5), so `ngo` is null until then. An unknown hub on a hub drive is 422 `request.invalid`.
+**As built (rates and drives).** `Drive` also carries `version`, its ETag for `PATCH`. A `PATCH` never changes `code`, `scope`, `hub_id` or `society_id`; an ended or cancelled drive keeps its dates, and cancelling an ended drive changes nothing. A hub manager changing a drive outside their hubs gets 404 `community.drive_not_found`, and a platform drive 403. `ngo_id` names an NGO that accepts items and, for a hub or society drive, serves its hub (404 `community.ngo_not_found`, 422 `community.ngo_does_not_accept`); `PATCH` may set or clear it (§3.5). An unknown hub on a hub drive is 422 `request.invalid`.
 
 **As built (scheduling).** `progress` numbers are null for customers while fewer than 5 households took part in the drive (k = 5, §3.7); hub staff see them exactly. `est_kg_tenths` adds up the kg lines only (pieces carry no weight). A customer without a household gets 422 `community.no_pickup_day`, and an unknown `drive_id` 422 `community.drive_not_open`. M3's `delivery_dates(society_id, after, n)` returns the dates strictly after `after`.
 
-**As built (verification and pickups).** The donation's status on a 409 is `donation_status` (`status` is the problem's HTTP status). `community.api.record_pickup(session, donation_id, "collected" | "not_ready", by_user_id, on)` is what M7's `pickup_completed` consumer calls for each donation; it returns false for a donation no longer scheduled, so a redelivered report changes nothing. A rolled pickup goes to the first delivery date after the later of the missed date and today, and the timeline shows `scheduled` again. `pickups_for` gives `items_summary` as text ("clothes 2.5 kg, toys 3"). M1 gains `identity.api.delivery_labels` (ADR-0026) for the queue's tower and flat; `tower` is the tower's label. Only `picked_up` donations are verified: a bag brought to the hub directly is first recorded as collected.
+**As built (verification and pickups).** The donation's status on a 409 is `donation_status` (`status` is the problem's HTTP status). `community.api.record_pickup(session, donation_id, "collected" | "not_ready", by_user_id, on)` is what M7's `pickup_completed` consumer calls for each donation; it returns false for a donation no longer scheduled, and for a `not_ready` on a date before the donation's `pickup_on` (one already rolled), so a redelivered report changes nothing. A rolled pickup goes to the first delivery date after the later of the missed date and today, and the timeline shows `scheduled` again. `pickups_for` gives `items_summary` as text ("clothes 2.5 kg, toys 3"). M1 gains `identity.api.delivery_labels` (ADR-0026) for the queue's tower and flat; `tower` is the tower's label. Only `picked_up` donations are verified: a bag brought to the hub directly is first recorded as collected.
 
 | Mock today | Contract |
 |---|---|
@@ -530,6 +535,31 @@ POST /v1/ngo-handoffs/{id}/confirm                ngo_coordinator of the hand-of
 | `POST /v1/ngo-handoffs { batch_id, given_to, people_reached, has_photo }` | `{ ngo_id, hub_id, kind, donation_ids \| offer_ids \| meals, photo_keys, people_reached }` with an Idempotency-Key |
 | `GET /v1/ngo-handoffs/report?month=` → PDF | No server PDF in v1: the console prints the month's page (print stylesheet), and M12's impact CSV (M12 §3.6) covers the data |
 
+**As built (S9).**
+- **Roles and scope.** The permissions are §7's. `ngo_coordinator:<ngo id>` grants come from M1's `POST /v1/admin/user-roles`, and a caller with several roles gets all of them. Admins read every NGO, offer and hand-off, but record and confirm none (§3 table). A hub manager sees the NGOs that list one of her hubs. An NGO outside the caller's scope is 404 `community.ngo_not_found`, and a `?hub_id=` outside it is 403 `auth.forbidden`. `coordinator` comes from a new M1 facade function, `identity.api.first_role_holders(session, role, scope_ids)`.
+- **NGOs.** `Ngo` also carries `version`, its ETag for `PATCH` (412 `request.version_mismatch`). `POST` and `PATCH` check each hub through `hub_ops.api.get_hub` (422 `request.invalid`) and are audit-logged (`community.ngo_created`, `community.ngo_updated`). `verified` defaults to false, and an unverified or paused NGO gets no offers and takes no hand-off. `ngos` gains `data_source` and `updated_at`, and a hand-off copies its NGO's `data_source`.
+- **Offers.** The consumer copies one row per M6 offer when at least one active, verified NGO that serves the hub accepts food. Otherwise the hub manager settles the offer by phone (M6). `offer_id` is the primary key, so a redelivered event copies once.
+  - `kg` follows M6's waste-log rule: kg and l count as themselves, a piece or bunch goes through `catalog.api.stock_products`' `unit_g`, and a pack is null. It does not use `grams_of`, which takes a recipe quantity in a product's base unit, not an operations unit.
+  - `GET /v1/ngo/offers` takes `status` (default `open`) and answers at most 200 offers, soonest expiry first. A coordinator sees the offers at hubs where one of her NGOs may take food.
+- **Claiming.** The `ngo_offers` row is locked, so of two concurrent claims the second waits and gets 409 `community.offer_taken`.
+  - M6's offer is settled through M6's facade as built: `settle_surplus(session, offer_id, "taken", taken_by=Taker("ngo", name=<NGO name>), actor_user_id=…)`. M6 records an NGO taker by name (M6 §3.5), and M9's row keeps the NGO id.
+  - An NGO that cannot take food at the hub gets 422 `community.ngo_does_not_accept`.
+  - An offer M6 already settled (by phone, `hub_ops.offer_settled`) gets 409 `community.offer_expired`. Until `hub_ops.surplus_settled` exists (an M6 follow-up), the copy reads `open` until `expires_at`.
+- **Recording a hand-off.** A coordinator of `ngo_id` records it as `ngo`, confirmed at once. Otherwise a hub manager of `hub_id` records it as `hub`, and anyone else gets 403.
+  - The kind must match the ids given: otherwise 422 `community.handoff_empty`.
+  - Photos: 1 to 3 when recorded and up to 3 more at the confirmation (6 in all). Each must be the caller's own `handoff_photo` upload and in no other hand-off. Its `delete_after` is 3 years after the claim.
+  - `handed_at` may not be ahead of now (5 minutes' skew): otherwise 422 `request.invalid`.
+  - **Items.** `summary.items` counts pieces plus counted kilograms (one item per kg, half up), and `summary.kg` the counted kg lines. Each donation's timeline gains `handed_over`.
+  - **Food.** Each offer must be claimed by this NGO at this hub and not handed over yet: otherwise 409 `community.offer_not_ready` with `offer_ids` (added when built, the counterpart of `donation_not_ready`). `summary.kg` adds up the offers' kilograms.
+  - **Meals.** The hub's unserved pledges are locked oldest first, so two meals hand-offs at once never serve one meal twice. `handoff_meals` records the split.
+- **Lists.** `GET /v1/ngo-handoffs` is newest first by `handed_at` (cursor on `handed_at`, `id`), `month` is an IST month, and `report` adds up the whole filter, not the page.
+  - `ready` needs `hub_id`. A coordinator who does not manage the hub sees only the offers her NGOs claimed. A donation's `items` are its counted lines `{ code, unit, qty }`, and `verified_on` is the IST date.
+  - Each photo link is a 5-minute signed GET, and minting the links is audit-logged (`community.handoff_photo_links`). The list is `Cache-Control: no-store`.
+- **Meal pledges.** The `billing.points_donated` consumer stores the pledge at the household's hub, or the society's hub when the household has none. A user without a household gets a pledge with no hub, which no hand-off can serve. Pledges are in the data export (`meal_pledges`: meals, served, pledged_at) and kept as they are on erasure, since they hold no personal field.
+- **Facts.** Hand-offs (`handoff_items`, `handoff_food`, `handoff_meals`, by `handed_at`) and pledges (`meals_pledged`, by `pledged_at`) come through `impact_facts` with `society_id` null, so M12's `fact_community` refresh takes them as it is. There is no separate `handoff_facts`.
+- **Drives.** A drive's `ngo_id` may now be set (§3.4).
+- **Not built here.** `hub_ops.surplus_settled` (M6), the sponsored cost per meal (before the pilot), and `mv_society_impact` (§3.7).
+
 ### 3.6 Society unlock contract (drafted 2026-10-09, frozen on approval)
 This adds to §3.1 how a society moves from `prospect` to `live` and where the threshold comes from (handbook 07 W10). The Society screen's unlock bar and celebration, the public page (M12 §3.7), M3's delivery days and M11 build against it.
 
@@ -638,7 +668,7 @@ GET /v1/impact?scope=society&society_id=&period=all|2027-02
 - `society_impact(session, society_id, period) -> SocietyImpact`: the `society` scope of §3.7 with the k rules applied, for M12's public page.
 - `public_society(session, slug) -> PublicSociety | None`: `{ id, slug, name, area, status, joined, threshold, live_at }` for `unlocking` and `live` societies only; `None` for `prospect`, `paused` or unknown.
 - `pickups_for(session, society_id, on) -> list[DonationPickup]`: `{ donation_id, household_id, items_summary }` for M7's return leg and the captain's flat checklist. M7 adds the flat through `identity.api.delivery_labels`.
-- `impact_facts(session, *, date_from, date_to, hub_ids=None)`, `referral_facts(…)`, `handoff_facts(…)`: rows for M12's refresh (M12 §3.1). They carry no names, flats or phones.
+- `impact_facts(session, *, date_from, date_to, hub_ids=None)`, `referral_facts(…)`, `handoff_facts(…)`: rows for M12's refresh (M12 §3.1). They carry no names, flats or phones. As built, hand-offs and meal pledges come through `impact_facts` (§3.5).
 - `hub_societies(session, *, hub_id) -> list[HubSociety]`: `{ id, name, status, joined, threshold, data_source }` for every society the hub serves, whatever its status, by name; for M12's societies table (M12 §3.3). `joined` comes from one count for all of them (`identity.api.households_in_societies`). No captain, address or household.
 
 **Data export** (M1 §3.3, section `community`): the user's donations (items, counts, points, statuses, dates; photos counted, not included), their referral code, the referrals they made (status, dates and points, never the neighbour), whether they were referred, their donated-meal pledges, and their captain appointments (§3.2).
@@ -651,11 +681,83 @@ GET /v1/impact?scope=society&society_id=&period=all|2027-02
 
 NGO coordinators are staff, so M1 refuses their self-deletion (`identity.staff_account`).
 
+### 3.9 Staff society list and society request review (drafted 2026-10-25, frozen on approval)
+The console's Societies page (map editor and list), its Requests page and the Hubs page ("which societies a hub serves") build against this. Today they call these paths as `@proposal`s (`mocks/adminCommunity.js`) and fall back to the public list. Same sign-in and review rules as §3.1. Captain privacy (§3.1) holds: nothing here names a captain or a requester.
+
+```
+AdminSociety : SocietySummary (§3.1, without distance_m) & {
+  "hub": { "id", "name": "Kharghar hub" } | null,       null: no hub yet (admins only, below)
+  "households": 46,                                    households whose address is in it (the
+                                                       unlock count, identity.api)
+  "unlock_threshold": 20, "unlock_threshold_pinned": false,
+  "threshold_source": "model" | "hub" | "default", "live_at": "…" | null,   as §3.6
+  "flats": 240 | null, "towers": [ { "id", "label" } ],
+  "boundary": GeoPolygon | null,                       M6 §3.1's GeoJSON shape
+  "created_at", "updated_at" }
+
+GET /v1/admin/societies?q=&hub_id=&status=&with_unassigned=&cursor=&limit=
+    hub_manager (hub), admin (societies:read). Cache-Control: no-store
+    q: name and area, as §3.1; hub_id: one hub (a hub manager's own; admins any);
+    status: one of the four; with_unassigned=true adds societies with no hub (admins only;
+    ignored for hub staff); limit ≤ 100, default 50
+    no hub_id: an admin gets every society, a hub manager the societies of their hubs
+  200 Page[AdminSociety]   live, unlocking, prospect, paused, then by name
+  403 "auth.forbidden"     a hub_id outside the caller's grants
+
+SocietyRequestAdmin : { "id", "name", "area" | null,
+  "location": { "lat", "lng" } | null, "note" | null,
+  "status": "received" | "accepted" | "duplicate" | "rejected",
+  "society_id": "<uuid>" | null,          the society it became (accepted)
+  "duplicate_of": "<uuid>" | null,        the society it repeats (duplicate)
+  "created_at", "reviewed_at": "…" | null }
+  never the requester's user id, name or phone
+
+GET /v1/admin/society-requests?status=&cursor=&limit=
+    hub_manager, admin (society_requests:review)        200 Page[SocietyRequestAdmin], newest first
+POST /v1/admin/society-requests/{id}/accept    Idempotency-Key; societies:write as well
+  request : { "hub_id": "<uuid>" | null }       optional; default: the caller's active hub for a
+                                                hub manager, null for an admin
+  201 { "request": SocietyRequestAdmin (accepted, society_id set), "society": AdminSociety }
+        the society is created by the create path of POST /v1/admin/societies (§3,
+        service.create_society): status prospect, the request's name and area, slug from the name
+        (a suffix when taken), unlock_threshold 20, no boundary, towers [] and flats null
+POST /v1/admin/society-requests/{id}/duplicate    Idempotency-Key
+  request : { "society_id": "<uuid>" }          any listed society
+  200 SocietyRequestAdmin (duplicate, duplicate_of set)
+PATCH /v1/admin/society-requests/{id}          { "status": "received" }: undo of "Duplicate" only
+  200 SocietyRequestAdmin (received, duplicate_of null)
+```
+
+- **Statuses.** `received → accepted` and `received → duplicate` are the review; `duplicate → received` is the undo. An accepted request is never reopened: its society exists. `rejected` stays in the table (§4) for a later "not serviceable" action; nothing sets it in v1. A request in another status is 409 `community.request_closed`.
+- **One column for both links.** `society_id` and `duplicate_of` are both the request's `society_id` column (§4), read by status, so this needs no new column. The migration adds `reviewed_at` and `reviewed_by_user_id`.
+- **Hub scope.** A hub-less society is only an admin's (the `covers` rule of §3.2 and §3.6). So a hub manager's list never shows one, and a hub manager's accept always names one of their hubs (else 403 `auth.forbidden`). Requests carry no hub, so any hub manager sees the whole queue.
+- **Audit.** Accept, duplicate and the undo are audit-logged (`community.request_reviewed`, with the request id, the outcome and the society id). Accept publishes nothing: the society is a `prospect` and §3.6's moves are unchanged.
+- **New facade:** `identity.api.households_per_society(session, society_ids) -> dict[UUID, int]` (one read for the page; `households_in_society` stays for the unlock count). The hub name comes from `hub_ops.api.get_hub` (§10).
+- **Permissions:** `societies:read` and `society_requests:review` are new (§7).
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `community.request_not_found` | Unknown request |
+| 409 | `community.request_closed` | Accept or duplicate of a request that is not `received`; the undo of one that is not `duplicate` |
+| 422 | `request.invalid` | `duplicate` without a listed `society_id` (`errors[].field: "society_id"`); a PATCH body other than `{ "status": "received" }` |
+| 403 | `auth.forbidden` | A `hub_id` outside the caller's grants (list or accept) |
+
+| Mock today (`mocks/adminCommunity.js`) | Contract |
+|---|---|
+| `GET /v1/admin/societies` → `{ items: Society[], next_cursor: null }` | Same path, params and Page; each item gains `hub { id, name }`, `households`, `unlock_threshold_pinned`, `threshold_source`, `live_at`; `hub_id` becomes `hub.id` |
+| `location` and `version` on a society | Not in the contract: societies have no point column (M7 takes `community.api.society_points`), and `PATCH /v1/admin/societies/{id}` needs no `If-Match` (§3.6 as built) |
+| `with_unassigned=true` for a hub manager | Admins only; ignored for hub staff |
+| The Hubs page calls it without params | An admin gets every society, so the page can group them by `hub.id` |
+| `GET /v1/admin/society-requests` with the nine fields | Same fields, plus `reviewed_at`; status may also be `rejected` |
+| `accept` with `{}` → 201 `{ request, society }`, society `hub_id: null` | Same body and answer; the society gets the hub manager's hub (an admin's stays hub-less unless `hub_id` is sent) |
+| `duplicate` 422 `request.invalid` without a society | Same |
+| `PATCH { status: "received" }` from duplicate | Same |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
 | `community.societies` | id (uuidv7), hub_id (nullable, no FK until M6), slug (unique), name, area, boundary geography(Polygon, 4326) null, towers jsonb `[{id, label}]`, flats null, unlock_threshold, status (prospect, unlocking, live, paused), data_source, created_at, updated_at. GiST on boundary, trigram on name and area |
-| `community.society_requests` | id, user_id, name, area null, location geography(Point, 4326) null, note null, status (received, accepted, rejected, duplicate), society_id null (set when matched), data_source, created_at |
+| `community.society_requests` | id, user_id, name, area null, location geography(Point, 4326) null, note null, status (received, accepted, rejected, duplicate), society_id null (set when matched: the society it became, or the one it repeats), reviewed_at null, reviewed_by_user_id null (§3.9), data_source, created_at |
 | `community.captains` | (§3.2) id (uuidv7), society_id → societies, hub_id (copied from the society), user_id, partner_id, status (active, ended), since, until null, appointed_by (auto, hub), appointed_by_user_id null, end_reason null, ended_by_user_id null, note null, created_at; partial unique (society_id) and partial unique (partner_id) where status = 'active'; check: until is set exactly when status is ended. `user_id` and `partner_id` are plain UUIDs (no foreign key across schemas) |
 | `community.referral_codes` | (§3.3) user_id (primary key), code (unique, upper case), created_at |
 | `community.referrals` | (§3.3) id (uuidv7), code, referrer_user_id, referee_user_id (unique: a user is referred once), referee_household_id, society_id and hub_id (the referee's), status (joined, converted, void), joined_on, converted_on null, order_id null (the converting box), referrer_points, referee_points, referrer_entry_id null, referee_entry_id null (M5 journal entries), void_reason null, data_source, created_at; index (referrer_user_id, converted_on) for the monthly cap |
@@ -676,8 +778,8 @@ NGO coordinators are staff, so M1 refuses their self-deletion (`identity.staff_a
 **Published:**
 - `community.captain_assigned`, `community.captain_ended` (§3.2).
 - `community.society_live { society_id, hub_id, joined, threshold, live_at }` (§3.6): once per society. M11 tells its households and the hub's managers; M12 marks the date.
-- `community.donation_scheduled { donation_id, user_id, household_id, hub_id, society_id, pickup_on, items: [{code, unit, qty}], est_kg_tenths }` (§3.4): M7 plans the pickup on the society's stop; published again when a pickup rolls to the next date.
-- `community.donation_cancelled { donation_id, hub_id, society_id, pickup_on, reason }` (§3.4): M7 drops the expected pickup.
+- `community.donation_scheduled { donation_id, user_id, household_id, hub_id, society_id, pickup_on, items: [{code, unit, qty}], est_kg_tenths }` (§3.4): published again when a pickup rolls to the next date. M7 does not consume it: it reads `pickups_for` when the society's route starts (M7 §3.6).
+- `community.donation_cancelled { donation_id, hub_id, society_id, pickup_on, reason }` (§3.4): not consumed by M7; a donation cancelled after its route started is skipped when M7 reports it.
 - `community.donation_verified { donation_id, user_id, household_id, hub_id, society_id, drive_id, points }` (§3.4): M5 credits the points; M11 notifies (category `kindness`).
 - `community.donation_rejected { donation_id, user_id, hub_id, reason }` (§3.4): M11 notifies.
 - `community.referral_converted { referral_id, referrer_user_id, referee_user_id, society_id, hub_id, referrer_points, referee_points }` (§3.3): for M12; M11 maps nothing (M5's `points_credited` already notifies).
@@ -689,7 +791,7 @@ No event carries a name, flat, phone or photo key.
 - `identity.household_created`, and `identity.household_updated` when `society_id` changed: the unlock check (§3.6);
 - `identity.deletion_requested`: open referrals of the user become `void` (§3.3);
 - `orders.delivered` (kind `box`): referral conversion (§3.3);
-- `logistics.pickup_completed`: donation pickups, with an outcome per donation (§3.4; M7 follow-up);
+- `logistics.pickup_completed`: donation pickups, with an outcome per donation (§3.4; M7 §3.6);
 - `billing.points_donated`: meal pledges (§3.5);
 - `hub_ops.surplus_offered` (`offered_to: "ngo"`) and `hub_ops.surplus_settled`: NGO offers (§3.5; follows M6 §3.5);
 - `partners.verified` (kind `captain`: automatic appointment, §3.2);
@@ -707,6 +809,8 @@ No event carries a name, flat, phone or photo key.
 | Permission | Roles (scope) |
 |---|---|
 | `societies:write` | hub_manager (hub), admin |
+| `societies:read` | hub_manager (hub), admin (the staff list, §3.9; hub-less societies: admin only) |
+| `society_requests:review` | hub_manager, admin (§3.9; requests have no hub until accepted) |
 | `captains:read` · `captains:write` | hub_manager (the society's hub), admin (§3.2) |
 | `referrals:read` · `referrals:claim` | customer (own) (§3.3) |
 | `point_rates:write` | admin (§3.4) |

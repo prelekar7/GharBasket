@@ -1,8 +1,8 @@
 """Tables of M9 Community & Kindness. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
 Societies and residents' requests for new ones (spec §3.1) with how they unlock (§3.6), captain
-appointments (§3.2), the Kindness point rates and donation drives (§3.4), and referral codes and
-referrals (§3.3). NGOs follow.
+appointments (§3.2), the Kindness point rates and donation drives (§3.4), referral codes and
+referrals (§3.3), and NGOs with their surplus offers, donated-meal pledges and hand-offs (§3.5).
 """
 
 import uuid
@@ -234,8 +234,8 @@ class DonationDrive(Base):
     multiplier: Mapped[Decimal] = mapped_column(Numeric(2, 1))
     starts_on: Mapped[date] = mapped_column(Date)  # IST dates, inclusive
     ends_on: Mapped[date] = mapped_column(Date)
-    # The receiving NGO; the foreign key to community.ngos comes with §3.5.
-    ngo_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # The NGO that receives the items (§3.5).
+    ngo_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(f"{SCHEMA}.ngos.id"))
     goal_items: Mapped[int | None] = mapped_column(Integer)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID] = mapped_column(Uuid)
@@ -309,8 +309,10 @@ class Donation(Base):
     note: Mapped[str | None] = mapped_column(String(300))  # the hub's, staff only
     verified_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # The NGO hand-off that took it; the foreign key to community.ngo_handoffs comes with §3.5.
-    handoff_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # The NGO hand-off that took it (§3.5).
+    handoff_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.ngo_handoffs.id"), index=True
+    )
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -394,3 +396,172 @@ class Referral(Base):
     void_reason: Mapped[str | None] = mapped_column(String(10))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# --- NGOs, surplus offers, donated meals and hand-offs (§3.5) ------------------------------------
+
+NGO_KINDS = ("food_bank", "shelter", "school", "other")
+NGO_STATUSES = ("active", "paused")
+GIFTS = ("items", "food", "meals")  # what an NGO accepts, and the kinds of hand-off
+OFFER_STATUSES = ("open", "claimed", "expired")
+RECORDED_BY = ("hub", "ngo")
+
+
+class Ngo(Base):
+    """A partner NGO: the hubs it collects from and what it accepts. Its coordinators are M1
+    roles `ngo_coordinator:<id>`, not columns."""
+
+    __tablename__ = "ngos"
+    __table_args__ = (
+        CheckConstraint(_one_of("kind", NGO_KINDS), name="kind"),
+        CheckConstraint(_one_of("status", NGO_STATUSES), name="status"),
+        CheckConstraint(
+            f"cardinality(accepts) > 0 AND accepts <@ ARRAY[{', '.join(repr(g) for g in GIFTS)}]"
+            "::text[]",
+            name="accepts",
+        ),
+        CheckConstraint("cardinality(hub_ids) > 0", name="hub_ids"),
+        CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        CheckConstraint("version >= 1", name="version"),
+        Index("ix_ngos_hub_ids", "hub_ids", postgresql_using="gin"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    name: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(12))
+    # M6's hub ids, checked through hub_ops.api when written (no foreign key across schemas).
+    hub_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid))
+    accepts: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    registration_ref: Mapped[str | None] = mapped_column(String(60))  # e.g. NGO Darpan's id
+    verified: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    status: Mapped[str] = mapped_column(String(8), server_default="active")
+    note: Mapped[str | None] = mapped_column(String(300))  # staff and the NGO's coordinators
+    data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class NgoHandoff(Base):
+    """Items, food or meals given to an NGO, with photo proof. One the NGO's coordinator records is
+    confirmed at once; one the hub records waits for the coordinator. Donations and offers point
+    at it (`handoff_id`); `handoff_meals` says which pledges it served."""
+
+    __tablename__ = "ngo_handoffs"
+    __table_args__ = (
+        CheckConstraint(_one_of("kind", GIFTS), name="kind"),
+        CheckConstraint(_one_of("recorded_by", RECORDED_BY), name="recorded_by"),
+        CheckConstraint("recorded_by = 'hub' OR confirmed_at IS NOT NULL", name="ngo_confirmed"),
+        CheckConstraint("items_count >= 0 AND kg_tenths >= 0 AND meals >= 0", name="summary"),
+        CheckConstraint("people_reached IS NULL OR people_reached >= 0", name="people_reached"),
+        CheckConstraint("cardinality(photo_keys) > 0", name="photo_keys"),
+        CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        Index("ix_ngo_handoffs_hub_id_handed_at", "hub_id", "handed_at"),
+        Index("ix_ngo_handoffs_ngo_id_handed_at", "ngo_id", "handed_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    ngo_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.ngos.id"))
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    kind: Mapped[str] = mapped_column(String(8))
+    # Pieces, plus kilograms counted as one item per kg (items); the kilograms (items and food);
+    # the meals served (meals).
+    items_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    kg_tenths: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    meals: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    photo_keys: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    people_reached: Mapped[int | None] = mapped_column(Integer)  # as the NGO reports it
+    handed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    recorded_by: Mapped[str] = mapped_column(String(4))
+    recorded_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confirmed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    note: Mapped[str | None] = mapped_column(String(300))
+    data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NgoOffer(Base):
+    """M6's surplus offer to an NGO (`hub_ops.surplus_offered`, offered_to ngo), copied when an
+    active, verified NGO serves the hub and accepts food. The first claim wins. `open` past
+    `expires_at` reads as expired."""
+
+    __tablename__ = "ngo_offers"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", OFFER_STATUSES), name="status"),
+        CheckConstraint(
+            "(status = 'claimed') = (claimed_by_ngo_id IS NOT NULL AND claimed_at IS NOT NULL)",
+            name="claimed",
+        ),
+        CheckConstraint("handoff_id IS NULL OR status = 'claimed'", name="handoff"),
+        CheckConstraint("qty > 0", name="qty"),
+        CheckConstraint("kg_tenths IS NULL OR kg_tenths >= 0", name="kg_tenths"),
+        Index("ix_ngo_offers_hub_id_status", "hub_id", "status"),
+        {"schema": SCHEMA},
+    )
+
+    offer_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)  # M6's surplus offer id
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    qty: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    unit: Mapped[str] = mapped_column(String(8))  # M6's operations unit: kg, l, piece, bunch, pack
+    # Null when the weight is unknown (a pack, or a piece without the catalog's unit_g).
+    kg_tenths: Mapped[int | None] = mapped_column(Integer)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(8), server_default="open")
+    claimed_by_ngo_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(f"{SCHEMA}.ngos.id"))
+    claimed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    handoff_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.ngo_handoffs.id"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MealPledge(Base):
+    """Meals a customer donated with Kindness points (`billing.points_donated`), at her household's
+    hub; a `meals` hand-off serves them oldest first. Kept after erasure: no personal fields."""
+
+    __tablename__ = "meal_pledges"
+    __table_args__ = (
+        CheckConstraint("meals > 0", name="meals"),
+        CheckConstraint("served BETWEEN 0 AND meals", name="served"),
+        CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        Index(
+            "ix_meal_pledges_hub_id_pledged_at",
+            "hub_id",
+            "pledged_at",
+            postgresql_where=text("served < meals"),
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    entry_id: Mapped[uuid.UUID] = mapped_column(Uuid, unique=True)  # M5's points_donated entry
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    # The user's household hub; null without one (no hub can serve it).
+    hub_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    meals: Mapped[int] = mapped_column(Integer)
+    served: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    pledged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+
+
+class HandoffMeal(Base):
+    """Which pledges a `meals` hand-off served, and how many meals of each (a pledge may be
+    split across hand-offs)."""
+
+    __tablename__ = "handoff_meals"
+    __table_args__ = (CheckConstraint("meals > 0", name="meals"), {"schema": SCHEMA})
+
+    handoff_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.ngo_handoffs.id"), primary_key=True
+    )
+    pledge_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.meal_pledges.id"), primary_key=True, index=True
+    )
+    meals: Mapped[int] = mapped_column(Integer)

@@ -302,7 +302,7 @@ def test_no_fact_table_has_a_personal_column() -> None:
     """M12 §9: a schema walk of `analytics` finds no name, phone, flat or address column."""
     personal = re.compile(r"name|phone|flat|address|tower|email|health|photo|note")
     tables = [t for t in Base.metadata.tables.values() if t.schema == models.SCHEMA]
-    assert len(tables) == 12
+    assert len(tables) == 13
     for table in tables:
         for column in table.columns:
             assert not personal.search(column.name), f"{table.name}.{column.name}"
