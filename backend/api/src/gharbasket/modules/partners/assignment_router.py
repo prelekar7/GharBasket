@@ -14,7 +14,7 @@ from sqlalchemy import select
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.partners import assignments, kitchens, pickups
-from gharbasket.modules.partners.models import Assignment, AssignmentOrder, Partner
+from gharbasket.modules.partners.models import Assignment, AssignmentOrder, AssignmentRun, Partner
 from gharbasket.modules.partners.schemas import (
     AssignedPartnerOut,
     AssignmentOrderOut,
@@ -22,6 +22,8 @@ from gharbasket.modules.partners.schemas import (
     AssignmentsOut,
     DeclineIn,
     DishOut,
+    FairnessOut,
+    FairnessRunOut,
     RunIn,
     RunOut,
     SlotOut,
@@ -37,6 +39,7 @@ from gharbasket.platform.settings import Settings, get_settings
 router = APIRouter(tags=["partners"])
 
 CanRead = Annotated[Permit, require("assignments:read")]
+CanReadPartners = Annotated[Permit, require("partners:read")]
 CanWrite = Annotated[Permit, require("assignments:write")]
 CanManage = Annotated[Permit, require("assignments:manage")]
 AppSettings = Annotated[Settings, Depends(get_settings)]
@@ -275,3 +278,69 @@ async def run_round(
     await idem.save(200, out)
     await session.commit()
     return out
+
+
+GREEDY_MODEL = "greedy-m8"  # M8's own fallback when the ML service did not answer (§3.4)
+
+
+def _number(value: Any) -> float | None:
+    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
+
+
+def _run_out(run: AssignmentRun) -> FairnessRunOut:
+    summary = run.summary or {}
+    sent = _number(summary.get("fairness_lambda"))
+    return FairnessRunOut(
+        run_id=run.id,
+        date=run.on_date,
+        meal=run.meal,  # pyright: ignore[reportArgumentType]
+        round=run.round,
+        source=run.source,  # pyright: ignore[reportArgumentType]
+        model=run.model,
+        status=run.status,
+        portions=run.portions,
+        kitchens_used=int(_number(summary.get("kitchens_used")) or 0),
+        unassigned=len(run.unassigned or []),
+        gini=_number(summary.get("gini")),
+        gini_eligible=_number(summary.get("gini_eligible")),
+        km_per_portion=_number(summary.get("km_per_portion")),
+        lambda_paise=None if sent is None else round(sent),
+        at=run.at,
+    )
+
+
+@router.get(
+    "/hubs/{hub_id}/fairness",
+    summary="The fairness weight in use and the hub's latest assignment runs (hub staff, admin)",
+    responses={
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden, auth.role_not_granted"),
+        422: _problem("request.invalid"),
+    },
+)
+async def fairness(
+    hub_id: uuid.UUID,
+    permit: CanReadPartners,
+    session: DbSession,
+    response: Response,
+    settings: AppSettings,
+    runs: Annotated[int, Query(ge=1, le=100)] = 28,
+) -> FairnessOut:
+    permit.ensure(hub_id)
+    response.headers["Cache-Control"] = "no-store"
+    rows = list(
+        (
+            await session.execute(
+                select(AssignmentRun)
+                .where(AssignmentRun.hub_id == hub_id)
+                .order_by(AssignmentRun.at.desc(), AssignmentRun.id.desc())
+                .limit(runs)
+            )
+        ).scalars()
+    )
+    return FairnessOut(
+        hub_id=hub_id,
+        lambda_paise=round(settings.partners_fairness_lambda),
+        fallback_active=bool(rows) and rows[0].model == GREEDY_MODEL,
+        runs=[_run_out(run) for run in rows],
+    )
