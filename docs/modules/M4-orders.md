@@ -30,6 +30,7 @@ The order of record for boxes, tiffins and add-ons: creation from approved cycle
 | GET | `/v1/tiffin-menus?date=&meal=` | Authenticated | — | Menus to book (§3.5; data owned by M2) |
 | GET | `/v1/admin/order-issues[/{id}]` | hub_manager (hub), admin | — | Triage queue and detail with photo links (§3.6) |
 | POST | `/v1/admin/order-issues/{id}/resolve` | hub_manager (hub), admin | Required | Credit or reject (§3.6) |
+| GET | `/v1/admin/refunds?hub_id=&from=&to=` | hub_manager (hub), admin | — | Read-only order refunds list; contract in M5 §3.8 (M4 serves it: it joins its orders to `billing.api.order_refunds`) |
 | POST | `/v1/orders/{id}/addons` | owner | Required + `If-Match` | Add, change or remove add-on lines before cut-off |
 | POST | `/v1/orders/{id}/cancel` | owner | Required | Before `locked` |
 | POST | `/v1/orders/{id}/issues` | owner | Required | Report a problem with a delivery; auto-credit or triage (§3.2) |
@@ -485,6 +486,7 @@ Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal 
 | `orders:write` | customer (own, before lock; issues after delivery) |
 | `order_issues:resolve` | hub_manager (hub), admin (M12 console, through `orders.api.resolve_issue`) |
 | `orders:transition` | Internal (M6/M7 via api.py), admin |
+| `order_refunds:read` | hub_manager (hub), admin (the refunds list, M5 §3.8) |
 | `slots:write` | hub_manager (hub), admin |
 
 ## 8. Screens
