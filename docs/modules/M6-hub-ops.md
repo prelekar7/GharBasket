@@ -668,6 +668,13 @@ ShortBag : { "task_id", "bag_qr", "society": "Sunrise Towers", "flat_label": "B 
 | `outcome: "swap" \| "refund"` | `"substitute" \| "refund"`, M1's preference words |
 | `society`, `flat_label`, `qty`, `substitute`, `refund_paise`, `task_id`, `bag_qr` | Same |
 
+**As built (the read, `hub_ops/shortages.py`).** Details the contract leaves open:
+- **Needed and received.** `needed` counts every non-carried packing line of the product on the date, a line with a shortage or a substitute recorded included (so the gap stays visible while the packer works down it). `received` is the grade A and B lots on hand not past their best-before (now for today, else the start of the IST day), plus what the date's packed and already drawn-down tasks took (`stock.drawn_picks`), floored to whole steps. It is null when the step's unit is unknown or the product's stock is counted in another unit than the step's operations unit (a lot in pieces for a step in grams).
+- **Bags.** Open bags are tasks not yet packed, from the highest `seq` down, whose line of the product has nothing picked, short or substituted; their open steps add up until they cover `short_by`, and the bag that crosses it is included. A line with a step already picked is still listed (with its open steps) but can only be `refund`. `reported` lists every bag with a shortage or substitute recorded for the product, also from the end of the queue, packed or not.
+- **Outcome.** `substitute` when the household's preference is not `refund`, nothing is picked on the line, and the catalog's ranked list has a product that is not on the order, has a price at the hub no higher than the line's paid price, and whose lots on hand cover the line's steps (each substitute's stock is used up as bags take it); else `refund` for the open steps. A substitute's `refund_paise` is the line's steps times the price difference. For a reported substitute the paid price on the order is already the substitute's, so the original's price is today's price at the hub (0 if it has none).
+- **Order.** Largest `short_by` first, then name, so the reported-only items (short_by 0) come last.
+- **Errors.** As the packing queue: 403 `auth.forbidden` for another hub, 422 `hub_ops.date_out_of_range`. The path is `GET /v1/hubs/{id}/shortages` with `packing:read`, so a packer, hub manager, franchise owner or admin reads it.
+
 ### Facade for other modules (`gharbasket.modules.hub_ops.api`)
 - `get_hub(session, hub_id) -> HubRef | None` — `{ id, slug, name, status, lat, lng, timings }`.
 - `active_hub_ids(session) -> list[UUID]` — for jobs that run per hub.
