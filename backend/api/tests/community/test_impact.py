@@ -294,30 +294,38 @@ async def test_the_society_and_period_are_checked(
     assert unknown.status_code == 404 and unknown.json()["code"] == "community.society_not_found"
     no_id = await api.get("/v1/impact", params={"scope": "society"}, headers=admin)
     assert no_id.status_code == 422 and no_id.json()["code"] == "request.invalid"
-    today = datetime.now(IST).date()
-    this_month = today.strftime("%Y-%m")
-    index = today.year * 12 + today.month - 12  # eleven months back
-    oldest = date(index // 12, index % 12 + 1, 1)
-    too_old = (oldest - timedelta(days=1)).strftime("%Y-%m")
-    future = (today.replace(day=28) + timedelta(days=10)).strftime("%Y-%m")
-    for good in ("all", this_month, oldest.strftime("%Y-%m")):
-        answer = await api.get("/v1/impact", params={**params, "period": good}, headers=admin)
-        assert answer.status_code == 200, (good, answer.text)
-        assert answer.json()["period"] == good
-    for bad in (too_old, future, "2027-13", "March", "2027-1"):
-        answer = await api.get("/v1/impact", params={**params, "period": bad}, headers=admin)
-        assert answer.status_code == 422, bad
+    every = await api.get("/v1/impact", params={**params, "period": "all"}, headers=admin)
+    assert every.status_code == 200 and every.json()["period"] == "all", every.text
+
+
+async def test_a_society_has_no_monthly_numbers(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """All time only: with months, the all-time total less the months shown would give a month
+    held back under 5 households."""
+    api = clients()
+    resident = await _as(api, google, PRIYA)
+    params = {"scope": "society", "society_id": str(SEED_SOCIETY_ID)}
+    this_month = datetime.now(IST).strftime("%Y-%m")
+
+    for bad in (this_month, "2026-10", "2027-13", "March", "2027-1", "ALL"):
+        answer = await api.get("/v1/impact", params={**params, "period": bad}, headers=resident)
+        assert answer.status_code == 422, (bad, answer.text)
+        assert answer.json()["code"] == "request.invalid", bad
+    # A user's own numbers are hers, all time, as before
+    mine = await api.get("/v1/impact", params={"scope": "me"}, headers=resident)
+    assert mine.status_code == 200 and mine.json()["period"] == "all"
 
 
 # --- a society: numbers and the k rule ------------------------------------------------------------
 
 
-async def test_every_society_number_is_null_until_five_households_contributed(
+async def test_every_society_number_is_null_until_five_households_gave(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     sunita = await household_of(db_session, SUNITA)
     n1, n2, n3, n4 = [await move_in(db_session, n) for n in range(1, 5)]  # 5 homes in all
-    # Four distinct households give: two donations, a converted referral (its household), a meal
+    # Three households give (two donations, a meal); a fourth was referred, which is no gift
     await donate(
         db_session,
         sunita,
@@ -328,6 +336,7 @@ async def test_every_society_number_is_null_until_five_households_contributed(
     await convert(db_session, sunita[0], n2, GREEN_VALLEY)
     await pledge(db_session, n3[0], 2)
     await pledge(db_session, n3[0], 1)  # the same household again: still one
+    await donate(db_session, n4, [line("books", "each", 3)], society_id=GREEN_VALLEY)
     api = clients()
     auth = await _as(api, google, SUNITA)
     params = {"scope": "society", "society_id": str(GREEN_VALLEY)}
@@ -337,21 +346,45 @@ async def test_every_society_number_is_null_until_five_households_contributed(
     assert four.status_code == 200, four.text
     body = four.json()
     assert body["homes_joined"] == 5  # five homes: enough to say so
+    # Four households gave (Sunita, n1, n3, n4); n2's referral does not make a fifth
     assert body["contributors"] == "under_5"
     assert (body["items_donated"], body["kg_donated"], body["meals_donated"]) == (None, None, None)
 
-    # The fifth household gives: now all of it shows
-    await donate(db_session, n4, [line("books", "each", 3)], society_id=GREEN_VALLEY)
+    # The referred household gives a meal: now five gave, and all of it shows
+    await pledge(db_session, n2[0], 1)
     five = (await api.get("/v1/impact", params=params, headers=auth)).json()
     assert five["contributors"] == "5+"
-    # 4.5 -> 5 and 1 and 3 items; 3.5 kg; 3 meals
-    assert (five["items_donated"], five["kg_donated"], five["meals_donated"]) == (9, 3.5, 3)
+    # 4.5 -> 5 and 1 and 3 items; 3.5 kg; 2 + 1 + 1 meals
+    assert (five["items_donated"], five["kg_donated"], five["meals_donated"]) == (9, 3.5, 4)
     assert not set(PERSONAL) & keys(five) and "household_id" not in keys(five)
     for trace in ("Sunita", "B-1", "household"):
         assert trace not in json.dumps(five)
 
 
-async def test_homes_joined_is_null_under_five_and_the_period_narrows_the_numbers(
+async def test_five_referrals_and_one_donor_show_nothing(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """Referrals no longer pad the count: with them, five referred homes and one donor would put
+    that one donor's giving on the society card and the public page."""
+    sunita = await household_of(db_session, SUNITA)
+    for n in range(1, 6):
+        await convert(db_session, sunita[0], await move_in(db_session, n), GREEN_VALLEY)
+    await donate(db_session, sunita, [line("clothes", "kg", 3)], society_id=GREEN_VALLEY)
+    api = clients()
+    params = {"scope": "society", "society_id": str(GREEN_VALLEY)}
+    auth = await _as(api, google, SUNITA)
+
+    body = (await api.get("/v1/impact", params=params, headers=auth)).json()
+    facade = await community_api.society_impact(db_session, GREEN_VALLEY, with_hub=False)
+
+    assert body["homes_joined"] == 6 and body["contributors"] == "under_5"
+    assert (body["items_donated"], body["kg_donated"], body["meals_donated"]) == (None, None, None)
+    assert facade is not None and facade.items_donated is None  # the public page's source
+    public = (await api.get("/v1/public/societies/green-valley-heights-kharghar")).json()
+    assert public["impact"] is None
+
+
+async def test_homes_joined_is_null_under_five_and_every_gift_counts_all_time(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     sunita = await household_of(db_session, SUNITA)
@@ -359,7 +392,7 @@ async def test_homes_joined_is_null_under_five_and_the_period_narrows_the_number
     last_month = datetime.now(UTC).replace(day=1) - timedelta(days=3)
     for who in (sunita, *others[:3]):
         await donate(db_session, who, [line("clothes", "kg", 2)], society_id=GREEN_VALLEY)
-    # The fifth household's gift was last month's
+    # The fifth household's gift was last month's: all time, it counts
     await donate(
         db_session,
         others[3],
@@ -370,16 +403,11 @@ async def test_homes_joined_is_null_under_five_and_the_period_narrows_the_number
     api = clients()
     admin = await _as(api, google, NEHA)
     params = {"scope": "society", "society_id": str(GREEN_VALLEY)}
-    this_month = datetime.now(IST).strftime("%Y-%m")
 
     every = (await api.get("/v1/impact", params=params, headers=admin)).json()
-    now = (
-        await api.get("/v1/impact", params={**params, "period": this_month}, headers=admin)
-    ).json()
 
     assert (every["contributors"], every["items_donated"], every["kg_donated"]) == ("5+", 12, 12.0)
-    assert (now["contributors"], now["items_donated"], now["kg_donated"]) == ("under_5", None, None)
-    assert now["homes_joined"] == 5 and now["period"] == this_month
+    assert every["homes_joined"] == 5 and every["period"] == "all"
 
     # Under five homes, the count itself is withheld (Sunrise Towers has Priya and Meena)
     sunrise = (
@@ -440,9 +468,7 @@ async def test_the_hub_block_counts_food_meals_and_partner_pay_under_the_k_rule(
         "partners_earned_paise": None,
         "partners": "under_5",
     }
-    month = datetime.now(IST).strftime("%Y-%m")
-    this = (await api.get("/v1/impact", params={**params, "period": month}, headers=admin)).json()
-    assert this["hub"]["food_saved_kg"] == 12.5  # last month's 4 kg is not this month's
+    # 12.5 kg this month and 4 kg last month: the society card is all time
 
     async def paid(*_a: object, **_k: object) -> tuple[int, int]:
         return 6, 1_580_000
@@ -500,15 +526,16 @@ async def test_the_facade_applies_the_same_rules_for_the_public_page(
     with pytest.raises(ProblemError) as caught:
         await community_api.society_impact(db_session, SEED_SOCIETY_ID, "last-year")
     assert (caught.value.status, caught.value.code) == (422, "request.invalid")
+    with pytest.raises(ProblemError):  # a month too: all time only
+        await community_api.society_impact(db_session, SEED_SOCIETY_ID, "2026-10")
     named = await community_api.ngo_refs(db_session, [uuid.uuid4()])
     assert named == {}
 
 
-async def test_months_and_bands() -> None:
-    assert impact.period_month("all") is None
-    assert impact.period_month("2026-11", date(2026, 11, 30)) == date(2026, 11, 1)
-    assert impact.period_month("2025-12", date(2026, 11, 30)) == date(2025, 12, 1)  # 12th month
-    with pytest.raises(ProblemError):
-        impact.period_month("2025-11", date(2026, 11, 30))  # the 13th
+async def test_periods_and_bands() -> None:
+    impact.check_period("all")
+    for month in ("2026-11", "2025-12", "last-year"):
+        with pytest.raises(ProblemError):
+            impact.check_period(month)
     assert impact.next_month(date(2026, 12, 1)) == date(2027, 1, 1)
     assert [impact.band(n) for n in (0, 4, 5, 9)] == ["under_5", "under_5", "5+", "5+"]

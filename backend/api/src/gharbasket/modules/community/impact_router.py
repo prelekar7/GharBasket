@@ -55,7 +55,7 @@ async def _may_read(permit: Permit, session: DbSession, society: Society) -> boo
             "captain, its hub's staff and admins"
         ),
         404: _problem("community.society_not_found"),
-        422: _problem("request.invalid: `society_id` missing, or a `period` out of range"),
+        422: _problem("request.invalid: `society_id` missing, or a `period` other than `all`"),
     },
 )
 async def get_impact(
@@ -67,9 +67,10 @@ async def get_impact(
     period: Annotated[
         str,
         Query(
-            pattern=r"^(all|\d{4}-(0[1-9]|1[0-2]))$",
-            description="`society` only: `all`, or an IST month within the last 12",
-            examples=["all", "2027-02"],
+            max_length=20,
+            description="`society` only: `all`. A society's numbers are all time only; anything "
+            "else is 422 `request.invalid`",
+            examples=["all"],
         ),
     ] = "all",
 ) -> MyImpactOut | SocietyImpactOut:
@@ -89,6 +90,7 @@ async def get_impact(
         )
     if society_id is None:
         raise ProblemError(422, "request.invalid", "Give the `society_id` of the society.")
+    impact.check_period(period)
     society = await session.get(Society, society_id)
     if society is None:
         raise ProblemError(404, "community.society_not_found", "No such society.")
@@ -99,7 +101,6 @@ async def get_impact(
     response.headers["Cache-Control"] = "private, max-age=60"
     return SocietyImpactOut(
         society_id=found.society_id,
-        period=found.period,
         as_of=found.as_of,
         homes_joined=found.homes_joined,
         items_donated=found.items_donated,

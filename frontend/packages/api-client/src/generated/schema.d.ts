@@ -13461,11 +13461,11 @@ export interface components {
             meals_donated: number | null;
             /**
              * Period
-             * @description `all` or an IST month, YYYY-MM
-             * @example all
-             * @example 2027-02
+             * @description Always `all`: all time only
+             * @default all
+             * @constant
              */
-            period: string;
+            period: "all";
             /**
              * Scope
              * @default society
@@ -25783,7 +25783,7 @@ export interface operations {
                 scope: "me" | "society";
                 /** @description For `society` */
                 society_id?: string | null;
-                /** @description `society` only: `all`, or an IST month within the last 12 */
+                /** @description `society` only: `all`. A society's numbers are all time only; anything else is 422 `request.invalid` */
                 period?: string;
             };
             header?: {
@@ -25830,7 +25830,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description request.invalid: `society_id` missing, or a `period` out of range */
+            /** @description request.invalid: `society_id` missing, or a `period` other than `all` */
             422: {
                 headers: {
                     [name: string]: unknown;

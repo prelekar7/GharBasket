@@ -43,7 +43,7 @@ class HubImpactOut(BaseModel):
 class SocietyImpactOut(BaseModel):
     scope: Literal["society"] = "society"
     society_id: uuid.UUID
-    period: str = Field(description="`all` or an IST month, YYYY-MM", examples=["all", "2027-02"])
+    period: Literal["all"] = Field(default="all", description="Always `all`: all time only")
     as_of: datetime = Field(description="The time of the read: the numbers are computed live")
     homes_joined: int | None = Field(description="Null under 5 households")
     items_donated: int | None = Field(description="Null until 5 households contributed")
