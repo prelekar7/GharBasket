@@ -392,3 +392,36 @@ class TiffinOrderIn(BaseModel):
 
 
 TiffinOut.model_rebuild()
+
+
+# --- the order refunds list (spec §3.8, M5 §3.8) -------------------------------------------------
+
+RefundReason = Literal["shortage", "issue", "undelivered", "no_kitchen", "carry_over", "other"]
+RefundDestination = Literal["wallet", "source"]
+RefundStatus = Literal["credited", "pending", "processing", "processed", "partly_failed", "failed"]
+
+
+class RefundSociety(BaseModel):
+    id: uuid.UUID
+    name: str = Field(examples=["Sunrise Towers"])
+
+
+class RefundRow(BaseModel):
+    id: uuid.UUID = Field(description="The journal entry's id")
+    order_id: uuid.UUID
+    order_kind: OrderKind
+    delivery_date: date
+    society: RefundSociety
+    flat_label: str | None = Field(
+        examples=["B wing, B-402"], description="Tower and flat only; never a name or a phone"
+    )
+    reason: RefundReason
+    product_id: uuid.UUID | None = Field(description="Shortage and carry-over: the line's product")
+    issue_id: uuid.UUID | None = Field(description="Issue: the order issue (§3.2)")
+    amount_paise: int = Field(examples=[4000])
+    to: RefundDestination
+    refund_id: uuid.UUID | None = Field(description="To source: the Refund that sends it back")
+    status: RefundStatus = Field(
+        description="credited for the wallet; the Refund's status for a source"
+    )
+    created_at: datetime

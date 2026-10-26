@@ -21,7 +21,7 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.intel_gateway import api as intel_api
-from gharbasket.modules.logistics import attempts, routing
+from gharbasket.modules.logistics import attempts, pickups, routing
 from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Vehicle
 from gharbasket.modules.logistics.routing import Stop, Trip, Van
 from gharbasket.modules.orders import api as orders_api
@@ -79,6 +79,12 @@ async def _stops(
     slots = {slot_id: await orders_api.slot_ref(session, slot_id) for _, slot_id in groups}
     located: dict[str, Stop] = {}
     unlocated: dict[str, uuid.UUID] = {}
+    # A society's open empties ride on its earliest-window stop (§3.6).
+    empties = await pickups.open_empties(session, sorted({s for s, _ in groups}))
+    first: dict[uuid.UUID, uuid.UUID] = {}
+    for society_id, slot_id in sorted(groups, key=lambda g: (_start(slots[g[1]]), g)):
+        if society_id in points and slots[slot_id] is not None:
+            first.setdefault(society_id, slot_id)
     for (society_id, slot_id), order_ids in sorted(groups.items()):
         stop_id, slot = f"{society_id}/{slot_id}", slots[slot_id]
         if society_id not in points or slot is None:
@@ -93,8 +99,13 @@ async def _stops(
             orders=len(order_ids),
             crates=math.ceil(len([o for o in order_ids if o not in kept]) / BAGS_PER_CRATE),
             kg_tenths=math.ceil(sum(grams[o] for o in order_ids) / 100),
+            empties=empties.get(society_id, 0) if first.get(society_id) == slot_id else 0,
         )
     return located, unlocated, len(found)
+
+
+def _start(slot: orders_api.SlotRef | None) -> int:
+    return 0 if slot is None else seconds(slot.start)
 
 
 async def _fleet(session: AsyncSession, hub_id: uuid.UUID, kind: str) -> list[Vehicle]:
@@ -148,6 +159,7 @@ def _request(
                     "orders": s.orders,
                     "kg_tenths": s.kg_tenths,
                     "crates": s.crates,
+                    "empties": s.empties,
                     "window_start_s": s.window[0],
                     "window_end_s": s.window[1],
                 }
@@ -313,6 +325,7 @@ async def _write_routes(
                     crates=stop.crates,
                     bags=stop.orders,  # one bag per order (M6)
                     kg_tenths=stop.kg_tenths,
+                    empties_expected=stop.empties,
                 )
             )
     await session.flush()

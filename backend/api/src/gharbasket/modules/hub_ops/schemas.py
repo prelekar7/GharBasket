@@ -291,6 +291,42 @@ class PackingSummary(BaseModel):
     societies: list[SocietyLoad]
 
 
+class ShortBag(BaseModel):
+    task_id: uuid.UUID
+    bag_qr: str
+    society: str = Field(examples=["Sunrise Towers"])
+    flat_label: str | None = Field(examples=["B wing, B-402"])
+    qty: int = Field(description="Steps open on the line (bags) or short (reported)")
+    outcome: Literal["substitute", "refund"] = Field(
+        description="Bags: what §3.2 would allow. Reported: what was recorded"
+    )
+    substitute: PackingSubstitute | None = Field(
+        description="Bags: the first listed substitute in stock; reported: the one packed"
+    )
+    refund_paise: int = Field(description="0 for a substitute that costs the same")
+
+
+class ShortItem(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str = Field(description="In the requested language")
+    step: PackingStep
+    needed: int = Field(description="Steps on the date's packing lines (carried lines left out)")
+    received: int | None = Field(
+        description="Steps the hub has for the date; null when the step does not convert"
+    )
+    short_by: int = Field(description="needed less received, at least 0; 0 when received is null")
+    bags: list[ShortBag] = Field(description="The open bags the gap falls on, last in queue first")
+    reported: list[ShortBag] = Field(description="Bags with a shortage already recorded")
+
+
+class ShortagesOut(BaseModel):
+    hub_id: uuid.UUID
+    date: date
+    as_of: datetime
+    items: list[ShortItem] = Field(description="Largest short_by first, then by name")
+
+
 class _PackingAction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
