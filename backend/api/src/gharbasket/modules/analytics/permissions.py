@@ -10,3 +10,6 @@ PERMISSIONS.allow("franchise_owner", "analytics:read")
 # what each may read is checked per request.
 for role in ("ngo_coordinator", "hub_manager", "franchise_owner", "admin"):
     PERMISSIONS.allow(role, "analytics:impact")
+# Unit economics, the P&L and the hub's assumptions are the franchise's business: no hub manager.
+PERMISSIONS.allow("admin", "analytics:economics", "analytics:assumptions_write")
+PERMISSIONS.allow("franchise_owner", "analytics:economics", "analytics:assumptions_write")

@@ -3,8 +3,8 @@
 Vehicles (spec §3.1): each hub's fleet, deactivated instead of deleted. Route plans (§3.2): one
 solve for a hub, a delivery date and a kind, holding routes (one trip of one vehicle) and their
 stops (a society and slot). Foreign keys stay inside `logistics`; hub, society, slot, order and
-user ids are plain UUIDs (ADR-0026 §5). The route and stop columns for rider execution and the
-handover (§3.3, §3.4) are here already; their endpoints follow in later PRs.
+user ids are plain UUIDs (ADR-0026 §5). Rider execution and the handover (§3.3, §3.4) write
+routes, stops, handovers, deliveries and field events; return-leg pickups (§3.6) are `pickups`.
 """
 
 import uuid
@@ -300,6 +300,53 @@ class FieldEvent(Base):
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+PICKUP_KINDS = ("empties", "donation", "bag")
+PICKUP_STATUSES = ("expected", "collected", "not_ready")
+
+
+class Pickup(Base):
+    """What the van takes back at a drop stop (spec §3.6), made when its route starts: the
+    society's open empties (one row per stop, `ref_id` null), each donation M9 scheduled for it
+    that day, and each bag of a box refunded on its second attempt while the captain held it.
+    `qty` is what was expected, `collected_qty` what the rider reported."""
+
+    __tablename__ = "pickups"
+    __table_args__ = (
+        CheckConstraint(_one_of("kind", PICKUP_KINDS), name="kind"),
+        CheckConstraint(_one_of("status", PICKUP_STATUSES), name="status"),
+        CheckConstraint("(kind = 'empties') = (ref_id IS NULL)", name="ref_id"),
+        CheckConstraint("qty >= 0 AND (collected_qty IS NULL OR collected_qty >= 0)", name="qty"),
+        UniqueConstraint("stop_id", "kind", "ref_id", postgresql_nulls_not_distinct=True),
+        Index("ix_pickups_hub_date", "hub_id", "delivery_date"),
+        Index("ix_pickups_society_kind_status", "society_id", "kind", "status"),
+        Index("ix_pickups_ref", "ref_id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    stop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.route_stops.id", ondelete="CASCADE")
+    )
+    route_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.routes.id", ondelete="CASCADE")
+    )
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    delivery_date: Mapped[date] = mapped_column(Date)
+    society_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    kind: Mapped[str] = mapped_column(String(8))
+    ref_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M9's donation or M4's order
+    # The donation's or the bag's household, for the flat label only; nulled by M1's erasure.
+    household_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    items: Mapped[str | None] = mapped_column(String(300))  # M9's summary of a donation
+    qty: Mapped[int] = mapped_column(SmallInteger)
+    collected_qty: Mapped[int | None] = mapped_column(SmallInteger)
+    status: Mapped[str] = mapped_column(String(12), server_default="expected")
+    by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class GpsPing(Base):

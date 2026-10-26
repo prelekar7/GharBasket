@@ -12,6 +12,7 @@ came from.
 """
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -23,6 +24,7 @@ from gharbasket.modules.billing.models import (
     JournalEntry,
     LedgerAccount,
     Payment,
+    Posting,
     Refund,
     RefundPart,
 )
@@ -391,3 +393,77 @@ async def to_out(session: AsyncSession, refund: Refund) -> RefundOut:
         created_at=refund.created_at,
         settled_at=refund.settled_at,
     )
+
+
+# --- the order refunds list (spec §3.8) ----------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class OrderRefund:
+    """One `refund` journal entry of an order: the money that went back for it."""
+
+    entry_id: uuid.UUID
+    order_id: uuid.UUID
+    reason: str  # the entry's code, e.g. "short_<hex>"
+    amount_paise: int
+    refund_id: uuid.UUID | None  # to source (a full wallet, §3.3): the Refund that sends it
+    refund_status: str | None  # and its status
+    created_at: datetime
+
+
+async def order_refunds(session: AsyncSession, order_ids: Iterable[uuid.UUID]) -> list[OrderRefund]:
+    """Every `refund` entry whose ref is one of the orders, newest first (created_at, id). It
+    reads M5's own tables only: no order, household or name."""
+    ids = set(order_ids)
+    if not ids:
+        return []
+    entries = list(
+        await session.scalars(
+            select(JournalEntry)
+            .where(
+                JournalEntry.kind == "refund",
+                JournalEntry.ref_type == "order",
+                JournalEntry.ref_id.in_(ids),
+            )
+            .order_by(JournalEntry.created_at.desc(), JournalEntry.id.desc())
+        )
+    )
+    if not entries:
+        return []
+    # The entry moves unearned_revenue -> wallet: the debit leg is the amount.
+    rows = await session.execute(
+        select(Posting.entry_id, func.sum(Posting.amount))
+        .where(Posting.entry_id.in_([e.id for e in entries]), Posting.amount > 0)
+        .group_by(Posting.entry_id)
+    )
+    amounts = {entry_id: int(total) for entry_id, total in rows.all()}
+    to_source: dict[uuid.UUID, uuid.UUID] = {}
+    for entry in entries:
+        try:
+            if (raw := (entry.details or {}).get("to_source")) is not None:
+                to_source[entry.id] = uuid.UUID(str(raw))
+        except ValueError:
+            continue
+    statuses: dict[uuid.UUID, str] = {}
+    if to_source:
+        found = await session.execute(
+            select(Refund.id, Refund.status).where(Refund.id.in_(set(to_source.values())))
+        )
+        statuses = {refund_id: status for refund_id, status in found.all()}
+    out: list[OrderRefund] = []
+    for entry in entries:
+        assert entry.ref_id is not None
+        refund_id = to_source.get(entry.id)
+        code = (entry.details or {}).get("reason") or entry.idempotency_key.rsplit(":", 1)[-1]
+        out.append(
+            OrderRefund(
+                entry_id=entry.id,
+                order_id=entry.ref_id,
+                reason=str(code),
+                amount_paise=int(amounts.get(entry.id, 0)),
+                refund_id=refund_id,
+                refund_status=None if refund_id is None else statuses.get(refund_id, "pending"),
+                created_at=entry.created_at,
+            )
+        )
+    return out

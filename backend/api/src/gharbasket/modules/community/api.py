@@ -284,7 +284,8 @@ async def record_pickup(
     """One donation's outcome from a stop (M7's `logistics.pickup_completed`, §3.4), in the
     caller's transaction: `collected` makes it `picked_up` (by the rider or captain, on `on`);
     `not_ready` rolls it once to the next delivery date, then cancels it. False when it was no
-    longer scheduled (a redelivered report), so calling twice is harmless."""
+    longer scheduled, or a `not_ready` already rolled it past `on` (a redelivered report), so
+    calling twice is harmless."""
     done = await donations.record_pickup(
         session, donation_id, outcome, by_user_id=by_user_id, on=on
     )

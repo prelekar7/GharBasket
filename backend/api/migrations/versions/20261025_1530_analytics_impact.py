@@ -8,7 +8,7 @@ needs. Two columns are added: `handoff_items` (pieces, and kilograms as one item
 `REFRESH MATERIALIZED VIEW CONCURRENTLY` still works. It reads `analytics` tables only.
 
 Revision ID: 5b1d8c0a47e2
-Revises: a9390a28e336
+Revises: 5b8e1d3a7c42
 Create Date: 2026-10-25 15:30:00.000000+00:00
 """
 
@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "5b1d8c0a47e2"
-down_revision: str | Sequence[str] | None = "a9390a28e336"
+down_revision: str | Sequence[str] | None = "5b8e1d3a7c42"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
