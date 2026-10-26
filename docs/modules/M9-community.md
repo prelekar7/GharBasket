@@ -829,7 +829,7 @@ No event carries a name, flat, phone or photo key.
 | `ngo_offers:read` | ngo_coordinator (an NGO serving the hub), hub_manager (hub), admin (§3.5) |
 | `ngo_offers:claim` · `ngo_handoffs:confirm` | ngo_coordinator (ngo) (§3.5) |
 | `ngo_handoffs:read` · `ngo_handoffs:write` | ngo_coordinator (ngo), hub_manager (hub), admin (read) (§3.5) |
-| `impact:read` | customer (`me`); residents, the society's captain, hub_manager (hub), admin (`society`) (§3.7) |
+| `impact:read` | customer (`me`); residents, the society's captain, hub_manager (hub), franchise_owner (hub), admin (`society`) (§3.7; franchise_owner added as built, as M12 §3.6 gives it the hub's report) |
 
 Captains have no M9 permission beyond a resident's: their society's unlock, drives and impact. The donations they collect at the door reach them through M7's flat checklist (`community.api.pickups_for`, §3.8).
 
