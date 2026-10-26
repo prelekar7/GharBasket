@@ -55,7 +55,10 @@ def _position(cursor: str) -> tuple[datetime, uuid.UUID]:
     try:
         if not (isinstance(after, list) and len(after) == 2):  # pyright: ignore[reportUnknownArgumentType]
             raise ValueError
-        return datetime.fromisoformat(str(after[0])), uuid.UUID(str(after[1]))  # pyright: ignore[reportUnknownArgumentType]
+        at = datetime.fromisoformat(str(after[0]))  # pyright: ignore[reportUnknownArgumentType]
+        if at.tzinfo is None:  # entries are timezone-aware; a naive one cannot be compared
+            raise ValueError
+        return at, uuid.UUID(str(after[1]))  # pyright: ignore[reportUnknownArgumentType]
     except ValueError as exc:
         raise ProblemError(422, "request.invalid_cursor", "The cursor is not valid.") from exc
 
@@ -109,7 +112,9 @@ async def page(
         society = societies.get(order.society_id)
         label = labels.get(order.household_id)
         tower = (
-            (society.towers.get(label.tower_id, label.tower_id) if society else "") if label else ""
+            (society.towers.get(label.tower_id, label.tower_id) if society else label.tower_id)
+            if label
+            else ""
         )
         rows.append(
             RefundRow(
@@ -118,7 +123,11 @@ async def page(
                 order_kind=order.kind,  # pyright: ignore[reportArgumentType]
                 delivery_date=order.delivery_date,
                 society=RefundSociety(id=order.society_id, name=society.name if society else ""),
-                flat_label=None if label is None else f"{tower}, {label.flat}",
+                flat_label=None
+                if label is None
+                else f"{tower}, {label.flat}"
+                if tower
+                else label.flat,
                 reason=kind,  # pyright: ignore[reportArgumentType]
                 product_id=hexed if kind in ("shortage", "carry_over") else None,
                 issue_id=hexed if kind == "issue" else None,

@@ -274,6 +274,58 @@ async def test_what_the_packer_recorded_shows_as_reported_even_when_stock_is_eno
 
 
 @time_machine.travel(NOW, tick=False)
+async def test_a_recorded_shortage_closes_its_part_of_the_gap_and_uses_up_its_substitute(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    manager, _ = await staff(api, google, VIKRAM)
+    packer, _ = await staff(api, google, KAVITA)
+    ids, priya, meena = await two_boxes(db_session)
+    await build(api, manager)
+    priya_task, meena_task = await tasks_by_order(api, manager, priya, meena)
+    await stock_up(db_session, "tomato", 3)  # 4 needed: one step short
+    await stock_up(db_session, "cucumber", 2)  # enough to replace one line of two steps
+    await stock_up(db_session, "bhindi", 10)
+    await stock_up(db_session, "onion", 10)
+    cucumber = (await catalog_api.product_ids_by_slug(db_session, ["cucumber"]))["cucumber"]
+    (bag,) = item((await read(api, manager)).json(), "tomato")["bags"]
+    assert (bag["task_id"], bag["outcome"]) == (meena_task["id"], "substitute")
+
+    # Meena's packer takes the offer: the one short step is covered, so no other bag falls in
+    # the gap, and the cucumber went into her bag.
+    await api.post(
+        f"/v1/packing-tasks/{meena_task['id']}/start", json={}, headers={**packer, **key()}
+    )
+    swap = await api.post(
+        f"/v1/packing-tasks/{meena_task['id']}/shortage",
+        json={
+            "product_id": str(ids["tomato"]),
+            "short_qty": 2,
+            "substitute_product_id": str(cucumber),
+        },
+        headers={**packer, **key()},
+    )
+    assert swap.status_code == 200, swap.text
+    tomato = item((await read(api, manager)).json(), "tomato")
+    assert (tomato["needed"], tomato["received"], tomato["short_by"]) == (4, 3, 1)
+    assert tomato["bags"] == []
+    assert [b["task_id"] for b in tomato["reported"]] == [meena_task["id"]]
+
+    # Two tomato steps go bad: Priya's bag is now short, and the cucumber is spoken for.
+    await db_session.execute(
+        update(InventoryLot)
+        .where(InventoryLot.product_id == ids["tomato"])
+        .values(qty_on_hand=Decimal("0.5"))
+    )
+    await db_session.commit()
+    tomato = item((await read(api, manager)).json(), "tomato")
+    assert (tomato["received"], tomato["short_by"]) == (1, 3)
+    (bag,) = tomato["bags"]
+    assert (bag["task_id"], bag["outcome"], bag["substitute"]) == (priya_task["id"], "refund", None)
+    assert (bag["qty"], bag["refund_paise"]) == (2, 2 * 2_500)
+
+
+@time_machine.travel(NOW, tick=False)
 async def test_stock_already_drawn_down_today_counts_and_stock_in_another_unit_cannot_convert(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:

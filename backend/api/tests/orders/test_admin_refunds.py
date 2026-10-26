@@ -270,6 +270,11 @@ async def test_pages_follow_the_cursor_without_gaps_or_repeats(
     assert code(bad) == (422, "request.invalid_cursor")
     odd = await fetch(api, who["hub"], f"{query}&cursor={refund_list.encode_cursor({'after': 1})}")
     assert code(odd) == (422, "request.invalid_cursor")
+    naive = refund_list.encode_cursor({"after": ["2026-10-12T10:00:00", str(uuid.uuid4())]})
+    assert code(await fetch(api, who["hub"], f"{query}&cursor={naive}")) == (
+        422,
+        "request.invalid_cursor",
+    )
 
 
 @time_machine.travel(NOW, tick=False)

@@ -93,11 +93,20 @@ async def read(session: AsyncSession, hub_id: uuid.UUID, day: date, lang: Langua
             lines[line.task_id].append(line)
 
     needed: dict[uuid.UUID, int] = defaultdict(int)
+    # What the lines still take off the shelves, by the product that goes in the bag: a line's
+    # steps less those reported short, or a substituted line's steps of its substitute. The bags
+    # the gap falls on and a substitute's free stock follow this, not `needed`, so a shortage
+    # the packer already recorded is not laid on a second bag.
+    taken: dict[uuid.UUID, int] = defaultdict(int)
     step_of: dict[uuid.UUID, Step] = {}
     for task in tasks:
         for line in lines[task.id]:
             needed[line.product_id] += line.qty
             step_of.setdefault(line.product_id, (line.step_qty, line.step_unit))
+            if line.substitute_product_id is not None:
+                taken[line.substitute_product_id] += line.qty
+            else:
+                taken[line.product_id] += line.qty - line.short_qty
     cutoff = now if day == now.astimezone(packing.IST).date() else _start_of(day)
     drawn = await stock.drawn_picks(session, hub_id, day)
     have = await _have(session, hub_id, step_of, cutoff, drawn)
@@ -106,19 +115,20 @@ async def read(session: AsyncSession, hub_id: uuid.UUID, day: date, lang: Langua
         return line.short_qty > 0 or line.substitute_product_id is not None
 
     short_by = {p: max(0, needed[p] - h) if (h := have[p]) is not None else 0 for p in step_of}
+    gap = {p: max(0, taken[p] - h) if (h := have[p]) is not None else 0 for p in step_of}
     reported_products = {ln.product_id for t in tasks for ln in lines[t.id] if is_reported(ln)}
     listed = sorted(p for p in step_of if short_by[p] > 0 or p in reported_products)
     if not listed:
         return ShortagesOut(hub_id=hub_id, date=day, as_of=now, items=[])
 
-    # Which lines fall in the gap: open (nothing picked or short) lines, last bag first, until
-    # their steps cover the gap, and which lines are already reported.
+    # Which lines fall in the gap: open (nothing short or substituted) lines, last bag first,
+    # until their open steps cover what is still short, and which lines are already reported.
     open_at: dict[uuid.UUID, list[tuple[PackingTask, PackingLine]]] = {}
     reported_at: dict[uuid.UUID, list[tuple[PackingTask, PackingLine]]] = {}
     for product_id in listed:
         covered, chosen = 0, []
         for task in tasks:
-            if covered >= short_by[product_id]:
+            if covered >= gap[product_id]:
                 break
             if task.status == "packed":
                 continue
@@ -128,7 +138,7 @@ async def read(session: AsyncSession, hub_id: uuid.UUID, day: date, lang: Langua
                     line.product_id == product_id
                     and not is_reported(line)
                     and free > 0
-                    and covered < short_by[product_id]
+                    and covered < gap[product_id]
                 ):
                     chosen.append((task, line))
                     covered += free
@@ -140,12 +150,23 @@ async def read(session: AsyncSession, hub_id: uuid.UUID, day: date, lang: Langua
             if line.product_id == product_id and is_reported(line)
         ]
 
+    # One read of the date's orders with their lines (as the tasks were built), not one per bag.
+    on_date = await orders_api.orders_for_delivery(
+        session,
+        hub_id,
+        day,
+        statuses=orders_api.SOLD + orders_api.NOT_SOLD,
+        kinds=packing.PACKED_KINDS,
+    )
+    summaries = {s.order.id: s for s in on_date}
+    for product_id in listed:
+        open_at[product_id] = [(t, ln) for t, ln in open_at[product_id] if t.order_id in summaries]
+        reported_at[product_id] = [
+            (t, ln) for t, ln in reported_at[product_id] if t.order_id in summaries
+        ]
     shown = {t.id: t for p in listed for t, _ in open_at[p] + reported_at[p]}.values()
-    summaries = {
-        s.order.id: s for s in await orders_api.summaries(session, [t.order_id for t in shown])
-    }
     prefs = await identity_api.shortage_preferences(
-        session, {s.order.household_id for s in summaries.values()}
+        session, {summaries[t.order_id].order.household_id for t in shown}
     )
     societies = await community_api.society_labels(session, list({t.society_id for t in shown}))
 
@@ -171,7 +192,13 @@ async def read(session: AsyncSession, hub_id: uuid.UUID, day: date, lang: Langua
         for s in ids
         if s in products
     }
-    left = await _have(session, hub_id, sub_steps, cutoff, drawn)
+    # A substitute's free stock: what the day has of it less what the date's lines already take
+    # (its own orders and the bags it went into), so a product that is short itself, or whose
+    # stock is spoken for, is not offered.
+    left = {
+        s: None if n is None else n - taken.get(s, 0)
+        for s, n in (await _have(session, hub_id, sub_steps, cutoff, drawn)).items()
+    }
 
     def step_out(step: Step) -> PackingStep:
         return PackingStep(
@@ -237,11 +264,11 @@ async def read(session: AsyncSession, hub_id: uuid.UUID, day: date, lang: Langua
             qty = line.qty - line.picked_qty - line.short_qty
             outcome, substitute, refund = "refund", None, qty * price
             if line.picked_qty == 0 and prefs[household] != "refund":
-                taken = on_order(task)
+                ordered = on_order(task)
                 for sid in candidates.get(product_id, []):
                     cost, room = prices.get(sid), left.get(sid)
                     if (
-                        sid in taken
+                        sid in ordered
                         or cost is None
                         or cost > price
                         or room is None
