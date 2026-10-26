@@ -53,6 +53,9 @@ USER_STATUSES = ("active", "blocked", "deleting")
 # Roles an admin gives and takes away (spec §3.6); the rest follow from M8's verification and M9's
 # appointments, and `customer` is every account's own.
 STAFF_ROLES = ("admin", "hub_manager", "franchise_owner", "ngo_coordinator", "catalog_editor")
+# Staff roles that may wait for a number's first sign-in (spec §3.6): not admin, which needs the
+# account (owner's decision, 2026-10-26), so a mistyped or recycled number never becomes an admin.
+PENDING_ROLES = tuple(role for role in STAFF_ROLES if role != "admin")
 ROLE_STATUSES = ("applied", "kyc_pending", "verified", "suspended")
 SCOPE_TYPES = ("society", "hub", "ngo")
 LOCALES = ("en-IN", "hi-IN", "mr-IN")
@@ -153,7 +156,7 @@ class PendingRoleGrant(Base):
             "phone_e164", "role", "scope_type", "scope_id", postgresql_nulls_not_distinct=True
         ),
         CheckConstraint(r"phone_e164 ~ '^\+[1-9][0-9]{7,14}$'", name="phone_e164"),
-        CheckConstraint(_one_of("role", STAFF_ROLES), name="role"),
+        CheckConstraint(_one_of("role", PENDING_ROLES), name="role"),
         CheckConstraint(
             f"(scope_type IS NULL AND scope_id IS NULL) OR ({_one_of('scope_type', SCOPE_TYPES)}"
             " AND scope_id IS NOT NULL)",

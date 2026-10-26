@@ -15704,7 +15704,6 @@
           },
           "role": {
             "enum": [
-              "admin",
               "hub_manager",
               "franchise_owner",
               "ngo_coordinator",
@@ -35004,7 +35003,7 @@
     },
     "/v1/admin/user-roles": {
       "post": {
-        "description": "A number with no account and a staff role gets a pending grant (202) that the first sign-in turns into the role; a partner role still needs the account.",
+        "description": "A number with no account and a staff role other than admin gets a pending grant (202) that the first sign-in turns into the role; admin and the partner roles still need the account. The caller must still be a verified admin in the database.",
         "operationId": "grant_role_v1_admin_user_roles_post",
         "parameters": [
           {
@@ -35108,7 +35107,7 @@
                 }
               }
             },
-            "description": "auth.forbidden"
+            "description": "auth.forbidden, identity.not_admin (the admin role was removed)"
           },
           "404": {
             "content": {
@@ -35118,7 +35117,7 @@
                 }
               }
             },
-            "description": "identity.user_not_found (a partner role for a number with no account)"
+            "description": "identity.user_not_found (admin or a partner role, no account)"
           },
           "409": {
             "content": {
@@ -35206,7 +35205,7 @@
                 }
               }
             },
-            "description": "auth.forbidden, auth.role_not_granted"
+            "description": "auth.forbidden, auth.role_not_granted, identity.not_admin (the admin role was removed)"
           },
           "404": {
             "content": {

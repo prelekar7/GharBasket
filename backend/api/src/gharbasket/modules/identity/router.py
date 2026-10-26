@@ -418,13 +418,14 @@ async def put_push_token(
     status_code=status.HTTP_201_CREATED,
     summary="Admin: give a user a staff role (Idempotency-Key required; audit-logged)",
     description=(
-        "A number with no account and a staff role gets a pending grant (202) that the first "
-        "sign-in turns into the role; a partner role still needs the account."
+        "A number with no account and a staff role other than admin gets a pending grant (202) "
+        "that the first sign-in turns into the role; admin and the partner roles still need the "
+        "account. The caller must still be a verified admin in the database."
     ),
     responses={
         202: {"model": PendingGrant, "description": "The number has not signed in: waiting"},
-        403: _problem("auth.forbidden"),
-        404: _problem("identity.user_not_found (a partner role for a number with no account)"),
+        403: _problem("auth.forbidden, identity.not_admin (the admin role was removed)"),
+        404: _problem("identity.user_not_found (admin or a partner role, no account)"),
         409: _problem("identity.role_exists"),
         422: _problem("identity.invalid_scope, request.idempotency_mismatch, request.invalid"),
     },

@@ -116,7 +116,9 @@ async def admin_users(
     "person's token within 15 minutes)",
     responses={
         401: _problem("auth.invalid_token"),
-        403: _problem("auth.forbidden, auth.role_not_granted"),
+        403: _problem(
+            "auth.forbidden, auth.role_not_granted, identity.not_admin (the admin role was removed)"
+        ),
         404: _problem("identity.role_not_found"),
         409: _problem(
             "identity.role_not_removable (customer or partner role), "

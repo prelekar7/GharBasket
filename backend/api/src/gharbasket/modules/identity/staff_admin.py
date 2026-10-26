@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
+from gharbasket.modules.identity import service
 from gharbasket.modules.identity.models import (
     STAFF_ROLES,
     LoginSession,
@@ -313,7 +314,8 @@ def _scope_json(scope_type: str | None, scope_id: uuid.UUID | None) -> dict[str,
 
 
 async def revoke_grant(session: AsyncSession, grant_id: uuid.UUID, admin_id: uuid.UUID) -> None:
-    """Delete a staff grant, or cancel a pending one; audit-logged with the admin."""
+    """Delete a staff grant, or cancel a pending one; audit-logged with the admin, who must still
+    be a verified admin in the database (403 `identity.not_admin`), not only in their token."""
     role = (
         await session.execute(select(UserRole.role).where(UserRole.id == grant_id))
     ).scalar_one_or_none()
@@ -335,6 +337,11 @@ async def revoke_grant(session: AsyncSession, grant_id: uuid.UUID, admin_id: uui
             .scalars()
             .all()
         )
+        # The caller's own row is among those locked; one revoked a moment ago is not.
+        if admin_id not in {admin.user_id for admin in admins}:
+            raise service.not_admin()
+    else:
+        await service.ensure_still_admin(session, admin_id)
     row = (
         await session.execute(
             select(UserRole)

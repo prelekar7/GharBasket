@@ -23,7 +23,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity.models import (
-    STAFF_ROLES,
+    PENDING_ROLES,
     LoginSession,
     PendingRoleGrant,
     RefreshToken,
@@ -392,6 +392,35 @@ async def grant_role(
     return granted
 
 
+async def ensure_still_admin(session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Before an admin changes anyone's roles (grant, revoke, a pending grant given or
+    cancelled): the database, not only the 15-minute token, must say they are still a verified
+    admin (owner's decision, 2026-10-26). `FOR SHARE` keeps their admin row from being deleted
+    until this transaction ends, so a revoke of them waits for it, or it waits and sees the
+    revoke."""
+    held = (
+        await session.execute(
+            select(UserRole.id)
+            .where(
+                UserRole.user_id == user_id,
+                UserRole.role == "admin",
+                UserRole.status == "verified",
+            )
+            .with_for_update(read=True)
+        )
+    ).first()
+    if held is None:
+        raise not_admin()
+
+
+def not_admin() -> ProblemError:
+    return ProblemError(
+        403,
+        "identity.not_admin",
+        "Your admin role has been removed, so you cannot change roles. Sign in again.",
+    )
+
+
 async def grant_role_or_wait(
     session: AsyncSession,
     *,
@@ -401,7 +430,9 @@ async def grant_role_or_wait(
     granted_by: uuid.UUID,
 ) -> UserRole | PendingRoleGrant:
     """`grant_role`, except that a number with no account gets a pending grant when the role is a
-    staff role (spec §3.6); a partner role still needs the account."""
+    staff role other than admin (spec §3.6); admin and the partner roles still need the account.
+    The granting admin must still be one in the database, not only in their token."""
+    await ensure_still_admin(session, granted_by)
     return await _grant(
         session,
         phone_e164=phone_e164,
@@ -435,7 +466,7 @@ async def _grant(
         await session.execute(select(User).where(User.phone_e164 == phone_e164))
     ).scalar_one_or_none()
     if user is None:
-        if not wait_for_sign_in or role not in STAFF_ROLES:
+        if not wait_for_sign_in or role not in PENDING_ROLES:
             raise ProblemError(
                 404,
                 "identity.user_not_found",

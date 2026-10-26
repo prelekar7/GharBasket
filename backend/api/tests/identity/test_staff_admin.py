@@ -520,21 +520,24 @@ async def test_pending_grants_are_unique_per_number_role_and_scope(
     assert other_hub.status_code == other_role.status_code == 202
 
 
-async def test_a_partner_role_still_needs_the_account(
+async def test_admin_and_partner_roles_still_need_the_account(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
+    """Admin never waits for a sign-in (owner's decision, 2026-10-26): a mistyped or recycled
+    number must not become an admin."""
     api = clients()
     boss = await admin(api, google, db_session)
 
     responses = [
         await give(api, boss, {"phone_e164": phone(9), "role": role, **scope}, key=role)
         for role, scope in (
+            ("admin", {}),
             ("rider", {"scope_id": str(SEED_HUB_ID)}),
             ("captain", {"scope_id": str(SEED_SOCIETY_ID)}),
         )
     ]
 
-    assert [r.status_code for r in responses] == [404, 404]
+    assert [r.status_code for r in responses] == [404, 404, 404]
     assert {r.json()["code"] for r in responses} == {"identity.user_not_found"}
     assert (await db_session.execute(select(PendingRoleGrant))).first() is None
 
@@ -585,7 +588,9 @@ async def test_an_expired_pending_grant_is_not_claimed_not_listed_and_the_job_de
 async def test_the_expiry_job_deletes_what_is_past_its_30_days(db_session: AsyncSession) -> None:
     now = datetime.now(UTC)
     for n, expires in ((1, now - timedelta(days=1)), (2, now + timedelta(days=1))):
-        db_session.add(PendingRoleGrant(phone_e164=phone(n), role="admin", expires_at=expires))
+        db_session.add(
+            PendingRoleGrant(phone_e164=phone(n), role="catalog_editor", expires_at=expires)
+        )
     await db_session.flush()
 
     run = await run_job(db_session, "expire_pending_grants", settings=SETTINGS, scheduled_for=now)
@@ -779,22 +784,45 @@ async def test_an_admin_cannot_remove_their_own_admin_role(
     assert await db_session.get(UserRole, mine_id, populate_existing=True) is not None
 
 
-async def test_the_last_admin_cannot_be_removed_even_by_an_admin_whose_role_just_went(
+async def test_a_revoked_admins_old_token_can_neither_grant_nor_revoke(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
+    """The token still says admin for up to 15 minutes, but role changes check the database
+    (owner's decision, 2026-10-26); reads keep the token's window."""
     api = clients()
     first = await admin(api, google, db_session)
     second = await admin(api, google, db_session, 2)
+    third = await admin(api, google, db_session, 3)
+    manager = await person(api, google, db_session, 4, roles=(hub_role("hub_manager"),))
     second_id = (await grant_of(db_session, second.id, "admin")).id
     first_id = (await grant_of(db_session, first.id, "admin")).id
+    third_id = (await grant_of(db_session, third.id, "admin")).id
+    manager_id = (await grant_of(db_session, manager.id, "hub_manager")).id
+    waiting = (await give(api, first, grant_body(9))).json()
 
     removed = await api.delete(f"/v1/admin/user-roles/{second_id}", headers=first.headers)
-    # `second`'s token still says admin for up to 15 minutes; the database says first is the last.
-    stale = await api.delete(f"/v1/admin/user-roles/{first_id}", headers=second.headers)
+    stale = second.headers
+    attempts = {
+        "revoke-admin": await api.delete(f"/v1/admin/user-roles/{first_id}", headers=stale),
+        "revoke-staff": await api.delete(f"/v1/admin/user-roles/{manager_id}", headers=stale),
+        "cancel-pending": await api.delete(f"/v1/admin/user-roles/{waiting['id']}", headers=stale),
+        "grant": await give(api, second, grant_body(4, "catalog_editor"), key="g1"),
+        "grant-pending": await give(api, second, grant_body(10), key="g2"),
+    }
+    still_reads = await api.get("/v1/admin/users", params={"staff": "true"}, headers=stale)
 
     assert removed.status_code == 204
-    assert stale.status_code == 409 and stale.json()["code"] == "identity.last_admin"
-    assert await db_session.get(UserRole, first_id, populate_existing=True) is not None
+    assert {name: r.status_code for name, r in attempts.items()} == dict.fromkeys(attempts, 403)
+    assert {r.json()["code"] for r in attempts.values()} == {"identity.not_admin"}
+    for grant_id in (first_id, third_id, manager_id):
+        assert await db_session.get(UserRole, grant_id, populate_existing=True) is not None
+    assert await db_session.get(PendingRoleGrant, uuid.UUID(waiting["id"])) is not None
+    roles = await db_session.execute(select(UserRole.role).where(UserRole.user_id == manager.id))
+    assert sorted(roles.scalars()) == ["customer", "hub_manager"]
+    pending = (await db_session.execute(select(PendingRoleGrant.phone_e164))).scalars().all()
+    assert pending == [phone(9)]
+    assert still_reads.status_code == 200
+    assert [e.actor_user_id for e in await audit_of(db_session, "roles.revoked")] == [first.id]
 
 
 async def test_a_suspended_admin_can_be_removed_while_another_admin_remains(

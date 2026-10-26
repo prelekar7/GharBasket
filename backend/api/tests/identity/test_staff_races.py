@@ -109,7 +109,8 @@ async def test_two_admins_removing_each_other_at_once_leave_one_and_never_deadlo
         asyncio.gather(revoke(second_grant, first), revoke(first_grant, second)), timeout=20
     )
 
-    assert sorted(outcomes) == ["identity.last_admin", "removed"]
+    # The second finds its own admin row gone: its token still says admin, the database not.
+    assert sorted(outcomes) == ["identity.not_admin", "removed"]
     async with AsyncSession(engine) as session:
         left = (
             await session.execute(

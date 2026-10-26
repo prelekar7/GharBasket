@@ -43,8 +43,7 @@ def upgrade() -> None:
             name=op.f("ck_pending_role_grants_phone_e164"),
         ),
         sa.CheckConstraint(
-            "role IN ('admin', 'hub_manager', 'franchise_owner', 'ngo_coordinator', "
-            "'catalog_editor')",
+            "role IN ('hub_manager', 'franchise_owner', 'ngo_coordinator', 'catalog_editor')",
             name=op.f("ck_pending_role_grants_role"),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_pending_role_grants")),

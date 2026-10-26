@@ -464,7 +464,8 @@ class DataExportOut(BaseModel):
 
 ScopeKind = Literal["society", "hub", "ngo"]
 RoleStatus = Literal["applied", "kyc_pending", "verified", "suspended"]
-StaffRole = Literal["admin", "hub_manager", "franchise_owner", "ngo_coordinator", "catalog_editor"]
+# The roles a pending grant can hold: staff roles but admin, which needs the account.
+PendingRole = Literal["hub_manager", "franchise_owner", "ngo_coordinator", "catalog_editor"]
 AnyRole = Literal[
     "customer",
     "captain",
@@ -506,7 +507,7 @@ class PendingGrant(BaseModel):
 
     id: uuid.UUID
     phone_masked: str = Field(examples=["******1011"])
-    role: StaffRole
+    role: PendingRole
     scope_type: ScopeKind | None
     scope_id: uuid.UUID | None
     scope_label: str | None

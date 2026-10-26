@@ -583,7 +583,7 @@ export interface paths {
         put?: never;
         /**
          * Admin: give a user a staff role (Idempotency-Key required; audit-logged)
-         * @description A number with no account and a staff role gets a pending grant (202) that the first sign-in turns into the role; a partner role still needs the account.
+         * @description A number with no account and a staff role other than admin gets a pending grant (202) that the first sign-in turns into the role; admin and the partner roles still need the account. The caller must still be a verified admin in the database.
          */
         post: operations["grant_role_v1_admin_user_roles_post"];
         delete?: never;
@@ -10959,7 +10959,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "admin" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "catalog_editor";
+            role: "hub_manager" | "franchise_owner" | "ngo_coordinator" | "catalog_editor";
             /** Scope Id */
             scope_id: string | null;
             /** Scope Label */
@@ -19797,7 +19797,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description auth.forbidden */
+            /** @description auth.forbidden, identity.not_admin (the admin role was removed) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -19806,7 +19806,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description identity.user_not_found (a partner role for a number with no account) */
+            /** @description identity.user_not_found (admin or a partner role, no account) */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -19864,7 +19864,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description auth.forbidden, auth.role_not_granted */
+            /** @description auth.forbidden, auth.role_not_granted, identity.not_admin (the admin role was removed) */
             403: {
                 headers: {
                     [name: string]: unknown;

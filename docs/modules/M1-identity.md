@@ -399,9 +399,11 @@ GET /v1/admin/users?phone=  |  ?q=  |  ?staff=true  |  ?pending=true      admin 
   ids returned; never the typed number or name)
 
 POST /v1/admin/user-roles     (§3, unchanged for a phone with an account: 201 RoleGrantOut)
-    a phone with no account and a staff role: 202 PendingGrant; audit-logged (roles.granted, pending)
-    a partner role (kitchen_partner, captain, rider, packer) still needs the account:
+    a phone with no account and a staff role other than admin: 202 PendingGrant; audit-logged
+    (roles.granted, pending)
+    admin, and a partner role (kitchen_partner, captain, rider, packer), still need the account:
     404 "identity.user_not_found" (partners come from M8's verification)
+    403 "identity.not_admin"   the caller's admin role is gone from the database (token not expired)
 
 DELETE /v1/admin/user-roles/{id}      admin (roles:revoke); no body
   204   the grant is deleted (user_roles has no revoked status; the audit log keeps roles.revoked
@@ -410,6 +412,7 @@ DELETE /v1/admin/user-roles/{id}      admin (roles:revoke); no body
                                       end the captain's appointment in M9)
   409 "identity.cannot_remove_own_admin" · 409 "identity.last_admin"
   404 "identity.role_not_found"
+  403 "identity.not_admin"   the caller's admin role is gone from the database (token not expired)
 
 HubStaff : { "grant_id", "user_id" | null, "name": "Kavita More" | null,
              "phone_masked": "******1011",              the last 4 digits only
@@ -439,7 +442,10 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
   - The lookup audit entry is `identity.users_looked_up` with entity `user_lookup` and the admin's id; `after` holds the filter kind and the ids returned (`user_ids`, or `pending_grant_ids` for `pending`). A refused or invalid call writes none.
   - `?pending=true` lists only unexpired grants. A pending grant's audit entry has entity `pending_role_grant` and the grant id, never the number.
   - A number's grant and its first sign-in take the same Postgres advisory lock, so a grant given at the moment of sign-up is either claimed or made directly, never stranded. The operator command and the seed still need the account (`grant_role`).
-  - Revoking an admin grant takes every verified admin row `FOR UPDATE`, in id order and before the target row, so two admins removing each other wait for one another (no deadlock) and cannot leave none. `last_admin` counts verified admin grants; a suspended admin grant can always be removed. An admin whose own role was just revoked still holds an admin token for up to 15 minutes, and the database check is what stops them removing the last admin.
+  - **Owner's decisions (2026-10-26).**
+    - Admin is never a pending grant: `POST /v1/admin/user-roles` with `admin` for a number with no account is 404 `identity.user_not_found`, like the partner roles, so a mistyped or recycled number cannot become an admin. `pending_role_grants.role` allows only hub_manager, franchise_owner, ngo_coordinator and catalog_editor.
+    - Role changes check the database, not only the token. A grant, a revoke, and giving or cancelling a pending grant first confirm that the caller still holds a verified admin row (taken `FOR SHARE`, so a concurrent revoke of the caller waits or is seen); if not, 403 `identity.not_admin`. A revoked admin's token still reads (the lookup, the staff and pending lists, the hub's staff) for up to 15 minutes.
+  - Revoking an admin grant takes every verified admin row `FOR UPDATE`, in id order and before the target row, so two admins removing each other wait for one another (no deadlock): the second finds its own admin row gone and gets 403 `identity.not_admin`. `last_admin` counts verified admin grants and stays as a backstop; with the database check a verified caller removing another verified admin always leaves at least one. A suspended admin grant can always be removed.
   - `GET /v1/hubs/{id}/staff`: an unknown hub gives an empty page for an admin. Pages by (role, name, grant id). `scope_label` for a hub is the hub's name ("Kharghar hub").
 
 | Mock today (`mocks/identity.js`, `mocks/team.js`) | Contract |
@@ -457,7 +463,7 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
 |---|---|
 | `identity.users` | id (uuidv7), phone_e164 (unique, E.164 check), name, locale, senior_mode, status (active, blocked, deleting; the old `deleted` value is dropped: a purged user has no row), data_source, created_at, updated_at |
 | `identity.user_roles` | id, user_id, role, scope_type, scope_id, status, verified_at; unique (user, role, scope) with NULLS NOT DISTINCT |
-| `identity.pending_role_grants` | (§3.6) id (uuidv7), phone_e164, role (staff roles only), scope_type, scope_id, granted_by, created_at, expires_at (30 days); unique (phone_e164, role, scope) with NULLS NOT DISTINCT; deleted when claimed or expired |
+| `identity.pending_role_grants` | (§3.6) id (uuidv7), phone_e164, role (staff roles other than admin), scope_type, scope_id, granted_by, created_at, expires_at (30 days); unique (phone_e164, role, scope) with NULLS NOT DISTINCT; deleted when claimed or expired |
 | `identity.sessions` | one per signed-in device or browser (the "devices" list): id, user_id, platform, push_token, created_at, auth_time (when the OTP behind the session was entered: the Firebase token's `auth_time`; §3.5), last_seen_at, expires_at (30 days, never extended), revoked_at, revoke_reason |
 | `identity.refresh_tokens` | id, session_id, token_hash (HMAC-SHA256 with a pepper; the token is never stored), parent_id (rotation chain), created_at, used_at, revoked_at |
 | `identity.households` | id (uuidv7), owner_user_id (unique in v1), hub_id (nullable, no FK until M6), society_id → community.societies, size, diet, cuisine_tags[], weekday_cook_minutes, weekend_cook_minutes, no_cook_days smallint[], budget_paise BIGINT null, autopilot_enabled, auto_approve, shortage_preference (substitute, refund; §3.4), data_source, version, created_at, updated_at |
