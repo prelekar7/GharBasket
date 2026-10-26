@@ -1,7 +1,8 @@
 """Jobs of M6 Hub Operations (spec §6, ADR-0021): the procurement plan at T-1 21:10, its refresh
 at T-1 23:05 after the payment grace, a rebuild when M10 stores a new forecast, the vendor scores of
 the past week on Monday at 03:33, `build_packing_tasks` at T 05:00 IST and `surplus_cascade` (the
-12:30 run, §3.5) at T 12:30 IST.
+12:30 run, §3.5) at T 12:30 IST. Bags M7's riders take back after a second miss are unpacked
+from `logistics.pickup_completed` (§3.5, M7 §3.6).
 
 `scheduled_for` decides the delivery date (its IST calendar day for packing, the next IST day for
 procurement) or the week, never the clock.
@@ -18,7 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import kept, packing, procurement, scores, service, surplus
 from gharbasket.modules.hub_ops.models import KeptItem
+from gharbasket.modules.logistics import api as logistics_api
 from gharbasket.modules.orders import api as orders_api
+from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
@@ -117,5 +120,20 @@ async def on_carry_over_expired(session: AsyncSession, event: OutboxEvent) -> No
     await kept.release(session, list(items))
 
 
+async def on_pickup_completed(session: AsyncSession, event: OutboxEvent) -> None:
+    """`logistics.pickup_completed` (M7 §3.6): each bag the van took back from a captain after a
+    second miss goes through the returned-bag intake (§3.5), with the rider as the scanner; the
+    hub's scan later answers the same. A bag the intake refuses is logged and skipped."""
+    hub_id = uuid.UUID(event.payload["hub_id"])
+    rider = uuid.UUID(event.payload["rider_user_id"])
+    for order_id in event.payload.get("bag_order_ids", []):
+        try:
+            async with session.begin_nested():
+                await kept.scan(session, hub_id, f"GB1:{uuid.UUID(order_id).hex}", rider, "en")
+        except ProblemError as exc:
+            log.warning("returned_bag_skipped", order_id=order_id, code=exc.code)
+
+
 subscribe("intel.forecast_ready", on_forecast_ready)
 subscribe(orders_api.CARRY_OVER_EXPIRED, on_carry_over_expired)
+subscribe(logistics_api.PICKUP_COMPLETED, on_pickup_completed)

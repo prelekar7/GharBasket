@@ -1749,6 +1749,46 @@
         "title": "AssumptionsOut",
         "type": "object"
       },
+      "BagPickupOut": {
+        "properties": {
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "As for donations",
+            "examples": [
+              "B wing, 402"
+            ],
+            "title": "Flat Label"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "expected",
+              "collected",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "flat_label",
+          "status"
+        ],
+        "title": "BagPickupOut",
+        "type": "object"
+      },
       "BasisShare": {
         "properties": {
           "bp": {
@@ -4377,6 +4417,86 @@
         "title": "DonationNgo",
         "type": "object"
       },
+      "DonationPickupOut": {
+        "properties": {
+          "donation_id": {
+            "format": "uuid",
+            "title": "Donation Id",
+            "type": "string"
+          },
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rider-mode stops of a route in progress (and the hub's list) only",
+            "examples": [
+              "B wing, 402"
+            ],
+            "title": "Flat Label"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "M9's summary",
+            "examples": [
+              "clothes 3 kg, toys 2"
+            ],
+            "title": "Items"
+          },
+          "status": {
+            "enum": [
+              "expected",
+              "collected",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "donation_id",
+          "items",
+          "flat_label",
+          "status"
+        ],
+        "title": "DonationPickupOut",
+        "type": "object"
+      },
+      "DonationReport": {
+        "additionalProperties": false,
+        "properties": {
+          "donation_id": {
+            "format": "uuid",
+            "title": "Donation Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "collected",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "donation_id",
+          "status"
+        ],
+        "title": "DonationReport",
+        "type": "object"
+      },
       "DonationsOut": {
         "properties": {
           "items": {
@@ -5459,6 +5579,24 @@
           "generated_at"
         ],
         "title": "EarningsWeekOut",
+        "type": "object"
+      },
+      "EmptiesTotal": {
+        "properties": {
+          "collected": {
+            "title": "Collected",
+            "type": "integer"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected",
+          "collected"
+        ],
+        "title": "EmptiesTotal",
         "type": "object"
       },
       "Entry": {
@@ -7969,6 +8107,93 @@
           }
         },
         "title": "HubPatch",
+        "type": "object"
+      },
+      "HubPickupStop": {
+        "properties": {
+          "empties_expected": {
+            "title": "Empties Expected",
+            "type": "integer"
+          },
+          "pickups": {
+            "$ref": "#/components/schemas/StopPickups",
+            "description": "Flat labels always (hub staff)"
+          },
+          "route_id": {
+            "format": "uuid",
+            "title": "Route Id",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "society": {
+            "$ref": "#/components/schemas/gharbasket__modules__logistics__schemas__SocietyRef"
+          },
+          "stop_id": {
+            "format": "uuid",
+            "title": "Stop Id",
+            "type": "string"
+          },
+          "stop_status": {
+            "enum": [
+              "pending",
+              "arrived",
+              "handed_over",
+              "skipped"
+            ],
+            "title": "Stop Status",
+            "type": "string"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/VehicleRef"
+          }
+        },
+        "required": [
+          "stop_id",
+          "route_id",
+          "vehicle",
+          "seq",
+          "society",
+          "stop_status",
+          "empties_expected",
+          "pickups"
+        ],
+        "title": "HubPickupStop",
+        "type": "object"
+      },
+      "HubPickupsOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "items": {
+            "description": "By departure, vehicle label, seq",
+            "items": {
+              "$ref": "#/components/schemas/HubPickupStop"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PickupTotals"
+          }
+        },
+        "required": [
+          "hub_id",
+          "date",
+          "totals",
+          "items"
+        ],
+        "title": "HubPickupsOut",
         "type": "object"
       },
       "HubSummary": {
@@ -15093,6 +15318,108 @@
           "name"
         ],
         "title": "PickedUpBy",
+        "type": "object"
+      },
+      "PickupCount": {
+        "properties": {
+          "collected": {
+            "title": "Collected",
+            "type": "integer"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "integer"
+          },
+          "not_ready": {
+            "default": 0,
+            "title": "Not Ready",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected",
+          "collected"
+        ],
+        "title": "PickupCount",
+        "type": "object"
+      },
+      "PickupTotals": {
+        "properties": {
+          "bags": {
+            "$ref": "#/components/schemas/PickupCount"
+          },
+          "donations": {
+            "$ref": "#/components/schemas/PickupCount"
+          },
+          "empties": {
+            "$ref": "#/components/schemas/EmptiesTotal"
+          }
+        },
+        "required": [
+          "empties",
+          "donations",
+          "bags"
+        ],
+        "title": "PickupTotals",
+        "type": "object"
+      },
+      "PickupsIn": {
+        "additionalProperties": false,
+        "description": "A part of a stop's pickups: `empties` replaces the stop's count; each donation and bag is\nset once.",
+        "properties": {
+          "bags": {
+            "description": "Scanned bag QRs: collected",
+            "examples": [
+              [
+                "GB1:0199a0000000700080000000000000ab"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Bags",
+            "type": "array"
+          },
+          "client_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the tap happened on the phone (stored for audit)",
+            "title": "Client At"
+          },
+          "donations": {
+            "items": {
+              "$ref": "#/components/schemas/DonationReport"
+            },
+            "maxItems": 50,
+            "title": "Donations",
+            "type": "array"
+          },
+          "empties": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              4
+            ],
+            "title": "Empties"
+          }
+        },
+        "title": "PickupsIn",
         "type": "object"
       },
       "PingIn": {
@@ -23108,7 +23435,7 @@
             "type": "integer"
           },
           "empties_expected": {
-            "description": "§3.6",
+            "description": "§3.6: planned at the solve, set again at start",
             "examples": [
               2
             ],
@@ -23201,6 +23528,17 @@
             ],
             "title": "Navigate Url"
           },
+          "pickups": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopPickups"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "§3.6: what the van takes back here, from route start"
+          },
           "redelivery_bags": {
             "description": "Redelivery bags the van carries for this stop (§3.4)",
             "examples": [
@@ -23289,6 +23627,46 @@
           "rider_mode"
         ],
         "title": "StopPatch",
+        "type": "object"
+      },
+      "StopPickups": {
+        "properties": {
+          "bags": {
+            "items": {
+              "$ref": "#/components/schemas/BagPickupOut"
+            },
+            "title": "Bags",
+            "type": "array"
+          },
+          "donations": {
+            "items": {
+              "$ref": "#/components/schemas/DonationPickupOut"
+            },
+            "title": "Donations",
+            "type": "array"
+          },
+          "empties_collected": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Crates the van took back here; null until reported",
+            "examples": [
+              4
+            ],
+            "title": "Empties Collected"
+          }
+        },
+        "required": [
+          "empties_collected",
+          "donations",
+          "bags"
+        ],
+        "title": "StopPickups",
         "type": "object"
       },
       "StopSlot": {
@@ -43441,6 +43819,121 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/pickups": {
+      "get": {
+        "description": "Made when each route starts, so the list is empty before. Flat labels for hub staff; no names or phones.",
+        "operationId": "hub_pickups_v1_hubs__hub_id__pickups_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubPickupsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A hub's return-leg pickups for a date, per stop, with totals",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/price-lists": {
       "get": {
         "operationId": "list_price_lists_v1_hubs__hub_id__price_lists_get",
@@ -59145,6 +59638,148 @@
           }
         ],
         "summary": "Hand a stop's crates to its captain by count and code or photo (Idempotency-Key)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
+    "/v1/stops/{stop_id}/pickups": {
+      "post": {
+        "description": "The route's rider, while it is in progress. A report may name a part: `empties` replaces the stop's count; each donation and bag is set once. Each change publishes logistics.pickup_completed (M9 records the donations, M6 unpacks the bags).",
+        "operationId": "report_pickups_v1_stops__stop_id__pickups_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stop_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stop Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PickupsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, logistics.not_your_route"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.stop_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.route_not_started, logistics.route_closed, logistics.stop_skipped, logistics.pickup_already_reported (donation_ids, order_ids)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.pickup_unknown (donation_ids, bags), request.invalid, request.idempotency_mismatch"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Report the empties, donations and bags taken back at a stop (Idempotency-Key)",
         "tags": [
           "logistics"
         ]

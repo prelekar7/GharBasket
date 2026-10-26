@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.logistics import attempts, events
+from gharbasket.modules.logistics import attempts, events, pickups
 from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
 from gharbasket.modules.logistics.routes import Caller, conflict, get_route
 from gharbasket.modules.logistics.views import IST, ist_seconds, now, stops_of
@@ -245,6 +245,7 @@ async def start(
                 await community_api.captain_for_society(session, stop.society_id) is None
             )
     await _loads(session, route, stops)
+    await pickups.expect(session, route, stops)  # empties, donations and bags to take back (§3.6)
     route.status, route.started_at, route.left_behind = "in_progress", now(), unpacked
     tap(session, route, "start", who, client_at, payload={"left_behind": len(unpacked)})
     await session.flush()
@@ -356,6 +357,7 @@ async def close(
         by_actor=actor,
         user_id=actor_user,
     )
+    await pickups.close_open(session, route)
     stops = await stops_of(session, route.id)
     done_at = now()
     route.status, route.completed_at = "completed", done_at

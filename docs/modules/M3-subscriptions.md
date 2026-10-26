@@ -1,6 +1,6 @@
 # M3 — Plans & Subscriptions (Weekly Autopilot cycle)
 
-**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval; §3.4 (hub cut-off monitor, delivery dates) drafted 2026-10-25, frozen on approval
+**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval; §3.4 (hub cut-off monitor, delivery dates) drafted 2026-10-25, frozen on approval; §3.5 (hub delivery days, admin plan list) drafted 2026-10-25, frozen on approval
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S3 (rule-based box); AI plans plugged in during P4 / S7–S8
 **Postgres schema:** `subscriptions` · **Python package:** `gharbasket.modules.subscriptions`
@@ -40,6 +40,8 @@ Owns the household's subscription and the weekly Autopilot cycle: plans, society
 | PUT | `/v1/admin/societies/{id}/delivery-days` | hub_manager (hub), admin | Required | |
 | GET | `/v1/hubs/{id}/delivery-dates` | hub staff (hub), admin | — | The hub's next delivery dates (§3.4) |
 | GET | `/v1/hubs/{id}/cutoff` | hub_manager, franchise_owner (hub), admin | — | The cut-off monitor (§3.4) |
+| GET | `/v1/hubs/{id}/delivery-days` | hub_manager, franchise_owner, packer (hub), admin | — | Every society of the hub with its delivery days (§3.5) |
+| GET | `/v1/admin/plans` | admin | — | The plan catalogue with inactive plans and subscriber counts (§3.5) |
 
 ### 3.1 Subscription and weekly cycle contract (frozen for S3)
 The Week (Thali), Box (Parchi), substitute sheet, skip/pause, Budget Lock and first-week preview screens, and the backend, build against these shapes. Changing them needs a PR reviewed by both Prathamesh and Yash. Every endpoint needs sign-in (M1 §3.1); a customer only ever sees their own household.
@@ -316,6 +318,40 @@ GET /v1/hubs/{hub_id}/cutoff?date=
 | `GET /v1/hubs/{id}/cutoff` with `counts`, `last_run`, `short` | Same path and fields; `short[].society` and `flat` are display labels; 404 `subscriptions.not_delivery_date` for a day without deliveries |
 | `POST /v1/hubs/{id}/cutoff/run` (admin) | Dropped: the `cutoff_lock` job (M4 §3.1) |
 
+### 3.5 Hub delivery days and the admin plan list (drafted 2026-10-25, frozen on approval)
+The console's Delivery days page (`(hub)/delivery-days`) and Plans page (`(admin)/plans`) build against this. Today they call these paths as `@proposal`s (`mocks/cycles.js`, `mocks/plans.js`) and fall back to one read per society, or to the public plan list. Both are reads. Saving a society's days stays `PUT /v1/admin/societies/{id}/delivery-days` (§3.1). Same sign-in and review rules as §3.1.
+
+```
+GET /v1/hubs/{hub_id}/delivery-days
+    hub_manager, franchise_owner, packer (hub); admin (delivery_days:read). Cache-Control: no-store
+  200 { "hub_id",
+        "items": [ { "society_id", "name": "Sunrise Towers", "area": "Sector 20, Kharghar",
+                     "status": "prospect" | "unlocking" | "live" | "paused",
+                     "items": [ DeliveryDay ] } ] }      DeliveryDay as §3.1 (weekday 0 = Monday,
+                                                        the slot with id, label, start, end)
+      every society of the hub, whatever its status: live, unlocking, prospect, paused, then by
+      name; "items": [] for a society with no delivery days
+  403 "auth.forbidden"                                 a hub outside the caller's grants
+
+AdminPlan : Plan (§3.1) & { "state": "live" | "draft",       live: the plan's active flag; GET /v1/plans
+                                                             lists live plans only
+                            "subscriber_count": 58 }         subscriptions on the plan that are not ended
+GET /v1/admin/plans          admin (plans:admin_read); names in Accept-Language
+  200 { "items": [ AdminPlan ] }                            every plan, by code
+```
+
+- **Every status.** A society that is not live can get boxes once the hub sets its delivery days, with the pre-live fee (M9 §3.6). So the page lists and edits prospect and unlocking societies as well. The mock's separate `not_live` list is replaced by `status`.
+- **New facade:** `community.api.hub_societies(session, hub_id) -> list[SocietyCard]`, with `{ id, name, area, status }` per society. `hub_society_ids` (§3.4) stays for the counts.
+- **Plans stay seeded.** There is no plan write. `POST /v1/admin/plans` and `PATCH /v1/admin/plans/{code}` are dropped: a plan's fee is a price, and the catalogue is the seed's (`subscriptions.plans`, §4). A change is a PR.
+- **Permissions:** `plans:admin_read` is new; `delivery_days:read` (§3.4) covers the hub read (§7).
+
+| Mock today | Contract |
+|---|---|
+| `GET /v1/hubs/{id}/delivery-days` → `{ items: [ { society_id, name, area, items } ], not_live: [names] }`, live societies only (`mocks/cycles.js`) | Same path and item fields, plus `hub_id` and each society's `status`; every society of the hub; no `not_live` |
+| `GET /v1/admin/plans` → `{ items: [ { code, name, fee_paise, features, state, subscriber_count } ] }` (`mocks/plans.js`) | Same shape; `subscriber_count` is an integer (0 for a plan nobody is on, never null) |
+| `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` | Dropped: the Plans page stays read-only even when the admin list answers (`editable` false) |
+| `GET /v1/hubs/{id}/cycles?week=` (per society and week: drafted, approved, awaiting, skipped, payment needed, paused) | Dropped: the Cut-off page (§3.4) has the counts for each delivery date; the Cycles page leaves the console nav |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -348,8 +384,9 @@ Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-
 |---|---|
 | `cycles:write` | customer (own household) |
 | `cycles:read` | customer (own), hub_manager (hub), franchise_owner (hub; the cut-off monitor, §3.4), admin |
-| `delivery_days:read` | hub_manager, franchise_owner, packer (hub), admin (a hub's delivery dates, §3.4) |
+| `delivery_days:read` | hub_manager, franchise_owner, packer (hub), admin (a hub's delivery dates, §3.4, and its societies' delivery days, §3.5) |
 | `delivery_days:write` | hub_manager (hub), admin |
+| `plans:admin_read` | admin (§3.5) |
 
 ## 8. Screens
 **Mobile:** Week (Thali), Box (Parchi), Substitute sheet, Add-ons, Skip/Pause, Budget Lock settings. **Console:** society delivery days, cycle status overview per hub.
@@ -361,7 +398,7 @@ Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-
 - E2E: generate → edit → approve; skip week.
 
 ## 10. Dependencies
-M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel_gateway.api`), M5 (pre-debit notice), M11 (notifications). Hands off to M4 via `subscriptions.box_approved`. The cut-off monitor (§3.4) reads `orders.api.hub_cutoff_counts`, `billing.api.balances`, `identity.api.delivery_labels` and `owners_of_households`, `community.api.hub_society_ids` and M0's `platform.job_runs`.
+M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel_gateway.api`), M5 (pre-debit notice), M11 (notifications). Hands off to M4 via `subscriptions.box_approved`. The cut-off monitor (§3.4) reads `orders.api.hub_cutoff_counts`, `billing.api.balances`, `identity.api.delivery_labels` and `owners_of_households`, `community.api.hub_society_ids` and M0's `platform.job_runs`. The hub's delivery days (§3.5) read `community.api.hub_societies`.
 
 ## 11. Open questions and decisions
 - **Decided (S3 contract):** add-ons are lines on the box order (M4 §3.1), never separate orders.
@@ -369,3 +406,4 @@ M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel
 - **Decided (S3 contract):** one subscription per household; one cycle per delivery day; a society may have 1 to 3 delivery days a week (the pilot uses 1).
 - **Decided:** the "ran out / wasted" taps live in `subscriptions.pantry_feedback` (the twin's observations), separate from edit feedback.
 - Delivery frequency per society for the pilot: 1 day a week at MS-A; twice weekly only if captains ask.
+- **Dropped (owner, provisional, 2026-10-25):** the mobile app's proposed `GET`/`PUT /v1/budget-lock/preferences` (`when_over: swap | trim | ask`). The planner only swaps to cheaper items (§3.1, generation step 3), and the app already hides the question while the path is missing.

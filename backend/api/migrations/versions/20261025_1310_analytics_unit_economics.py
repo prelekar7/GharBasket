@@ -5,7 +5,7 @@ version 1, the defaults) and `assumption_changes.version` the version a change p
 history groups the keys of one PUT.
 
 Revision ID: 5b8e1d3a7c42
-Revises: a9390a28e336
+Revises: 6b2d9e4f1a37
 Create Date: 2026-10-25 13:10:00.000000+00:00
 """
 
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "5b8e1d3a7c42"
-down_revision: str | Sequence[str] | None = "a9390a28e336"
+down_revision: str | Sequence[str] | None = "6b2d9e4f1a37"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

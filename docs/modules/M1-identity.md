@@ -1,6 +1,6 @@
 # M1 — Identity & Household
 
-**Status:** Draft v1.2. §3.1 (auth) and §3.2 (household, consents, address) are frozen; §3.3 (data export) frozen on 2026-10-08; §3.4 (shortage preference) and §3.5 (account deletion) drafted 2026-10-09, frozen on approval; the rest is refined at phase start (spec-first).
+**Status:** Draft v1.2. §3.1 (auth) and §3.2 (household, consents, address) are frozen; §3.3 (data export) frozen on 2026-10-08; §3.4 (shortage preference) and §3.5 (account deletion) drafted 2026-10-09, frozen on approval; §3.6 (staff lookup, revoke, the hub's staff, pending grants) drafted 2026-10-25, frozen on approval; the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `identity` · **Python package:** `gharbasket.modules.identity`
@@ -39,7 +39,10 @@ Who the user is and what household they belong to: phone-OTP login exchange, ses
 | POST | `/v1/me/data-export` | Authenticated | One per user per IST day | Ask for a copy of your data; 202, built in the background (§3.3) |
 | GET | `/v1/me/data-export` | Authenticated | — | Status of the latest export and, when ready, a 5-minute download link; the notification comes after M11 |
 | DELETE | `/v1/me` | Authenticated (not staff), OTP within the last 5 minutes | Naturally idempotent | Schedules the account's deletion after a 30-day grace period; signing in again cancels it once the app has asked "Keep my account?" (§3.5) |
-| POST | `/v1/admin/user-roles` | admin | Required | Grant staff roles |
+| POST | `/v1/admin/user-roles` | admin | Required | Grant staff roles; a phone with no account gets a pending grant (§3.6) |
+| GET | `/v1/admin/users?phone=\|q=\|staff=\|pending=` | admin | — | User lookup and the staff list; audit-logged (§3.6) |
+| DELETE | `/v1/admin/user-roles/{id}` | admin | — | Revoke a staff grant or cancel a pending one; audit-logged (§3.6) |
+| GET | `/v1/hubs/{id}/staff` | hub_manager, franchise_owner (hub), admin | — | The hub's role grants: names and masked phones (§3.6) |
 
 ### 3.1 Walking-skeleton contract (frozen for Sprint 0)
 Both the backend (Prathamesh) and the mobile/console login screens (Yash) code against exactly these shapes. Changing them requires a PR reviewed by both.
@@ -369,11 +372,83 @@ Signing up again with the same phone after the purge creates a new user with a n
 | "Delete my account" calls `DELETE /v1/me` with the current session | Ask for the phone OTP again first and exchange it, then call `DELETE /v1/me` within 5 minutes; a 403 `identity.fresh_otp_required` sends the customer back to the OTP step |
 | Copy: "your wallet balance is refunded to your UPI" | True for the refundable part; balance that cannot go back to a source (older than Razorpay's refund window) is kept for the customer to claim through support (M5 §3.3) |
 
+### 3.6 Staff lookup, revoke and the hub's staff (drafted 2026-10-25, frozen on approval)
+The console's Users page (admin: find a person by number, list the staff, give and take away roles), its Delivery log (a number turned into a user id) and the franchise Staff page build against this. Today they call these paths as `@proposal`s (`mocks/identity.js`, `mocks/team.js`). Same sign-in rules as §3.1. These reads show personal data to staff, so each is limited to what the role needs: the admin lookup is audit-logged, and the hub list masks phones.
+
+```
+StaffGrant : { "id": "<uuid>",                         the user_roles row; DELETE takes it
+               "role", "scope_type": "hub" | "society" | "ngo" | null, "scope_id",
+               "scope_label": "Kharghar hub" | "Sunrise Towers" | null,
+               "status": "applied" | "kyc_pending" | "verified" | "suspended",
+               "verified_at": "…" | null }
+AdminUser  : { "id", "name" | null, "phone_e164", "locale", "status": "active" | "blocked" | "deleting",
+               "last_seen_at": "…" | null,              the latest session's
+               "roles": [ StaffGrant ] }               customer included
+PendingGrant : { "id", "phone_masked": "******1011", "role", "scope_type", "scope_id",
+                 "scope_label", "status": "pending", "granted_at", "expires_at" }
+
+GET /v1/admin/users?phone=  |  ?q=  |  ?staff=true  |  ?pending=true      admin (users:read)
+    exactly one filter; cursor, limit ≤ 50 (default 20); Cache-Control: no-store
+    phone    an Indian mobile typed any usual way (10 digits, +91, a leading 0): 0 or 1 item
+    q        2 to 60 characters of a name (trigram), best match first
+    staff    everyone holding a staff role (admin, hub_manager, franchise_owner, ngo_coordinator,
+             catalog_editor), by name
+    pending  Page[PendingGrant], newest first (staff roles given to a number that has not signed in)
+  200 Page[AdminUser] (or Page[PendingGrant])
+  every call is audit-logged (identity.users_looked_up: the admin, the filter kind and the user
+  ids returned; never the typed number or name)
+
+POST /v1/admin/user-roles     (§3, unchanged for a phone with an account: 201 RoleGrantOut)
+    a phone with no account and a staff role: 202 PendingGrant; audit-logged (roles.granted, pending)
+    a partner role (kitchen_partner, captain, rider, packer) still needs the account:
+    404 "identity.user_not_found" (partners come from M8's verification)
+
+DELETE /v1/admin/user-roles/{id}      admin (roles:revoke); no body
+  204   the grant is deleted (user_roles has no revoked status; the audit log keeps roles.revoked
+        with the admin), or the pending grant is cancelled
+  409 "identity.role_not_removable"   customer, or a partner role (suspend the partner in M8, or
+                                      end the captain's appointment in M9)
+  409 "identity.cannot_remove_own_admin" · 409 "identity.last_admin"
+  404 "identity.role_not_found"
+
+HubStaff : { "grant_id", "user_id" | null, "name": "Kavita More" | null,
+             "phone_masked": "******1011",              the last 4 digits only
+             "role", "works_as": "staff" | "partner",   partner: kitchen_partner, captain, rider, packer
+             "society": { "id", "name" } | null,        captains: the society they serve
+             "status": "applied" | "kyc_pending" | "verified" | "suspended" | "invited",
+             "since": "…" | null }                      verified_at, or the pending grant's granted_at
+
+GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owner (hub), admin
+    (staff:read); limit ≤ 200, default 100; Cache-Control: no-store
+  200 Page[HubStaff]   by role, then name
+      the grants scoped to this hub, the captain grants of its societies
+      (community.api.hub_society_ids), and the hub's pending grants (status invited, name null);
+      admins and other unscoped grants are not listed
+  403 "auth.forbidden"  a hub outside the caller's grants
+```
+
+- **Pending grants.** For a person who has never signed in. At the exchange that creates the user (§3.1, `is_new_user`), every unexpired pending grant for that phone becomes a `verified` row of `user_roles` in the same transaction, audit-logged as `roles.granted` by the admin who gave it. Then the pending row is deleted. A pending grant expires after 30 days (`expire_pending_grants`, §6). A second grant of the same role and scope to the number is 409 `identity.role_exists`.
+- **Revoke takes effect at the next refresh.** Roles travel in the access token (§3.1). So a revoked role stops working within 15 minutes, at the next refresh, which reads `user_roles`. Signing the person out at once is the existing logout-all; the console offers no button for it in v1.
+- **Never a phone in clear outside the admin lookup.** `HubStaff` masks it; hub managers who need to call a partner use M8's partner profile (`GET /v1/partners/{id}`), which already shows it to them.
+- **Facades.** The scope labels come from `community.api.society_labels` and `hub_ops.api.get_hub`, which both exist; an NGO's label is null until M9 §3.5 ships an NGO facade. New in `identity.api`: `households_per_society(session, society_ids) -> dict[UUID, int]`, for M9's staff society list (M9 §3.9).
+- **Permissions:** `users:read`, `roles:revoke` and `staff:read` are new (§7).
+
+| Mock today (`mocks/identity.js`, `mocks/team.js`) | Contract |
+|---|---|
+| `GET /v1/admin/users?phone=` → `{ items: AdminUser[] }` (422 for a bad number) | Same; `AdminUser` gains `status`; `roles[]` are `StaffGrant` |
+| `?staff=true` | Same; also `?q=` (by name) and `?pending=true` |
+| `roles[].given_by` | Not in the contract: the audit log keeps who granted |
+| `POST /v1/admin/user-roles` 404 `identity.user_not_found` for a new number | 202 `PendingGrant` for a staff role; 404 still for a partner role |
+| `DELETE /v1/admin/user-roles/{id}` 204, 409 `identity.role_not_removable`, `identity.cannot_remove_own_admin` | Same, plus 409 `identity.last_admin`; it also cancels a pending grant |
+| `GET /v1/hubs/{hub}/staff` → `{ id, name, role: "Packer", works_as, society?, today, last_week_paise, status }` | `HubStaff`: `role` is the role code (the console words it), `society { id, name }`, `phone_masked`; no `today` or `last_week_paise` (the tiffin board and M8 earnings have them); status `fix_bank_details` is M8's KYC state, read on the partner's profile |
+| `POST /v1/hubs/{hub}/staff-invitations` | Dropped: staff roles through `POST /v1/admin/user-roles` (admin), riders and packers through M8's `POST /v1/hubs/{id}/partner-applications` (hub manager), kitchens and captains apply in the app |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
 | `identity.users` | id (uuidv7), phone_e164 (unique, E.164 check), name, locale, senior_mode, status (active, blocked, deleting; the old `deleted` value is dropped: a purged user has no row), data_source, created_at, updated_at |
 | `identity.user_roles` | id, user_id, role, scope_type, scope_id, status, verified_at; unique (user, role, scope) with NULLS NOT DISTINCT |
+| `identity.pending_role_grants` | (§3.6) id (uuidv7), phone_e164, role (staff roles only), scope_type, scope_id, granted_by, created_at, expires_at (30 days); unique (phone_e164, role, scope) with NULLS NOT DISTINCT; deleted when claimed or expired |
 | `identity.sessions` | one per signed-in device or browser (the "devices" list): id, user_id, platform, push_token, created_at, auth_time (when the OTP behind the session was entered: the Firebase token's `auth_time`; §3.5), last_seen_at, expires_at (30 days, never extended), revoked_at, revoke_reason |
 | `identity.refresh_tokens` | id, session_id, token_hash (HMAC-SHA256 with a pepper; the token is never stored), parent_id (rotation chain), created_at, used_at, revoked_at |
 | `identity.households` | id (uuidv7), owner_user_id (unique in v1), hub_id (nullable, no FK until M6), society_id → community.societies, size, diet, cuisine_tags[], weekday_cook_minutes, weekend_cook_minutes, no_cook_days smallint[], budget_paise BIGINT null, autopilot_enabled, auto_approve, shortage_preference (substitute, refund; §3.4), data_source, version, created_at, updated_at |
@@ -397,6 +472,7 @@ Signing up again with the same phone after the purge creates a new user with a n
 |---|---|---|
 | `build_data_export` | Every 10 minutes (cron-job.org); takes `queued` exports | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; publishes `identity.data_export_ready` for M11. A job rather than the consumer of `identity.data_export_requested`, because outbox consumers get no object storage |
 | `expire_data_exports` | Daily (04:23 IST, before `sweep_uploads` the next night) | Marks exports past `expires_at` (7 days) `expired`; M0's `sweep_uploads` deletes the file (`delete_after`) |
+| `expire_pending_grants` | Daily 04:13 IST (GitHub Actions) | Deletes pending role grants past `expires_at` (§3.6): a phone number is personal data |
 | `purge_deleted_users` | Daily 03:33 IST (GitHub Actions) | Deletions past `purge_on` (30 days after the request): checks the preconditions, calls each module's `delete_for_user` / `anonymise_for_user`, then deletes M1's rows and the user's files; not ready → `blocked`, retried nightly (§3.5) |
 
 ## 7. Permissions
@@ -405,6 +481,9 @@ Signing up again with the same phone after the purge creates a new user with a n
 | `households:write` | customer (own) |
 | `households:read` | customer (own), hub_manager (hub), admin |
 | `roles:grant` | admin |
+| `roles:revoke` | admin (§3.6) |
+| `users:read` | admin (the user lookup, §3.6; every call audit-logged) |
+| `staff:read` | hub_manager, franchise_owner (hub), admin (§3.6) |
 
 ## 8. Screens
 **Mobile:** Welcome/Language, Login OTP, Society picker, Household setup stepper, Consent, Profile/Settings, Devices, Data export/delete, Role switcher. **Console:** User lookup, staff role management.
