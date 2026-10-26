@@ -11,3 +11,6 @@ PERMISSIONS.allow("admin", "slots:write")
 # Triage of open issues (§3.2) in the M12 console, through orders.api.resolve_issue.
 PERMISSIONS.allow("hub_manager", "order_issues:resolve")
 PERMISSIONS.allow("admin", "order_issues:resolve")
+# The order refunds list (M5 §3.8): read only, served by M4's router.
+for role in ("hub_manager", "admin"):
+    PERMISSIONS.allow(role, "order_refunds:read")

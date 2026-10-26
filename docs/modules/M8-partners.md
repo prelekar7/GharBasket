@@ -693,6 +693,8 @@ GET /v1/hubs/{hub_id}/fairness?runs=28
 | `fallback_active` | Same name, from the newest run |
 | `week_start`, `kitchens[]`, `top_share_pct`, `top_share_change_pts`, `kitchens_under_half` | Not in the contract: the runs carry dates; per-kitchen numbers are the tiffin board's (§3.4) and M12 §3.5's |
 
+**As built (the read, `assignment_router.py`).** `lambda_paise` is `PARTNERS_FAIRNESS_LAMBDA` as it is, rounded to a whole number: the setting, the `fairness_lambda` of M10's request and `AssignRequest` are all "paise of cost per portion of earnings imbalance" (the solver scales it to tenths of a paisa inside), so 300 means 300 and no conversion applies. A run records `summary.fairness_lambda` when the round built a solver request, whether the ML service answered or M8's greedy took over; a round with nothing to solve (every order went to its preferred cook, or no kitchen has room) sends none and reads `lambda_paise: null`, like runs from before this change. `portions` is the run's column, `kitchens_used`, `gini`, `gini_eligible` and `km_per_portion` come from `summary` (0 and null when a summary lacks them), and `unassigned` is the length of the run's list. Runs are newest first by `at`, then id; `fallback_active` is the newest run's model being `greedy-m8` (false with no runs). `runs` outside 1 to 100 is 422 `request.invalid`.
+
 ### Facade for other modules (`gharbasket.modules.partners.api`)
 - `get_partner(session, partner_id) -> PartnerRef | None` — `{ id, user_id, kind, hub_id, status, display_name }` (M9 appointments, M7).
 - `partner_for_user(session, user_id, kind) -> PartnerRef | None`.
