@@ -139,7 +139,7 @@ sequenceDiagram
 - **Features:** recency, frequency, last accept/reject, price delta vs 4-week average, season, festival flag, cohort popularity, substitution-acceptance history.
 - **Model:** LightGBM LambdaRank. Label = kept in final box vs removed.
 - **Metrics:** Recall@10, NDCG@10, box acceptance rate, edits per box. Baselines: "repeat last week", top-frequency.
-- **Status (5 Oct 2026, v0; leakage fixes 8 Oct):** `train_ranker` in `backend/training` (LambdaRank on approved and locked boxes and their edits, one model per data source, leave-last-basket-out against both baselines, model and card to the registry, promotion manual) and `POST /basket/rank` on the Space with a frequency fallback and a 10-minute reload (M10 §3.7). v0 features are computed as of the cut-off: prices from the price list, not the final box; `drafted_rule` is dropped until a draft snapshot exists. Recall is reported as Recall@|basket| beside Recall@10 (eval protocol §7). SHAP and the planner's preference term are v1.
+- **Status (5 Oct 2026, v0; leakage fixes 8 Oct):** `train_ranker` in `backend/training` (LambdaRank on approved and locked boxes and their edits, one model per data source, leave-last-basket-out against both baselines, model and card to the registry, promotion manual) and `POST /basket/rank` on the Space with a frequency fallback and a 10-minute reload (M10 §3.7). v0 features are computed as of the cut-off: prices from the price list, not the final box; `drafted_rule` is dropped until a draft snapshot exists. Recall is reported as Recall@|basket| beside Recall@10 (eval protocol §7). SHAP explanations are built (§8.4); the planner's preference term is v1.
 
 ### M-C Meal planner — CP-SAT (research, deepest; core of Kitchen Autopilot)
 - **Variables:** `x[d,s,r]` ∈ {0,1} (day, meal slot, recipe); `t[d,s]` = tiffin on no-cook slots.
@@ -220,7 +220,7 @@ sequenceDiagram
 
 - Every AI output stores a `reason_code` plus parameters, for example `SEASONAL`, `PRICE_SWAP{from:tomato,pct:62}`, `PANTRY_LOW{days:2}`, `FESTIVAL{code:navratri}`.
 - The app renders **localised chips** from these codes (`en-IN`, `hi-IN`, `mr-IN`), not LLM-written text. Explanations are therefore deterministic and testable.
-- For ranker decisions, the top SHAP features are stored for paper analysis.
+- For ranker decisions, the top SHAP features are stored for paper analysis. As built (28 Oct 2026): the ranker's weekly run stores `explanations.json` (mean |SHAP| per feature and 50 sampled decisions with their top three features) next to the model in the registry, the eval report shows it, and `POST /basket/rank` returns `top_features` per ranked item (M10 §3.7). The API does not yet pass them on or store them in `intel.predictions`.
 
 ---
 

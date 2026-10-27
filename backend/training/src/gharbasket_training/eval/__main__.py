@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import sys
 from collections.abc import Sequence
 from datetime import date
@@ -50,6 +51,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--no-learned", action="store_true", help="skip the pantry learned-priors reference arm"
+    )
+    parser.add_argument(
+        "--ranker-explanations",
+        type=Path,
+        help="a basket ranker run's explanations.json (written next to its model.txt by "
+        "train_ranker): adds the 'Ranker explanations' section to the report",
     )
     parser.add_argument(
         "--smoke",
@@ -108,6 +115,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         planner_runs,
         pantry_runs,
         sweep_runs=sweep_runs,
+        ranker_explanations=(
+            json.loads(args.ranker_explanations.read_text()) if args.ranker_explanations else None
+        ),
         args={
             "weeks": args.weeks,
             "start": args.start.isoformat(),

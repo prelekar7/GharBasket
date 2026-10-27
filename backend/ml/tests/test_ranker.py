@@ -78,6 +78,60 @@ def test_a_registry_model_is_loaded_and_listed(tmp_path: Path) -> None:
     assert ranker.load(tmp_path / "empty") is None
 
 
+def test_a_ranked_item_carries_its_top_three_shap_features(tmp_path: Path) -> None:
+    root = tiny_registry(tmp_path)
+    answer = ranker.rank(candidates(), root)
+    loaded = ranker.load(root)
+    assert loaded is not None and answer.source == "ml"
+
+    request = candidates()
+    by_product = {c.product: ranker._row(c) for c in request.candidates}
+    for item in answer.ranked:
+        top = item.top_features
+        assert top is not None and len(top) == ranker.TOP_FEATURES
+        contrib = loaded.booster.predict([by_product[item.product]], pred_contrib=True)[0]
+        expected = sorted(zip(ranker.FEATURES, contrib[:-1], strict=True), key=lambda p: -abs(p[1]))
+        assert [t.feature for t in top] == [f for f, _ in expected[:3]]
+        assert [t.contribution for t in top] == [round(float(c), 4) for _, c in expected[:3]]
+        assert abs(top[0].contribution) >= abs(top[-1].contribution)
+    # the tiny model splits on "drafted"; the explanation of a drafted item leads with it
+    assert answer.ranked[0].top_features[0].feature == "drafted"  # pyright: ignore[reportOptionalSubscript]
+
+
+def test_the_fallback_has_no_explanation_and_the_old_fields_are_unchanged() -> None:
+    answer = ranker.rank(candidates(), None)
+    assert all(r.top_features is None for r in answer.ranked)
+    assert set(answer.model_dump()["ranked"][0]) == {"product", "score", "rank", "top_features"}
+
+
+def test_a_failing_explanation_keeps_the_ranking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tiny_registry(tmp_path)
+    plain = ranker.rank(candidates(), root)
+    loaded = ranker.load(root)
+    assert loaded is not None
+    real = loaded.booster.predict
+
+    def no_contrib(data: Any, **kwargs: Any) -> Any:
+        if kwargs.get("pred_contrib"):
+            raise RuntimeError("boom")
+        return real(data)
+
+    monkeypatch.setattr(loaded.booster, "predict", no_contrib)
+    answer = ranker.rank(candidates(), root)
+    assert answer.source == "ml" and all(r.top_features is None for r in answer.ranked)
+    assert [(r.product, r.score) for r in answer.ranked] == [
+        (r.product, r.score) for r in plain.ranked
+    ]
+    monkeypatch.setattr(
+        loaded.booster,
+        "predict",
+        lambda data, **kw: [[float("nan")] * 7] * len(data) if kw else real(data),
+    )
+    assert all(r.top_features is None for r in ranker.rank(candidates(), root).ranked)
+
+
 def test_weeks_since_beyond_the_cap_is_served_as_the_cap() -> None:
     long_ago = RankRequest.model_validate(
         {"candidates": [{"product": "x", "weeks_since": 400, "frequency": 0}]}
