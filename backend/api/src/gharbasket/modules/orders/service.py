@@ -86,6 +86,13 @@ async def slots_on(session: AsyncSession, hub_id: uuid.UUID, on: date) -> list[S
             "orders.date_out_of_range",
             f"Slots are shown for today to {SLOT_DAYS_AHEAD} days ahead.",
         )
+    return await slot_loads(session, hub_id, on)
+
+
+async def slot_loads(
+    session: AsyncSession, hub_id: uuid.UUID, on: date, kind: str | None = None
+) -> list[SlotLoad]:
+    """The hub's active slots (of one kind) with their bookings on `on`, any date."""
     booked = (
         select(SlotBooking.slot_id, func.count().label("n"))
         .where(SlotBooking.on_date == on)
@@ -95,7 +102,7 @@ async def slots_on(session: AsyncSession, hub_id: uuid.UUID, on: date) -> list[S
     rows = await session.execute(
         select(Slot, func.coalesce(booked.c.n, 0))
         .outerjoin(booked, booked.c.slot_id == Slot.id)
-        .where(Slot.hub_id == hub_id, Slot.active)
+        .where(Slot.hub_id == hub_id, Slot.active, *([] if kind is None else [Slot.kind == kind]))
         .order_by(Slot.start_time, Slot.label)
     )
     return [SlotLoad(slot, int(n)) for slot, n in rows.all()]

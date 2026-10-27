@@ -4,9 +4,12 @@ threshold from M10's stop cost when it can."""
 
 import copy
 import uuid
-from datetime import UTC, datetime
+from collections.abc import Awaitable, Callable
+from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
+import httpx2
 import pytest
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +21,8 @@ from gharbasket.modules.identity.households import create_household
 from gharbasket.modules.identity.models import Household
 from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user
+from gharbasket.modules.intel_gateway import api as intel_api
+from gharbasket.modules.logistics import api as logistics_api
 from gharbasket.modules.partners import service as partners_service
 from gharbasket.platform.jobs import JobContext
 from gharbasket.platform.models import OutboxEvent
@@ -36,6 +41,7 @@ NEHA = "+919800001011"  # admin
 GREEN_VALLEY = next(s.id for s in SOCIETIES if s.slug == "green-valley-heights-kharghar")
 SHREE_GANESH = next(s.id for s in SOCIETIES if s.slug == "shree-ganesh-chs-kharghar")
 PANCHAVATI = next(s.id for s in SOCIETIES if s.slug == "panchavati-residency-kamothe")
+SAI_DARSHAN = next(s.id for s in SOCIETIES if s.slug == "sai-darshan-apartments-panvel")
 LIVE_KEYS = {"society_id", "hub_id", "joined", "threshold", "live_at"}
 
 
@@ -210,6 +216,21 @@ def _ctx(db: AsyncSession) -> JobContext:
     return JobContext(session=db, scheduled_for=datetime.now(UTC), settings=make_settings())
 
 
+def _fake_stop_costs(
+    costs: dict[uuid.UUID, int], asked: list[uuid.UUID] | None = None
+) -> Callable[..., Awaitable[dict[uuid.UUID, int | None]]]:
+    """`unlock.stop_costs` answering `costs` (missing: M10 could not price it)."""
+
+    async def stop_costs(
+        _session: AsyncSession, _http: Any, _settings: Any, societies: list[Society], _today: date
+    ) -> dict[uuid.UUID, int | None]:
+        if asked is not None:
+            asked.extend(s.id for s in societies)
+        return {s.id: costs[s.id] for s in societies if s.id in costs}
+
+    return stop_costs
+
+
 async def test_without_a_stop_cost_the_job_keeps_every_threshold(db_session: AsyncSession) -> None:
     before = {s.id: (s.unlock_threshold, s.threshold_source) for s in await _all(db_session)}
 
@@ -225,11 +246,8 @@ async def test_the_job_prices_thresholds_from_the_stop_cost(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     costs = {GREEN_VALLEY: 100_000, SHREE_GANESH: 9_000, PANCHAVATI: 1_000_000}
-
-    async def stop_cost(_session: AsyncSession, society_id: uuid.UUID) -> int | None:
-        return costs.get(society_id)
-
-    monkeypatch.setattr(unlock, "stop_cost", stop_cost)
+    asked: list[uuid.UUID] = []
+    monkeypatch.setattr(unlock, "stop_costs", _fake_stop_costs(costs, asked))
     sunrise = await _society(db_session, SEED_SOCIETY_ID)
     sunrise_threshold = sunrise.unlock_threshold
     panchavati = await _society(db_session, PANCHAVATI)
@@ -249,6 +267,8 @@ async def test_the_job_prices_thresholds_from_the_stop_cost(
     assert (await _society(db_session, SEED_SOCIETY_ID)).unlock_threshold == sunrise_threshold
     assert counts["priced"] == 2
     assert unlock.threshold_for(1_000_000) == 60  # at most 60
+    # Live (Sunrise Towers, Krishna Kunj) and pinned (Panchavati) societies are never priced.
+    assert {SEED_SOCIETY_ID, PANCHAVATI}.isdisjoint(asked) and GREEN_VALLEY in asked
 
 
 async def test_a_lower_priced_threshold_makes_the_society_live_in_the_job(
@@ -257,16 +277,62 @@ async def test_a_lower_priced_threshold_makes_the_society_live_in_the_job(
     for n in range(1, 10):  # ten households with Sunita's
         await _move_in(db_session, n)
 
-    async def stop_cost(_session: AsyncSession, society_id: uuid.UUID) -> int | None:
-        return 40_000 if society_id == GREEN_VALLEY else None  # N = 10
-
-    monkeypatch.setattr(unlock, "stop_cost", stop_cost)
+    monkeypatch.setattr(unlock, "stop_costs", _fake_stop_costs({GREEN_VALLEY: 40_000}))  # N = 10
     counts = await jobs.recompute_unlock_thresholds(_ctx(db_session))
 
     assert counts["went_live"] == 1
     assert (await _society(db_session, GREEN_VALLEY)).status == "live"
     (event,) = await _live_events(db_session, GREEN_VALLEY)
     assert (event["joined"], event["threshold"]) == (10, 10)
+
+
+async def test_stop_costs_price_a_hubs_societies_against_its_published_days_only(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    today = date(2026, 10, 26)
+    published = {today - timedelta(days=1), today - timedelta(days=6)}
+    asked: list[date] = []
+    calls: list[tuple[list[date], list[intel_api.SlotCandidate], date | None]] = []
+
+    async def tentative_day(_session: AsyncSession, _hub: uuid.UUID, day: date) -> Any:
+        asked.append(day)
+        if day == today - timedelta(days=3):
+            return None  # no box vehicle that day
+        return SimpleNamespace(
+            day=day, routes_source="published" if day in published else "nearest"
+        )
+
+    async def society_stop_costs(
+        _http: Any,
+        _settings: Any,
+        days: list[Any],
+        candidates: list[intel_api.SlotCandidate],
+        **kw: Any,
+    ) -> dict[uuid.UUID, int | None]:
+        calls.append(([d.day for d in days], candidates, kw["for_date"]))
+        return {c.id: 50_000 for c in candidates}
+
+    monkeypatch.setattr(logistics_api, "tentative_day", tentative_day)
+    monkeypatch.setattr(intel_api, "society_stop_costs", society_stop_costs)
+    societies = [await _society(db_session, s) for s in (GREEN_VALLEY, SHREE_GANESH, SAI_DARSHAN)]
+    settings = make_settings()
+    async with httpx2.AsyncClient() as http:
+        costs = await unlock.stop_costs(db_session, http, settings, societies, today)
+        published.clear()
+        without_a_plan = await unlock.stop_costs(db_session, http, settings, societies, today)
+    no_client = await unlock.stop_costs(db_session, None, settings, societies, today)
+
+    # Sai Darshan has no hub and no location; a society left out keeps its threshold.
+    assert costs == {GREEN_VALLEY: 50_000, SHREE_GANESH: 50_000}
+    assert asked[:7] == [today - timedelta(days=n) for n in range(1, 8)]
+    [(days, candidates, for_date)] = calls
+    assert (days, for_date) == ([today - timedelta(days=1), today - timedelta(days=6)], today)
+    # One box, its own stops taken off the routes first: a stop it may already have is priced.
+    assert {(c.id, c.orders, c.kg_tenths, c.crates, c.own_stops) for c in candidates} == {
+        (GREEN_VALLEY, 1, 80, 1, "ignore"),
+        (SHREE_GANESH, 1, 80, 1, "ignore"),
+    }
+    assert without_a_plan == {} and no_client == {} and len(calls) == 1
 
 
 async def test_a_household_that_moves_in_counts_and_bad_payloads_change_nothing(

@@ -10,18 +10,23 @@
 
 import math
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+import httpx2
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.community import api as community_api
 from gharbasket.modules.community import events
 from gharbasket.modules.community.models import Society
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.intel_gateway import api as intel_api
+from gharbasket.modules.logistics import api as logistics_api
 from gharbasket.platform import audit
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import publish
+from gharbasket.platform.settings import Settings
 
 # What one household's box carries towards a stop (the console's delivery-per-box assumption).
 DELIVERY_ALLOWANCE_PAISE = 4_000
@@ -29,6 +34,7 @@ THRESHOLD_MIN, THRESHOLD_MAX = 10, 60
 # The delivery fee on each box until the society goes live. It becomes the hub's
 # `pre_live_box_fee_paise` (M6 follow-up, §11); until then every hub has the proposed default.
 PRE_LIVE_BOX_FEE_PAISE = 3_000
+REFERENCE_DAYS = 7  # the stop cost looks at the published box plans of the past week
 
 
 def box_fee_paise(society: Society) -> int:
@@ -41,16 +47,49 @@ def threshold_for(stop_cost_paise: int) -> int:
     return min(max(n, THRESHOLD_MIN), THRESHOLD_MAX)
 
 
-async def stop_cost(session: AsyncSession, society_id: uuid.UUID) -> int | None:
-    """The marginal cost in paise of adding the society as a stop, from M10
-    (`intel_gateway.api.society_stop_cost`, an M10 follow-up on `/slots/price`). None while M10
-    cannot price it, which today is always: the job then keeps the current threshold."""
-    return None
+async def stop_costs(
+    session: AsyncSession,
+    http: httpx2.AsyncClient | None,
+    settings: Settings,
+    societies: list[Society],
+    today: date,
+) -> dict[uuid.UUID, int | None]:
+    """The marginal cost in paise of adding each society as a stop (M10 §3.8): per hub, priced
+    by M10 against the days of the past 7 with a published box plan, as one box with its own
+    stops ignored, keeping the least feasible cost. A society is missing (the job keeps its
+    threshold) when it has no hub or location, its hub had no published plan, or M10 is down."""
+    if http is None:
+        return {}
+    points = await community_api.society_points(session, [s.id for s in societies])
+    by_hub: dict[uuid.UUID, list[intel_api.SlotCandidate]] = {}
+    for s in societies:
+        if s.hub_id is not None and s.id in points:
+            lat, lng = points[s.id]
+            candidate = intel_api.SlotCandidate(id=s.id, lat=lat, lng=lng, own_stops="ignore")
+            by_hub.setdefault(s.hub_id, []).append(candidate)
+    costs: dict[uuid.UUID, int | None] = {}
+    for hub_id, candidates in sorted(by_hub.items()):
+        days = []
+        for back in range(1, REFERENCE_DAYS + 1):
+            day = await logistics_api.tentative_day(session, hub_id, today - timedelta(days=back))
+            if day is not None and day.routes_source == "published":
+                days.append(day)
+        if days:
+            costs |= await intel_api.society_stop_costs(
+                http, settings, days, candidates, session=session, for_date=today
+            )
+    return costs
 
 
 async def _locked(session: AsyncSession, society_id: uuid.UUID) -> Society | None:
+    """The society under its row lock, re-read: a copy loaded earlier may be stale."""
     return (
-        await session.execute(select(Society).where(Society.id == society_id).with_for_update())
+        await session.execute(
+            select(Society)
+            .where(Society.id == society_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
     ).scalar_one_or_none()
 
 
@@ -128,20 +167,26 @@ async def update(
     return society
 
 
-async def recompute_thresholds(session: AsyncSession) -> dict[str, int]:
+def _priceable(society: Society) -> bool:
+    return (
+        society.status != "live" and society.live_at is None and not society.unlock_threshold_pinned
+    )
+
+
+async def recompute_thresholds(
+    session: AsyncSession, http: httpx2.AsyncClient | None, settings: Settings, today: date
+) -> dict[str, int]:
     """The weekly job: price each society that is not live and not pinned. Without a price the
     threshold (and its source) stays; a new threshold at or below `joined` makes it live."""
     counts = {"priced": 0, "kept": 0, "skipped": 0, "went_live": 0}
-    ids = (await session.execute(select(Society.id).order_by(Society.id))).scalars().all()
-    for society_id in ids:
+    every = (await session.execute(select(Society).order_by(Society.id))).scalars().all()
+    costs = await stop_costs(session, http, settings, [s for s in every if _priceable(s)], today)
+    for society_id in [s.id for s in every]:
         society = await _locked(session, society_id)
-        if society is None or society.status == "live" or society.live_at is not None:
+        if society is None or not _priceable(society):
             counts["skipped"] += 1
             continue
-        if society.unlock_threshold_pinned:
-            counts["skipped"] += 1
-            continue
-        cost = await stop_cost(session, society.id)
+        cost = costs.get(society.id)
         if cost is None:
             counts["kept"] += 1
             continue
