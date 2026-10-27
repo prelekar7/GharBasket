@@ -166,7 +166,7 @@ GET /v1/statements?period=2026-10        Cache-Control: no-store
 
 - **From the ledger only.** Balances are sums of postings to `wallet:<user>`; `balance_after_paise` is the running balance after that entry, in posting order. A month falls by the entry's `at` in IST. A month before the wallet existed answers zeros and `[]`.
 - **Not in it:** Kindness points (a separate currency, M9) and anything that did not post to the wallet (an unpaid or expired top-up).
-- **Later:** a PDF of the same data (`format=pdf`) after MS-B. **Partners' earnings and payout statements** use this endpoint with `account=earnings` (§3.5, with M8 in S6); without it a partner gets their customer wallet.
+- **Later:** a PDF of the same data (`format=pdf`) after MS-B, built with M0's `platform.pdf` helper (fpdf2, Noto Sans; M8 §3.7's income certificate is its first user), not a second PDF stack. **Partners' earnings and payout statements** use this endpoint with `account=earnings` (§3.5, with M8 in S6); without it a partner gets their customer wallet.
 
 | Mock today (`mocks/billing.js`) | Contract |
 |---|---|
@@ -358,6 +358,15 @@ billing.api.partner_week(session, partner_ids, week) -> PartnerWeek          for
                     "payouts": [ PayoutOut ] }          that week's payouts of those partners
 billing.api.partner_rolling_earnings(session, partner_ids, basis, since) -> { partner_id: paise }
     earnings less reversals since a date, for M8's fair assignment (M10's earnings_paise)
+billing.api.partner_months(session, partner_ids, first: "YYYY-MM", last: "YYYY-MM", *, until) -> PartnerMonths
+    for M8's income certificate (M8 §3.7); reads M5's own tables only
+    PartnerMonths : { "months": [ { "month", "by_basis": [ { "partner_id", "basis", "units", "amount_paise" } ],
+                                    "earned_paise", "paid_out_paise" } ],     every month first..last, zeros included
+                      "owed_paise" }
+    earned: `earning` entries by the IST month of `earned_at` (less `earning_reversal` by posting month, once built);
+    paid out: the `payout` postings less the `payout_reversed` ones, by IST posting month; owed: the balance of the
+    accounts at the end of `last`, or at `until` while `last` is the current month (the `closing_paise` of
+    `GET /v1/statements?period=<last>&account=earnings`)
 
 PayoutOut : { "id", "partner_id", "week": "2027-W03", "period": { "from", "to" },   IST Monday–Sunday
               "amount_paise": 84000,
