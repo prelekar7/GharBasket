@@ -752,7 +752,6 @@ billing.api.partner_months(session, partner_ids, first: "YYYY-MM", last: "YYYY-M
 
 **What it is not.** It is not a tax document (Form 16A) or a salary slip. The weekly earnings statement stays M5's `GET /v1/statements?account=earnings`.
 
-<<<<<<< HEAD
 **As built (the income certificate, `partners/certificate.py` and `certificate_router.py`).**
 - **Order of answers.** A malformed or too-long period is 422 first; then no object storage is 503 (before any record is read, so a person with no record still gets 503 rather than 404 while storage is down); then the rate limit; then the records (404, 403). The 429 counts every attempt that passed the period check, whatever follows.
 - **The facade.** `billing.api.partner_months` (M5 §3.5, `billing/months.py`) counts "owed" as the balance at the earlier of the end of `last` and `until`, by posting time, so it equals the `closing_paise` of that month's earnings statement. `reverse_earning` and `earning_reversal` are not built (M5 §3.5), so earned is not reduced by anything yet; the facade reads only `earning`, `payout` and `payout_reversed` entries.
@@ -761,8 +760,6 @@ billing.api.partner_months(session, partner_ids, first: "YYYY-MM", last: "YYYY-M
 - **Limit keys.** `partners.certificate:user:<user_id>` and `partners.certificate:staff:<user_id>`, one fixed hour window each (`platform.rate_limit.enforce`).
 - **Not built here.** The frontend changes in the table above (shared mock, one open-the-link helper, the console page's redirect) are Yash's; `docs/integration/gaps.json` no longer lists `GET /v1/earnings/certificate`, since the backend has it.
 
-=======
->>>>>>> origin/main
 | Mock or page today | Contract |
 |---|---|
 | Captain and kitchen mocks answer `{ url, filename }`; the logistics mock `{ url, expires_in: 300 }` | `{ reference, from, to, url, filename, expires_at }`; align the three mocks (one shared handler). The rider screen reads only `url` and keeps working |

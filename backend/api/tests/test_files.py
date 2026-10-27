@@ -46,10 +46,7 @@ class FakeS3:
         self.objects: dict[str, tuple[str, int]] = {}
         self.deletes: list[list[str]] = []
         self.puts: list[dict[str, str]] = []
-<<<<<<< HEAD
         self.bodies: dict[str, bytes] = {}
-=======
->>>>>>> origin/main
         self.fail_head = False
 
     def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:
@@ -62,10 +59,7 @@ class FakeS3:
 
     def put_object(self, Bucket: str, Key: str, Body: bytes, **extra: str) -> dict[str, Any]:
         self.objects[Key] = (extra["ContentType"], len(Body))
-<<<<<<< HEAD
         self.bodies[Key] = Body
-=======
->>>>>>> origin/main
         self.puts.append({"Key": Key, **extra})
         return {}
 

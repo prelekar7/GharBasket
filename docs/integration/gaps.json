@@ -106,16 +106,6 @@
       "fix": "Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public.",
       "note": "M12 §3.7: public cook profiles are M8's card."
     },
-<<<<<<< HEAD
-=======
-    "GET /v1/earnings/certificate": {
-      "app": "mobile",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "after MS-B",
-      "note": "M8 §3.7 (drafted 2026-10-28): answers { reference, from, to, url, filename, expires_at }; align the three mocks and use one open-the-link helper (fix-frontend items in M8 §3.7)."
-    },
->>>>>>> origin/main
     "POST /v1/admin/societies": {
       "app": "console",
       "class": "later",
