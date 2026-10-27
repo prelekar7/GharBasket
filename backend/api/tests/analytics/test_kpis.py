@@ -416,6 +416,41 @@ async def test_the_gini_matches_the_weekly_view(
     assert kpis.gini_bp([1, 2, 3, 4]) is None and kpis.gini_bp([]) is None
 
 
+async def test_earnings_are_hidden_under_five_paid_partners(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    weeks = [date(2026, 9, 7), date(2026, 9, 14), date(2026, 9, 21)]
+    paid = {weeks[0]: 1, weeks[1]: 4, weeks[2]: 5}  # partners paid in each week
+    partner = 20
+    for week, count in paid.items():
+        for _ in range(count):
+            db_session.add(earning(partner, week, "captain", 10_000 + partner))
+            partner += 1
+    await db_session.flush()
+    api, manager = await signed_in(clients, google, VIKRAM)
+
+    async def read(first: date, last: date) -> dict[str, Any]:
+        answer = await get_kpis(
+            api, manager, hub_id=str(HUB), **{"from": str(first), "to": str(last + timedelta(6))}
+        )
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+
+    body = await read(weeks[0], weeks[2])
+    assert body["series"]["partners_paid"] == [1, 4, 5]
+    last_week = sum(10_000 + n for n in range(25, 30))
+    assert body["series"]["partner_earnings_paise"] == [None, None, last_week]
+    assert (body["totals"]["partners_paid"], body["totals"]["partner_earnings_paise"]) == (
+        10,
+        sum(10_000 + n for n in range(20, 30)),
+    )  # ten different partners over the range: the total is no one's pay
+    for week, count in paid.items():
+        if count < 5:  # the range's total follows the same rule as a week
+            one = await read(week, week)
+            assert one["totals"]["partners_paid"] == count
+            assert one["totals"]["partner_earnings_paise"] is None
+
+
 async def test_day_grain_has_one_period_a_day_and_no_weekly_keys(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
@@ -458,7 +493,8 @@ async def test_data_sources_are_never_pooled_and_one_is_required(
     assert synthetic.json()["data_source"] == "synthetic"
     assert series["orders_delivered"] == [0, 1] and series["gmv_paise"] == [0, 99_999]
     assert series["weeks_accepted_bp"] == [None, 10_000]  # its one cycle, none of the real ones
-    assert series["partner_earnings_paise"] == [0, 1]
+    assert series["partner_earnings_paise"] == [None, None]  # one paid partner: only the count
+    assert series["partners_paid"] == [0, 1]
     assert series["waste_g_per_100kg"] == [None, None]  # the real hub's packing and waste
     real = await get_kpis(api, manager, **window)
     assert real.json()["series"]["gmv_paise"] == [125_000, 64_000]  # no 99,999 in a real series

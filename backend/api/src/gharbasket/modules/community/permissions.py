@@ -25,3 +25,7 @@ for role in ("hub_manager", "admin", "ngo_coordinator"):
 PERMISSIONS.allow("ngo_coordinator", "ngo_offers:claim", "ngo_handoffs:confirm")
 for role in ("hub_manager", "ngo_coordinator"):
     PERMISSIONS.allow(role, "ngo_handoffs:write")
+# Impact (§3.7): a customer's own (`me`), and a society's for its residents (customers), its
+# captain, the staff of its hub (checked per request) and admins.
+for role in ("customer", "captain", "hub_manager", "franchise_owner", "admin"):
+    PERMISSIONS.allow(role, "impact:read")

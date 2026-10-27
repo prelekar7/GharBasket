@@ -695,6 +695,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A month's impact for the platform, a hub or an NGO, as JSON or CSV (NGO coordinator for their NGO, hub manager and franchise owner for their hub, admin) */
+        get: operations["impact_report_v1_analytics_impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/analytics/kpis": {
         parameters: {
             query?: never;
@@ -1422,6 +1439,23 @@ export interface paths {
         };
         /** What you earned in a week, by day and kind, from the ledger (every kind you are) */
         get: operations["my_earnings_v1_earnings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/earnings/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your income certificate: a 5-minute link to a PDF of your earnings by month */
+        get: operations["my_certificate_v1_earnings_certificate_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2225,6 +2259,23 @@ export interface paths {
         };
         /** Kg wasted per 100 kg sold, by IST day: at most 31 days, default the last 7 */
         get: operations["get_waste_summary_v1_hubs__hub_id__waste_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a household (`me`) or a society (`society`) has given; small numbers are null */
+        get: operations["get_impact_v1_impact_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3175,6 +3226,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/partners/{partner_id}/earnings/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A partner's income certificate, issued by hub staff (audit-logged) */
+        get: operations["partner_certificate_v1_partners__partner_id__earnings_certificate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/partners/{partner_id}/pause": {
         parameters: {
             query?: never;
@@ -3422,6 +3490,23 @@ export interface paths {
         };
         /** Ranked substitutes, with the price difference and why */
         get: operations["substitutes_v1_products__product_id__substitutes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/societies/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A society's landing page: unlock progress and aggregates only (no sign-in) */
+        get: operations["public_society_v1_public_societies__slug__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5633,6 +5718,43 @@ export interface components {
              */
             slug: string;
         };
+        /** CertificateLinkOut */
+        CertificateLinkOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             * @description When the link stops working
+             */
+            expires_at: string;
+            /**
+             * Filename
+             * @example gharbasket-income-certificate-2026-05-to-2026-10.pdf
+             */
+            filename: string;
+            /**
+             * From
+             * @description First month, IST
+             * @example 2026-05
+             */
+            from: string;
+            /**
+             * Reference
+             * @description Printed on the PDF; support finds the issue by it in the audit log
+             * @example GBIC-7K3M-QX9P-2TAB-H4WE
+             */
+            reference: string;
+            /**
+             * To
+             * @description Last month, IST; the current one is to date
+             * @example 2026-10
+             */
+            to: string;
+            /**
+             * Url
+             * @description A 5-minute signed GET of the PDF
+             */
+            url: string;
+        };
         /** ChangeOut */
         ChangeOut: {
             /**
@@ -6197,6 +6319,24 @@ export interface components {
              * @enum {string}
              */
             status: "missing" | "submitted" | "accepted" | "rejected";
+        };
+        /** DonatedLineOut */
+        DonatedLineOut: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Qty
+             * @description Accepted (counted) total
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
         };
         /** DonationLine */
         DonationLine: {
@@ -7824,6 +7964,29 @@ export interface components {
              */
             wape: number | null;
         };
+        /** HubImpactOut */
+        HubImpactOut: {
+            /**
+             * Food Saved Kg
+             * @description Surplus the society's hub handed to NGOs
+             */
+            food_saved_kg: number;
+            /**
+             * Meals Served
+             * @description Donated meals NGOs served from the hub
+             */
+            meals_served: number;
+            /**
+             * Partners
+             * @enum {string}
+             */
+            partners: "5+" | "under_5";
+            /**
+             * Partners Earned Paise
+             * @description The hub's partners this month (the asked one; this month for `all`); null under 5 paid partners
+             */
+            partners_earned_paise: number | null;
+        };
         /** HubIn */
         HubIn: {
             /** Address */
@@ -8065,6 +8228,159 @@ export interface components {
              * Format: date
              */
             inspected_on: string;
+        };
+        /** ImpactNgoOut */
+        ImpactNgoOut: {
+            /** Handoffs */
+            handoffs: number;
+            /** Items */
+            items: number;
+            /** Kg */
+            kg: number;
+            /** Meals */
+            meals: number;
+            /** Name */
+            name: string;
+            /**
+             * Ngo Id
+             * Format: uuid
+             */
+            ngo_id: string;
+            /** People Reached */
+            people_reached: number | null;
+        };
+        /** ImpactOut */
+        ImpactOut: {
+            /** As Of */
+            as_of: string | null;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /** Hub Id */
+            hub_id: string | null;
+            /**
+             * Month
+             * @example 2027-02
+             */
+            month: string;
+            /** Ngo Id */
+            ngo_id: string | null;
+            /** Ngos */
+            ngos: components["schemas"]["ImpactNgoOut"][];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "platform" | "hub" | "ngo";
+            /**
+             * Societies
+             * @description Scope hub only; no earnings. Null for platform and ngo
+             */
+            societies: components["schemas"]["ImpactSocietyOut"][] | null;
+            /** Stale */
+            stale: boolean;
+            totals: components["schemas"]["ImpactTotalsOut"];
+            trend: components["schemas"]["ImpactTrendOut"];
+        };
+        /** ImpactSocietyOut */
+        ImpactSocietyOut: {
+            /** Households Joined */
+            households_joined: number;
+            /** Items Donated */
+            items_donated: number;
+            /** Kg Donated */
+            kg_donated: number;
+            /**
+             * Meals Donated
+             * @description Null: a donated meal belongs to a hub, not a society, in the facts
+             */
+            meals_donated: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+        };
+        /**
+         * ImpactTotalsOut
+         * @description The month's numbers. A field that does not apply to the scope, or that the facts cannot
+         *     give, is null: an NGO coordinator's report carries only what the NGO received.
+         */
+        ImpactTotalsOut: {
+            /** Donations Verified */
+            donations_verified: number | null;
+            /**
+             * Food Saved Kg
+             * @description Surplus food handed to NGOs (kind food)
+             */
+            food_saved_kg: number;
+            /**
+             * Households Donating
+             * @description Null under 5
+             */
+            households_donating: number | null;
+            /**
+             * Items Donated
+             * @description Items of verified donations; for an NGO, items it received
+             */
+            items_donated: number;
+            /**
+             * Kg Donated
+             * @description Kilograms of those items
+             */
+            kg_donated: number;
+            /**
+             * Meals Donated
+             * @description Meals pledged with Kindness points
+             */
+            meals_donated: number | null;
+            /**
+             * Meals Served
+             * @description Donated meals NGOs served
+             */
+            meals_served: number;
+            /**
+             * Partners Earned Paise
+             * @description Null under 5 paid partners; never for scope ngo
+             */
+            partners_earned_paise: number | null;
+            /**
+             * Partners Paid
+             * @description Null under 5 paid partners; never for ngo
+             */
+            partners_paid: number | null;
+            /**
+             * People Reached
+             * @description As NGOs report it; null if none reported
+             */
+            people_reached: number | null;
+            /** Referrals Converted */
+            referrals_converted: number | null;
+            /** Societies Live */
+            societies_live: number | null;
+            /**
+             * Waste G Per 100Kg
+             * @description Hub and platform only; bin grams per 100 kg
+             */
+            waste_g_per_100kg: number | null;
+        };
+        /** ImpactTrendOut */
+        ImpactTrendOut: {
+            /** Food Saved Kg */
+            food_saved_kg: number[];
+            /** Items Donated */
+            items_donated: number[];
+            /** Meals Served */
+            meals_served: number[];
+            /**
+             * Months
+             * @description The 6 months up to `month`, oldest first (YYYY-MM)
+             */
+            months: string[];
         };
         /** InboxOut */
         InboxOut: {
@@ -8891,7 +9207,7 @@ export interface components {
             periods: string[];
             /**
              * Series
-             * @description One value per period for every KPI key; null when undefined
+             * @description One value per period for every KPI key; null when undefined. `partner_earnings_paise` is null under 5 paid partners (never an individual's pay)
              */
             series: {
                 [key: string]: (number | null)[];
@@ -9743,6 +10059,50 @@ export interface components {
         ModelMetricsOut: {
             /** Accepted */
             accepted: number;
+        };
+        /** MyImpactOut */
+        MyImpactOut: {
+            /**
+             * Donated
+             * @description Accepted totals per code
+             */
+            donated: components["schemas"]["DonatedLineOut"][];
+            /** Donations Verified */
+            donations_verified: number;
+            /**
+             * Homes Invited
+             * @description Converted referrals
+             */
+            homes_invited: number;
+            /**
+             * Items Donated
+             * @description Accepted pieces, plus kilograms counted as one item per kg
+             */
+            items_donated: number;
+            /** Kg Donated */
+            kg_donated: number;
+            /**
+             * Meals Donated
+             * @description Meals given with points
+             */
+            meals_donated: number;
+            /**
+             * Period
+             * @default all
+             * @constant
+             */
+            period: "all";
+            /**
+             * Points Earned
+             * @description All Kindness points ever credited (donations, referrals)
+             */
+            points_earned: number;
+            /**
+             * Scope
+             * @default me
+             * @constant
+             */
+            scope: "me";
         };
         /** Names */
         Names: {
@@ -12338,6 +12698,56 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /** PublicImpactOut */
+        PublicImpactOut: {
+            /** Items Donated */
+            items_donated: number;
+            /** Meals Donated */
+            meals_donated: number;
+        };
+        /** PublicSocietyOut */
+        PublicSocietyOut: {
+            /** Area */
+            area: string | null;
+            /**
+             * Delivery Days
+             * @description Live societies only
+             */
+            delivery_days: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
+            /**
+             * Homes Joined
+             * @description Null under 5 households
+             */
+            homes_joined: number | null;
+            /** @description Null until 5 households contributed */
+            impact: components["schemas"]["PublicImpactOut"] | null;
+            /** Join Url */
+            join_url: string;
+            /**
+             * Live Since
+             * @description IST date
+             */
+            live_since: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Progress Bp
+             * @description min(joined / target, 1) in basis points
+             */
+            progress_bp: number;
+            /**
+             * Slug
+             * @example sunrise-towers-kharghar
+             */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unlocking" | "live";
+            /** Unlock Target */
+            unlock_target: number;
+        };
         /** PublishIn */
         PublishIn: {
             /**
@@ -14289,6 +14699,54 @@ export interface components {
             boxes: number;
             /** Name */
             name: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+        };
+        /** SocietyImpactOut */
+        SocietyImpactOut: {
+            /**
+             * As Of
+             * Format: date-time
+             * @description The time of the read: the numbers are computed live
+             */
+            as_of: string;
+            /**
+             * Contributors
+             * @enum {string}
+             */
+            contributors: "5+" | "under_5";
+            /**
+             * Homes Joined
+             * @description Null under 5 households
+             */
+            homes_joined: number | null;
+            /** @description Null for a society without a hub */
+            hub: components["schemas"]["HubImpactOut"] | null;
+            /**
+             * Items Donated
+             * @description Null until 5 households contributed
+             */
+            items_donated: number | null;
+            /** Kg Donated */
+            kg_donated: number | null;
+            /** Meals Donated */
+            meals_donated: number | null;
+            /**
+             * Period
+             * @description Always `all`: all time only
+             * @default all
+             * @constant
+             */
+            period: "all";
+            /**
+             * Scope
+             * @default society
+             * @constant
+             */
+            scope: "society";
             /**
              * Society Id
              * Format: uuid
@@ -20494,6 +20952,96 @@ export interface operations {
             };
         };
     };
+    impact_report_v1_analytics_impact_get: {
+        parameters: {
+            query: {
+                /** @description platform (admin) | hub | ngo */
+                scope: "platform" | "hub" | "ngo";
+                /** @description Scope hub: the hub */
+                hub_id?: string | null;
+                /** @description Scope ngo: the NGO */
+                ngo_id?: string | null;
+                /** @description An IST month, this one by default, within the last 24 */
+                month?: string | null;
+                /** @description csv: an attachment */
+                format?: "json" | "csv";
+                /** @description `synthetic` is for admins (demos) */
+                data_source?: "real" | "synthetic";
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report as JSON, or with `format=csv` one row per (month, hub, ngo) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImpactOut"];
+                    "text/csv": string;
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a scope, hub, NGO or data source outside your grants; the hub or NGO left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.ngo_not_found (an admin's unknown NGO) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (hub_id or ngo_id left out by an admin) · analytics.range_invalid (a future month) · analytics.range_too_long (older than 24 months) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     kpi_series_v1_analytics_kpis_get: {
         parameters: {
             query?: {
@@ -23749,6 +24297,85 @@ export interface operations {
             };
             /** @description partners.week_invalid, request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_certificate_v1_earnings_certificate_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CertificateLinkOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_period_invalid (with max_months), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_rate_limited (see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -27589,6 +28216,71 @@ export interface operations {
                 };
             };
             /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_impact_v1_impact_get: {
+        parameters: {
+            query: {
+                /** @description Whose numbers */
+                scope: "me" | "society";
+                /** @description For `society` */
+                society_id?: string | null;
+                /** @description `society` only: `all`. A society's numbers are all time only; anything else is 422 `request.invalid` */
+                period?: string;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyImpactOut"] | components["schemas"]["SocietyImpactOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: `me` needs the customer role; `society` is for its residents, its captain, its hub's staff and admins */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid: `society_id` missing, or a `period` other than `all` */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -31547,6 +32239,87 @@ export interface operations {
             };
         };
     };
+    partner_certificate_v1_partners__partner_id__earnings_certificate_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CertificateLinkOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_period_invalid (with max_months), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_rate_limited (see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     pause_partner_v1_partners__partner_id__pause_post: {
         parameters: {
             query?: never;
@@ -32499,6 +33272,55 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_society_v1_public_societies__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSocietyOut"];
+                };
+            };
+            /** @description community.society_not_found (unknown, prospect or paused) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per IP; see Retry-After) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

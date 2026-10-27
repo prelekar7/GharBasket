@@ -106,40 +106,12 @@
       "fix": "Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public.",
       "note": "M12 §3.7: public cook profiles are M8's card."
     },
-    "GET /v1/earnings/certificate": {
-      "app": "mobile",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "after MS-B",
-      "note": "M8 §3.7 is an outline, 'refined after MS-B'."
-    },
     "POST /v1/admin/societies": {
       "app": "console",
       "class": "later",
       "owner": "prathamesh",
       "milestone": "MS-A",
       "note": "M9 §3.1 lists POST /v1/admin/societies (frozen for S1) but main has only PATCH /v1/admin/societies/{id}."
-    },
-    "GET /v1/impact": {
-      "app": "mobile",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.7 (?scope=me)."
-    },
-    "GET /v1/public/societies/{}": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url)."
-    },
-    "GET /v1/analytics/impact": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.6 (JSON and CSV)."
     },
     "GET /v1/hubs/{}/delivery-days": {
       "app": "console",

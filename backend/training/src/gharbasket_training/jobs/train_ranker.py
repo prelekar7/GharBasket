@@ -2,8 +2,9 @@
 train the next-basket ranker on every household's approved and locked boxes and their edits
 (read-only role), one model per `data_source` (synthetic and pilot are never pooled), evaluate
 each leave-last-basket-out against the baselines, write the models and their cards to the
-registry (`s3://gb-mlflow/models/basket_ranker/<version>-<data_source>/`) and the metrics to the
-API.
+registry (`s3://gb-mlflow/models/basket_ranker/<version>-<data_source>/`; beside `model.txt` and
+`card.json`, `explanations.json` holds the model's SHAP importances and sampled decisions) and the
+metrics to the API.
 
 The job does **not** promote: the Space serves what `basket_ranker/latest.json` points at, and
 moving that pointer is a manual decision after reading the card (ADR-0025):
@@ -23,7 +24,7 @@ import sys
 import tempfile
 from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -47,6 +48,8 @@ class Trained:
     version: str
     model: Any
     card: dict[str, Any]
+    # TreeSHAP of the holdout (else training) decisions: explanations.json (handbook 08 §8.4)
+    explanations: dict[str, Any] = field(default_factory=dict)
 
 
 async def rows(session: AsyncSession) -> dict[str, list[dict[str, Any]]]:
@@ -82,6 +85,7 @@ def fit(tables: dict[str, list[dict[str, Any]]], version: str) -> list[Trained]:
             metrics["lambdarank"] = ranker.evaluate(test, ranker.predict(model, test))
             for kind in ("repeat_last_week", "top_frequency"):
                 metrics[kind] = ranker.evaluate(test, ranker.baseline_scores(test, kind))
+        explained = test if test.groups else train
         tagged = f"{version}-{source}"
         out.append(
             Trained(
@@ -89,6 +93,11 @@ def fit(tables: dict[str, list[dict[str, Any]]], version: str) -> list[Trained]:
                 tagged,
                 model,
                 ranker.card(model, metrics, tagged, len(train.rows), source),
+                {
+                    **ranker.explain(model, explained),
+                    "version": tagged,
+                    "data": "holdout" if test.groups else "train",
+                },
             )
         )
     if not out:
@@ -97,7 +106,8 @@ def fit(tables: dict[str, list[dict[str, Any]]], version: str) -> list[Trained]:
 
 
 def publish(registry: Registry, trained: Trained) -> str:
-    """The model and its card under `<name>/<version>/`; never the `latest.json` pointer."""
+    """The model, its card and its SHAP explanations (`explanations.json`, for the eval report
+    and the paper) under `<name>/<version>/`; never the `latest.json` pointer."""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "model.txt"
         trained.model.save_model(str(path))
@@ -107,6 +117,10 @@ def publish(registry: Registry, trained: Trained) -> str:
     registry.lake.write_bytes(
         registry.key(ranker.MODEL_NAME, trained.version, "card.json"),
         (json.dumps(trained.card, indent=2) + "\n").encode(),
+    )
+    registry.lake.write_bytes(
+        registry.key(ranker.MODEL_NAME, trained.version, "explanations.json"),
+        (json.dumps(trained.explanations, indent=2) + "\n").encode(),
     )
     return registry.key(ranker.MODEL_NAME, trained.version)
 
