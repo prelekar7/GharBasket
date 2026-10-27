@@ -338,6 +338,19 @@ POST /slots/price          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request
     - `unlock.stop_costs(session, http, settings, societies, today)` answers `{}` without an HTTP client, so the job keeps every threshold. A society without a hub or a location keeps its threshold.
     - The job prices every society first, then locks each society row as before.
     - The reference days are the 7 days before `today` (IST, from `scheduled_for`) whose `tentative_day` has `routes_source: published`.
+- **As built, PR 3**, split in two stacked PRs because it came to about 720 hand-written lines (2026-10-28). **3a** `feat/M3-green-slots` is M3 and M6 (migration `9c2f7a41d6e3`). **3b** `feat/M4-green-discount` is M4 §3.9 and the hand-over of the saving (migration `4e81b0c95a27`). Until 3b, an approved box's order keeps its slot and gets no discount; the switch is off by default. Read with the saving, the customer contract and M4 §3.9:
+  - **`CycleOut` also gains `fees_paise`.** M9's follow-up 6 (the fee shown before approval) was never built, and `payable_paise` needs it. It is the order's frozen fee once approved, else `orders.api.box_fee`; a preview without a hub shows 0. The `box_ready` and `cutoff_reminder` payloads still have no fee.
+  - **`discount_paise` on the cycle** is `min(slot_saving_paise, total_paise)`, so `payable_paise` stays ≥ 0 when lines are removed after a move. M4 caps the order's discount at its subtotal in the same way.
+  - **Infeasible slots.** The contract's `reason_code` has no infeasible value, so a slot the service answers `INFEASIBLE` shows as `unpriced`, with `rank` null, `green` false and saving 0. A box can still move there when the slot has room.
+  - **`reason_params`** is `{ metres }` (rounded half up to 100 m) for `neighbour_stop` and `new_stop`, and null otherwise.
+  - **A quote belongs to the slot it was made for.** The quote row's `current_slot_id` must still be the cycle's slot. After a move, `POST` makes a new quote, and a `PUT` with an older quote gets 409 `subscriptions.quote_expired`.
+  - **`PUT` to the cycle's current slot** changes nothing: 200, the same version, and the saving it already has stays. Re-confirming a slot never drops an honoured saving.
+  - **`available`** is read live on every answer, including a reused quote. A slot that has left the hub's active list since shows 0.
+  - **`prediction_id` stays null.** `price_slots` does not return the prediction's id. The prediction is still recorded (kind `slot_price`, subject the household, `for_date` the delivery date).
+  - **Both endpoints need `cycles:write`** (the owner). The switch is the first dependency, so with it off a signed-in call is a 404 even without an `If-Match` or a valid body.
+  - **`weekly_cycles.slot_quote_id` has no foreign key.** A key both ways would make a cycle between the two tables. Quotes cascade with their cycle, and `delete_for_user` deletes them by household (counted as `slot_quotes`). Quotes are not in the data export; they are derived route data.
+  - **M6.** `HubIn` accepts the two settings on create as well, like `pre_live_box_fee_paise`. The seed's refresh leaves them as an admin set them.
+  - **Migration (3a)** `20261028_1500_subscriptions_green_slots` (`9c2f7a41d6e3`, down_revision `3e9a4c71b5d8`, main's head when it was built), with M3's table and columns and M6's two hub columns. M4's `orders.discount_code` moved to 3b's own migration. It is re-pointed at merge after #382 and #386. Every new column is nullable or has a server default, so existing rows need no backfill.
 
 **The gateway (`intel_gateway.api`)**
 - **`price_slots(http, settings, day: SlotDay, candidates: list[SlotCandidate], *, session=None, subject_type=None, subject_id=None) -> SlotPrices`.**

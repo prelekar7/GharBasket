@@ -1,5 +1,5 @@
 """Request and response models of M3 Plans & Subscriptions: the S3 contract (spec §3.1), the
-meal swap (§3.2), and a week that failed to pay (§3.3)."""
+meal swap (§3.2), a week that failed to pay (§3.3) and green slots (§3.6, M10 §3.8)."""
 
 import uuid
 from datetime import date, datetime, time
@@ -23,6 +23,7 @@ CycleStatus = Literal[
 LineSource = Literal["ai", "rule", "customer"]
 Unit = Literal["g", "kg", "ml", "l", "piece", "bunch", "pack"]
 Slot = Literal["breakfast", "lunch", "dinner"]
+GreenReason = Literal["same_society", "neighbour_stop", "new_stop", "new_trip", "unpriced"]
 
 
 class PlanOut(BaseModel):
@@ -256,6 +257,12 @@ class PaymentDueOut(BaseModel):
     due_at: datetime = Field(description="The end of the grace period (T-1 23:00 IST), in UTC")
 
 
+class GreenSlotOut(BaseModel):
+    quote_id: uuid.UUID
+    saving_paise: int = Field(examples=[1500], description="Honoured until the cut-off")
+    reason_code: GreenReason
+
+
 class CycleOut(BaseModel):
     id: uuid.UUID | None = Field(description="null for a preview")
     household_id: uuid.UUID
@@ -275,6 +282,47 @@ class CycleOut(BaseModel):
     generated_at: datetime | None
     approved_at: datetime | None
     payment_due: PaymentDueOut | None = Field(description="Only while the week is payment_failed")
+    fees_paise: int = Field(description="The box's delivery fee: the pre-live fee (M9 §3.6), or 0")
+    discount_paise: int = Field(description="green_slot.saving_paise (at most the lines), else 0")
+    payable_paise: int = Field(
+        description="total_paise + fees_paise - discount_paise; total_paise stays the lines' sum, "
+        "which the Budget Lock checks"
+    )
+    green_slot: GreenSlotOut | None = Field(description="A slot move at a quoted saving (§3.6)")
+
+
+# --- green slots (§3.6, M10 §3.8) ----------------------------------------------------------------
+
+
+class SlotOptionOut(BaseModel):
+    slot: SlotRefOut
+    current: bool = Field(description="The cycle's slot now")
+    available: int = Field(examples=[83], description="Room left in the slot that date (M4)")
+    green: bool = Field(description="Its society or a neighbour is already on a route then")
+    saving_paise: int = Field(examples=[1500], description="Off this box if it moves here")
+    rank: int | None = Field(description="1 = cheapest for the route; null when unpriced")
+    reason_code: GreenReason
+    reason_params: dict[str, int] | None = Field(
+        examples=[{"metres": 400}], description="Rounded to 100 m; never a society's name"
+    )
+
+
+class SlotQuoteOut(BaseModel):
+    id: uuid.UUID
+    cycle_id: uuid.UUID
+    delivery_date: date
+    expires_at: datetime = Field(description="15 minutes after it was made")
+    source: Literal["ml", "fallback", "unpriced"] = Field(
+        description="unpriced: no tentative routes, every item unpriced with no saving"
+    )
+    items: list[SlotOptionOut] = Field(description="Every active box slot that date, by start")
+
+
+class SlotMoveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slot_id: uuid.UUID
+    quote_id: uuid.UUID
 
 
 # --- the hub cut-off monitor and delivery dates (§3.4) -------------------------------------------

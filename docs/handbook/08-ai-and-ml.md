@@ -204,6 +204,7 @@ sequenceDiagram
   - **Fallback:** twice the distance to the nearest stop in the slot.
   - **The saving** is computed by M3: half the route saving, at most ₹15 (hub settings), in whole rupees and never below 0. It applies only where moving removes a stop that exists for that household alone. M4 records it as `discount_paise` at approval, honoured from a 15-minute quote.
   - **M9** uses the same cost, for a whole society, against the past week's published plans as its unlock-threshold stop cost.
+  - **Built (28 Oct 2026, three PRs):** the ML endpoint, the gateway with its rule fallback, and M3's `POST /v1/cycles/{id}/slot-quotes` and `PUT /v1/cycles/{id}/slot`. The two M3 endpoints are behind `GREEN_SLOTS_ENABLED`, which is off by default (404). The deviations are listed in M10 §3.8's "As built".
 - **Metric:** top-1 slot agreement and Spearman ρ of the insertion estimate against the CVRPTW re-solve difference (with − without), on S-3's synthetic mornings. The rule fallback is the baseline.
 
 ### M-I Churn and uplift

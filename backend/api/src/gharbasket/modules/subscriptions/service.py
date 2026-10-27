@@ -40,6 +40,7 @@ from gharbasket.modules.subscriptions.models import (
     EditFeedback,
     PantryFeedback,
     Plan,
+    SlotQuote,
     SocietyDeliveryDay,
     Subscription,
     WeeklyCycle,
@@ -1088,7 +1089,7 @@ async def _saved(
     await session.flush()
     result = sorted(lines.values(), key=lambda line: line.product_id)
     if cycle.status == "approved":
-        await _hand_over(session, cycle, result)
+        await hand_over(session, cycle, result)
     return result
 
 
@@ -1330,7 +1331,7 @@ def approved_cycle(cycle: WeeklyCycle, lines: list[BoxLine]) -> orders_api.Appro
     )
 
 
-async def _hand_over(
+async def hand_over(
     session: AsyncSession,
     cycle: WeeklyCycle,
     lines: list[BoxLine],
@@ -1390,7 +1391,7 @@ async def approve(
     cycle.auto_approved = actor == "system"
     cycle.version += 1
     await session.flush()
-    await _hand_over(
+    await hand_over(
         session, cycle, await lines_of(session, cycle.id), auto_approved=cycle.auto_approved
     )
     await session.flush()
@@ -1714,14 +1715,16 @@ async def end_for_deletion(session: AsyncSession, household_id: uuid.UUID) -> No
 
 
 async def delete_for_user(session: AsyncSession, household_id: uuid.UUID) -> dict[str, int]:
-    """M1's purge (M1 §3.5, order 7): the subscription, cycles with their lines and meal plans,
-    Budget Locks and both feedback tables. Forecasting learns from orders, which M4 keeps."""
+    """M1's purge (M1 §3.5, order 7): the subscription, cycles with their lines, meal plans and
+    slot quotes, Budget Locks and both feedback tables. Forecasting learns from orders, which M4
+    keeps."""
     cycles = select(WeeklyCycle.id).where(WeeklyCycle.household_id == household_id)
     counts = {}
     for model, which in (
         (EditFeedback, EditFeedback.cycle_id.in_(cycles)),
         (PantryFeedback, PantryFeedback.household_id == household_id),
         (BoxLine, BoxLine.cycle_id.in_(cycles)),
+        (SlotQuote, SlotQuote.household_id == household_id),
         (WeeklyCycle, WeeklyCycle.household_id == household_id),
         (BudgetLock, BudgetLock.household_id == household_id),
         (Subscription, Subscription.household_id == household_id),

@@ -3664,6 +3664,16 @@
             "title": "Delivery Date",
             "type": "string"
           },
+          "discount_paise": {
+            "description": "green_slot.saving_paise (at most the lines), else 0",
+            "title": "Discount Paise",
+            "type": "integer"
+          },
+          "fees_paise": {
+            "description": "The box's delivery fee: the pre-live fee (M9 §3.6), or 0",
+            "title": "Fees Paise",
+            "type": "integer"
+          },
           "generated_at": {
             "anyOf": [
               {
@@ -3675,6 +3685,17 @@
               }
             ],
             "title": "Generated At"
+          },
+          "green_slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GreenSlotOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A slot move at a quoted saving (§3.6)"
           },
           "highlights": {
             "items": {
@@ -3722,6 +3743,11 @@
               }
             ],
             "title": "Order Id"
+          },
+          "payable_paise": {
+            "description": "total_paise + fees_paise - discount_paise; total_paise stays the lines' sum, which the Budget Lock checks",
+            "title": "Payable Paise",
+            "type": "integer"
           },
           "payment_due": {
             "anyOf": [
@@ -3783,7 +3809,11 @@
           "order_id",
           "generated_at",
           "approved_at",
-          "payment_due"
+          "payment_due",
+          "fees_paise",
+          "discount_paise",
+          "payable_paise",
+          "green_slot"
         ],
         "title": "CycleOut",
         "type": "object"
@@ -6895,6 +6925,41 @@
         "title": "GoodsReceiptsOut",
         "type": "object"
       },
+      "GreenSlotOut": {
+        "properties": {
+          "quote_id": {
+            "format": "uuid",
+            "title": "Quote Id",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "same_society",
+              "neighbour_stop",
+              "new_stop",
+              "new_trip",
+              "unpriced"
+            ],
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "saving_paise": {
+            "description": "Honoured until the cut-off",
+            "examples": [
+              1500
+            ],
+            "title": "Saving Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "quote_id",
+          "saving_paise",
+          "reason_code"
+        ],
+        "title": "GreenSlotOut",
+        "type": "object"
+      },
       "HandoffIn": {
         "additionalProperties": false,
         "properties": {
@@ -8187,6 +8252,20 @@
             "title": "Address",
             "type": "string"
           },
+          "green_saving_max_paise": {
+            "default": 1500,
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Green Saving Max Paise",
+            "type": "integer"
+          },
+          "green_saving_share_pct": {
+            "default": 50,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Green Saving Share Pct",
+            "type": "integer"
+          },
           "location": {
             "$ref": "#/components/schemas/LatLng"
           },
@@ -8263,6 +8342,22 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "green_saving_max_paise": {
+            "description": "The most a green-slot move saves on a box (M10 §3.8)",
+            "examples": [
+              1500
+            ],
+            "title": "Green Saving Max Paise",
+            "type": "integer"
+          },
+          "green_saving_share_pct": {
+            "description": "Share of a green-slot move's route saving passed on (M10 §3.8)",
+            "examples": [
+              50
+            ],
+            "title": "Green Saving Share Pct",
+            "type": "integer"
           },
           "id": {
             "format": "uuid",
@@ -8344,6 +8439,8 @@
           "timings",
           "procurement_buffer_pct",
           "pre_live_box_fee_paise",
+          "green_saving_share_pct",
+          "green_saving_max_paise",
           "version",
           "created_at",
           "updated_at"
@@ -8367,6 +8464,32 @@
               }
             ],
             "title": "Address"
+          },
+          "green_saving_max_paise": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Green Saving Max Paise"
+          },
+          "green_saving_share_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Green Saving Share Pct"
           },
           "location": {
             "anyOf": [
@@ -23214,6 +23337,115 @@
         "title": "SlotIn",
         "type": "object"
       },
+      "SlotMoveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "quote_id": {
+            "format": "uuid",
+            "title": "Quote Id",
+            "type": "string"
+          },
+          "slot_id": {
+            "format": "uuid",
+            "title": "Slot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slot_id",
+          "quote_id"
+        ],
+        "title": "SlotMoveIn",
+        "type": "object"
+      },
+      "SlotOptionOut": {
+        "properties": {
+          "available": {
+            "description": "Room left in the slot that date (M4)",
+            "examples": [
+              83
+            ],
+            "title": "Available",
+            "type": "integer"
+          },
+          "current": {
+            "description": "The cycle's slot now",
+            "title": "Current",
+            "type": "boolean"
+          },
+          "green": {
+            "description": "Its society or a neighbour is already on a route then",
+            "title": "Green",
+            "type": "boolean"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1 = cheapest for the route; null when unpriced",
+            "title": "Rank"
+          },
+          "reason_code": {
+            "enum": [
+              "same_society",
+              "neighbour_stop",
+              "new_stop",
+              "new_trip",
+              "unpriced"
+            ],
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "reason_params": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rounded to 100 m; never a society's name",
+            "examples": [
+              {
+                "metres": 400
+              }
+            ],
+            "title": "Reason Params"
+          },
+          "saving_paise": {
+            "description": "Off this box if it moves here",
+            "examples": [
+              1500
+            ],
+            "title": "Saving Paise",
+            "type": "integer"
+          },
+          "slot": {
+            "$ref": "#/components/schemas/SlotRefOut"
+          }
+        },
+        "required": [
+          "slot",
+          "current",
+          "available",
+          "green",
+          "saving_paise",
+          "rank",
+          "reason_code",
+          "reason_params"
+        ],
+        "title": "SlotOptionOut",
+        "type": "object"
+      },
       "SlotPatch": {
         "additionalProperties": false,
         "properties": {
@@ -23243,6 +23475,59 @@
           }
         },
         "title": "SlotPatch",
+        "type": "object"
+      },
+      "SlotQuoteOut": {
+        "properties": {
+          "cycle_id": {
+            "format": "uuid",
+            "title": "Cycle Id",
+            "type": "string"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "expires_at": {
+            "description": "15 minutes after it was made",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "description": "Every active box slot that date, by start",
+            "items": {
+              "$ref": "#/components/schemas/SlotOptionOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "source": {
+            "description": "unpriced: no tentative routes, every item unpriced with no saving",
+            "enum": [
+              "ml",
+              "fallback",
+              "unpriced"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cycle_id",
+          "delivery_date",
+          "expires_at",
+          "source",
+          "items"
+        ],
+        "title": "SlotQuoteOut",
         "type": "object"
       },
       "SlotRef": {
@@ -40607,6 +40892,301 @@
           }
         ],
         "summary": "Skip the week before the cut-off (a payment_failed week until its grace ends); its order is cancelled (Idempotency-Key)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/v1/cycles/{cycle_id}/slot": {
+      "put": {
+        "operationId": "move_slot_v1_cycles__cycle_id__slot_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cycle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotMoveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CycleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.no_cycle, subscriptions.green_slots_off"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.cutoff_passed, subscriptions.not_editable, subscriptions.quote_expired, orders.slot_full"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.version_conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.quote_invalid: not this week's quote, or not its slot"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Move this week's box to a quoted slot on the same date, at the quote's saving (If-Match)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/v1/cycles/{cycle_id}/slot-quotes": {
+      "post": {
+        "description": "201 with a new quote (one ML call); 200 with the cycle's quote that has not expired. Moves no money, so no Idempotency-Key (M3 §3.6, M10 §3.8).",
+        "operationId": "quote_slots_v1_cycles__cycle_id__slot_quotes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cycle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotQuoteOut"
+                }
+              }
+            },
+            "description": "The quote that has not expired yet"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotQuoteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.no_cycle, subscriptions.green_slots_off"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.cutoff_passed, subscriptions.not_editable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Green-slot quote: every box slot that date with its saving, valid 15 minutes",
         "tags": [
           "subscriptions"
         ]

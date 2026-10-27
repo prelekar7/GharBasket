@@ -1,6 +1,6 @@
 """HTTP endpoints of M3 Plans & Subscriptions (spec §3.1): plans, the subscription, delivery days,
-the weekly cycle (read, edit, swap a meal (§3.2), approve, skip, un-skip (§3.3)), pantry feedback
-and the Budget Lock."""
+the weekly cycle (read, edit, swap a meal (§3.2), approve, skip, un-skip (§3.3), green slots
+(§3.6)), pantry feedback and the Budget Lock."""
 
 import uuid
 from datetime import date, datetime, timedelta
@@ -13,10 +13,16 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.subscriptions import cutoff, planning, service
+from gharbasket.modules.subscriptions import cutoff, green, planning, service
 from gharbasket.modules.subscriptions import jobs as _jobs  # noqa: F401 (registers the job)
 from gharbasket.modules.subscriptions import permissions as _permissions  # noqa: F401
-from gharbasket.modules.subscriptions.models import BoxLine, Plan, Subscription, WeeklyCycle
+from gharbasket.modules.subscriptions.models import (
+    BoxLine,
+    Plan,
+    SlotQuote,
+    Subscription,
+    WeeklyCycle,
+)
 from gharbasket.modules.subscriptions.schemas import (
     BudgetLockIn,
     BudgetLockOut,
@@ -30,6 +36,7 @@ from gharbasket.modules.subscriptions.schemas import (
     DeliveryDaysOut,
     FeedbackIn,
     FeedbackOut,
+    GreenSlotOut,
     HighlightOut,
     HubCutoffOut,
     HubDeliveryDatesOut,
@@ -41,6 +48,9 @@ from gharbasket.modules.subscriptions.schemas import (
     PlanOut,
     PlansOut,
     ReplacedOut,
+    SlotMoveIn,
+    SlotOptionOut,
+    SlotQuoteOut,
     SlotRefOut,
     SubscriptionIn,
     SubscriptionOut,
@@ -66,6 +76,14 @@ CanSeeDates = Annotated[Permit, require("delivery_days:read")]
 # Calendar dates the console can ask for; the day arithmetic around them never leaves the range.
 CalendarDate = Annotated[date, Field(ge=date(2000, 1, 1), le=date(2100, 12, 31))]
 MonthParam = Annotated[str | None, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
+AppSettings = Annotated[Settings, Depends(get_settings)]
+
+
+def _green_on(settings: AppSettings) -> None:
+    green.require_on(settings)
+
+
+GreenOn = Annotated[None, Depends(_green_on)]  # first, so off is a 404 before anything else
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -205,6 +223,17 @@ async def _cycle_out(
     budget_out = await _budget_out(session, household.id, on)
     total = sum(line.qty * line.unit_price_paise for line in lines)
     due = await service.payment_due(session, cycle) if cycle is not None else None
+    frozen = None
+    if cycle is not None and cycle.order_id is not None:
+        frozen = await orders_api.fees_of(session, cycle.order_id)  # set at approval (M4)
+    if frozen is not None:
+        fees = frozen
+    elif household.hub_id is not None:
+        fees = await orders_api.box_fee(session, household.hub_id, household.society_id)
+    else:
+        fees = 0
+    discount = min(cycle.slot_saving_paise, total) if cycle is not None else 0
+    moved = await green.green_slot(session, cycle) if cycle is not None else None
     return CycleOut(
         id=cycle.id if cycle else None,
         household_id=household.id,
@@ -232,6 +261,10 @@ async def _cycle_out(
             shortfall_paise=due.shortfall_paise,
             due_at=due.due_at,
         ),
+        fees_paise=fees,
+        discount_paise=discount,
+        payable_paise=max(0, total + fees - discount),
+        green_slot=None if moved is None else GreenSlotOut.model_validate(moved),
     )
 
 
@@ -446,7 +479,7 @@ async def preview_cycle(
     session: DbSession,
     lang: Lang,
     response: Response,
-    settings: Annotated[Settings, Depends(get_settings)],
+    settings: AppSettings,
 ) -> CycleOut:
     household = await _household(session, permit)
     profile = await identity_api.household_plan_profile(session, household.id)
@@ -600,6 +633,110 @@ async def set_meal(
         choice=body.set,
         recipe_id=body.recipe_id,
         expected_version=expected,
+    )
+    out = await _answer(session, cycle, household=household, lang=lang, response=response)
+    await session.commit()
+    return out
+
+
+async def _quote_out(session: DbSession, quote: SlotQuote, cycle: WeeklyCycle) -> SlotQuoteOut:
+    """The quote with each slot's room as it is now; route costs stay in the row."""
+    live = {s.id: s for s in await orders_api.box_slots(session, cycle.hub_id, quote.delivery_date)}
+    items = []
+    for item in quote.items:
+        slot_id = uuid.UUID(item["slot_id"])
+        now = live.get(slot_id)
+        items.append(
+            SlotOptionOut(
+                slot=await _slot(session, slot_id)
+                if now is None
+                else SlotRefOut(id=now.id, label=now.label, start=now.start, end=now.end),
+                current=slot_id == cycle.slot_id,
+                available=0 if now is None else now.available,
+                green=item["green"],
+                saving_paise=item["saving_paise"],
+                rank=item["rank"],
+                reason_code=item["reason_code"],
+                reason_params=item["reason_params"],
+            )
+        )
+    return SlotQuoteOut(
+        id=quote.id,
+        cycle_id=quote.cycle_id,
+        delivery_date=quote.delivery_date,
+        expires_at=quote.expires_at,
+        source=quote.source,  # pyright: ignore[reportArgumentType]
+        items=items,
+    )
+
+
+@router.post(
+    "/cycles/{cycle_id}/slot-quotes",
+    status_code=status.HTTP_201_CREATED,
+    summary="Green-slot quote: every box slot that date with its saving, valid 15 minutes",
+    description="201 with a new quote (one ML call); 200 with the cycle's quote that has not "
+    "expired. Moves no money, so no Idempotency-Key (M3 §3.6, M10 §3.8).",
+    responses={
+        200: {"model": SlotQuoteOut, "description": "The quote that has not expired yet"},
+        404: _problem("subscriptions.no_cycle, subscriptions.green_slots_off"),
+        409: _problem("subscriptions.cutoff_passed, subscriptions.not_editable"),
+    },
+)
+async def quote_slots(
+    _on: GreenOn,
+    cycle_id: uuid.UUID,
+    request: Request,
+    permit: CanWrite,
+    session: DbSession,
+    response: Response,
+    settings: AppSettings,
+) -> SlotQuoteOut:
+    _, cycle = await _owned_cycle(session, permit, cycle_id)
+    lines = await service.lines_of(session, cycle.id)
+    async with service.http_client(getattr(request.app.state, "http", None)) as http:
+        quote, made = await green.quote(
+            session,
+            http,
+            settings,
+            cycle,
+            total_paise=sum(line.qty * line.unit_price_paise for line in lines),
+        )
+    if not made:
+        response.status_code = status.HTTP_200_OK
+    response.headers["Cache-Control"] = "no-store"
+    out = await _quote_out(session, quote, cycle)
+    await session.commit()
+    return out
+
+
+@router.put(
+    "/cycles/{cycle_id}/slot",
+    summary="Move this week's box to a quoted slot on the same date, at the quote's saving "
+    "(If-Match)",
+    responses={
+        404: _problem("subscriptions.no_cycle, subscriptions.green_slots_off"),
+        409: _problem(
+            "subscriptions.cutoff_passed, subscriptions.not_editable, "
+            "subscriptions.quote_expired, orders.slot_full"
+        ),
+        412: _problem("subscriptions.version_conflict"),
+        422: _problem("subscriptions.quote_invalid: not this week's quote, or not its slot"),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def move_slot(
+    _on: GreenOn,
+    cycle_id: uuid.UUID,
+    body: SlotMoveIn,
+    permit: CanWrite,
+    session: DbSession,
+    expected: IfMatch,
+    lang: Lang,
+    response: Response,
+) -> CycleOut:
+    household, cycle = await _owned_cycle(session, permit, cycle_id)
+    await green.move(
+        session, cycle, slot_id=body.slot_id, quote_id=body.quote_id, expected_version=expected
     )
     out = await _answer(session, cycle, household=household, lang=lang, response=response)
     await session.commit()

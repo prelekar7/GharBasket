@@ -72,6 +72,8 @@ async def test_an_admin_creates_a_hub_once_per_key(
     }
     assert hub["procurement_buffer_pct"] == 10
     assert hub["pre_live_box_fee_paise"] == 3_000  # ₹30 a box before a society is live
+    # The green-slot saving (M10 §3.8): half the route saving, at most ₹15.
+    assert (hub["green_saving_share_pct"], hub["green_saving_max_paise"]) == (50, 1_500)
     assert await events(db_session, "hub_ops.hub_created", hub["id"]) == [
         {"hub_id": hub["id"], "slug": "vashi", "name": "Vashi hub"}
     ]
@@ -90,6 +92,8 @@ async def test_an_admin_creates_a_hub_once_per_key(
         ({"procurement_buffer_pct": 51}, 422, "request.invalid"),
         ({"pre_live_box_fee_paise": -1}, 422, "request.invalid"),
         ({"pre_live_box_fee_paise": 10_001}, 422, "request.invalid"),
+        ({"green_saving_share_pct": 101}, 422, "request.invalid"),
+        ({"green_saving_max_paise": 10_001}, 422, "request.invalid"),
         ({"service_area": area([*SQUARE[:-1], [73.0, 19.071]])}, 422, "hub_ops.area_invalid"),
         ({"service_area": area(SQUARE, SQUARE)}, 422, "hub_ops.area_invalid"),
         ({"service_area": area([*SQUARE[:2], SQUARE[-1]])}, 422, "hub_ops.area_invalid"),
@@ -180,6 +184,16 @@ async def test_patching_a_hub_needs_its_version_and_reports_what_changed(
         url, json={"pre_live_box_fee_paise": 10_001}, headers={**admin, "If-Match": "4"}
     )
     assert too_much.status_code == 422
+    green = await api.patch(
+        url,
+        json={"green_saving_share_pct": 0, "green_saving_max_paise": 10_000},
+        headers={**admin, "If-Match": "4"},
+    )
+    assert (green.json()["green_saving_share_pct"], green.json()["version"]) == (0, 5)
+    assert (await events(db_session, "hub_ops.hub_updated", hub["id"]))[-1]["changed"] == [
+        "green_saving_share_pct",
+        "green_saving_max_paise",
+    ]
 
     unknown = await api.patch(
         f"/v1/admin/hubs/{uuid.uuid4()}",
