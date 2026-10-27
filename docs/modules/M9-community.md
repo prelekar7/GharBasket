@@ -577,6 +577,8 @@ GET /v1/societies/{id}/unlock      (§3.1, three fields added)
 PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) gains
           { "unlock_threshold": 25, "unlock_threshold_pinned": true }   pinned: the weekly job leaves it
           { "status": "unlocking" | "paused" | "live" }                 a hub decision, audit-logged
+          { "boundary": GeoPolygon | null }                             set or clear the boundary (as built, §3.6)
+          { "towers": [ { "id"?, "label" } ] }                          replaces the whole list (as built, §3.6)
 ```
 
 **Rules**
@@ -616,7 +618,7 @@ PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) ga
 
 **As built (S9).**
 - **The first captain.** `captains.appoint` moves a `prospect` society to `unlocking` in its own transaction (no consumer of `captain_assigned`), then checks the count, so a society that already has enough households goes live at once.
-- **The hub's PATCH.** `PATCH /v1/admin/societies/{id}` takes only `unlock_threshold` (1 to 500; the source becomes `hub`), `unlock_threshold_pinned` and `status` for now; the polygon and towers come with the console's map editor. Hub managers of the society's hub and admins (`societies:write`); another hub's society is 404. It answers the unlock view plus `unlock_threshold_pinned`, is audit-logged (`community.society_updated`), and needs no Idempotency-Key or If-Match. `status: "live"` goes live like the automatic path (`live_at` and `society_live` the first time only).
+- **The hub's PATCH.** `PATCH /v1/admin/societies/{id}` takes, all optional and nothing else (`extra=forbid`, so `name`, `slug`, `hub_id` and `flats` are 422): `unlock_threshold` (1 to 500; the source becomes `hub`), `unlock_threshold_pinned`, `status` (`unlocking`, `paused`, `live`), `boundary` and `towers`. `boundary` is a GeoJSON `Polygon` in M6 §3.1's shape (`[lng, lat]`, one closed ring, 4 to 500 points counting the repeated first, no holes, each point in India, valid to PostGIS so not crossing itself), checked by the same `platform.geo.polygon_element` as a hub's service area; a bad one is 422 `community.boundary_invalid`. `boundary: null` clears it (a society without a boundary accepts any address pin, `community.api.contains`); a missing `boundary` leaves it alone. `towers` replaces the whole list (`[]` removes them all; at most 50; ids optional, the next free `a`, `b`, `c`... fill the gaps, given ids must be unique, otherwise 422 `request.invalid`); `towers: null` is 422, a missing `towers` leaves the list alone. Not checked: a tower an address still uses may be removed. Hub managers of the society's hub and admins (`societies:write`); another hub's society, and a hub-less one for a hub manager, is 404. It answers the unlock view plus `unlock_threshold_pinned` (not the boundary or towers: read them from `GET /v1/admin/societies`), is audit-logged (`community.society_updated`: `before` and `after` carry the unlock fields, plus `boundary_vertices`, the corners without the closing point or null, and `towers` when sent; `after.changed` lists the fields sent; the polygon itself is never logged), and needs no Idempotency-Key or If-Match. `status: "live"` goes live like the automatic path (`live_at` and `society_live` the first time only).
 - **M10 and M6 follow-ups.** `unlock.stop_cost` answers None until M10 §3.8's PR 2 replaces it with `unlock.stop_costs`, which batches per hub through `intel_gateway.api.society_stop_costs`; `recompute_thresholds` then takes `ctx.http` and `ctx.settings`. Until then the job keeps every threshold; `box_fee_paise` is `unlock.PRE_LIVE_BOX_FEE_PAISE` (3,000) until the hub's `pre_live_box_fee_paise` exists.
 - **The job** skips societies that are live or have a `live_at`, and pinned ones; it returns `{ priced, kept, skipped, went_live }`.
 - **Societies already live** got `live_at = updated_at` in the migration, and the seed sets `live_at` when it seeds a society live.
@@ -767,6 +769,7 @@ PATCH /v1/admin/society-requests/{id}          { "status": "received" }: undo of
 | 409 | `community.request_closed` | Accept or duplicate of a request that is not `received`; the undo of one that is not `duplicate` |
 | 422 | `request.invalid` | `duplicate` without a listed `society_id` (`errors[].field: "society_id"`); a PATCH body other than `{ "status": "received" }` |
 | 403 | `auth.forbidden` | A `hub_id` outside the caller's grants (list or accept) |
+| 422 | `community.boundary_invalid` | A `PATCH /v1/admin/societies/{id}` boundary that is not one closed ring of 4 to 500 `[lng, lat]` points in India, or crosses itself (§3.6 as built) |
 
 | Mock today (`mocks/adminCommunity.js`) | Contract |
 |---|---|

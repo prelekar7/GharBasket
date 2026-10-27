@@ -7,11 +7,12 @@ ever carries a captain's flat number or phone.
 
 import uuid
 from datetime import date, datetime
+from itertools import chain, count
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from gharbasket.platform.geo import LatLng
+from gharbasket.platform.geo import GeoPolygon, LatLng
 
 SocietyStatus = Literal["prospect", "unlocking", "live", "paused"]
 
@@ -63,8 +64,49 @@ class UnlockOut(BaseModel):
     )
 
 
+def _tidy(value: str | None) -> str | None:
+    if value is None:
+        return None
+    tidy = " ".join(value.split())
+    return tidy or None
+
+
+class TowerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str | None = Field(
+        default=None,
+        pattern=r"^[a-z0-9][a-z0-9-]{0,15}$",
+        description="Unique in the society; left out, the next free `a`, `b`, `c`... is used",
+        examples=["a"],
+    )
+    label: str = Field(min_length=1, max_length=60, examples=["A wing"])
+
+    @field_validator("label")
+    @classmethod
+    def _tidy_label(cls, value: str) -> str:
+        tidy = _tidy(value)
+        if tidy is None:
+            raise ValueError("label needs a character")
+        return tidy
+
+
+def fill_tower_ids(towers: list[TowerIn]) -> None:
+    """Give the towers without an id the next free `a`, `b`, `c`...; given ids must be unique."""
+    given = [t.id for t in towers if t.id is not None]
+    if len(given) != len(set(given)):
+        raise ValueError("tower ids must be unique")
+    # Past `z` (a society has at most 50 towers): t27, t28...
+    names = chain("abcdefghijklmnopqrstuvwxyz", (f"t{n}" for n in count(27)))
+    free = (name for name in names if name not in given)
+    for tower in towers:
+        if tower.id is None:
+            tower.id = next(free)
+
+
 class SocietyUnlockIn(BaseModel):
-    """The hub's unlock settings (§3.6); every field optional."""
+    """The hub's PATCH (§3.6, §3.9): unlock settings, boundary and towers; every field optional.
+    `boundary: null` clears the boundary; `towers` replaces the whole list."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -75,17 +117,27 @@ class SocietyUnlockIn(BaseModel):
     status: Literal["unlocking", "paused", "live"] | None = Field(
         default=None, description="A hub decision, audit-logged"
     )
+    boundary: GeoPolygon | None = Field(
+        default=None,
+        description="The drawn boundary; null clears it. Checked like a hub's service area",
+    )
+    towers: list[TowerIn] | None = Field(
+        default=None,
+        max_length=50,
+        description="Replaces the whole list; ids left out get the next free letter",
+    )
+
+    @model_validator(mode="after")
+    def _towers(self) -> "SocietyUnlockIn":
+        if "towers" in self.model_fields_set:
+            if self.towers is None:
+                raise ValueError("towers cannot be null; send [] to remove them all")
+            fill_tower_ids(self.towers)
+        return self
 
 
 class SocietyUnlockAdminOut(UnlockOut):
     unlock_threshold_pinned: bool
-
-
-def _tidy(value: str | None) -> str | None:
-    if value is None:
-        return None
-    tidy = " ".join(value.split())
-    return tidy or None
 
 
 class SocietyRequestIn(BaseModel):
@@ -223,13 +275,6 @@ class ReferralClaimOut(BaseModel):
 # --- the staff society list and society request review (§3.9) -------------------------------------
 
 
-class GeoPolygon(BaseModel):
-    """GeoJSON, WGS 84, `[lng, lat]` (M6 §3.1's shape)."""
-
-    type: Literal["Polygon"]
-    coordinates: list[list[list[float]]]
-
-
 class HubRef(BaseModel):
     id: uuid.UUID
     name: str | None = Field(examples=["Kharghar hub"])
@@ -276,26 +321,6 @@ class SocietyRequestAdmin(BaseModel):
     reviewed_at: datetime | None
 
 
-class TowerIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    id: str | None = Field(
-        default=None,
-        pattern=r"^[a-z0-9][a-z0-9-]{0,15}$",
-        description="Unique in the society; left out, the next free `a`, `b`, `c`... is used",
-        examples=["a"],
-    )
-    label: str = Field(min_length=1, max_length=60, examples=["A wing"])
-
-    @field_validator("label")
-    @classmethod
-    def _tidy_label(cls, value: str) -> str:
-        tidy = _tidy(value)
-        if tidy is None:
-            raise ValueError("label needs a character")
-        return tidy
-
-
 class SocietyCreateIn(BaseModel):
     """A new society by hand (§3.1, §3.9): always a `prospect`; the boundary is drawn after, by
     the map editor."""
@@ -329,14 +354,7 @@ class SocietyCreateIn(BaseModel):
 
     @model_validator(mode="after")
     def _tower_ids(self) -> "SocietyCreateIn":
-        """Fill the missing tower ids; the given ones must be unique."""
-        given = [t.id for t in self.towers if t.id is not None]
-        if len(given) != len(set(given)):
-            raise ValueError("tower ids must be unique")
-        free = (c for c in "abcdefghijklmnopqrstuvwxyz" if c not in given)
-        for tower in self.towers:
-            if tower.id is None:
-                tower.id = next(free)
+        fill_tower_ids(self.towers)
         return self
 
 

@@ -13,13 +13,16 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from geoalchemy2 import Geometry
+from sqlalchemy import cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import events
 from gharbasket.modules.community.models import Society
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform import audit
+from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.geo import GeoPolygon, PolygonInvalid, polygon_element
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import publish
 
@@ -95,20 +98,44 @@ async def start_unlocking(session: AsyncSession, society: Society) -> None:
         await check_live(session, society)
 
 
+async def _boundary_vertices(session: AsyncSession, society_id: uuid.UUID) -> int | None:
+    """Corners of the stored boundary (the closing point is not counted); None without one."""
+    points = await session.scalar(
+        select(func.ST_NPoints(cast(Society.boundary, Geometry))).where(Society.id == society_id)
+    )
+    return None if points is None else points - 1
+
+
 async def update(
     session: AsyncSession, society: Society, changes: dict[str, Any], by_user_id: uuid.UUID
 ) -> Society:
-    """The hub's PATCH (§3.6): pin or set the threshold, or set the status. Audit-logged."""
-    before = {
+    """The hub's PATCH (§3.6, §3.9): pin or set the threshold, set the status, set or clear the
+    boundary (`changes["boundary"]` a GeoPolygon or None) and replace the towers
+    (`changes["towers"]`, `[{id, label}]`). Audit-logged: the boundary as its corner count."""
+    before: dict[str, Any] = {
         "status": society.status,
         "unlock_threshold": society.unlock_threshold,
         "unlock_threshold_pinned": society.unlock_threshold_pinned,
     }
+    boundary = None
+    if "boundary" in changes:
+        polygon: GeoPolygon | None = changes["boundary"]
+        try:
+            boundary = None if polygon is None else await polygon_element(session, polygon)
+        except PolygonInvalid as invalid:
+            raise ProblemError(422, "community.boundary_invalid", str(invalid)) from None
+        before["boundary_vertices"] = await _boundary_vertices(session, society.id)
+    if "towers" in changes:
+        before["towers"] = society.towers
     if "unlock_threshold" in changes:
         society.unlock_threshold = changes["unlock_threshold"]
         society.threshold_source = "hub"
     if "unlock_threshold_pinned" in changes:
         society.unlock_threshold_pinned = changes["unlock_threshold_pinned"]
+    if "boundary" in changes:
+        society.boundary = boundary
+    if "towers" in changes:
+        society.towers = changes["towers"]
     status = changes.get("status")
     if status == "live":
         await go_live(session, society)
@@ -116,6 +143,9 @@ async def update(
         society.status = status
     await session.flush()
     await check_live(session, society)
+    after = {key: getattr(society, key) for key in before if key != "boundary_vertices"}
+    if "boundary" in changes:
+        after["boundary_vertices"] = await _boundary_vertices(session, society.id)
     await audit.record(
         session,
         actor_user_id=by_user_id,
@@ -123,7 +153,7 @@ async def update(
         entity_type="society",
         entity_id=str(society.id),
         before=before,
-        after={key: getattr(society, key) for key in before},
+        after={**after, "changed": sorted(changes)},
     )
     return society
 

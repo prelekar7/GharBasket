@@ -41,7 +41,6 @@ from gharbasket.modules.hub_ops.schemas import (
     CompleteIn,
     CountIn,
     GeneratedPurchaseOrders,
-    GeoPolygon,
     GoodsReceiptOut,
     GoodsReceiptsOut,
     HubIn,
@@ -90,7 +89,7 @@ from gharbasket.platform import audit
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.etag import IfMatch, set_etag
-from gharbasket.platform.geo import LatLng
+from gharbasket.platform.geo import GeoPolygon, LatLng
 from gharbasket.platform.idempotency import Idempotency, Idempotent
 from gharbasket.platform.locale import Lang, Language
 from gharbasket.platform.pagination import Cursor, Page, decode_cursor, encode_cursor

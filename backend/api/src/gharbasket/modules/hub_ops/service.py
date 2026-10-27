@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.hub_ops import events
 from gharbasket.modules.hub_ops.models import DEFAULT_TIMINGS, TIMING_KEYS, Hub, Vendor
 from gharbasket.modules.hub_ops.schemas import (
-    GeoPolygon,
     HubIn,
     HubPatch,
     TimingsPatch,
@@ -26,11 +25,10 @@ from gharbasket.modules.hub_ops.schemas import (
     VendorPatch,
 )
 from gharbasket.platform.errors import ProblemError
-from gharbasket.platform.geo import LAT_RANGE, LNG_RANGE, point
+from gharbasket.platform.geo import GeoPolygon, PolygonInvalid, point, polygon_element
 from gharbasket.platform.outbox import publish
 
 HHMM = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d")
-RING_POINTS = (4, 500)
 
 
 def hub_not_found() -> ProblemError:
@@ -57,24 +55,10 @@ def _area_invalid(detail: str) -> ProblemError:
 
 async def area(session: AsyncSession, polygon: GeoPolygon) -> WKTElement:
     """A GeoJSON polygon as a value for the `service_area` column, or 422 `hub_ops.area_invalid`."""
-    if len(polygon.coordinates) != 1:
-        raise _area_invalid("The area is one ring, without holes.")
-    ring = polygon.coordinates[0]
-    if not RING_POINTS[0] <= len(ring) <= RING_POINTS[1]:
-        raise _area_invalid("The ring has 4 to 500 points.")
-    for corner in ring:
-        # NaN fails every comparison, so it is refused here too.
-        if len(corner) != 2 or not (
-            LNG_RANGE[0] <= corner[0] <= LNG_RANGE[1] and LAT_RANGE[0] <= corner[1] <= LAT_RANGE[1]
-        ):
-            raise _area_invalid("Each point is [lng, lat] in India.")
-    if ring[0] != ring[-1]:
-        raise _area_invalid("The ring is closed: its last point repeats the first.")
-    wkt = f"POLYGON(({', '.join(f'{lng!r} {lat!r}' for lng, lat in ring)}))"
-    valid = await session.scalar(select(func.ST_IsValid(func.ST_GeomFromText(wkt, 4326))))
-    if not valid:
-        raise _area_invalid("The area crosses itself or has no inside.")
-    return WKTElement(wkt, srid=4326, extended=False)
+    try:
+        return await polygon_element(session, polygon)
+    except PolygonInvalid as invalid:
+        raise _area_invalid(str(invalid)) from None
 
 
 def _area_coordinates(hub: Hub) -> list[list[list[float]]] | None:
