@@ -1328,6 +1328,8 @@ def approved_cycle(cycle: WeeklyCycle, lines: list[BoxLine]) -> orders_api.Appro
         ),
         data_source=cycle.data_source,
         version=cycle.version,
+        discount_paise=cycle.slot_saving_paise,  # M4 takes at most the subtotal (M4 §3.9)
+        discount_code="green_slot" if cycle.slot_saving_paise > 0 else None,
     )
 
 
@@ -1369,6 +1371,8 @@ async def hand_over(
                 for line in handed.lines
             ],
             "total_paise": sum(line.qty * line.unit_price_paise for line in handed.lines),
+            "discount_paise": handed.discount_paise,
+            "discount_code": handed.discount_code,
             "auto_approved": auto_approved,
         },
     )

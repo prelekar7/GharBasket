@@ -143,6 +143,7 @@ async def _summary(session: DbSession, order: Order, slot: Slot | None = None) -
         subtotal_paise=order.subtotal_paise,
         fees_paise=order.fees_paise,
         discount_paise=order.discount_paise,
+        discount_code=order.discount_code,  # pyright: ignore[reportArgumentType]
         total_paise=order.total_paise,
         version=order.version,
         created_at=order.created_at,

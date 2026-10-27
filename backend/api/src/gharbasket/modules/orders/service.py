@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -205,6 +205,8 @@ class ApprovedCycle:
     lines: tuple[CycleLine, ...]
     data_source: str = "real"
     version: int = 1  # the cycle's version; an edit after approval hands the box over again
+    discount_paise: int = 0  # a green-slot saving (M4 §3.9); the order takes at most its subtotal
+    discount_code: str | None = None  # "green_slot"
 
 
 def _totals(order: Order, lines: list[OrderLine]) -> None:
@@ -214,6 +216,38 @@ def _totals(order: Order, lines: list[OrderLine]) -> None:
 
 def _total(order: Order) -> None:
     order.total_paise = max(0, order.subtotal_paise + order.fees_paise - order.discount_paise)
+
+
+def _discount(order: Order, cycle: ApprovedCycle) -> bool:
+    """The cycle's discount on the order, at most its subtotal (M4 §3.9); True if it changed."""
+    amount = min(max(0, cycle.discount_paise), order.subtotal_paise)
+    code = cycle.discount_code if amount > 0 else None
+    if (order.discount_paise, order.discount_code) == (amount, code):
+        return False
+    order.discount_paise, order.discount_code = amount, code
+    _total(order)
+    return True
+
+
+async def _move_slot(session: AsyncSession, order: Order, cycle: ApprovedCycle) -> bool:
+    """A re-approval with another slot moves the booking under that slot's row lock (M4 §3.9);
+    a full slot raises `orders.slot_full` and keeps the old booking. The date never changes."""
+    if order.slot_id == cycle.slot_id:
+        return False
+    async with session.begin_nested():
+        await session.execute(delete(SlotBooking).where(SlotBooking.order_id == order.id))
+        await book_slot(session, cycle.slot_id, order.delivery_date, order.id)
+    order.slot_id = cycle.slot_id
+    session.add(
+        OrderEvent(
+            order_id=order.id,
+            from_status="approved",
+            to_status="approved",
+            actor="customer",
+            payload={"cycle_version": cycle.version, "slot_id": str(cycle.slot_id)},
+        )
+    )
+    return True
 
 
 def food_paid(order: Order) -> int:
@@ -309,12 +343,17 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
     """An `approved` box order with the cycle's lines and frozen prices; once per cycle.
 
     Called again for the same cycle (an edit after approval) while the order is still
-    `approved`, it replaces the box lines and totals; add-ons are kept (M4 §3.1).
+    `approved`, it moves the booking to the cycle's slot, replaces the box lines and totals and
+    sets the discount again; add-ons are kept (M4 §3.1, §3.9).
     """
     existing = await by_cycle(session, cycle.cycle_id)
     if existing is not None:
         if existing.status == "approved":
+            moved = await _move_slot(session, existing, cycle)
             await _replace_box_lines(session, existing, cycle)
+            if _discount(existing, cycle) or moved:
+                existing.version += 1
+            await session.flush()
         return existing
     products = await _box_products(session, cycle)
     fee = await fees.box_fee(session, cycle.hub_id, cycle.society_id)  # frozen, as line prices
@@ -341,6 +380,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
             lines = _box_lines(order, cycle, products)
             session.add_all(lines)
             _totals(order, lines)
+            _discount(order, cycle)
             await book_slot(session, cycle.slot_id, cycle.delivery_date, order.id)
             session.add(
                 OrderEvent(

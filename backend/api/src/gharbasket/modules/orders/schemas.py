@@ -144,6 +144,9 @@ class OrderSummaryOut(BaseModel):
     subtotal_paise: int
     fees_paise: int
     discount_paise: int
+    discount_code: Literal["green_slot"] | None = Field(
+        default=None, description="What discount_paise is, e.g. a green-slot saving (M4 §3.9)"
+    )
     total_paise: int
     version: int
     created_at: datetime
