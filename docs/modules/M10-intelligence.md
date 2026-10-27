@@ -300,6 +300,20 @@ POST /slots/price          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request
   4. **Rank:** feasible slots by marginal cost, then window start, then slot id; infeasible slots after them, by window start.
 - **Deterministic and fast:** no solver and no randomness, so the same request gives the same answer. Targets on haversine: ≤ 0.5 s for 100 stops × 6 slots × 1 candidate, and ≤ 3 s for 50 candidates (M9's batch).
 - **Code:** `gharbasket_ml/slots.py` reuses `routing` (`osrm_matrix`, `haversine_matrix`, `Node`, `Instance`, `check`, `nearest_neighbour`). The request is converted to a `RouteRequest` for them with `model_construct`, since an empty day has no stops. The schemas sit next to §3.4's.
+- **As built** (`feat/M10-slots-price`, 2026-10-28). Read with the steps above:
+  - **Trip times.** A trip leaves no earlier than `depart_s`, or than its van's return plus `reload_s`, and **just in time for its earliest window**, as `routing.nearest_neighbour` and M7's `fill` time a trip. Leaving at `depart_s` would charge a late slot's trips hours of waiting at wage, which is not a route cost.
+  - **No food bank.** The request has no `food_bank`, so a stop with `donation_kg_tenths` is a 422 (`donations need a food_bank`). The gateway (PR 2) sends donations as 0; tentative stops have none. Duplicate stop ids are a 422 too.
+  - **422 body.** It is FastAPI's validation body, as on `/route/solve` and the other ML routes; `request.invalid` is the gateway's reading of it.
+  - **The search** replays only the van an insertion changes, through `routing.check`. The whole-day rules (`not served`, `visited twice`) are left to the final replay. The van's problems are compared as counted checker strings, so a position that makes an already very late drop later changes its "N min late" text and counts as a new problem. Two cuts keep the search fast without changing its answer: a trip already over capacity with the candidate is skipped, and positions on a trip stop once the van leaves the previous stop after the slot's end plus `max_late_s`. A new trip goes after each used van's last trip, then on the lowest-numbered unused van.
+  - **The numbers** are always the whole-day replay of the chosen position. A van's difference equals it exactly when costs are whole paise (the hypothesis test at 1000 paise/km). Otherwise each van's rounding can move it by up to 2 paise (300 random days, 0 beyond).
+  - **The output.**
+    - `marginal_m` and `marginal_s` are floored at 0 like the cost. An insertion into time the van spent waiting has `marginal_s` 0.
+    - A slot's stops are the ids ending in `/<slot_id>` that are on the routes, so stops removed under `ignore` do not count. `nearest_stop_m` is the shorter of the two road directions. A full own stop, priced as a separate drop, is therefore `NEIGHBOUR_STOP` at 0 m.
+    - `SAME_SOCIETY`'s position is the own stop's trip and van, with `after` the stop before it.
+    - Slots are listed in the request's order, and `rank` orders them; infeasible slots tie-break on the slot id.
+    - The same request gives the same JSON apart from `seconds`.
+  - **Matrix.** `routing.matrix` (OSRM within the timeout, else haversine) is now shared with `/route/solve`. `SLOT_OSRM_TIMEOUT_S` is a service setting (default 1.0, at most 2).
+  - **Speed** (haversine, laptop), for 100 stops in 6 slots: 1 candidate takes about 0.03 s and 50 candidates about 0.35 s. For 400 stops, 50 candidates take about 0.6 s.
 
 **The gateway (`intel_gateway.api`)**
 - **`price_slots(http, settings, day: SlotDay, candidates: list[SlotCandidate], *, session=None, subject_type=None, subject_id=None) -> SlotPrices`.**

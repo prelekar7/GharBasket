@@ -1,4 +1,5 @@
-"""Request and response of POST /plan/week (M10 §3.1) and POST /pantry/quantities (§3.3)."""
+"""Request and response of the ML endpoints (M10 §3): /plan/week, /pantry/quantities, /route/solve,
+/slots/price, /assign/kitchens, /basket/rank and /assistant/turn."""
 
 from typing import Literal, Self
 
@@ -307,6 +308,132 @@ class RouteResponse(BaseModel):
     summary: RouteSummary
     seconds: float
     model: str = "cvrptw-waves-v0"
+
+
+# --- POST /slots/price (M10 §3.8): the marginal route cost of a society per slot ----------------
+
+
+class TripIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    van: int = Field(ge=0)
+    stops: list[str] = Field(min_length=1, description="Stop ids in visiting order")
+
+
+class SlotCandidateIn(BaseModel):
+    """A society's point and the load to price (one box by default). `join`: a stop of this
+    society in a slot takes the load; `ignore`: its stops leave the routes first (M9)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=80, description="The society id")
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    orders: int = Field(default=1, ge=0)
+    kg_tenths: int = Field(default=80, ge=0)
+    crates: int = Field(default=1, ge=0)
+    own_stops: Literal["join", "ignore"] = "join"
+
+
+class SlotIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=80)
+    window_start_s: int = Field(ge=0)
+    window_end_s: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _window_in_order(self) -> Self:
+        if self.window_start_s > self.window_end_s:
+            raise ValueError(f"slot {self.id}: window_start_s is after window_end_s")
+        return self
+
+
+class SlotPriceRequest(BaseModel):
+    """A day's tentative stops (ids `<society_id>/<slot_id>`) and their trips, the societies to
+    price and the slots to price them in. No food bank: the stops carry no donations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hub: Point
+    depart_s: int = Field(ge=0)
+    return_by_s: int = Field(ge=0)
+    stops: list[StopIn] = Field(default_factory=list, max_length=400)
+    trips: list[TripIn] | None = Field(
+        default=None, description="A van's trips in time order; null: nearest neighbour"
+    )
+    vans: VansIn
+    service: ServiceIn = Field(default_factory=ServiceIn)
+    cost: CostIn = Field(default_factory=CostIn)
+    candidates: list[SlotCandidateIn] = Field(min_length=1, max_length=50)
+    slots: list[SlotIn] = Field(min_length=1, max_length=12)
+    near_m: int = Field(default=1000, ge=0, le=5000)
+    max_late_s: int = Field(default=1800, ge=0)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if self.depart_s >= self.return_by_s:
+            raise ValueError("depart_s must be before return_by_s")
+        if any(s.donation_kg_tenths for s in self.stops):
+            raise ValueError("donations need a food_bank, which slot pricing does not take")
+        ids = [s.id for s in self.stops]
+        for what, names in (
+            ("stop", ids),
+            ("candidate", [c.id for c in self.candidates]),
+            ("slot", [s.id for s in self.slots]),
+        ):
+            if len(set(names)) != len(names):
+                raise ValueError(f"duplicate {what} ids")
+        if self.trips is not None:
+            on_trips = [s for t in self.trips for s in t.stops]
+            if unknown := sorted(set(on_trips) - set(ids)):
+                raise ValueError(f"trips name unknown stops: {', '.join(unknown)}")
+            if len(set(on_trips)) != len(on_trips):
+                raise ValueError("a stop is on more than one trip, or twice on one")
+            if missing := sorted(set(ids) - set(on_trips)):
+                raise ValueError(f"stops on no trip: {', '.join(missing)}")
+            if any(t.van >= self.vans.count for t in self.trips):
+                raise ValueError("a trip's van is outside vans.count")
+        return self
+
+
+class SlotBaseOut(BaseModel):
+    trips: int
+    vans: int
+    km: float
+    cost_paise: int
+    problems: list[str] = Field(default_factory=list)
+
+
+class SlotPositionOut(BaseModel):
+    trip: int | None = Field(description="Index in the base's trips; null: a new trip")
+    van: int
+    after: str | None = Field(description="The stop before it; null: first on the trip")
+
+
+class SlotPriceOut(BaseModel):
+    id: str
+    rank: int = Field(description="1 = cheapest; infeasible slots last")
+    feasible: bool
+    marginal_cost_paise: int | None
+    marginal_m: int | None
+    marginal_s: int | None
+    nearest_stop_m: int | None
+    reason: Literal["SAME_SOCIETY", "NEIGHBOUR_STOP", "NEW_STOP", "NEW_TRIP", "INFEASIBLE"]
+    position: SlotPositionOut | None
+
+
+class SlotCandidateOut(BaseModel):
+    id: str
+    slots: list[SlotPriceOut] = Field(description="In the request's slot order")
+
+
+class SlotPriceResponse(BaseModel):
+    source: Literal["osrm", "haversine"]
+    base: SlotBaseOut
+    candidates: list[SlotCandidateOut]
+    seconds: float
+    model: str = "slot-insertion-v0"
 
 
 # --- POST /assign/kitchens (M10 §3.5): tomorrow's tiffin portions to home kitchens ------------
