@@ -35,7 +35,8 @@ ones next to AutoETS and the two baselines.
   uncommitted quantity up to the origin), per horizon step, with the (n+1) finite-sample
   correction: q_tau = max(0, q50 + scale x Q_tau). The backtest calibrates every evaluation
   window only on residuals whose target week was known at that window's origin, and reports the
-  empirical coverage of q_tau, the pinball loss (q50, q_tau) and MASE on those windows.
+  empirical coverage of q_tau, the pinball loss (q50, q_tau), MASE and the newsvendor's waste
+  and stock-out at q_tau (as shares of the demand) on those windows.
 - Delivery days: the weekly q50 and q_tau of a product are split over the hub's delivery days by
   each weekday's share of the product's units over the last `SHARE_WEEKS` complete weeks (the
   hub's share of orders per weekday when the product sold nothing then). One line per hub x
@@ -136,6 +137,10 @@ class Backtest:
     pinball_q50: dict[str, float] = field(default_factory=dict)
     pinball_qtau: dict[str, float] = field(default_factory=dict)
     mase: dict[str, float] = field(default_factory=dict)
+    # The newsvendor's two errors at q_tau, as shares of the demand: Σ(q_tau - y)+ / Σy is
+    # bought and left over (waste), Σ(y - q_tau)+ / Σy is demand not stocked (stock-out).
+    waste: dict[str, float] = field(default_factory=dict)
+    stockout: dict[str, float] = field(default_factory=dict)
     eval_points: int = 0  # the points behind coverage, pinball and MASE
     # model → horizon step → every scaled residual of the backtest (the production calibration)
     calibration: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
@@ -490,6 +495,9 @@ def backtest(
         test.coverage[m] = round(float(np.mean(y <= q)), 4)
         test.pinball_q50[m] = round(_pinball(y, q50, 0.5), 4)
         test.pinball_qtau[m] = round(_pinball(y, q, tau), 4)
+        demand = float(y.sum()) or 1.0
+        test.waste[m] = round(float(np.maximum(q - y, 0).sum()) / demand, 4)
+        test.stockout[m] = round(float(np.maximum(y - q, 0).sum()) / demand, 4)
         moved = evaluated & ~np.isnan(mase_scale)
         if moved.any():
             test.mase[m] = round(

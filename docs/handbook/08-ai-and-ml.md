@@ -139,7 +139,7 @@ sequenceDiagram
 - **Features:** recency, frequency, last accept/reject, price delta vs 4-week average, season, festival flag, cohort popularity, substitution-acceptance history.
 - **Model:** LightGBM LambdaRank. Label = kept in final box vs removed.
 - **Metrics:** Recall@10, NDCG@10, box acceptance rate, edits per box. Baselines: "repeat last week", top-frequency.
-- **Status (5 Oct 2026, v0; leakage fixes 8 Oct):** `train_ranker` in `backend/training` (LambdaRank on approved and locked boxes and their edits, one model per data source, leave-last-basket-out against both baselines, model and card to the registry, promotion manual) and `POST /basket/rank` on the Space with a frequency fallback and a 10-minute reload (M10 §3.7). v0 features are computed as of the cut-off: prices from the price list, not the final box; `drafted_rule` is dropped until a draft snapshot exists. Recall is reported as Recall@|basket| beside Recall@10 (eval protocol §7). SHAP and the planner's preference term are v1.
+- **Status (5 Oct 2026, v0; leakage fixes 8 Oct):** `train_ranker` in `backend/training` (LambdaRank on approved and locked boxes and their edits, one model per data source, leave-last-basket-out against both baselines, model and card to the registry, promotion manual) and `POST /basket/rank` on the Space with a frequency fallback and a 10-minute reload (M10 §3.7). v0 features are computed as of the cut-off: prices from the price list, not the final box; `drafted_rule` is dropped until a draft snapshot exists. Recall is reported as Recall@|basket| beside Recall@10 (eval protocol §7). SHAP explanations are built (§8.4); the planner's preference term is v1.
 
 ### M-C Meal planner — CP-SAT (research, deepest; core of Kitchen Autopilot)
 - **Variables:** `x[d,s,r]` ∈ {0,1} (day, meal slot, recipe); `t[d,s]` = tiffin on no-cook slots.
@@ -175,7 +175,7 @@ sequenceDiagram
 - **Procurement:** `order_qty = committed + Q_τ(uncommitted)`, where τ = C<sub>u</sub> / (C<sub>u</sub> + C<sub>o</sub>).
   C<sub>o</sub> = cost − salvage value from the surplus cascade. Shelf life caps the buffer.
 - **Metrics:** WAPE, MASE, pinball loss; downstream waste kg per 100 kg sold, stock-out %. Baselines: seasonal naive, "buy last week".
-- **Status (8 Oct 2026, v0 + v1 LightGBM):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive / Naive and a global LightGBM, direct multi-step with one booster per step and festival, fast-day and as-of-origin price-index features, a rolling-origin backtest with weekly origins and a 2-week horizon, scaled split-conformal q_tau, newsvendor `order_qty`) stores a hub's lines per delivery day in `intel.predictions` and announces them with `intel.forecast_ready`; M6 reads them through `intel_gateway.api.hub_forecast(hub, delivery_date)`. WAPE, q_tau coverage, pinball and MASE per model go to `intel.model_metrics` per data source (M10 §3.6). The simulator's uncommitted demand is sparse until the add-on behaviour lands, so the first WAPE numbers wait for that.
+- **Status (8 Oct 2026, v0 + v1 LightGBM):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive / Naive and a global LightGBM, direct multi-step with one booster per step and festival, fast-day and as-of-origin price-index features, a rolling-origin backtest with weekly origins and a 2-week horizon, scaled split-conformal q_tau, newsvendor `order_qty`) stores a hub's lines per delivery day in `intel.predictions` and announces them with `intel.forecast_ready`; M6 reads them through `intel_gateway.api.hub_forecast(hub, delivery_date)`. WAPE, q_tau coverage, pinball and MASE per model go to `intel.model_metrics` per data source (M10 §3.6). The simulator draws no uncommitted orders, so the eval harness derives them (add-ons from pantry shortfalls, tiffins on no-cook slots; RQ3, 28 Oct 2026, M10 §3.6): over five seeds LightGBM's WAPE is 0.015 ± 0.008 worse than v0's best model and the champion stays a v0 model on every seed; its newsvendor cost is 0.021 ± 0.052 lower (not significant).
 
 ### M-F Routing (OR-Tools)
 - **Problem:** capacitated vehicle routing with time windows and pickups/deliveries.
@@ -197,6 +197,14 @@ sequenceDiagram
 ### M-H Slot pricing ("green slots")
 - The marginal insertion cost of an address into existing tentative routes → slot discount ranking.
 - Shown in the app as: "Neighbours already get delivery Tue 8–10, save ₹15".
+- **Contract (drafted 28 Oct 2026, M10 §3.8; Tier 3, MS-D):**
+  - **The address is the society's point.** A van stop is a society and slot (M7), so the household's choice is the time slot of this week's box on its delivery date.
+  - **The tentative routes** are what M7's fallback would publish now over the boxes expected that day, since the real plan is solved at T-1 23:15, after the cut-off.
+  - **`POST /slots/price`** does cheapest feasible insertion on the OSRM matrix, replayed by the routing checker. It returns route cost only, with reason codes `SAME_SOCIETY`, `NEIGHBOUR_STOP`, `NEW_STOP`, `NEW_TRIP` and `INFEASIBLE`, and never a price.
+  - **Fallback:** twice the distance to the nearest stop in the slot.
+  - **The saving** is computed by M3: half the route saving, at most ₹15 (hub settings), in whole rupees and never below 0. It applies only where moving removes a stop that exists for that household alone. M4 records it as `discount_paise` at approval, honoured from a 15-minute quote.
+  - **M9** uses the same cost, for a whole society, against the past week's published plans as its unlock-threshold stop cost.
+- **Metric:** top-1 slot agreement and Spearman ρ of the insertion estimate against the CVRPTW re-solve difference (with − without), on S-3's synthetic mornings. The rule fallback is the baseline.
 
 ### M-I Churn and uplift
 - Survival-style features → LightGBM churn probability.
@@ -212,7 +220,7 @@ sequenceDiagram
 
 - Every AI output stores a `reason_code` plus parameters, for example `SEASONAL`, `PRICE_SWAP{from:tomato,pct:62}`, `PANTRY_LOW{days:2}`, `FESTIVAL{code:navratri}`.
 - The app renders **localised chips** from these codes (`en-IN`, `hi-IN`, `mr-IN`), not LLM-written text. Explanations are therefore deterministic and testable.
-- For ranker decisions, the top SHAP features are stored for paper analysis.
+- For ranker decisions, the top SHAP features are stored for paper analysis. As built (28 Oct 2026): the ranker's weekly run stores `explanations.json` (mean |SHAP| per feature and 50 sampled decisions with their top three features) next to the model in the registry, the eval report shows it, and `POST /basket/rank` returns `top_features` per ranked item (M10 §3.7). The API does not yet pass them on or store them in `intel.predictions`.
 
 ---
 
@@ -226,6 +234,7 @@ sequenceDiagram
 | Forecast + procurement (M-E) | Rolling-origin backtest | WAPE, MASE, pinball; waste %, stock-out % | Seasonal naive, buy-last-week |
 | Routing (M-F) | Fixed-seed benchmark set | ₹/order, km/order, on-time % | One trip per order, nearest-neighbour |
 | Fair assignment (M-G) | λ-sweep on simulated weeks | Gini vs cost Pareto curve | Greedy nearest kitchen |
+| Slot pricing (M-H, Tier 3) | S-3 synthetic mornings, 20 candidates per instance, 5 seeds | Top-1 slot agreement, Spearman ρ, ₹ MAE vs re-solve difference | Nearest-stop rule (the fallback) |
 
 `just eval` runs every protocol and writes a report to `docs/eval/<date>-<commit>` (HTML and JSON) and rows to `intel.model_metrics`, each with the simulator version and the sha256 of the cohorts file and the seed catalog. v0 reports are HTML tables: the planner arms against each baseline as per-seed paired differences (mean ± 95 % t-CI, acceptance first) and hard rules re-checked with `planner.check()`; the paper-ready marimo figures come later. Figures are versioned with the model version that produced them.
 
@@ -239,6 +248,7 @@ sequenceDiagram
 | M-E forecast + newsvendor | WAPE ≤ 25 %, ≥ 10 points better than seasonal naive; stock-out ≤ 3 %; waste ≤ 5 % | MASE; pinball loss |
 | M-F routing | on-time ≥ 95 %; ₹/order ≥ 10 % below nearest neighbour | ≤ 10 s per wave |
 | M-G kitchen assignment | Gini ≤ 0.25 at ≤ +5 % cost vs greedy | rating floor kept |
+| M-H slot pricing (hypothesis, 28 Oct 2026) | top-1 agreement ≥ 80 %; Spearman ρ ≥ 0.7; both above the nearest-stop rule | ≤ 0.5 s per customer quote (100 stops × 6 slots) |
 | M13 assistant | intent accuracy ≥ 90 %; slot F1 ≥ 0.85; ≤ $0.01 per turn | no unauthorised action on injection fixtures |
 | M-C planner v2 (liking from M-B) | acceptance ≥ v1's on the same seeds (hypothesis, 5 Oct 2026) | hard rules 100 %, perishables no worse than v1 + 1 |
 | Monitoring | alert when WAPE worsens by > 10 points against the last report | — |
@@ -290,7 +300,7 @@ One person builds every model next to the backend, so the work is tiered. A prod
 | Tier | Meaning | Items |
 |---|---|---|
 | 1 | Needed for a milestone demo (MS-A 13 Dec, MS-B 24 Jan, MS-C 21 Feb) | jobs runner and outbox consumers; `intel.*` tables; Agmarknet collector (history only accrues from the day collection starts); IFCT nutrition; verified festival calendar; ≥ 120 recipes; simulator v1; eval harness v0; pantry twin v0; planner v1; snapshots; the ML Space; forecast v0 (StatsForecast + newsvendor); `/route/solve`; greedy kitchen assignment; the assistant with four tools; thin AI health |
-| 2 | Needed for the paper (S7–S8) | pantry twin v1 (NumPyro); basket ranker + SHAP; fair assignment λ sweep; planner v2; forecast v1 (MLForecast) |
+| 2 | Needed for the paper (S7–S8) | pantry twin v1 (NumPyro); basket ranker + SHAP; fair assignment λ sweep; planner v2; forecast v1 (LightGBM, native booster; mlforecast needs pandas < 3) — built (#122, M10 §3.6) |
 | 3 | Stretch: only after MS-C or if ahead | Chronos-2 zero-shot; MinT reconciliation; bge-m3 embeddings and learned substitutes; Instacart benchmark; M-I churn and uplift; kits on busy days; slot pricing (S9); Dakshina spellings |
 | cut | — | M-J trust and safety (a rules-only refund flag in M12, later) |
 

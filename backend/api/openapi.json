@@ -10650,7 +10650,7 @@
               },
               "type": "array"
             },
-            "description": "One value per period for every KPI key; null when undefined",
+            "description": "One value per period for every KPI key; null when undefined. `partner_earnings_paise` is null under 5 paid partners (never an individual's pay)",
             "title": "Series",
             "type": "object"
           },

@@ -59,6 +59,10 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `GET /v1/admin/societies` (guarded) | console | `console/app/(console)/(admin)/hubs/page.jsx:16`, `console/app/(console)/(admin)/societies/page.jsx:25` | M9 §3.9 (drafted 2026-10-25): the staff list with hub, households and the edited fields; with_unassigned is admin-only. | prathamesh | MS-A |
 | `GET /v1/admin/society-requests` (guarded) | console | `console/app/(console)/(admin)/societies/page.jsx:65`, `console/app/(console)/(admin)/societies/requests/page.jsx:15` | M9 §3.9. | prathamesh | MS-A |
 | `GET /v1/analytics/impact` | console | `console/app/(console)/(community)/impact/page.jsx:26`, `console/app/(console)/(community)/impact/report/route.js:20` | M12 §3.6 (JSON and CSV). | prathamesh | MS-D |
+<<<<<<< HEAD
+=======
+| `GET /v1/earnings/certificate` | mobile | `mobile/src/features/captain/queries.js:168`, `mobile/src/features/logistics/queries.js:256` +1 | M8 §3.7 (drafted 2026-10-28): answers { reference, from, to, url, filename, expires_at }; align the three mocks and use one open-the-link helper (fix-frontend items in M8 §3.7). | prathamesh | after MS-B |
+>>>>>>> origin/main
 | `GET /v1/hubs/{}/delivery-days` (guarded) | console | `console/app/(console)/(hub)/delivery-days/page.jsx:24` | M3 §3.5 (drafted 2026-10-25): every society of the hub with its status; no not_live list. | prathamesh | MS-A |
 | `GET /v1/hubs/{}/tiffin-menus` (guarded) | console | `console/app/(console)/(admin)/tiffin-menus/page.jsx:16` | M2 §3.4: the review list, every status, at the mock's path. Supersedes F5 for this page: GET /v1/tiffin-menus (M4 §3.5) lists approved menus only. | prathamesh | MS-B |
 | `GET /v1/impact` | mobile | `mobile/src/features/community/queries.js:123`, `mobile/src/features/community/queries.js:135` | M9 §3.7 (?scope=me). | prathamesh | MS-D |
