@@ -19,7 +19,7 @@ import httpx2
 from gharbasket_sim import config
 from gharbasket_sim.catalog import SEED_FILES
 
-from gharbasket_training.eval import assignment_sweep
+from gharbasket_training.eval import assignment_sweep, forecast_ab
 from gharbasket_training.eval.pantry_baseline import PantryRun
 from gharbasket_training.eval.planner_ab import (
     FROM_WEEK,
@@ -84,12 +84,14 @@ def build(
     *,
     args: dict[str, Any],
     sweep_runs: list[assignment_sweep.SweepRun] | None = None,
+    forecast_runs: list[forecast_ab.ForecastRun] | None = None,
     ranker_explanations: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     summary = summarise(planner_runs)
     diffs = paired(planner_runs)
     later = paired(planner_runs, later=True, arms=(V2,))
     sweep_runs = sweep_runs or []
+    forecast_runs = forecast_runs or []
     sweep = assignment_sweep.summarise(sweep_runs)
     weeks = max((len(r.cold_start) for r in pantry_runs), default=0)
     curve = [estimate([r.cold_start[k] for r in pantry_runs]) for k in range(weeks)]
@@ -115,6 +117,7 @@ def build(
             {r.seed for r in planner_runs}
             | {r.seed for r in pantry_runs}
             | {r.seed for r in sweep_runs}
+            | {r.seed for r in forecast_runs}
         ),
         "planner": {
             p: {m: e.as_dict() for m, e in metrics.items()} for p, metrics in summary.items()
@@ -178,6 +181,7 @@ def build(
             key: {m: e.as_dict() for m, e in metrics.items()} for key, metrics in sweep.items()
         },
         "assignment_targets": assignment_sweep.against_target(sweep_runs),
+        "forecast": _forecast(forecast_runs),
         # The basket ranker's `explanations.json` (TreeSHAP, handbook 08 §8.4); None when the
         # harness was not given one.
         "ranker_explanations": ranker_explanations,
@@ -185,7 +189,24 @@ def build(
             "planner": [asdict(r) for r in planner_runs],
             "pantry": [asdict(r) for r in pantry_runs],
             "assignment": [asdict(r) for r in sweep_runs],
+            "forecast": [asdict(r) for r in forecast_runs],
         },
+    }
+
+
+def _forecast(runs: list[forecast_ab.ForecastRun]) -> dict[str, Any]:
+    """RQ3: each arm's metrics over the seeds, and v1 - v0 paired by seed."""
+    if not runs:
+        return {}
+    summary = forecast_ab.summarise(runs)
+    return {
+        "assumptions": forecast_ab.assumptions(),
+        "arms": {arm: {m: e.as_dict() for m, e in ms.items()} for arm, ms in summary.items()},
+        "v1_minus_v0": {m: e.as_dict() for m, e in forecast_ab.paired(runs).items()},
+        "picks": [
+            {"seed": r.seed, "v0": r.v0_model, "champion": r.champion, "windows": r.windows}
+            for r in runs
+        ],
     }
 
 
@@ -310,6 +331,21 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
                 },
             }
         )
+    forecast = report.get("forecast", {})
+    for arm, metrics in forecast.get("arms", {}).items():
+        for metric, e in metrics.items():
+            if e["n"]:
+                rows.append(
+                    {
+                        "model_name": f"forecast_eval_{arm}",
+                        "version": report["commit"],
+                        "metric": metric,
+                        "value": e["mean"],
+                        "split": "backtest",
+                        "data_source": "synthetic",
+                        "details": {**details, "ci95": e["ci95"], "picks": forecast["picks"]},
+                    }
+                )
     for k, e in enumerate(report["pantry"]["cold_start_mae"], start=1):
         rows.append(
             {
@@ -505,7 +541,7 @@ def to_html(report: dict[str, Any]) -> str:
         "table (cold-start target &lt; 4 weeks). With the simulator's daily-use noise as small as "
         "it is (lognormal sigma 0.1), the 15 % target is easy for a naive baseline and is to be "
         "revisited (protocol change log).</p>"
-        f"{sweep_table}{_ranker_html(report)}</body></html>\n"
+        f"{sweep_table}{_forecast_html(report)}{_ranker_html(report)}</body></html>\n"
     )
 
 
@@ -612,6 +648,37 @@ def _sweep_html(report: dict[str, Any]) -> str:
         + ".</p>"
     )
     return table + checks + note
+
+
+def _forecast_html(report: dict[str, Any]) -> str:
+    """RQ3: forecast v0, v1 and the champion on the synthetic uncommitted demand."""
+    forecast = report.get("forecast")
+    if not forecast:
+        return ""
+    arms, diff = forecast["arms"], forecast["v1_minus_v0"]
+    cell = lambda e: _cell(e) if e and e["n"] else "—"  # noqa: E731
+    table = _table(
+        "RQ3 — forecast of the uncommitted demand (rolling origin, an origin a week, a 2-week "
+        "horizon; q_tau at tau = C_u / (C_u + C_o)): per seed, then mean ± 95 % t-CI; lower is "
+        "better except coverage, which should sit near tau",
+        ["metric", "v0 (best StatsForecast)", "v1 (LightGBM)", "champion", "v1 - v0 (paired)"],
+        [
+            [m, *(cell(arms[a].get(m)) for a in forecast_ab.ARMS), cell(diff.get(m))]
+            for m in forecast_ab.METRICS
+        ],
+    )
+    picks = ", ".join(f"{p['seed']}: {p['v0']} / {p['champion']}" for p in forecast["picks"])
+    a = forecast["assumptions"]
+    return table + (
+        '<p class="note">Synthetic uncommitted demand derived from the simulator for the harness '
+        f"only: a shortfall becomes an add-on with probability {a['addon_take']} x price "
+        f"multiplier^-{a['price_elasticity']} x (1 + {a['festival_lift_per_day']} per festival "
+        f"day), a no-cook slot a tiffin with probability {a['tiffin_take']} "
+        "(eval/forecast_ab.py). Newsvendor cost = C_o x waste + C_u x stock-out per unit of "
+        f"demand (C_u {a['costs']['underage']}, C_o {a['costs']['overage']}). v0 and the champion "
+        "are picked on the windows they are scored on (optimistic); v1 is fixed. Seed: v0 / "
+        f"champion: {html.escape(picks)}.</p>"
+    )
 
 
 def write(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:

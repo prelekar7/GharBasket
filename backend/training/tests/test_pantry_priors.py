@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx2
+import numpy as np
 import pytest
 from gharbasket_training import pantry_priors
 from gharbasket_training.jobs import promote
@@ -60,17 +61,30 @@ def quick(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(pantry_priors, "SAMPLES", 150)
 
 
-# On x86-64 Linux (the CI runners, and the weekly refit's runner) the same seeded NUTS fit lands
-# on a different answer than on Apple silicon: out-of-sample MAE 0.2815 against the rule table's
-# 0.2813 on GitHub, 0.38 under amd64 emulation, below the rule on macOS. The production gate
-# (`beats_rule_table` in `just promote`) still refuses such a fit; the cause is being fixed
-# (fix/M10-pantry-priors-stability), which turns this back into a plain assertion.
-@pytest.mark.xfail(strict=False, reason="seeded NUTS fit differs across CPU platforms (see above)")
 def test_the_learned_priors_beat_the_rule_table_out_of_sample(quick: None) -> None:
-    metrics = pantry_priors.evaluate(synthetic())
+    """Where priors matter: new households, two weeks before the scored one. With five weeks
+    of history (`synthetic()`) the household's own weeks outweigh any prior and even the true
+    one ties the rule table on 12 scored weeks; here the learned priors win on every data seed
+    tried (1 to 10, by 0.04 to 0.08 of MAE, macOS and amd64 alike)."""
+    metrics = pantry_priors.evaluate(synthetic(weeks=3, households=24))
 
-    assert metrics["learned_priors"]["mae_pct"] < metrics["rule_table"]["mae_pct"]
+    assert metrics["learned_priors"]["households_weeks"] == 72
+    assert metrics["learned_priors"]["mae_pct"] < metrics["rule_table"]["mae_pct"] - 0.02
     assert pantry_priors.beats_rule_table(metrics)[0]
+
+
+def test_a_stuck_chain_keeps_the_rule_table(quick: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A chain whose step size collapsed returns its starting point for every draw; that is
+    never published as a prior."""
+    frozen = {"mu": np.ones((5, 3)), "w": np.full((5, 3), 2.0)}
+    assert pantry_priors._stuck(frozen, np.zeros(5)) == "sampler stuck (mean acceptance 0.00)"
+    assert pantry_priors._stuck(frozen, np.full(5, 0.9)) == "sampler stuck (mu never moved)"
+    moving = {"mu": np.arange(15.0).reshape(5, 3), "w": np.arange(15.0).reshape(5, 3)}
+    assert pantry_priors._stuck(moving, np.full(5, 0.9)) is None
+
+    monkeypatch.setattr(pantry_priors, "_stuck", lambda draws, accept: "sampler stuck (test)")
+    fitted = pantry_priors.fit(synthetic(), "test")
+    assert fitted.priors == [] and fitted.skipped == {"milk": "sampler stuck (test)"}
 
 
 def test_cohorts_and_fractional_tap_corrected_counts() -> None:

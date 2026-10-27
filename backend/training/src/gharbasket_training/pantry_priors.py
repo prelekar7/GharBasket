@@ -20,7 +20,9 @@ Model, per product, over one data source's households (never pooled across sourc
   `count_i log(r_i) - r_i - log Gamma(count_i + 1)` with `r_i = lam_h x ref_step / step_i`.
 
 What comes out per cohort x product is `prior_mean_per_ae` (base units a week per adult
-equivalent) and `prior_weeks` (= w_c). Fitting is NUTS (one chain, a few hundred draws).
+equivalent) and `prior_weeks` (= w_c). Fitting is NUTS (one chain, a few hundred draws), started
+from the data (each household at its own mean); a chain that never moved (acceptance near 0, the
+step size collapsed) is not published: that product keeps the rule table.
 """
 
 import math
@@ -40,6 +42,7 @@ MODEL_NAME = "pantry_priors"
 COHORTS = ("small", "medium", "large")  # by adult equivalents: < 2, 2 to < 3.5, 3.5 and up
 MIN_HOUSEHOLDS = 3  # per product and per cohort, before a learned prior is kept
 WARMUP, SAMPLES = 300, 300
+MIN_ACCEPT = 0.5  # NUTS adapts towards 0.8; a chain far below it did not explore the posterior
 RULE_PRIOR_WEEKS = 2.0  # M3's weight on the rule table (subscriptions.service.RULE_PRIOR_WEEKS)
 OBSERVED_WEEKS = 12  # M3's window (subscriptions.service.OBSERVED_WEEKS)
 
@@ -97,14 +100,15 @@ class Fit:
 
 def _fit_product(
     observations: list[Observation], guess: dict[str, float], *, seed: int = 7
-) -> dict[str, tuple[float, float]]:
-    """NUTS on one product: {cohort: (mean reference steps a week per AE, prior weeks)}."""
+) -> dict[str, tuple[float, float]] | str:
+    """NUTS on one product: {cohort: (mean reference steps a week per AE, prior weeks)}, or why
+    the chain cannot be trusted (the product then keeps the rule table)."""
     import jax
     import jax.numpy as jnp
     import numpyro
     import numpyro.distributions as dist
-    from jax.scipy.special import gammaln, xlogy
-    from numpyro.infer import MCMC, NUTS
+    from jax.scipy.special import xlogy
+    from numpyro.infer import MCMC, NUTS, init_to_value
 
     ref = median(o.step for o in observations)
     households = sorted({o.household for o in observations})
@@ -126,14 +130,43 @@ def _fit_product(
         with numpyro.plate("household", len(households)):
             lam = numpyro.sample("lam", dist.Gamma(w[h_cohort] * mu[h_cohort] * h_ae, w[h_cohort]))
         rate = lam[obs_h] * scale + 1e-9
-        numpyro.factor("y", jnp.sum(xlogy(counts, rate) - rate - gammaln(counts + 1.0)))
+        # The Poisson log-density without its -log Gamma(count + 1): a constant in the parameters.
+        numpyro.factor("y", jnp.sum(xlogy(counts, rate) - rate))
 
-    mcmc = MCMC(NUTS(model), num_warmup=WARMUP, num_samples=SAMPLES, progress_bar=False)
-    mcmc.run(jax.random.key(seed), h_cohort, h_ae, obs_h, scale, counts)
+    # Start where the data are, not at a random point: each household at its own mean weekly
+    # count, each cohort at its households' mean per equivalent, w at its prior mean.
+    own: dict[str, list[float]] = defaultdict(list)
+    for o in observations:
+        own[o.household].append(o.count * o.step / ref)
+    lam0 = np.array([max(float(np.mean(own[h])), 0.1) for h in households])
+    ae0 = np.asarray(h_ae, dtype=float)
+    cohort0 = np.asarray(h_cohort)
+    mu0 = np.array([float(np.mean((lam0 / ae0)[cohort0 == i])) for i in range(len(cohorts))])
+    start = {"mu": jnp.asarray(mu0), "w": jnp.full(len(cohorts), 2.0), "lam": jnp.asarray(lam0)}
+
+    kernel = NUTS(model, init_strategy=init_to_value(values=start))
+    mcmc = MCMC(kernel, num_warmup=WARMUP, num_samples=SAMPLES, progress_bar=False)
+    mcmc.run(
+        jax.random.key(seed), h_cohort, h_ae, obs_h, scale, counts, extra_fields=("accept_prob",)
+    )
     draws = mcmc.get_samples()
+    stuck = _stuck(draws, np.asarray(mcmc.get_extra_fields()["accept_prob"]))
+    if stuck:
+        return stuck
     mu = np.asarray(draws["mu"]).mean(axis=0)
     w = np.asarray(draws["w"]).mean(axis=0)
     return {c: (float(mu[i]) * ref, float(w[i])) for c, i in c_index.items()}
+
+
+def _stuck(draws: dict[str, Any], accept_prob: Any) -> str | None:
+    """Why the chain cannot be trusted, or None. A chain whose step size collapsed never leaves
+    its starting point (every draw the same, acceptance 0); its "posterior mean" is that point."""
+    if float(np.mean(accept_prob)) < MIN_ACCEPT:
+        return f"sampler stuck (mean acceptance {float(np.mean(accept_prob)):.2f})"
+    for name in ("mu", "w"):
+        if np.any(np.ptp(np.asarray(draws[name]), axis=0) == 0):
+            return f"sampler stuck ({name} never moved)"
+    return None
 
 
 def fit(observations: list[Observation], version: str, *, seed: int = 7) -> Fit:
@@ -156,6 +189,9 @@ def fit(observations: list[Observation], version: str, *, seed: int = 7) -> Fit:
         rule = rules.DAILY_USE_PER_ADULT_WEEK.get(product)
         guess = {c: (rule / ref if rule else _empirical(mine, c, ref)) for c in COHORTS}
         fitted = _fit_product(mine, guess, seed=seed)
+        if isinstance(fitted, str):
+            out.skipped[product] = fitted
+            continue
         for cohort, (per_ae, weeks) in fitted.items():
             members = {o.household for o in mine if o.cohort == cohort}
             if len(members) < MIN_HOUSEHOLDS:

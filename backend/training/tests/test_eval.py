@@ -205,6 +205,7 @@ def test_the_cli_smoke_writes_the_report(
     out = capsys.readouterr().out
     assert "greedy" in out and "pantry" in out and "report:" in out
     assert "pantry twin scope" in out and "pantry twin target" in out
+    assert "forecast v1 " in out and "forecast v1 - v0 wape" in out  # RQ3, 11 weeks
     page = next((tmp_path / "report").glob("*.html")).read_text()
     assert "Ranker explanations" in page and "frequency" in page and "removed_last" in page
     assert list((tmp_path / "report").glob("*.json"))
