@@ -702,6 +702,80 @@
         "title": "AdminRecipe",
         "type": "object"
       },
+      "AdminUser": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The latest session's",
+            "title": "Last Seen At"
+          },
+          "locale": {
+            "enum": [
+              "en-IN",
+              "hi-IN",
+              "mr-IN"
+            ],
+            "title": "Locale",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_e164": {
+            "title": "Phone E164",
+            "type": "string"
+          },
+          "roles": {
+            "description": "Every role, the customer one included",
+            "items": {
+              "$ref": "#/components/schemas/StaffGrant"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "blocked",
+              "deleting"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "phone_e164",
+          "locale",
+          "status",
+          "last_seen_at",
+          "roles"
+        ],
+        "title": "AdminUser",
+        "type": "object"
+      },
       "AiHealthOut": {
         "properties": {
           "generated_at": {
@@ -3086,6 +3160,112 @@
           "ngo_id"
         ],
         "title": "ClaimIn",
+        "type": "object"
+      },
+      "CohortOut": {
+        "properties": {
+          "households": {
+            "title": "Households",
+            "type": "integer"
+          },
+          "retention_bp": {
+            "description": "Entry i: the share of the cohort with a delivered order in the ISO week i + 1 after the signup week; null when that week has not ended yet",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Retention Bp",
+            "type": "array"
+          },
+          "small": {
+            "description": "Under 5 households: too few to read a rate from",
+            "title": "Small",
+            "type": "boolean"
+          },
+          "week": {
+            "description": "The Monday of the households' signup ISO week",
+            "format": "date",
+            "title": "Week",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week",
+          "households",
+          "small",
+          "retention_bp"
+        ],
+        "title": "CohortOut",
+        "type": "object"
+      },
+      "CohortsOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Finish time of the last nightly run or rebuild",
+            "title": "As Of"
+          },
+          "cohorts": {
+            "description": "Oldest first; a week without signups is left out",
+            "items": {
+              "$ref": "#/components/schemas/CohortOut"
+            },
+            "title": "Cohorts",
+            "type": "array"
+          },
+          "data_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: every hub",
+            "title": "Hub Id"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "weeks": {
+            "title": "Weeks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "data_source",
+          "hub_id",
+          "weeks",
+          "as_of",
+          "stale",
+          "cohorts"
+        ],
+        "title": "CohortsOut",
         "type": "object"
       },
       "ConfirmIn": {
@@ -8361,6 +8541,140 @@
           "items"
         ],
         "title": "HubPickupsOut",
+        "type": "object"
+      },
+      "HubStaff": {
+        "properties": {
+          "grant_id": {
+            "description": "The user_roles row, or the pending grant",
+            "format": "uuid",
+            "title": "Grant Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_masked": {
+            "description": "The last 4 digits only",
+            "examples": [
+              "******1011"
+            ],
+            "title": "Phone Masked",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "customer",
+              "captain",
+              "kitchen_partner",
+              "rider",
+              "packer",
+              "hub_manager",
+              "franchise_owner",
+              "ngo_coordinator",
+              "admin",
+              "catalog_editor"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "verified_at, or the pending grant's granted_at; null before verification",
+            "title": "Since"
+          },
+          "society": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HubStaffSociety"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Captains: the society they serve"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "verified",
+              "suspended",
+              "invited"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for an invited number",
+            "title": "User Id"
+          },
+          "works_as": {
+            "description": "partner: kitchen_partner, captain, rider, packer",
+            "enum": [
+              "staff",
+              "partner"
+            ],
+            "title": "Works As",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_id",
+          "user_id",
+          "name",
+          "phone_masked",
+          "role",
+          "works_as",
+          "society",
+          "status",
+          "since"
+        ],
+        "title": "HubStaff",
+        "type": "object"
+      },
+      "HubStaffSociety": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "HubStaffSociety",
         "type": "object"
       },
       "HubSummary": {
@@ -14330,6 +14644,34 @@
         "title": "Page[AdminRecipe]",
         "type": "object"
       },
+      "Page_AdminUser_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminUser"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[AdminUser]",
+        "type": "object"
+      },
       "Page_ApplicationReviewOut_": {
         "properties": {
           "items": {
@@ -14384,6 +14726,34 @@
           "next_cursor"
         ],
         "title": "Page[Entry]",
+        "type": "object"
+      },
+      "Page_HubStaff_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HubStaff"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[HubStaff]",
         "type": "object"
       },
       "Page_IssueTriage_": {
@@ -14524,6 +14894,34 @@
           "next_cursor"
         ],
         "title": "Page[PayoutOut]",
+        "type": "object"
+      },
+      "Page_PendingGrant_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PendingGrant"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[PendingGrant]",
         "type": "object"
       },
       "Page_PointsEntry_": {
@@ -14833,6 +15231,162 @@
           "unknown_slugs"
         ],
         "title": "PantryPriorsOut",
+        "type": "object"
+      },
+      "PartnerEarningsOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Finish time of the last nightly run or rebuild",
+            "title": "As Of"
+          },
+          "data_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: every hub (admin only)",
+            "title": "Hub Id"
+          },
+          "kind": {
+            "enum": [
+              "kitchen",
+              "captain",
+              "rider",
+              "packer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "weeks": {
+            "description": "Every ISO week of the range; a distribution only, never one partner",
+            "items": {
+              "$ref": "#/components/schemas/PartnerEarningsWeekOut"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "kind",
+          "data_source",
+          "as_of",
+          "stale",
+          "weeks"
+        ],
+        "title": "PartnerEarningsOut",
+        "type": "object"
+      },
+      "PartnerEarningsWeekOut": {
+        "properties": {
+          "gini_bp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners",
+            "title": "Gini Bp"
+          },
+          "median_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners",
+            "title": "Median Paise"
+          },
+          "p10_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners",
+            "title": "P10 Paise"
+          },
+          "p90_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners",
+            "title": "P90 Paise"
+          },
+          "partners": {
+            "description": "Partners paid something that week",
+            "title": "Partners",
+            "type": "integer"
+          },
+          "total_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners: one partner's total is their earnings",
+            "title": "Total Paise"
+          },
+          "week": {
+            "description": "The Monday of the ISO week",
+            "format": "date",
+            "title": "Week",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week",
+          "partners",
+          "total_paise",
+          "p10_paise",
+          "median_paise",
+          "p90_paise",
+          "gini_bp"
+        ],
+        "title": "PartnerEarningsWeekOut",
         "type": "object"
       },
       "PartnerOut": {
@@ -15383,6 +15937,100 @@
           "id"
         ],
         "title": "PayoutRef",
+        "type": "object"
+      },
+      "PendingGrant": {
+        "description": "A staff role given to a number that has not signed in yet; it waits up to 30 days.",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "granted_at": {
+            "format": "date-time",
+            "title": "Granted At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "phone_masked": {
+            "examples": [
+              "******1011"
+            ],
+            "title": "Phone Masked",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "hub_manager",
+              "franchise_owner",
+              "ngo_coordinator",
+              "catalog_editor"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "scope_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Label"
+          },
+          "scope_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "society",
+                  "hub",
+                  "ngo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Type"
+          },
+          "status": {
+            "const": "pending",
+            "default": "pending",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "phone_masked",
+          "role",
+          "scope_type",
+          "scope_id",
+          "scope_label",
+          "granted_at",
+          "expires_at"
+        ],
+        "title": "PendingGrant",
         "type": "object"
       },
       "PerBoxOut": {
@@ -23584,6 +24232,108 @@
           "photo_urls"
         ],
         "title": "StaffDonationOut",
+        "type": "object"
+      },
+      "StaffGrant": {
+        "description": "One `user_roles` row; DELETE /v1/admin/user-roles/{id} takes its id.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "customer",
+              "captain",
+              "kitchen_partner",
+              "rider",
+              "packer",
+              "hub_manager",
+              "franchise_owner",
+              "ngo_coordinator",
+              "admin",
+              "catalog_editor"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "scope_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Kharghar hub",
+              "Sunrise Towers"
+            ],
+            "title": "Scope Label"
+          },
+          "scope_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "society",
+                  "hub",
+                  "ngo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Type"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "verified",
+              "suspended"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "scope_type",
+          "scope_id",
+          "scope_label",
+          "status",
+          "verified_at"
+        ],
+        "title": "StaffGrant",
         "type": "object"
       },
       "StaffSociety": {
@@ -34515,6 +35265,7 @@
     },
     "/v1/admin/user-roles": {
       "post": {
+        "description": "A number with no account and a staff role other than admin gets a pending grant (202) that the first sign-in turns into the role; admin and the partner roles still need the account. The caller must still be a verified admin in the database.",
         "operationId": "grant_role_v1_admin_user_roles_post",
         "parameters": [
           {
@@ -34566,11 +35317,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RoleGrantOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RoleGrantOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PendingGrant"
+                    }
+                  ],
+                  "title": "Response Grant Role V1 Admin User Roles Post"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingGrant"
+                }
+              }
+            },
+            "description": "The number has not signed in: waiting"
           },
           "400": {
             "content": {
@@ -34600,7 +35369,7 @@
                 }
               }
             },
-            "description": "auth.forbidden"
+            "description": "auth.forbidden, identity.not_admin (the admin role was removed)"
           },
           "404": {
             "content": {
@@ -34610,7 +35379,7 @@
                 }
               }
             },
-            "description": "identity.user_not_found"
+            "description": "identity.user_not_found (admin or a partner role, no account)"
           },
           "409": {
             "content": {
@@ -34640,6 +35409,295 @@
         ],
         "summary": "Admin: give a user a staff role (Idempotency-Key required; audit-logged)",
         "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/admin/user-roles/{grant_id}": {
+      "delete": {
+        "operationId": "revoke_role_v1_admin_user_roles__grant_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Grant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted, identity.not_admin (the admin role was removed)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.role_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.role_not_removable (customer or partner role), identity.cannot_remove_own_admin, identity.last_admin"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: revoke a staff grant or cancel a pending one (audit-logged; reaches the person's token within 15 minutes)",
+        "tags": [
+          "identity",
+          "identity"
+        ]
+      }
+    },
+    "/v1/admin/users": {
+      "get": {
+        "operationId": "admin_users_v1_admin_users_get",
+        "parameters": [
+          {
+            "description": "An Indian mobile, any usual way of typing",
+            "in": "query",
+            "name": "phone",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An Indian mobile, any usual way of typing",
+              "title": "Phone"
+            }
+          },
+          {
+            "description": "2 to 60 characters of a name",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "2 to 60 characters of a name",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "true: everyone holding a staff role",
+            "in": "query",
+            "name": "staff",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true: everyone holding a staff role",
+              "title": "Staff"
+            }
+          },
+          {
+            "description": "true: staff roles waiting for a sign-in",
+            "in": "query",
+            "name": "pending",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true: staff roles waiting for a sign-in",
+              "title": "Pending"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page (default 20)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page (default 20)",
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Page_AdminUser_"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Page_PendingGrant_"
+                    }
+                  ],
+                  "title": "Response Admin Users V1 Admin Users Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (not exactly one filter, a bad number), request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: find a user by phone or name, list the staff or the pending grants (audit-logged)",
+        "tags": [
+          "identity",
           "identity"
         ]
       }
@@ -34714,6 +35772,154 @@
           }
         ],
         "summary": "Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/analytics/cohorts": {
+      "get": {
+        "operationId": "cohort_retention_v1_analytics_cohorts_get",
+        "parameters": [
+          {
+            "description": "Left out: every hub",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Left out: every hub",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "Required: `real` or `synthetic`, never pooled",
+            "in": "query",
+            "name": "data_source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "real",
+                    "synthetic"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required: `real` or `synthetic`, never pooled",
+              "title": "Data Source"
+            }
+          },
+          {
+            "description": "Signup weeks to show, and the weeks of retention: 4 to 26",
+            "in": "query",
+            "name": "weeks",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "description": "Signup weeks to show, and the weeks of retention: 4 to 26",
+              "title": "Weeks",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.data_source_required · analytics.range_too_long (weeks over 26) · analytics.range_invalid (weeks under 4)"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Retention of each signup week's households, per data source (admin)",
         "tags": [
           "analytics"
         ]
@@ -35330,6 +36536,198 @@
           }
         ],
         "summary": "KPI series per day or ISO week, from the daily view (hub manager, franchise owner, admin; only an admin may leave the hub out)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/analytics/partner-earnings": {
+      "get": {
+        "operationId": "partner_earnings_v1_analytics_partner_earnings_get",
+        "parameters": [
+          {
+            "description": "Left out: every hub (admin only)",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Left out: every hub (admin only)",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "Which partners",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "kitchen",
+              "description": "Which partners",
+              "enum": [
+                "kitchen",
+                "captain",
+                "rider",
+                "packer"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "description": "An IST date; default the start of the last 12 weeks",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST date; default the start of the last 12 weeks",
+              "title": "From"
+            }
+          },
+          {
+            "description": "An IST date; default today",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST date; default today",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Required: `real` or `synthetic`, never pooled",
+            "in": "query",
+            "name": "data_source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "real",
+                    "synthetic"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required: `real` or `synthetic`, never pooled",
+              "title": "Data Source"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerEarningsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside your grants; the hub left out by a non-admin)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.data_source_required · analytics.range_invalid · analytics.range_too_long"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The weekly spread of what one kind of partner earned, never an individual (hub manager, franchise owner, admin; only an admin may leave the hub out)",
         "tags": [
           "analytics"
         ]
@@ -46603,6 +48001,153 @@
         "summary": "Items short for a date's packing and the bags the gap falls on (read only)",
         "tags": [
           "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/staff": {
+      "get": {
+        "operationId": "hub_staff_v1_hubs__hub_id__staff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "customer",
+                    "captain",
+                    "kitchen_partner",
+                    "rider",
+                    "packer",
+                    "hub_manager",
+                    "franchise_owner",
+                    "ngo_coordinator",
+                    "admin",
+                    "catalog_editor"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page (default 100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "description": "Items per page (default 100)",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_HubStaff_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's role grants: names and masked phones (hub staff of the hub, admin)",
+        "tags": [
+          "identity",
+          "identity"
         ]
       }
     },

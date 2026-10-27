@@ -184,10 +184,16 @@ async def test_an_admin_grants_a_hub_manager_role_and_it_is_audited(
     [
         ({"scope_id": None}, 422, "identity.invalid_scope"),
         ({"role": "admin"}, 422, "identity.invalid_scope"),
-        ({"phone_e164": "+919811111111"}, 404, "identity.user_not_found"),
+        # A staff role for an unknown number waits (M1 §3.6); a partner role needs the account.
+        ({"phone_e164": "+919811111111", "role": "rider"}, 404, "identity.user_not_found"),
         ({"role": "customer"}, 422, "request.invalid"),
     ],
-    ids=["hub-role-without-hub", "admin-with-scope", "unknown-user", "customer-not-grantable"],
+    ids=[
+        "hub-role-without-hub",
+        "admin-with-scope",
+        "unknown-user-partner",
+        "customer-not-grantable",
+    ],
 )
 async def test_bad_grants_are_refused(
     clients: ClientFactory,

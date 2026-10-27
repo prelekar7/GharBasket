@@ -50,6 +50,12 @@ ROLES = (
 )
 # `deleting` during the 30-day grace of an account deletion (spec §3.5); a purged user has no row.
 USER_STATUSES = ("active", "blocked", "deleting")
+# Roles an admin gives and takes away (spec §3.6); the rest follow from M8's verification and M9's
+# appointments, and `customer` is every account's own.
+STAFF_ROLES = ("admin", "hub_manager", "franchise_owner", "ngo_coordinator", "catalog_editor")
+# Staff roles that may wait for a number's first sign-in (spec §3.6): not admin, which needs the
+# account (owner's decision, 2026-10-26), so a mistyped or recycled number never becomes an admin.
+PENDING_ROLES = tuple(role for role in STAFF_ROLES if role != "admin")
 ROLE_STATUSES = ("applied", "kyc_pending", "verified", "suspended")
 SCOPE_TYPES = ("society", "hub", "ngo")
 LOCALES = ("en-IN", "hi-IN", "mr-IN")
@@ -81,6 +87,13 @@ class User(Base):
         CheckConstraint(_one_of("locale", LOCALES), name="locale"),
         CheckConstraint(_one_of("status", USER_STATUSES), name="status"),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        # The admin lookup by name (spec §3.6).
+        Index(
+            "ix_users_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
         {"schema": SCHEMA},
     )
 
@@ -131,6 +144,37 @@ class UserRole(Base):
     def grant(self) -> str:
         """The form used in access tokens and X-Active-Role: "customer" or "captain:<id>"."""
         return f"{self.role}:{self.scope_id}" if self.scope_id else self.role
+
+
+class PendingRoleGrant(Base):
+    """A staff role given to a phone number that has not signed in yet (spec §3.6). The first
+    sign-in turns it into a `user_roles` row and deletes it; it expires after 30 days."""
+
+    __tablename__ = "pending_role_grants"
+    __table_args__ = (
+        UniqueConstraint(
+            "phone_e164", "role", "scope_type", "scope_id", postgresql_nulls_not_distinct=True
+        ),
+        CheckConstraint(r"phone_e164 ~ '^\+[1-9][0-9]{7,14}$'", name="phone_e164"),
+        CheckConstraint(_one_of("role", PENDING_ROLES), name="role"),
+        CheckConstraint(
+            f"(scope_type IS NULL AND scope_id IS NULL) OR ({_one_of('scope_type', SCOPE_TYPES)}"
+            " AND scope_id IS NOT NULL)",
+            name="scope",
+        ),
+        Index("ix_pending_role_grants_expires_at", "expires_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    phone_e164: Mapped[str] = mapped_column(String(16))
+    role: Mapped[str] = mapped_column(String(32))
+    scope_type: Mapped[str | None] = mapped_column(String(16))
+    scope_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # The admin who gave it (no foreign key: the audit entry at the claim names them).
+    granted_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class LoginSession(Base):
