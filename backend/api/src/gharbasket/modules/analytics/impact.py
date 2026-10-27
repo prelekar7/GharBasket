@@ -33,7 +33,7 @@ from gharbasket.modules.analytics.impact_schemas import (
     ImpactTotalsOut,
     ImpactTrendOut,
 )
-from gharbasket.modules.analytics.kpis import GRAMS_PER_100_KG, MIN_PARTNERS, ratio
+from gharbasket.modules.analytics.kpis import GRAMS_PER_100_KG, MIN_PAID_PARTNERS, ratio
 from gharbasket.modules.analytics.models import FactCommunity, FactHubDay, FactPartnerWeek
 from gharbasket.modules.analytics.reads import monday, read_limit
 from gharbasket.modules.analytics.schemas import KpiSource
@@ -259,7 +259,7 @@ class Pay:
 
 def pay_summary(earnings: Sequence[int]) -> tuple[int | None, int | None]:
     """(paise, partners paid), null under 5 paid partners."""
-    if len(earnings) < MIN_PARTNERS:
+    if len(earnings) < MIN_PAID_PARTNERS:
         return None, None
     return sum(earnings), len(earnings)
 
