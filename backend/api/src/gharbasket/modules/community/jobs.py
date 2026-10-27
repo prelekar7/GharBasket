@@ -43,7 +43,8 @@ subscribe(logistics_api.PICKUP_COMPLETED, donations.on_pickup_completed)
     "Price each society's unlock threshold from M10's stop cost (Monday 02:10 IST)",
 )
 async def recompute_unlock_thresholds(ctx: JobContext) -> dict[str, Any]:
-    return await unlock.recompute_thresholds(ctx.session)
+    today = ctx.scheduled_for.astimezone(IST).date()
+    return await unlock.recompute_thresholds(ctx.session, ctx.http, ctx.settings, today)
 
 
 @job("expire_referrals", "Void referrals still unconverted 90 days after joining (03:10 IST)")

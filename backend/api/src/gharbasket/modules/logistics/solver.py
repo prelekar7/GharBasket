@@ -51,7 +51,7 @@ def at_clock(value: int) -> time:
     return time.fromisoformat(routing.clock(value))
 
 
-async def _stops(
+async def order_stops(
     session: AsyncSession, hub_id: uuid.UUID, day: date
 ) -> tuple[dict[str, Stop], dict[str, uuid.UUID], int]:
     """The located stops by id, the stops without a location (id → society) and the orders."""
@@ -108,7 +108,8 @@ def _start(slot: orders_api.SlotRef | None) -> int:
     return 0 if slot is None else seconds(slot.start)
 
 
-async def _fleet(session: AsyncSession, hub_id: uuid.UUID, kind: str) -> list[Vehicle]:
+async def fleet_of(session: AsyncSession, hub_id: uuid.UUID, kind: str) -> list[Vehicle]:
+    """The hub's active vehicles of the plan kind, by label: van index i is the i-th."""
     rows = await session.execute(
         select(Vehicle)
         .where(Vehicle.hub_id == hub_id, Vehicle.kind == VEHICLE_KIND[kind], Vehicle.active)
@@ -117,17 +118,19 @@ async def _fleet(session: AsyncSession, hub_id: uuid.UUID, kind: str) -> list[Ve
     return list(rows.scalars())
 
 
-async def _previous_order(session: AsyncSession, plan: RoutePlan) -> list[uuid.UUID]:
-    """Societies in the stop order of the hub's last published plan of this kind in the past
-    7 days; empty when there is none."""
+async def previous_order(
+    session: AsyncSession, hub_id: uuid.UUID, kind: str, day: date
+) -> list[uuid.UUID]:
+    """Societies in the stop order of the hub's last published plan of this kind in the 7 days
+    before `day`; empty when there is none."""
     previous = await session.scalar(
         select(RoutePlan.id)
         .where(
-            RoutePlan.hub_id == plan.hub_id,
-            RoutePlan.kind == plan.kind,
+            RoutePlan.hub_id == hub_id,
+            RoutePlan.kind == kind,
             RoutePlan.status == "published",
-            RoutePlan.delivery_date < plan.delivery_date,
-            RoutePlan.delivery_date >= plan.delivery_date - timedelta(days=PREVIOUS_DAYS),
+            RoutePlan.delivery_date < day,
+            RoutePlan.delivery_date >= day - timedelta(days=PREVIOUS_DAYS),
         )
         .order_by(RoutePlan.delivery_date.desc())
         .limit(1)
@@ -213,8 +216,8 @@ async def solve(
     hub = await hub_ops_api.get_hub(session, plan.hub_id)
     if hub is None:
         raise SolveFailed("unknown hub")
-    stops, unlocated, order_count = await _stops(session, plan.hub_id, plan.delivery_date)
-    vehicles = await _fleet(session, plan.hub_id, plan.kind)
+    stops, unlocated, order_count = await order_stops(session, plan.hub_id, plan.delivery_date)
+    vehicles = await fleet_of(session, plan.hub_id, plan.kind)
     fleet = [Van(v.label, v.capacity_kg, v.capacity_crates) for v in vehicles]
     hub_point = (hub.lat, hub.lng)
     trips: list[Trip] = []
@@ -251,7 +254,7 @@ async def solve(
             )
             plan.prediction_id = None if prediction is None else prediction.id
         else:
-            previous = await _previous_order(session, plan)
+            previous = await previous_order(session, plan.hub_id, plan.kind, plan.delivery_date)
             if previous:
                 sequence = routing.order_previous(list(stops.values()), previous)
                 plan.source = "fallback_previous"

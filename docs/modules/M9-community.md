@@ -615,7 +615,9 @@ PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) ga
 **As built (S9).**
 - **The first captain.** `captains.appoint` moves a `prospect` society to `unlocking` in its own transaction (no consumer of `captain_assigned`), then checks the count, so a society that already has enough households goes live at once.
 - **The hub's PATCH.** `PATCH /v1/admin/societies/{id}` takes only `unlock_threshold` (1 to 500; the source becomes `hub`), `unlock_threshold_pinned` and `status` for now; the polygon and towers come with the console's map editor. Hub managers of the society's hub and admins (`societies:write`); another hub's society is 404. It answers the unlock view plus `unlock_threshold_pinned`, is audit-logged (`community.society_updated`), and needs no Idempotency-Key or If-Match. `status: "live"` goes live like the automatic path (`live_at` and `society_live` the first time only).
-- **M10 and M6 follow-ups.** `unlock.stop_cost` answers None until M10 §3.8's PR 2 replaces it with `unlock.stop_costs`, which batches per hub through `intel_gateway.api.society_stop_costs`; `recompute_thresholds` then takes `ctx.http` and `ctx.settings`. Until then the job keeps every threshold; `box_fee_paise` is `unlock.PRE_LIVE_BOX_FEE_PAISE` (3,000) until the hub's `pre_live_box_fee_paise` exists.
+- **M10 and M6 follow-ups.**
+  - M10 §3.8's PR 2 replaced `unlock.stop_cost` with `unlock.stop_costs`. It batches per hub through `intel_gateway.api.society_stop_costs`, and `recompute_thresholds(session, http, settings, today)` takes `ctx.http` and `ctx.settings` (M10 §3.8 "As built, PR 2").
+  - `box_fee_paise` is `unlock.PRE_LIVE_BOX_FEE_PAISE` (3,000) until the hub's `pre_live_box_fee_paise` exists.
 - **The job** skips societies that are live or have a `live_at`, and pinned ones; it returns `{ priced, kept, skipped, went_live }`.
 - **Societies already live** got `live_at = updated_at` in the migration, and the seed sets `live_at` when it seeds a society live.
 - **Facade.** `get_society` gains `live_at`; `public_society(session, slug)` is in place for M12 §3.7.

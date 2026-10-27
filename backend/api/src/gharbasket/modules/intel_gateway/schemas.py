@@ -3,6 +3,8 @@
 The ML service (backend/ml) has its own copy of these shapes; tests run one against the other.
 """
 
+import uuid
+from datetime import date
 from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -301,6 +303,129 @@ class RoutePlan(BaseModel):
     source: Literal["osrm", "haversine"]
     routes: list[RouteVanOut]
     summary: RouteSummary
+    seconds: float
+    model: str
+
+
+# --- POST /slots/price (M10 §3.8): a society's marginal route cost per delivery slot ----------
+
+
+class SlotTrip(BaseModel):
+    van: int = Field(ge=0)
+    stops: list[str] = Field(min_length=1)  # stop ids in visiting order
+
+
+class SlotWindow(BaseModel):
+    id: str = Field(min_length=1, max_length=80)  # the slot id
+    window_start_s: int = Field(ge=0)
+    window_end_s: int = Field(ge=0)
+
+
+class SlotDay(BaseModel):
+    """A hub's tentative day (M7's `logistics.api.tentative_day`): its stops (ids
+    `<society_id>/<slot_id>`), their trips (a van's trips in time order), the fleet, the times
+    and the hub's active box slots. `hub_id`, `day` and `routes_source` are never sent."""
+
+    hub_id: uuid.UUID
+    day: date
+    routes_source: Literal["published", "previous", "nearest"]
+    hub: RoutePoint
+    depart_s: int = Field(ge=0)
+    return_by_s: int = Field(ge=0)
+    stops: list[RouteStop]
+    trips: list[SlotTrip] | None
+    vans: RouteVans
+    service: RouteService = Field(default_factory=RouteService)
+    cost: RouteCost = Field(default_factory=RouteCost)
+    slots: list[SlotWindow]
+
+
+class SlotCandidate(BaseModel):
+    """A society's point and the load to price: one box by default. `join`: its own stop in a
+    slot takes the load; `ignore`: its stops leave the routes first (M9's stop cost)."""
+
+    id: uuid.UUID  # the society
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    orders: int = Field(default=1, ge=0)
+    kg_tenths: int = Field(default=80, ge=0)
+    crates: int = Field(default=1, ge=0)
+    own_stops: Literal["join", "ignore"] = "join"
+
+
+class SlotPriceRequest(BaseModel):
+    """The body of POST /slots/price, with the ML service's 422 checks repeated, so a day it
+    would refuse never costs a call."""
+
+    hub: RoutePoint
+    depart_s: int = Field(ge=0)
+    return_by_s: int = Field(ge=0)
+    stops: list[RouteStop] = Field(max_length=400)
+    trips: list[SlotTrip] | None
+    vans: RouteVans
+    service: RouteService
+    cost: RouteCost
+    candidates: list[SlotCandidate] = Field(min_length=1, max_length=50)
+    slots: list[SlotWindow] = Field(min_length=1, max_length=12)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        ids = [s.id for s in self.stops]
+        on_trips = [] if self.trips is None else [s for t in self.trips for s in t.stops]
+        if self.depart_s >= self.return_by_s or any(s.donation_kg_tenths for s in self.stops):
+            raise ValueError("depart_s after return_by_s, or a donation without a food bank")
+        for names in (ids, [c.id for c in self.candidates], [s.id for s in self.slots]):
+            if len(set(names)) != len(names):
+                raise ValueError("duplicate stop, candidate or slot ids")
+        if self.trips is not None and (
+            sorted(on_trips) != sorted(ids) or any(t.van >= self.vans.count for t in self.trips)
+        ):
+            raise ValueError("every stop on exactly one trip, of a van in vans.count")
+        return self
+
+
+SlotReason = Literal["SAME_SOCIETY", "NEIGHBOUR_STOP", "NEW_STOP", "NEW_TRIP", "INFEASIBLE"]
+
+
+class SlotBase(BaseModel):
+    trips: int
+    vans: int
+    km: float
+    cost_paise: int
+    problems: list[str] = Field(default_factory=list)
+
+
+class SlotPosition(BaseModel):
+    trip: int | None  # index in the base's trips; None: a new trip
+    van: int
+    after: str | None  # the stop before it; None: first on the trip
+
+
+class SlotPrice(BaseModel):
+    id: str
+    rank: int  # 1 = cheapest; infeasible slots last
+    feasible: bool
+    marginal_cost_paise: int | None  # route cost, never a price
+    marginal_m: int | None
+    marginal_s: int | None
+    nearest_stop_m: int | None
+    reason: SlotReason
+    position: SlotPosition | None
+
+
+class SlotCandidatePrices(BaseModel):
+    id: uuid.UUID
+    slots: list[SlotPrice]  # in the request's slot order
+
+
+class SlotPrices(BaseModel):
+    """The ML service's answer, or the rule fallback's (`base` and every `position` None). The
+    ML body's own `source` (the distances) is `distance_source` here."""
+
+    source: Literal["ml", "fallback"]
+    distance_source: Literal["osrm", "haversine"]
+    base: SlotBase | None
+    candidates: list[SlotCandidatePrices]
     seconds: float
     model: str
 

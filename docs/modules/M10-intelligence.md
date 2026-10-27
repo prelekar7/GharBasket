@@ -314,6 +314,30 @@ POST /slots/price          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request
     - The same request gives the same JSON apart from `seconds`.
   - **Matrix.** `routing.matrix` (OSRM within the timeout, else haversine) is now shared with `/route/solve`. `SLOT_OSRM_TIMEOUT_S` is a service setting (default 1.0, at most 2).
   - **Speed** (haversine, laptop), for 100 stops in 6 slots: 1 candidate takes about 0.03 s and 50 candidates about 0.35 s. For 400 stops, 50 candidates take about 0.6 s.
+- **As built, PR 2** (`feat/M10-slot-price-gateway`, 2026-10-28; the gateway, M7, M4 and M9). Read with the gateway, `tentative_day` and M9 sections:
+  - **`SlotPrices`.** `source` is `ml` or `fallback`. The ML body's own `source` (`osrm` or `haversine`) is kept as `distance_source`, since the two names clash. A fallback answer has `base` None, every `position` None, `distance_source: haversine` and `seconds` 0.
+  - **`SlotCandidate.id`** is the society's UUID, so `society_stop_costs` returns `dict[uuid, int | None]`.
+  - **The 422 checks are repeated in the gateway** (`SlotPriceRequest`), as for `/route/solve`. A day the service would refuse makes no call: over 400 stops, no slot, duplicate ids, or a stop on no trip. It is logged as `slot_request_invalid`. `price_slots` then answers with the fallback, and `society_stop_costs` skips that day.
+  - **Timeouts.** The gateway uses `min(ml_slot_timeout_s, ml_timeout_s)` (`slot_timeout_s`) when it calls, instead of a settings validator; `ML_SLOT_TIMEOUT_S` is at most 10. All four POSTs share one helper, `_post(timeout_s)`; the other calls behave as before.
+  - **The fallback.**
+    - A slot's stops are the ids ending in `/<slot_id>`, as in PR 1. With `own_stops: ignore`, the candidate's own stops are skipped.
+    - `near_m` is the request's default, 1000.
+    - `nearest_stop_m` is `d`: 0 for `SAME_SOCIETY`, and null for `NEW_TRIP`, where `d` is measured to the hub.
+  - **`society_stop_costs(..., session=None, for_date=None)`.** `for_date` is the run's date, for recording. A society is recorded only when the service answered at least one day for it. Candidates go 50 to a call, so a hub with more than 50 societies to price takes more than one call per day.
+  - **`tentative_day`.**
+    - **The published plan wins over `expected`.** That plan exists only after the cut-off, when M3 no longer quotes.
+    - **Published routes.** Cancelled routes and stops that are not drops are left out. So are a route whose vehicle is no longer active and a society without a location.
+    - **`expected`.** A pair is left out when its count is 0 or less, or when its slot is not one of the hub's active box slots that date.
+    - **`return_by_s`** is the latest window end of the stops **and the hub's box slots**, plus 90 minutes, and at least `depart_s` + 1 h. A candidate in a later slot than any stop can then still be priced.
+    - **`SlotDay`** also carries `hub_id`, `day` and `routes_source`, which are never sent.
+  - **M7 internals.**
+    - `solver._fleet`, `_previous_order` and `_stops` became `fleet_of`, `previous_order(session, hub_id, kind, day)` and `order_stops`.
+    - `views` now imports `solver` as a module, so `solver` can be imported first. This breaks the import cycle views → plans → solver → attempts → views.
+  - **M4.** `box_slots` returns `SlotAvailability { id, label, start, end, capacity, booked, available }` for any date. It uses `service.slot_loads(session, hub_id, on, kind)`, which is `slots_on` without the date-range check.
+  - **M9.**
+    - `unlock.stop_costs(session, http, settings, societies, today)` answers `{}` without an HTTP client, so the job keeps every threshold. A society without a hub or a location keeps its threshold.
+    - The job prices every society first, then locks each society row as before.
+    - The reference days are the 7 days before `today` (IST, from `scheduled_for`) whose `tentative_day` has `routes_source: published`.
 
 **The gateway (`intel_gateway.api`)**
 - **`price_slots(http, settings, day: SlotDay, candidates: list[SlotCandidate], *, session=None, subject_type=None, subject_id=None) -> SlotPrices`.**
