@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from gharbasket.platform.geo import LatLng
 
@@ -274,6 +274,70 @@ class SocietyRequestAdmin(BaseModel):
     duplicate_of: uuid.UUID | None = Field(description="The society it repeats (duplicate)")
     created_at: datetime
     reviewed_at: datetime | None
+
+
+class TowerIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str | None = Field(
+        default=None,
+        pattern=r"^[a-z0-9][a-z0-9-]{0,15}$",
+        description="Unique in the society; left out, the next free `a`, `b`, `c`... is used",
+        examples=["a"],
+    )
+    label: str = Field(min_length=1, max_length=60, examples=["A wing"])
+
+    @field_validator("label")
+    @classmethod
+    def _tidy_label(cls, value: str) -> str:
+        tidy = _tidy(value)
+        if tidy is None:
+            raise ValueError("label needs a character")
+        return tidy
+
+
+class SocietyCreateIn(BaseModel):
+    """A new society by hand (§3.1, §3.9): always a `prospect`; the boundary is drawn after, by
+    the map editor."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=2, max_length=120, examples=["Panvel Heights"])
+    area: str | None = Field(default=None, max_length=120, examples=["New Panvel"])
+    hub_id: uuid.UUID | None = Field(
+        default=None,
+        description="Default: the caller's hub for a hub manager, none for an admin",
+    )
+    unlock_threshold: int | None = Field(
+        default=None, ge=1, le=500, description="Default 20; given, its source is `hub`"
+    )
+    flats: int | None = Field(default=None, ge=1, le=5000)
+    towers: list[TowerIn] = Field(default_factory=list, max_length=50)
+
+    @field_validator("name")
+    @classmethod
+    def _tidy_name(cls, value: str) -> str:
+        tidy = _tidy(value)
+        if tidy is None or len(tidy) < 2:
+            raise ValueError("name needs at least 2 characters")
+        return tidy
+
+    @field_validator("area")
+    @classmethod
+    def _tidy_area(cls, value: str | None) -> str | None:
+        return _tidy(value)
+
+    @model_validator(mode="after")
+    def _tower_ids(self) -> "SocietyCreateIn":
+        """Fill the missing tower ids; the given ones must be unique."""
+        given = [t.id for t in self.towers if t.id is not None]
+        if len(given) != len(set(given)):
+            raise ValueError("tower ids must be unique")
+        free = (c for c in "abcdefghijklmnopqrstuvwxyz" if c not in given)
+        for tower in self.towers:
+            if tower.id is None:
+                tower.id = next(free)
+        return self
 
 
 class SocietyRequestAcceptIn(BaseModel):

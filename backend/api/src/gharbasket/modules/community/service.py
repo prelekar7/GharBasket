@@ -204,10 +204,15 @@ async def create_society(
     area: str | None,
     hub_id: uuid.UUID | None,
     data_source: str = "real",
+    unlock_threshold: int | None = None,
+    flats: int | None = None,
+    towers: list[dict[str, str]] | None = None,
 ) -> Society:
-    """A new `prospect` society (spec §3.9): unlock threshold 20, no boundary, no towers, flats
-    unknown. The slug comes from the name, with `-2`, `-3`... when it is taken. `data_source`
-    follows what it was made from (a simulator's request makes a synthetic society)."""
+    """A new `prospect` society (spec §3.9), the one create path of `POST /v1/admin/societies` and
+    of accepting a request. Unlock threshold 20 (source `default`) unless one is given (source
+    `hub`), no boundary, towers and flats as given or none. The slug comes from the name, with
+    `-2`, `-3`... when it is taken. `data_source` follows what it was made from (a simulator's
+    request makes a synthetic society)."""
     base = _base_slug(name)
     for _ in range(5):
         taken = set(
@@ -230,7 +235,12 @@ async def create_society(
             hub_id=hub_id,
             status="prospect",
             data_source=data_source,
+            flats=flats,
+            towers=towers or [],
         )
+        if unlock_threshold is not None:
+            society.unlock_threshold = unlock_threshold
+            society.threshold_source = "hub"
         try:
             async with session.begin_nested():  # two accepts of the same name at once
                 session.add(society)
