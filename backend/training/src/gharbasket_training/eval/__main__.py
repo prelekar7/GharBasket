@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import sys
 from collections.abc import Sequence
 from datetime import date
@@ -62,6 +63,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--forecast-start", type=date.fromisoformat, default=forecast_ab.START
     )  # the festival calendar starts here
+    parser.add_argument(
+        "--ranker-explanations",
+        type=Path,
+        help="a basket ranker run's explanations.json (written next to its model.txt by "
+        "train_ranker): adds the 'Ranker explanations' section to the report",
+    )
     parser.add_argument(
         "--smoke",
         action="store_true",
@@ -135,6 +142,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         pantry_runs,
         sweep_runs=sweep_runs,
         forecast_runs=forecast_runs,
+        ranker_explanations=(
+            json.loads(args.ranker_explanations.read_text()) if args.ranker_explanations else None
+        ),
         args={
             "weeks": args.weeks,
             "start": args.start.isoformat(),

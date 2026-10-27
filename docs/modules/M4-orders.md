@@ -1,6 +1,6 @@
 # M4 — Orders & Checkout
 
-**Status:** Draft v1; §3.1 (slots, box orders, add-ons, cancel, cut-off) frozen for S2; §3.2 (order issues) frozen on 2026-10-08; §3.3–§3.7 (live timeline, paying a failed order, tiffin orders, issue triage, facade additions) drafted 2026-10-09, frozen on approval
+**Status:** Draft v1; §3.1 (slots, box orders, add-ons, cancel, cut-off) frozen for S2; §3.2 (order issues) frozen on 2026-10-08; §3.3–§3.7 (live timeline, paying a failed order, tiffin orders, issue triage, facade additions) drafted 2026-10-09, frozen on approval; §3.9 (green-slot discount) drafted 2026-10-28, frozen on approval
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (cut-off in S3)
 **Postgres schema:** `orders` · **Python package:** `gharbasket.modules.orders`
@@ -451,6 +451,18 @@ After a box's second miss, M7 refunds its perishable lines minus ₹20, and its 
   - `orders.carry_over_expired { order_id, household_id, hub_id, lines: [ { carry_id, product_id, steps, paid_paise } ], reason: "carry_over_expired" }`, for M6 (release the kept items, M6 §3.5) and M11.
 - **No backfill.** The `logistics.carry_over_pending` events published before this ships were dev and test data. The outbox does not replay an event that had no consumer.
 
+### 3.9 Green-slot discount (drafted 2026-10-28, frozen on approval; contract in M10 §3.8)
+M3 prices a slot move and shows it (M3 §3.6); M4 records the result on the order, as it records line prices frozen at approval. A discount is a lower price, not a money movement, so M5 and the ledger do not change.
+- **`ApprovedCycle` gains `discount_paise`** (≥ 0, default 0) and `discount_code` (`"green_slot"` | null).
+  - `create_from_cycle` sets the order's `discount_paise = min(discount_paise, subtotal_paise)` and `discount_code` at approval, and again on every re-approval.
+  - `total_paise = subtotal_paise + fees_paise − discount_paise` is unchanged, so a total is never negative. The cut-off debits it in the one `box_debit` entry.
+  - A society that goes live before the lock drops the fee (§11) and keeps the discount.
+- **A slot move on re-approval.** When the order is still `approved` and the higher `version` carries another `slot_id`, the booking moves to the new slot under that slot's row lock. On a full slot the answer is 409 `orders.slot_full` and nothing changes. The date never changes.
+- **Refunds.** A whole-box refund returns what was paid, net of the discount (the default `refund_paise`). Shortage refunds and issue credits stay per line, and `refundable_paise` caps them at what was paid.
+- **`orders.orders.discount_code`** (text, null) and **`OrderOut.discount_code`** are additive. The app labels a non-zero `discount_paise` with it ("Green slot saving").
+- **`box_slots(session, hub_id, day) -> list[SlotAvailability]`** (new facade): the hub's active box slots, with `capacity`, `booked` and `available` for the date. It computes what `GET /v1/slots` computes, for M3's quote and M7's `tentative_day`.
+- **`GET /v1/slots` is unchanged.** Availability for a hub and date is the same for everyone. A green-slot saving depends on the household (its society, and whether it shares its stop), so it lives on the cycle's quote.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -464,6 +476,8 @@ After a box's second miss, M7 refunds its perishable lines minus ₹20, and its 
 | `orders.carry_overs` (§3.8) | id, from_order_id, household_id, hub_id, society_id, product_id, steps, step_qty, step_unit, paid_paise, missed_on, expires_on, status (pending, attached, packed, delivered, refunded), to_order_id, returned_in_order_id, refunded_by (expiry, hub), settled_at, created_at; unique (from_order_id, product_id); index (household_id, status) |
 
 Changes from §3.3–§3.7: `orders.slots.meal` (lunch, dinner; tiffin slots only); `orders.orders.tiffin_menu_id`, `preferred_partner_id` (the menu's kitchen) and `portions` (tiffin only); `orders.orders.cycle_id` stays unique only among orders that are not `cancelled` (a partial unique index), so a cycle that is skipped and then un-skipped (M3 §3.3) can get a new order.
+
+Changes from §3.9: `orders.orders.discount_code` (text, null; `green_slot`).
 
 ## 5. Events
 **Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled` (gains `kind`), `orders.tiffin_booked` (§3.5), `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.issue_reported`, `orders.issue_resolved`, `orders.carry_over_attached` and `orders.carry_over_expired` (§3.8) (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.

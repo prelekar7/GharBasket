@@ -34,6 +34,8 @@ from gharbasket_training.eval.planner_ab import (
 from gharbasket_training.eval.stats import Estimate, estimate
 from gharbasket_training.settings import Settings
 
+SAMPLE_DECISIONS = 8  # decisions listed in the HTML (the JSON keeps them all)
+
 
 def commit() -> str:
     try:
@@ -83,6 +85,7 @@ def build(
     args: dict[str, Any],
     sweep_runs: list[assignment_sweep.SweepRun] | None = None,
     forecast_runs: list[forecast_ab.ForecastRun] | None = None,
+    ranker_explanations: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     summary = summarise(planner_runs)
     diffs = paired(planner_runs)
@@ -179,6 +182,9 @@ def build(
         },
         "assignment_targets": assignment_sweep.against_target(sweep_runs),
         "forecast": _forecast(forecast_runs),
+        # The basket ranker's `explanations.json` (TreeSHAP, handbook 08 §8.4); None when the
+        # harness was not given one.
+        "ranker_explanations": ranker_explanations,
         "runs": {
             "planner": [asdict(r) for r in planner_runs],
             "pantry": [asdict(r) for r in pantry_runs],
@@ -535,8 +541,46 @@ def to_html(report: dict[str, Any]) -> str:
         "table (cold-start target &lt; 4 weeks). With the simulator's daily-use noise as small as "
         "it is (lognormal sigma 0.1), the 15 % target is easy for a naive baseline and is to be "
         "revisited (protocol change log).</p>"
-        f"{sweep_table}{_forecast_html(report)}</body></html>\n"
+        f"{sweep_table}{_forecast_html(report)}{_ranker_html(report)}</body></html>\n"
     )
+
+
+def _ranker_html(report: dict[str, Any]) -> str:
+    """Ranker explanations: mean |SHAP| per feature, and the top features of a few decisions."""
+    ex = report.get("ranker_explanations")
+    if not ex or not ex.get("mean_abs_shap"):
+        return ""
+    share = ex.get("mean_abs_shap_share", {})
+    importance = _table(
+        f"Ranker explanations — global feature importance, mean |SHAP| over {ex['rows']} "
+        f"{ex.get('data', '')} candidates ({ex['method']}; model {ex.get('version', '?')})",
+        ["feature", "mean |SHAP|", "share"],
+        [
+            [f, f"{v:.4f}", f"{share.get(f, 0):.1%}"]
+            for f, v in sorted(ex["mean_abs_shap"].items(), key=lambda kv: -kv[1])
+        ],
+    )
+    decisions = ex.get("decisions", [])[:SAMPLE_DECISIONS]
+    sample = _table(
+        f"Ranker explanations — the top features of {len(decisions)} of the "
+        f"{len(ex.get('decisions', []))} sampled decisions (kept = in the final box; "
+        "contribution to the raw score, + raises the rank)",
+        ["week", "product", "kept", "score", "top features (value → contribution)"],
+        [
+            [
+                d["week"],
+                d["product"],
+                str(d["label"]),
+                f"{d['score']:.3f}",
+                "; ".join(
+                    f"{t['feature']} {t['value']:g} → {t['contribution']:+.3f}"
+                    for t in d["top_features"]
+                ),
+            ]
+            for d in decisions
+        ],
+    )
+    return importance + sample
 
 
 def _rupees(e: dict[str, Any]) -> str:

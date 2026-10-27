@@ -1,6 +1,6 @@
 # M10 — Intelligence (ML & Optimisation Service)
 
-**Status:** Draft v1.1. §3.1 (`POST /plan/week`, v0) is frozen and built in `backend/ml`; the rest is refined at phase start (spec-first).
+**Status:** Draft v1.1. §3.1 (`POST /plan/week`, v0) is frozen and built in `backend/ml`; §3.8 (`POST /slots/price` and green slots) drafted 2026-10-28, frozen on approval; the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
 **Phase / Sprint:** Simulator and skeleton from P1 / S0; models in P4 / S7–S8
 **Deployables:** `backend/ml` (FastAPI, stateless; served from a Hugging Face Space with OSRM as a second process, ADR-0025); `backend/training` (training, forecasting, snapshots and data jobs, run in GitHub Actions, ADR-0025); models and the lake on R2 with a `latest.json` pointer per model; MLflow local only; gateway module in the API: `gharbasket.modules.intel_gateway`
@@ -30,7 +30,7 @@ All prediction and optimisation: the household simulator, pantry digital twin, n
 | POST | `/route/solve` | logistics | Request id | Two waves of ≤ 10 s; returns routes, the API writes `logistics.*` via its facade |
 | POST | `/assign/kitchens` | partners (job) | Request id | Greedy now, fair (λ) in S8 |
 | POST | `/forecast/run` | hub_ops (job, from `backend/training`) | Request id | Returns forecasts; the API writes `intel.predictions` and `hub_ops.procurement_lines` |
-| POST | `/slots/price` | orders / community | — | Marginal insertion cost (S9) |
+| POST | `/slots/price` | subscriptions (customer quote) / community (weekly job) | — | Marginal insertion cost per society and slot; route cost, never a price (§3.8, S9) |
 | GET | `/substitutes/{product_id}` | catalog | — | Learned + similarity (stretch) |
 | POST | `/embed` | catalog (job) | — | Embeddings (stretch, training jobs only) |
 | GET | `/models`, `/health/ai` | console (admin) | — | Served model versions from the R2 pointer, drift metrics |
@@ -224,14 +224,270 @@ The next-basket ranker: which candidates belong in a household's box this week. 
 ```
   request:  "candidates": [ { "product", "weeks_since", "frequency", "drafted", "removed_last",
                               "popularity", "price_paise" } ], "top_k": 10
-  200:      "source": "ml" | "fallback", "model", "ranked": [ { "product", "score", "rank" } ]
+  200:      "source": "ml" | "fallback", "model",
+            "ranked": [ { "product", "score", "rank", "top_features"?: [ { "feature", "contribution" } ] } ]
 ```
 - **Baskets and labels:** one basket per household x week whose cycle is `approved` or `locked` (draft, skipped and cancelled cycles are not final boxes; a skipped week is a gap); a candidate's label is 1 when it is in the final box (kept or added), 0 when drafted and removed or never taken.
 - **Candidates:** the household's own past items, the frequent items of its 5 nearest households (Jaccard on their baskets dated before this week; ties broken by product id, so the data never depends on the hash seed), and the week's drafted lines.
 - **Features** (as of the cut-off, from earlier weeks only, never from the final box): weeks since last bought (capped at 52, and 52 when never bought, in training and serving), share of past baskets bought, drafted this week, removed last time, share of households buying it last week, unit price from the hub's price list valid at the cut-off (else the newest earlier list holding it, else 0). `drafted_rule` was dropped in v0: removed lines lose their reason code, so it leaked the label; it returns once a draft snapshot exists. **Serving (planner v2):** M3's `ranker_candidates` computes the same features from the API's tables for the household's own past items (the only candidates it sends): weeks since kept and frequency over its full history, removed last time from the previous approved or locked box, popularity over the hub's households (training counts every household of the data source; with one hub they are the same), the price from `catalog.api.latest_prices_on` at the cycle's cut-off, and `drafted` false (the draft does not exist yet). The request carries no `drafted_rule`: the schema forbids extra fields.
 - **Model:** LightGBM LambdaRank grouped by basket, one model per `data_source` (never pooled); **leave-last-basket-out** NDCG@10, Recall@10 and Recall@|basket| (eval protocol §4 and §7) against "repeat last week" (the household's previous approved or locked basket, however many weeks ago) and "top frequency", with the candidates' coverage of the final box, in the model card and in `model_metrics`.
 - **Registry (ADR-0025):** `s3://gb-mlflow/models/basket_ranker/<version>-<data_source>/{model.txt, card.json}` and `models/basket_ranker/latest.json`; `--out X` writes the same layout without the `models/` prefix, which is what the Space's `MODELS_DIR` holds. The job never moves `latest.json`: `just promote basket_ranker <version>-<data_source>` is the only thing that does (also with `--out X`, the same local layout); it refuses a model whose leave-last-basket-out NDCG@10 is not above both baselines unless `--force`. The Space re-reads the pointer every `MODELS_RELOAD_S` (600 s); a malformed pointer, a corrupt model or a model with other features is logged and listed as `unreadable` on `/models`, and the last good model or the fallback answers. Without a model the fallback ranks by frequency then popularity (`source: "fallback"`).
-- v1 (P4): SHAP explanations, price delta and festival features, `drafted_rule` from a draft snapshot, the ranker's preference term in planner v2.
+- **SHAP explanations (as built, 28 Oct 2026; handbook 08 §8.4):** the model is LightGBM, so the explanations are its native TreeSHAP (`predict(..., pred_contrib=True)`, in the raw LambdaRank score; no new dependency). *Training:* `train_ranker` writes `explanations.json` beside `model.txt` and `card.json` (`gharbasket_training.ranker.explain`): `mean_abs_shap` and its `share` per feature over the holdout candidates (the training set when no household has two baskets), and 50 decisions spread evenly over the rows, each with week, product, kept or not, score and its top three features (value and contribution); no household id. `promote` does not need it. The eval harness takes it with `--ranker-explanations PATH` and adds the "Ranker explanations" tables to the HTML and the JSON (`ranker_explanations`). *Serving:* each of the `top_k` returned items carries `top_features` (its three largest |SHAP|, signed; one extra `pred_contrib` call over at most `top_k` rows); it is absent on the fallback and whenever the contributions cannot be computed (never a reason to drop the ranking). The API's `intel_gateway.RankedOut` has no such field yet, so it ignores it and `intel.predictions` does not keep it (follow-up, M10 owner + API schema + api-client regeneration). On the simulator (60 households, 8 weeks) `drafted` carries about 62 % of mean |SHAP|, `frequency` 21 %, `price_paise` 9 %, `popularity` 9 %; `weeks_since` and `removed_last` under 1 %.
+- v1 (P4): price delta and festival features, `drafted_rule` from a draft snapshot, the ranker's preference term in planner v2.
+
+### 3.8 `POST /slots/price` and green slots (M-H; drafted 2026-10-28, frozen on approval)
+The marginal insertion cost of a society into a day's tentative van routes, per delivery slot (handbook 08 M-H, Tier 3, MS-D). Two callers use it. The customer app shows **"Neighbours already get delivery Tue 8–10, save ₹15"** when a household moves its box to that slot. M9's weekly job uses the same cost, for a whole society, as the stop cost behind its unlock threshold (M9 §3.6). The ML service returns **route costs only**, never a price. M3 turns a cost into a saving with the hub's rules, and M4 records the saving as the order's discount.
+
+**Where a choice exists.** The van stops at a society, never at a flat: a stop is a `(society, slot)` pair (M7 §3.2, the captain does the last 50 m). A box rides on its society's delivery day (M3 §3.1). So the one household choice that changes route cost is **the time slot of this week's box on its delivery date**. A household alone at its society's stop can move to a slot where its society, or a society nearby, is already on a route. The date and the cut-off never change. A whole society's slot is the hub's choice (M3 §3.5); open question 7 covers showing the same ranking there.
+
+**Who owns what**
+
+| Piece | Owner | Where |
+|---|---|---|
+| Marginal cost per candidate and slot (metres, seconds, paise of route cost), reason, rank | M10 | `backend/ml`: `POST /slots/price` (`gharbasket_ml/slots.py`) |
+| Timeouts, the rule fallback, recording | M10 gateway | `intel_gateway.api.price_slots`, `society_stop_costs`; `intel_gateway.fallback.price_slots` |
+| A day's tentative routes | M7 | `logistics.api.tentative_day` (new) |
+| Box slots and their capacity; the discount on the order | M4 | `orders.api.box_slots` (new); `ApprovedCycle.discount_paise` → `orders.discount_paise`, `discount_code` (M4 §3.9) |
+| The quote, the saving rule, the customer endpoints | M3 | `POST /v1/cycles/{id}/slot-quotes`, `PUT /v1/cycles/{id}/slot` (M3 §3.6) |
+| The saving's hub settings | M6 | `hub_ops.hubs.green_saving_share_pct`, `green_saving_max_paise` (made in PR 3) |
+| Stop cost → unlock threshold | M9 | `unlock.stop_costs` (M9 §3.6) |
+| Money movement | none new | The cut-off debits `total_paise`, already net of `discount_paise`, in the one `box_debit` entry. M5 does not change. |
+
+**The tentative routes.** M7 solves day T's routes at T-1 23:15 (ADR-0026 §6), after the cut-off. A box's slot can only change before the cut-off, so no plan for T exists when a household chooses. The tentative routes are therefore **the plan M7's own fallback would publish if it ran now** (M7 §3.2: `fallback_previous`, else `fallback_nearest`), over the boxes expected on T. A day that already has a published box plan uses that plan's routes as published; M9's reference days are such days.
+
+`logistics.api.tentative_day(session, hub_id, day, *, expected=None) -> intel_api.SlotDay | None` (new, M7):
+- **Stops.**
+  - With `expected` (`{(society_id, slot_id): boxes}`, from M3's cycles), there is one stop per pair, with `orders = boxes`, `crates = ceil(boxes / 3)`, `kg_tenths = boxes × TENTATIVE_BOX_KG_TENTHS` (80, i.e. 8 kg) and `empties = 0`.
+  - Without `expected`, the stops are the published plan's for `day`. With no published plan, they are the stops a solve would send (M7 §3.2, from M4's orders).
+  - Location, window and stop id (`<society_id>/<slot_id>`) are as in M7 §3.2. A society without a location is left out.
+- **Trips.** The published plan's routes in stop order (`routes_source: "published"`). Otherwise `routing.order_previous` (`"previous"`) or `routing.order_nearest` (`"nearest"`), then `routing.fill`. These are the functions M7's fallback already uses, so no new routing code is added.
+- **Hub, vans, `depart_s`, `return_by_s`:** as a solve sends them (M7 §3.2).
+- **Slots:** the hub's active box slots for `day`, from `orders.api.box_slots`.
+- **None** when the hub has no active box vehicle, or no hub location. Callers then show the slots unpriced, or keep the threshold.
+
+```
+POST /slots/price          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request-ID passed through)
+  request:
+    "hub": { "lat", "lng" }, "depart_s": 23400, "return_by_s": 41400,      seconds after midnight IST
+    "stops": [ StopIn ],                     0 to 400; StopIn as /route/solve (§3.4), id "<society_id>/<slot_id>"
+                                             (M7 §3.2); the day's tentative stops without the box being priced
+    "trips": [ { "van": 0, "stops": ["<stop id>", …] } ] | null,
+                                             the tentative routes, a van's trips in time order, each stop on
+                                             exactly one trip; null: the service builds them by nearest
+                                             neighbour (§3.4's fallback)
+    "vans", "service", "cost",               as /route/solve
+    "candidates": [ { "id": "<society_id>", "lat", "lng", "orders": 1, "kg_tenths": 80, "crates": 1,
+                      "own_stops": "join" | "ignore" } ],      1 to 50, ids unique; join: a stop of this
+                                             society in a slot takes the load; ignore: the society's stops
+                                             are taken off the routes first (M9 prices a stop it may already have)
+    "slots": [ { "id": "<slot_id>", "window_start_s": 28800, "window_end_s": 36000 } ],   1 to 12, ids unique
+    "near_m": 1000,                          0 to 5000; "neighbours" = a stop of that slot this close by road
+    "max_late_s": 1800
+  422 "request.invalid":
+    as /route/solve, plus: a trip naming an unknown stop or a stop twice, a stop on no trip, a van
+    outside vans.count, duplicate candidate or slot ids
+  200:
+    "source": "osrm" | "haversine",
+    "base": { "trips": 6, "vans": 4, "km": 61.2, "cost_paise": 412000, "problems": [] },
+                                             the tentative routes replayed by the checker (§3.4)
+    "candidates": [ { "id", "slots": [ {
+        "id", "rank": 1,                     per candidate: 1 = cheapest; infeasible slots last
+        "feasible": true,
+        "marginal_cost_paise": 640 | null,   route cost with the candidate − without (§3.4 cost model), ≥ 0
+        "marginal_m": 820 | null, "marginal_s": 410 | null,
+        "nearest_stop_m": 400 | null,        road metres to the nearest stop in that slot's window
+        "reason": "SAME_SOCIETY" | "NEIGHBOUR_STOP" | "NEW_STOP" | "NEW_TRIP" | "INFEASIBLE",
+        "position": { "trip": 2 | null, "van": 1, "after": "<stop id>" | null } | null } ] } ],
+                                             trip null: a new trip; after null: first on the trip
+    "seconds", "model": "slot-insertion-v0"
+  401 "ml.unauthorized"
+```
+- **Matrix:** one table over the hub, the stops and the candidates (at most 451 points; `MAX_TABLE` is 500). It comes from OSRM within `SLOT_OSRM_TIMEOUT_S` (1.0 s). That is shorter than §3.4's 2.5 s because a customer is waiting. When OSRM fails, the service uses haversine × 1.3 (`source`), and fills gaps as in §3.4.
+- **Base:** the given trips, replayed with `routing.check`. A van's first trip leaves at `depart_s`, and its next trip when it is back plus `reload_s`. Without trips, the base is `routing.nearest_neighbour`. Each candidate is priced alone against the base; candidates never see each other.
+- **Per candidate and slot:**
+  1. **Own stop** (`own_stops: join`). If `<candidate.id>/<slot.id>` is a stop, the candidate's load is added to it and the plan is replayed. The reason is `SAME_SOCIETY`, and the marginal cost is usually just the extra crate service time. If the added load breaks a capacity, the candidate is priced as a separate drop (step 2).
+  2. **Cheapest insertion.** A drop with the slot's window and the candidate's load is tried at every position of every trip, and as a new trip. A new trip goes after a van's last trip, or on an unused van, which adds `fixed_paise_per_van`. The service keeps the cheapest position whose replay adds no checker problem to the base's own problems; problems the base already had (e.g. lateness) are tolerated. Ties go to the earlier trip, then the earlier position. The cost is `check(with).cost_paise − check(base).cost_paise`, floored at 0. A builder may compute the difference on the changed van only, but it must equal a full replay (test).
+  3. **Reason:**
+     - `SAME_SOCIETY` in step 1;
+     - else `NEIGHBOUR_STOP` when `nearest_stop_m ≤ near_m`;
+     - else `NEW_TRIP` when the best position is a new trip;
+     - else `NEW_STOP`;
+     - `INFEASIBLE` when no position works (costs null).
+  4. **Rank:** feasible slots by marginal cost, then window start, then slot id; infeasible slots after them, by window start.
+- **Deterministic and fast:** no solver and no randomness, so the same request gives the same answer. Targets on haversine: ≤ 0.5 s for 100 stops × 6 slots × 1 candidate, and ≤ 3 s for 50 candidates (M9's batch).
+- **Code:** `gharbasket_ml/slots.py` reuses `routing` (`osrm_matrix`, `haversine_matrix`, `Node`, `Instance`, `check`, `nearest_neighbour`). The request is converted to a `RouteRequest` for them with `model_construct`, since an empty day has no stops. The schemas sit next to §3.4's.
+
+**The gateway (`intel_gateway.api`)**
+- **`price_slots(http, settings, day: SlotDay, candidates: list[SlotCandidate], *, session=None, subject_type=None, subject_id=None) -> SlotPrices`.**
+  - It calls the ML service within `ml_slot_timeout_s`, a new setting (`ML_SLOT_TIMEOUT_S`, default 2.0 s, at most `ml_timeout_s`).
+  - On no service configured, a timeout, an HTTP error or a malformed body, `fallback.price_slots(day, candidates)` answers instead. It never returns None.
+  - `SlotPrices` is the 200 body plus `source: "ml" | "fallback"`.
+  - With `session` and a subject, the answer is kept in `intel.predictions` (kind `slot_price`, subject `household` or `society`, `for_date` the day, payload the answer, which holds society points only, never a flat). The caller commits.
+- **Rule fallback** (`fallback.price_slots`, plain arithmetic, no trips), for each candidate and slot:
+  - A stop of the candidate's own society in the slot (and `own_stops: join`): `SAME_SOCIETY`, detour 0.
+  - Otherwise `d` is the haversine × 1.3 distance to the nearest stop in that slot's window. With no stop in the window, `d` is measured to the hub and the reason is `NEW_TRIP`.
+  - `detour_m = 2 × d`, an upper bound on an insertion next to that stop (triangle inequality).
+  - `marginal_s = round(detour_m / 6.0 × traffic_factor) + drop_s (not for SAME_SOCIETY) + per_crate_s × crates`.
+  - `marginal_cost_paise = round(detour_m × paise_per_km / 1000) + marginal_s × wage_paise_per_s`.
+  - Reason `NEIGHBOUR_STOP` when `d ≤ near_m`, else `NEW_STOP`. The fallback never answers `INFEASIBLE`, since it does no capacity check. Ranks follow the same rule; `model: "slot-nearest-v0"`.
+- **`society_stop_costs(http, settings, days: list[SlotDay], candidates, *, session=None) -> dict[str, int | None]`** (M9 §3.6). It uses the ML service only, within `ml_timeout_s` per day: a rule estimate never moves a threshold, as M9 already decides for M10 being down.
+  - Per society, the result is the least feasible `marginal_cost_paise` over every day and slot.
+  - It is None when no day was answered by the service, or when no slot was feasible.
+  - It records one `slot_price` prediction per society (subject `society`, `for_date` the run's date, payload `{ cost_paise, by_day }`).
+  - This is the "M10 follow-up on `/slots/price`" that M9 names as `society_stop_cost(society_id)`. It takes the hub's societies in one call per day, so the weekly job makes at most 7 calls per hub.
+
+**The saving (M3, `subscriptions/green.py`; all integer paise).** For a cycle, M3 builds the inputs as follows:
+- **The day:** `logistics.api.tentative_day(session, hub_id, delivery_date, expected=…)`. `expected` counts M3's cycles for that date that are not `skipped` or `cancelled`, by `(society_id, slot_id)`, **without this cycle**. The household's own box is what is being priced.
+- **The candidate:** the household's society (`community.api.society_points`) with one box (`orders 1, kg_tenths 80, crates 1`, `own_stops: join`).
+- **The slots:** the hub's active box slots that date.
+
+Write `m(s)` for a slot's `marginal_cost_paise`, and `m₀` for the cycle's current slot's. Then:
+- `green(s)` = `feasible` and the reason is `SAME_SOCIETY` or `NEIGHBOUR_STOP`.
+- `saving(s)` = 0 for the current slot, for an infeasible slot, and whenever `m₀` is null. Otherwise:
+  ```
+  raw    = max(0, m₀ − m(s)) × share_pct // 100
+  saving = min(raw, max_paise, the cycle's total_paise) // 100 × 100    whole rupees, rounded down
+  saving = 0 if saving < MIN_SAVING_PAISE (500)                         no "save ₹2"
+  ```
+- **Hub settings (M6):**
+  - `green_saving_share_pct` (0 to 100, default 50): the share of the route saving passed on;
+  - `green_saving_max_paise` (0 to 10,000, default 1,500, the handbook's ₹15).
+  - Either one at 0 means no money; the green badges still show. Both are on `GET`/`PATCH /v1/admin/hubs/{id}` and `HubRef`, like `pre_live_box_fee_paise`.
+- **Global switch:** `GREEN_SLOTS_ENABLED` (API setting, default `false`; on in staging for MS-D). Off means the two M3 endpoints answer 404 `subscriptions.green_slots_off`, and nothing else changes. That is the cut (handbook 14's cut order).
+- **Only real savings.** A household sharing its stop with neighbours saves the route almost nothing by leaving, so `m₀` is near 0 and no slot shows money. The discount appears only where moving removes a stop that exists for that household alone. So it never becomes a blanket price cut.
+- **Never a surcharge in v1.** A costlier slot shows `saving_paise: 0` and can still be chosen when it has room (open question 2). A price is never negative: the saving is at most the lines' total.
+
+**Customer contract (M3 §3.6)**
+
+```
+SlotOption : { "slot": { "id", "label", "start", "end" },
+               "current": true,                    the cycle's slot now
+               "available": 83,                    M4's capacity left that date (orders.api.box_slots)
+               "green": true,
+               "saving_paise": 1500,               off this box if it moves here; 0 for the current slot
+               "rank": 1 | null,                   1 = cheapest for the route; null when unpriced
+               "reason_code": "same_society" | "neighbour_stop" | "new_stop" | "new_trip" | "unpriced",
+               "reason_params": { "metres": 400 } | null }   rounded to 100 m; never a society's name
+SlotQuote : { "id", "cycle_id", "delivery_date", "expires_at",        15 minutes after it was made
+              "source": "ml" | "fallback" | "unpriced",                 unpriced: no tentative day
+              "items": [ SlotOption ] }                               every active box slot of the hub
+                                                                      that date, by start time
+
+POST /v1/cycles/{id}/slot-quotes     owner; no Idempotency-Key (it moves no money)
+  201 SlotQuote                      a new quote (one ML call, recorded as slot_price)
+  200 SlotQuote                      the cycle's quote that has not expired (no ML call)
+  409 "subscriptions.cutoff_passed" · 409 "subscriptions.not_editable" (draft, skipped, cancelled, locked)
+  404 "subscriptions.green_slots_off"
+
+PUT /v1/cycles/{id}/slot             owner; If-Match (the cycle's version)
+  request : { "slot_id", "quote_id" }
+  200 CycleOut (version + 1)         the box's slot is the new one; the item's saving is on the cycle
+  409 "subscriptions.cutoff_passed" · 409 "subscriptions.not_editable" · 409 "subscriptions.quote_expired"
+  409 "orders.slot_full" · 412 "subscriptions.version_conflict" · 404 "subscriptions.green_slots_off"
+  422 "subscriptions.quote_invalid"  not this cycle's quote, or the slot is not in it
+
+CycleOut gains:
+  "green_slot": { "quote_id", "saving_paise": 1500, "reason_code": "neighbour_stop" } | null,
+  "discount_paise": 1500,            = green_slot.saving_paise, else 0
+  "payable_paise"                    now total_paise + fees_paise − discount_paise; total_paise stays the
+                                     lines' sum, which is what Budget Lock checks
+```
+- **When:** for a cycle that is `awaiting_approval` or `approved`, before the cut-off, the same window as line edits. Only the time slot changes; `delivery_date` and `cutoff_at` stay.
+- **Showing.** The Box screen's slot row opens a sheet of `items`. It renders the chip from `reason_code`, the slot and the saving, through the localised strings (handbook 08 §8.4), never LLM text. For example, `neighbour_stop` with 1500 shows "Neighbours already get delivery Tue 8–10, save ₹15", and `same_society` with 0 shows "Your society's delivery slot". No mock exists yet; the sheet is new.
+- **Honouring the shown price.** A `PUT` with a quote that has not expired copies that slot's `saving_paise` and `reason_code` onto the cycle (`slot_quote_id`, `slot_saving_paise`). The saving then stays until the cut-off, whatever later bookings do to the routes. An expired quote gets 409 `subscriptions.quote_expired`. The app then asks for a new quote and shows its numbers before the customer confirms again. A different saving is never applied silently. Moving to a slot whose item shows 0 clears the saving.
+- **An approved cycle.** In the same transaction, M3 calls `orders.api.create_from_cycle` with the new `slot_id`, `version + 1` and `discount_paise`. M4 moves the booking under the slot's row lock (M4 §3.9). On `orders.slot_full`, nothing changes. For a cycle not yet approved, M3 refuses a slot whose `available` is 0, and approval enforces capacity as today.
+- **`subscriptions.box_approved`** gains `discount_paise` and `discount_code` (`"green_slot"` | null).
+- **Next week** is generated on the society's slot again. The choice is per week (open question 1).
+- **Tables:** `subscriptions.slot_quotes` (id, cycle_id, household_id, delivery_date, current_slot_id, items jsonb, source, prediction_id null, created_at, expires_at; index (cycle_id, expires_at)). `subscriptions.weekly_cycles` gains `slot_quote_id` null and `slot_saving_paise` bigint default 0. Both are erased with the household (M3's `delete_for_user`), and the predictions by `intel_gateway.api.delete_for_user`.
+- **Privacy:** the candidate is the society's point, never the flat. Customers see rounded metres and no other society's name or flat. Route costs (`marginal_cost_paise`) stay in the quote row and the prediction; they are not in the response.
+
+**Timeouts and fallbacks**
+
+| Call | Budget | When it fails |
+|---|---|---|
+| OSRM table in the ML service | `SLOT_OSRM_TIMEOUT_S` 1.0 s | Haversine × 1.3 (`source: haversine`) |
+| Gateway → `/slots/price` for a customer quote | `ML_SLOT_TIMEOUT_S` 2.0 s | Rule fallback; the quote says `source: fallback` and pays the same rule (open question 4) |
+| Gateway → `/slots/price` for M9's job | `ML_TIMEOUT_S` 3 s per day | None: the threshold is kept (M9 §3.6) |
+| `tentative_day` is None (no box vehicle, no hub point), or the society has no point | — | The quote's `source` and every item are `unpriced`, with saving 0 and green false; moving still works (no ML call) |
+| `GREEN_SLOTS_ENABLED=false` | — | 404 `subscriptions.green_slots_off`; no ML call |
+
+**Tests the builders write** (per PR, below):
+- **ML (PR 1):**
+  - `SAME_SOCIETY` costs exactly the extra crate service × wage;
+  - a candidate on the line between two stops of a trip adds ≈ 0 m; a far one is `NEW_STOP` with a positive cost; an empty day gives `NEW_TRIP` in every slot; full vans give a new trip with `fixed_paise_per_van`, or `INFEASIBLE`;
+  - a window the routes cannot meet is `INFEASIBLE`;
+  - `NEIGHBOUR_STOP` exactly at `near_m`, and not 1 m beyond;
+  - `own_stops: ignore` equals pricing against the base with that society's stops removed;
+  - a hypothesis property: the per-van difference equals a full replay, and costs are ≥ 0;
+  - the rank rules, and the same request twice gives identical JSON;
+  - given trips against `null`; OSRM down or slow → haversine; gaps filled;
+  - every 422 above, and 401 without the token;
+  - 100 stops × 6 slots under 0.5 s.
+- **Gateway, M7 and M9 (PR 2):**
+  - no service, a timeout, a 500 or a malformed body → the fallback with `source: fallback`, and the prediction recorded with its source; `ml_slot_timeout_s` is the timeout used;
+  - the fallback's numbers on a hand-computed three-stop example;
+  - `society_stop_costs` is the least over days and slots, ignores infeasible slots, and gives None when the service is down;
+  - `tentative_day`: a published plan's trips; otherwise the previous order or nearest neighbour; `expected` counts → stops with the default loads; unlocated societies left out; no box vehicle → None;
+  - M9's job with a fake gateway: priced → `clamp(ceil(cost / 4000), 10, 60)` with source `model`; None → kept; pinned and live societies skipped;
+  - import-linter stays green.
+- **Product (PR 3):**
+  - **The saving rule** (unit and hypothesis): share, cap, the whole-rupee floor, the ₹5 minimum, 0 for the current slot, the cap at the lines' total; `payable_paise ≥ 0`.
+  - **Quotes:** a second POST within 15 min makes no ML call; after expiry it makes a new quote; the flag off → 404 with no ML call; a fallback quote says so.
+  - **`PUT`:** expired → 409; a foreign quote or a slot outside the quote → 422; after the cut-off → 409; a stale `If-Match` → 412; on an approved cycle the order's slot and discount change in one transaction, and `slot_full` rolls both back.
+  - **M4:** the discount is capped at the subtotal; the cut-off debits `subtotal + fee − discount` once; a whole-box refund returns what was paid; a society that goes live before the lock drops the fee and keeps the discount.
+  - **E2E (MS-D)**, on the seed:
+    - a pre-live society with one household on Tue 10–12, and a live society 400 m away on Tue 8–10;
+    - the quote shows Tue 8–10 as green with "save ₹15"; the household moves and approves;
+    - the cut-off debits the lines + ₹30 − ₹15;
+    - the 23:15 plan has the pre-live society's stop in the 8–10 wave, next to its neighbour.
+
+**Evaluation (paper; Tier 3, reported, never a gate).** `backend/training` eval gains `slot_pricing.py`, which `just eval` runs when the harness has the routing fixtures:
+- **Instances:** spike S-3's synthetic Kharghar mornings (30, 50 and 100 societies, 5 seeds). Per instance, 20 random candidate societies are priced over the slots.
+- **The truth** is the CVRPTW cost (§3.4) with the candidate minus without it, as the mean of 3 solver seeds, since two heuristic solves differ by noise. It is compared with the insertion estimate (on haversine, for reproducibility) and with the rule fallback.
+- **Metrics:**
+  - **top-1 agreement:** the estimate's cheapest slot is the truth's cheapest, or within ₹1 of it;
+  - Spearman ρ across a candidate's slots;
+  - MAE in ₹ per stop.
+- **Pre-registered hypothesis** (with this spec; PR 1 adds it to the eval protocol's change log): insertion top-1 ≥ 80 % and ρ ≥ 0.7, both better than the rule fallback.
+- **Storage:** rows go to `intel.model_metrics` (`slot_insertion`, `slot_nearest`).
+- **Not in scope:** the business figure (₹ and km per order with green slots) needs the simulator to model slot choice (open question 9).
+
+**PR split** (about 400 hand-written lines each, tests not counted):
+1. **`feat/M10-slots-price` (`backend/ml`):** the schemas, `slots.py`, the endpoint and its tests (~350 lines). This is an ML PR, so it gets an Opus review and test run before merge (§11.3).
+2. **`feat/M10-slot-price-gateway` (API, no migration, ~380 lines):**
+   - `SlotDay`, `SlotCandidate`, `SlotPrices`, `price_slots`, `society_stop_costs`, `fallback.price_slots` and the `ML_SLOT_TIMEOUT_S` setting;
+   - `logistics.api.tentative_day` and `orders.api.box_slots`;
+   - M9's `unlock.stop_costs`, with the job passing `ctx.http` and `ctx.settings`.
+
+   It can be built alongside PR 1 against a fake ML service, and it also gets the Opus review (`intel.*`).
+3. **`feat/M3-green-slots` (~420 lines; one migration, `YYYYMMDD_HHMM_subscriptions_green_slots`):**
+   - the migration holds M3's table and columns, M4's `orders.orders.discount_code` and M6's two hub columns;
+   - the M3 endpoints and the saving rule;
+   - M4's `ApprovedCycle.discount_paise` and `discount_code`, the slot move on re-approval and `OrderOut.discount_code`;
+   - M6's hub fields and `GREEN_SLOTS_ENABLED`, then `just gen-api`.
+
+   It changes the frozen M3, M4 and M6 contracts, so both owners review it. The mobile slot sheet is Yash's own PR, against the generated client.
+
+**Open questions for the owner** (each with the recommended answer)
+1. **Where does a household choose?**
+   - *Recommended:* the time slot of this week's box on its delivery date, as specified (per week).
+   - *After the pilot:* a standing household slot, re-quoted at each generation.
+   - *Rejected:* another day of the week, which would move the cut-off and the plan's week.
+2. **Costlier slots (off-route).**
+   - *Recommended for v1:* allowed when there is room, with a saving of 0 and no fee.
+   - An off-route fee (handbook 02 "delivery fees … off-route slots") is a later pricing decision, taken with M12's unit economics.
+3. **Numbers.** *Recommended:* share 50 %, cap ₹15, minimum ₹5, rounded down to whole rupees, all per hub except the minimum.
+4. **Savings on fallback quotes.**
+   - *Recommended:* pay the same rule. The cap bounds the risk, and `source` is recorded, so AI health counts fallbacks.
+   - *Alternative:* badges only, with no money, when the quote is from the fallback.
+5. **Quote life.** *Recommended:* 15 minutes. Once applied, the saving is honoured until the cut-off and never re-priced.
+6. **"Neighbours".** *Recommended:* a stop within 1 km by road in the same slot (`near_m`).
+7. **The hub's delivery-day page** (M3 §3.5).
+   - *Recommended:* after MS-D, a small M3 follow-up shows the same ranking per (weekday, slot) for a whole society, with no money.
+   - Most of the route saving sits there, because a society's slot is the hub's choice.
+8. **Threshold reference.** *Recommended:* the least cost over the past 7 days' published plans (the slot the hub would pick), not the median; a rule estimate never moves a threshold.
+9. **Simulator slot choice** (v1b, for the business figure). *Recommended:* only if ahead after MS-D; the insertion accuracy is enough for the paper's M-H paragraph.
+10. **A second stop for a society that has a captain.** *Recommended:* no change and no limit in v1. M7 already makes one stop per (society, slot), and the captain takes each handover until 20:00 (ADR-0026 §6). A society without a captain is in rider mode.
 
 ### 3.2 Household simulator v1a (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
@@ -313,6 +569,7 @@ Service-to-service token for API ↔ ML calls; `models:read` for admin in the co
 - Leakage tests: features computed strictly as of cut-off.
 - Timeout and fallback tests from the API side (ML service down → rule-based box).
 - Evaluation reproducibility: same seed and snapshot → same metrics.
+- Slot pricing (§3.8): the per-PR list there (insertion, fallback, the saving rule, honouring a quote, the MS-D E2E).
 
 ## 10. Dependencies
 Reads Postgres snapshots (read-only role). Writes results only to `intel.*`. Other modules call it only through `intel_gateway.api`.
@@ -321,3 +578,4 @@ Reads Postgres snapshots (read-only role). Writes results only to `intel.*`. Oth
 - Embedding model confirmation (bge-m3 vs smaller multilingual model): a stretch item after MS-C (ADR-0025 roadmap).
 - Nutrition targets per age band (ICMR-NIN RDA tables) for the meal planner.
 - Whether to fine-tune Chronos for the paper (optional, free Kaggle/Colab GPU).
+- Green slots (§3.8): ten open questions with recommendations, listed at the end of that section.

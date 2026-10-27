@@ -8891,7 +8891,7 @@ export interface components {
             periods: string[];
             /**
              * Series
-             * @description One value per period for every KPI key; null when undefined
+             * @description One value per period for every KPI key; null when undefined. `partner_earnings_paise` is null under 5 paid partners (never an individual's pay)
              */
             series: {
                 [key: string]: (number | null)[];

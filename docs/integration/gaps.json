@@ -111,7 +111,7 @@
       "class": "later",
       "owner": "prathamesh",
       "milestone": "after MS-B",
-      "note": "M8 §3.7 is an outline, 'refined after MS-B'."
+      "note": "M8 §3.7 (drafted 2026-10-28): answers { reference, from, to, url, filename, expires_at }; align the three mocks and use one open-the-link helper (fix-frontend items in M8 §3.7)."
     },
     "POST /v1/admin/societies": {
       "app": "console",
