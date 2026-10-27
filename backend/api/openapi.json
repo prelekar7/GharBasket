@@ -4496,6 +4496,37 @@
         "title": "DocumentRequirement",
         "type": "object"
       },
+      "DonatedLineOut": {
+        "properties": {
+          "code": {
+            "examples": [
+              "clothes"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Accepted (counted) total",
+            "title": "Qty",
+            "type": "number"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "each"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "unit",
+          "qty"
+        ],
+        "title": "DonatedLineOut",
+        "type": "object"
+      },
       "DonationLine": {
         "properties": {
           "code": {
@@ -8178,6 +8209,48 @@
         "title": "HubDriftOut",
         "type": "object"
       },
+      "HubImpactOut": {
+        "properties": {
+          "food_saved_kg": {
+            "description": "Surplus the society's hub handed to NGOs",
+            "title": "Food Saved Kg",
+            "type": "number"
+          },
+          "meals_served": {
+            "description": "Donated meals NGOs served from the hub",
+            "title": "Meals Served",
+            "type": "integer"
+          },
+          "partners": {
+            "enum": [
+              "5+",
+              "under_5"
+            ],
+            "title": "Partners",
+            "type": "string"
+          },
+          "partners_earned_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The hub's partners this month (the asked one; this month for `all`); null under 5 paid partners",
+            "title": "Partners Earned Paise"
+          }
+        },
+        "required": [
+          "food_saved_kg",
+          "meals_served",
+          "partners_earned_paise",
+          "partners"
+        ],
+        "title": "HubImpactOut",
+        "type": "object"
+      },
       "HubIn": {
         "additionalProperties": false,
         "properties": {
@@ -8754,6 +8827,403 @@
           "inspected_on"
         ],
         "title": "HygieneOut",
+        "type": "object"
+      },
+      "ImpactNgoOut": {
+        "properties": {
+          "handoffs": {
+            "title": "Handoffs",
+            "type": "integer"
+          },
+          "items": {
+            "title": "Items",
+            "type": "integer"
+          },
+          "kg": {
+            "title": "Kg",
+            "type": "number"
+          },
+          "meals": {
+            "title": "Meals",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ngo_id": {
+            "format": "uuid",
+            "title": "Ngo Id",
+            "type": "string"
+          },
+          "people_reached": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "People Reached"
+          }
+        },
+        "required": [
+          "ngo_id",
+          "name",
+          "handoffs",
+          "items",
+          "kg",
+          "meals",
+          "people_reached"
+        ],
+        "title": "ImpactNgoOut",
+        "type": "object"
+      },
+      "ImpactOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "data_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hub Id"
+          },
+          "month": {
+            "examples": [
+              "2027-02"
+            ],
+            "title": "Month",
+            "type": "string"
+          },
+          "ngo_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ngo Id"
+          },
+          "ngos": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactNgoOut"
+            },
+            "title": "Ngos",
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "platform",
+              "hub",
+              "ngo"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "societies": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ImpactSocietyOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Scope hub only; no earnings. Null for platform and ngo",
+            "title": "Societies"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/ImpactTotalsOut"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/ImpactTrendOut"
+          }
+        },
+        "required": [
+          "scope",
+          "hub_id",
+          "ngo_id",
+          "month",
+          "data_source",
+          "as_of",
+          "stale",
+          "totals",
+          "trend",
+          "societies",
+          "ngos"
+        ],
+        "title": "ImpactOut",
+        "type": "object"
+      },
+      "ImpactSocietyOut": {
+        "properties": {
+          "households_joined": {
+            "title": "Households Joined",
+            "type": "integer"
+          },
+          "items_donated": {
+            "title": "Items Donated",
+            "type": "integer"
+          },
+          "kg_donated": {
+            "title": "Kg Donated",
+            "type": "number"
+          },
+          "meals_donated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: a donated meal belongs to a hub, not a society, in the facts",
+            "title": "Meals Donated"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "society_id",
+          "name",
+          "items_donated",
+          "kg_donated",
+          "meals_donated",
+          "households_joined"
+        ],
+        "title": "ImpactSocietyOut",
+        "type": "object"
+      },
+      "ImpactTotalsOut": {
+        "description": "The month's numbers. A field that does not apply to the scope, or that the facts cannot\ngive, is null: an NGO coordinator's report carries only what the NGO received.",
+        "properties": {
+          "donations_verified": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Donations Verified"
+          },
+          "food_saved_kg": {
+            "description": "Surplus food handed to NGOs (kind food)",
+            "title": "Food Saved Kg",
+            "type": "number"
+          },
+          "households_donating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5",
+            "title": "Households Donating"
+          },
+          "items_donated": {
+            "description": "Items of verified donations; for an NGO, items it received",
+            "title": "Items Donated",
+            "type": "integer"
+          },
+          "kg_donated": {
+            "description": "Kilograms of those items",
+            "title": "Kg Donated",
+            "type": "number"
+          },
+          "meals_donated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Meals pledged with Kindness points",
+            "title": "Meals Donated"
+          },
+          "meals_served": {
+            "description": "Donated meals NGOs served",
+            "title": "Meals Served",
+            "type": "integer"
+          },
+          "partners_earned_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners; never for scope ngo",
+            "title": "Partners Earned Paise"
+          },
+          "partners_paid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners; never for ngo",
+            "title": "Partners Paid"
+          },
+          "people_reached": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "As NGOs report it; null if none reported",
+            "title": "People Reached"
+          },
+          "referrals_converted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referrals Converted"
+          },
+          "societies_live": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Societies Live"
+          },
+          "waste_g_per_100kg": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hub and platform only; bin grams per 100 kg",
+            "title": "Waste G Per 100Kg"
+          }
+        },
+        "required": [
+          "food_saved_kg",
+          "items_donated",
+          "kg_donated",
+          "donations_verified",
+          "households_donating",
+          "meals_donated",
+          "meals_served",
+          "people_reached",
+          "referrals_converted",
+          "societies_live",
+          "partners_earned_paise",
+          "partners_paid",
+          "waste_g_per_100kg"
+        ],
+        "title": "ImpactTotalsOut",
+        "type": "object"
+      },
+      "ImpactTrendOut": {
+        "properties": {
+          "food_saved_kg": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Food Saved Kg",
+            "type": "array"
+          },
+          "items_donated": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Items Donated",
+            "type": "array"
+          },
+          "meals_served": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Meals Served",
+            "type": "array"
+          },
+          "months": {
+            "description": "The 6 months up to `month`, oldest first (YYYY-MM)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          }
+        },
+        "required": [
+          "months",
+          "food_saved_kg",
+          "items_donated",
+          "meals_served"
+        ],
+        "title": "ImpactTrendOut",
         "type": "object"
       },
       "InboxOut": {
@@ -12640,6 +13110,69 @@
           "accepted"
         ],
         "title": "ModelMetricsOut",
+        "type": "object"
+      },
+      "MyImpactOut": {
+        "properties": {
+          "donated": {
+            "description": "Accepted totals per code",
+            "items": {
+              "$ref": "#/components/schemas/DonatedLineOut"
+            },
+            "title": "Donated",
+            "type": "array"
+          },
+          "donations_verified": {
+            "title": "Donations Verified",
+            "type": "integer"
+          },
+          "homes_invited": {
+            "description": "Converted referrals",
+            "title": "Homes Invited",
+            "type": "integer"
+          },
+          "items_donated": {
+            "description": "Accepted pieces, plus kilograms counted as one item per kg",
+            "title": "Items Donated",
+            "type": "integer"
+          },
+          "kg_donated": {
+            "title": "Kg Donated",
+            "type": "number"
+          },
+          "meals_donated": {
+            "description": "Meals given with points",
+            "title": "Meals Donated",
+            "type": "integer"
+          },
+          "period": {
+            "const": "all",
+            "default": "all",
+            "title": "Period",
+            "type": "string"
+          },
+          "points_earned": {
+            "description": "All Kindness points ever credited (donations, referrals)",
+            "title": "Points Earned",
+            "type": "integer"
+          },
+          "scope": {
+            "const": "me",
+            "default": "me",
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items_donated",
+          "kg_donated",
+          "donations_verified",
+          "points_earned",
+          "meals_donated",
+          "homes_invited",
+          "donated"
+        ],
+        "title": "MyImpactOut",
         "type": "object"
       },
       "Names": {
@@ -18775,6 +19308,139 @@
         "title": "ProposalOut",
         "type": "object"
       },
+      "PublicImpactOut": {
+        "properties": {
+          "items_donated": {
+            "title": "Items Donated",
+            "type": "integer"
+          },
+          "meals_donated": {
+            "title": "Meals Donated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items_donated",
+          "meals_donated"
+        ],
+        "title": "PublicImpactOut",
+        "type": "object"
+      },
+      "PublicSocietyOut": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "delivery_days": {
+            "description": "Live societies only",
+            "items": {
+              "enum": [
+                "mon",
+                "tue",
+                "wed",
+                "thu",
+                "fri",
+                "sat",
+                "sun"
+              ],
+              "type": "string"
+            },
+            "title": "Delivery Days",
+            "type": "array"
+          },
+          "homes_joined": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 households",
+            "title": "Homes Joined"
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicImpactOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until 5 households contributed"
+          },
+          "join_url": {
+            "title": "Join Url",
+            "type": "string"
+          },
+          "live_since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IST date",
+            "title": "Live Since"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "progress_bp": {
+            "description": "min(joined / target, 1) in basis points",
+            "title": "Progress Bp",
+            "type": "integer"
+          },
+          "slug": {
+            "examples": [
+              "sunrise-towers-kharghar"
+            ],
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "unlocking",
+              "live"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unlock_target": {
+            "title": "Unlock Target",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "area",
+          "status",
+          "homes_joined",
+          "unlock_target",
+          "progress_bp",
+          "live_since",
+          "delivery_days",
+          "impact",
+          "join_url"
+        ],
+        "title": "PublicSocietyOut",
+        "type": "object"
+      },
       "PublishIn": {
         "additionalProperties": false,
         "properties": {
@@ -23393,6 +24059,111 @@
           "boxes"
         ],
         "title": "SocietyBoxesOut",
+        "type": "object"
+      },
+      "SocietyImpactOut": {
+        "properties": {
+          "as_of": {
+            "description": "The time of the read: the numbers are computed live",
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "contributors": {
+            "enum": [
+              "5+",
+              "under_5"
+            ],
+            "title": "Contributors",
+            "type": "string"
+          },
+          "homes_joined": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 households",
+            "title": "Homes Joined"
+          },
+          "hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HubImpactOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for a society without a hub"
+          },
+          "items_donated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until 5 households contributed",
+            "title": "Items Donated"
+          },
+          "kg_donated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kg Donated"
+          },
+          "meals_donated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meals Donated"
+          },
+          "period": {
+            "const": "all",
+            "default": "all",
+            "description": "Always `all`: all time only",
+            "title": "Period",
+            "type": "string"
+          },
+          "scope": {
+            "const": "society",
+            "default": "society",
+            "title": "Scope",
+            "type": "string"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "society_id",
+          "as_of",
+          "homes_joined",
+          "items_donated",
+          "kg_donated",
+          "meals_donated",
+          "contributors",
+          "hub"
+        ],
+        "title": "SocietyImpactOut",
         "type": "object"
       },
       "SocietyLoad": {
@@ -36347,6 +37118,225 @@
         ],
         "summary": "The hub's today board: live counts, the day's steps and what needs attention (hub manager, franchise owner, admin)",
         "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/analytics/impact": {
+      "get": {
+        "operationId": "impact_report_v1_analytics_impact_get",
+        "parameters": [
+          {
+            "description": "platform (admin) | hub | ngo",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "description": "platform (admin) | hub | ngo",
+              "enum": [
+                "platform",
+                "hub",
+                "ngo"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Scope hub: the hub",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope hub: the hub",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "Scope ngo: the NGO",
+            "in": "query",
+            "name": "ngo_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope ngo: the NGO",
+              "title": "Ngo Id"
+            }
+          },
+          {
+            "description": "An IST month, this one by default, within the last 24",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST month, this one by default, within the last 24",
+              "examples": [
+                "2027-02"
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "description": "csv: an attachment",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "description": "csv: an attachment",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`synthetic` is for admins (demos)",
+            "in": "query",
+            "name": "data_source",
+            "required": false,
+            "schema": {
+              "default": "real",
+              "description": "`synthetic` is for admins (demos)",
+              "enum": [
+                "real",
+                "synthetic"
+              ],
+              "title": "Data Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactOut"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The report as JSON, or with `format=csv` one row per (month, hub, ngo)"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a scope, hub, NGO or data source outside your grants; the hub or NGO left out by a non-admin)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.ngo_not_found (an admin's unknown NGO)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (hub_id or ngo_id left out by an admin) · analytics.range_invalid (a future month) · analytics.range_too_long (older than 24 months)"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A month's impact for the platform, a hub or an NGO, as JSON or CSV (NGO coordinator for their NGO, hub manager and franchise owner for their hub, admin)",
+        "tags": [
+          "analytics",
           "analytics"
         ]
       }
@@ -49823,6 +50813,149 @@
         ]
       }
     },
+    "/v1/impact": {
+      "get": {
+        "operationId": "get_impact_v1_impact_get",
+        "parameters": [
+          {
+            "description": "Whose numbers",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "description": "Whose numbers",
+              "enum": [
+                "me",
+                "society"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "description": "For `society`",
+            "in": "query",
+            "name": "society_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "For `society`",
+              "title": "Society Id"
+            }
+          },
+          {
+            "description": "`society` only: `all`. A society's numbers are all time only; anything else is 422 `request.invalid`",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "`society` only: `all`. A society's numbers are all time only; anything else is 422 `request.invalid`",
+              "examples": [
+                "all"
+              ],
+              "maxLength": 20,
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MyImpactOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SocietyImpactOut"
+                    }
+                  ],
+                  "title": "Response Get Impact V1 Impact Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: `me` needs the customer role; `society` is for its residents, its captain, its hub's staff and admins"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.society_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid: `society_id` missing, or a `period` other than `all`"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "What a household (`me`) or a society (`society`) has given; small numbers are null",
+        "tags": [
+          "community"
+        ]
+      }
+    },
     "/v1/internal/intel/feature-snapshots": {
       "post": {
         "operationId": "put_feature_snapshots_v1_internal_intel_feature_snapshots_post",
@@ -58207,6 +59340,74 @@
         "summary": "Ranked substitutes, with the price difference and why",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/public/societies/{slug}": {
+      "get": {
+        "operationId": "public_society_v1_public_societies__slug__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "examples": [
+                "sunrise-towers-kharghar"
+              ],
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSocietyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.society_not_found (unknown, prospect or paused)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per IP; see Retry-After)"
+          }
+        },
+        "summary": "A society's landing page: unlock progress and aggregates only (no sign-in)",
+        "tags": [
+          "analytics",
+          "analytics"
         ]
       }
     },

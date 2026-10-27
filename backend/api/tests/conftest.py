@@ -109,6 +109,14 @@ def alembic_config(database_url: str) -> Config:
     return Config(toml_file=API_DIR / "pyproject.toml", attributes={"database_url": database_url})
 
 
+@pytest.fixture(scope="session")
+def worker_id(request: pytest.FixtureRequest) -> str:
+    """pytest-xdist's worker id (`gw0`, `gw1` ...), or `master` in a serial run. Defined here as
+    xdist defines it, so a run with `-p no:xdist` (the fuzz test alone) still finds it."""
+    workerinput = getattr(request.config, "workerinput", None)
+    return str(workerinput["workerid"]) if workerinput else "master"
+
+
 def _worker_number(worker_id: str) -> int | None:
     """0, 1, 2 ... for a pytest-xdist worker (`gw0`, `gw1` ...); None in a plain, serial run."""
     return int(worker_id.removeprefix("gw")) if worker_id.startswith("gw") else None

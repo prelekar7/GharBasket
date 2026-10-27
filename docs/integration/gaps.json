@@ -120,27 +120,6 @@
       "milestone": "MS-A",
       "note": "M9 §3.1 lists POST /v1/admin/societies (frozen for S1) but main has only PATCH /v1/admin/societies/{id}."
     },
-    "GET /v1/impact": {
-      "app": "mobile",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.7 (?scope=me)."
-    },
-    "GET /v1/public/societies/{}": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url)."
-    },
-    "GET /v1/analytics/impact": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.6 (JSON and CSV)."
-    },
     "GET /v1/hubs/{}/delivery-days": {
       "app": "console",
       "class": "later",
