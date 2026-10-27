@@ -139,7 +139,7 @@ sequenceDiagram
 - **Features:** recency, frequency, last accept/reject, price delta vs 4-week average, season, festival flag, cohort popularity, substitution-acceptance history.
 - **Model:** LightGBM LambdaRank. Label = kept in final box vs removed.
 - **Metrics:** Recall@10, NDCG@10, box acceptance rate, edits per box. Baselines: "repeat last week", top-frequency.
-- **Status (5 Oct 2026, v0; leakage fixes 8 Oct):** `train_ranker` in `backend/training` (LambdaRank on approved and locked boxes and their edits, one model per data source, leave-last-basket-out against both baselines, model and card to the registry, promotion manual) and `POST /basket/rank` on the Space with a frequency fallback and a 10-minute reload (M10 §3.7). v0 features are computed as of the cut-off: prices from the price list, not the final box; `drafted_rule` is dropped until a draft snapshot exists. Recall is reported as Recall@|basket| beside Recall@10 (eval protocol §7). SHAP and the planner's preference term are v1.
+- **Status (5 Oct 2026, v0; leakage fixes 8 Oct):** `train_ranker` in `backend/training` (LambdaRank on approved and locked boxes and their edits, one model per data source, leave-last-basket-out against both baselines, model and card to the registry, promotion manual) and `POST /basket/rank` on the Space with a frequency fallback and a 10-minute reload (M10 §3.7). v0 features are computed as of the cut-off: prices from the price list, not the final box; `drafted_rule` is dropped until a draft snapshot exists. Recall is reported as Recall@|basket| beside Recall@10 (eval protocol §7). SHAP explanations are built (§8.4); the planner's preference term is v1.
 
 ### M-C Meal planner — CP-SAT (research, deepest; core of Kitchen Autopilot)
 - **Variables:** `x[d,s,r]` ∈ {0,1} (day, meal slot, recipe); `t[d,s]` = tiffin on no-cook slots.
@@ -175,7 +175,7 @@ sequenceDiagram
 - **Procurement:** `order_qty = committed + Q_τ(uncommitted)`, where τ = C<sub>u</sub> / (C<sub>u</sub> + C<sub>o</sub>).
   C<sub>o</sub> = cost − salvage value from the surplus cascade. Shelf life caps the buffer.
 - **Metrics:** WAPE, MASE, pinball loss; downstream waste kg per 100 kg sold, stock-out %. Baselines: seasonal naive, "buy last week".
-- **Status (8 Oct 2026, v0 + v1 LightGBM):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive / Naive and a global LightGBM, direct multi-step with one booster per step and festival, fast-day and as-of-origin price-index features, a rolling-origin backtest with weekly origins and a 2-week horizon, scaled split-conformal q_tau, newsvendor `order_qty`) stores a hub's lines per delivery day in `intel.predictions` and announces them with `intel.forecast_ready`; M6 reads them through `intel_gateway.api.hub_forecast(hub, delivery_date)`. WAPE, q_tau coverage, pinball and MASE per model go to `intel.model_metrics` per data source (M10 §3.6). The simulator's uncommitted demand is sparse until the add-on behaviour lands, so the first WAPE numbers wait for that.
+- **Status (8 Oct 2026, v0 + v1 LightGBM):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive / Naive and a global LightGBM, direct multi-step with one booster per step and festival, fast-day and as-of-origin price-index features, a rolling-origin backtest with weekly origins and a 2-week horizon, scaled split-conformal q_tau, newsvendor `order_qty`) stores a hub's lines per delivery day in `intel.predictions` and announces them with `intel.forecast_ready`; M6 reads them through `intel_gateway.api.hub_forecast(hub, delivery_date)`. WAPE, q_tau coverage, pinball and MASE per model go to `intel.model_metrics` per data source (M10 §3.6). The simulator draws no uncommitted orders, so the eval harness derives them (add-ons from pantry shortfalls, tiffins on no-cook slots; RQ3, 28 Oct 2026, M10 §3.6): over five seeds LightGBM's WAPE is 0.015 ± 0.008 worse than v0's best model and the champion stays a v0 model on every seed; its newsvendor cost is 0.021 ± 0.052 lower (not significant).
 
 ### M-F Routing (OR-Tools)
 - **Problem:** capacitated vehicle routing with time windows and pickups/deliveries.
@@ -220,7 +220,7 @@ sequenceDiagram
 
 - Every AI output stores a `reason_code` plus parameters, for example `SEASONAL`, `PRICE_SWAP{from:tomato,pct:62}`, `PANTRY_LOW{days:2}`, `FESTIVAL{code:navratri}`.
 - The app renders **localised chips** from these codes (`en-IN`, `hi-IN`, `mr-IN`), not LLM-written text. Explanations are therefore deterministic and testable.
-- For ranker decisions, the top SHAP features are stored for paper analysis.
+- For ranker decisions, the top SHAP features are stored for paper analysis. As built (28 Oct 2026): the ranker's weekly run stores `explanations.json` (mean |SHAP| per feature and 50 sampled decisions with their top three features) next to the model in the registry, the eval report shows it, and `POST /basket/rank` returns `top_features` per ranked item (M10 §3.7). The API does not yet pass them on or store them in `intel.predictions`.
 
 ---
 
@@ -300,7 +300,7 @@ One person builds every model next to the backend, so the work is tiered. A prod
 | Tier | Meaning | Items |
 |---|---|---|
 | 1 | Needed for a milestone demo (MS-A 13 Dec, MS-B 24 Jan, MS-C 21 Feb) | jobs runner and outbox consumers; `intel.*` tables; Agmarknet collector (history only accrues from the day collection starts); IFCT nutrition; verified festival calendar; ≥ 120 recipes; simulator v1; eval harness v0; pantry twin v0; planner v1; snapshots; the ML Space; forecast v0 (StatsForecast + newsvendor); `/route/solve`; greedy kitchen assignment; the assistant with four tools; thin AI health |
-| 2 | Needed for the paper (S7–S8) | pantry twin v1 (NumPyro); basket ranker + SHAP; fair assignment λ sweep; planner v2; forecast v1 (MLForecast) |
+| 2 | Needed for the paper (S7–S8) | pantry twin v1 (NumPyro); basket ranker + SHAP; fair assignment λ sweep; planner v2; forecast v1 (LightGBM, native booster; mlforecast needs pandas < 3) — built (#122, M10 §3.6) |
 | 3 | Stretch: only after MS-C or if ahead | Chronos-2 zero-shot; MinT reconciliation; bge-m3 embeddings and learned substitutes; Instacart benchmark; M-I churn and uplift; kits on busy days; slot pricing (S9); Dakshina spellings |
 | cut | — | M-J trust and safety (a rules-only refund flag in M12, later) |
 

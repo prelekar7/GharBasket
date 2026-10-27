@@ -64,7 +64,8 @@ PURPOSES = {
     "kyc_document": Purpose(("image/jpeg", "image/png", "application/pdf"), 10 * MB),
     "delivery_photo": Purpose(("image/jpeg", "image/webp"), 5 * MB),  # M7 proof
     "handoff_photo": Purpose(_IMAGES, 5 * MB),  # M9 NGO hand-off
-}  # data_export is written by the server (M1), never presigned
+}
+# data_export (M1) and income_certificate (M8, kept 1 day) are written by the server: not presigned
 
 
 def storage_unavailable() -> ProblemError:
@@ -119,10 +120,15 @@ class ObjectStore:
             raise storage_unavailable() from exc
         return ObjectInfo(found["ContentType"], int(found["ContentLength"]))
 
-    async def put(self, key: str, body: bytes, content_type: str) -> None:
-        """Write an object the server made itself (M1's data export); apps upload by presign."""
+    async def put(
+        self, key: str, body: bytes, content_type: str, *, content_disposition: str | None = None
+    ) -> None:
+        """Write an object the server made itself (M1's data export, M8's income certificate);
+        apps upload by presign. `content_disposition` (e.g. 'attachment; filename="a.pdf"') is
+        stored with the object, so a signed link names the downloaded file."""
         from botocore.exceptions import BotoCoreError, ClientError
 
+        extra = {} if content_disposition is None else {"ContentDisposition": content_disposition}
         try:
             await asyncio.to_thread(
                 self.client.put_object,
@@ -130,6 +136,7 @@ class ObjectStore:
                 Key=key,
                 Body=body,
                 ContentType=content_type,
+                **extra,
             )
         except (BotoCoreError, ClientError) as exc:
             raise storage_unavailable() from exc

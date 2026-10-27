@@ -1,6 +1,6 @@
 # M8 — Partner Network
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). When this spec is approved, §3.1 (applications, KYC and review), §3.2 (training), §3.3 (partners, roles, pause and suspend), §3.4 (kitchens, capacity and tiffin assignments) and §3.5 (know your cook and ratings) are frozen for S6. §3.6 (earnings) is frozen too; its rates, decided by the owner on 2026-10-09, are the seeded defaults of each hub's rate card. §3.7 (payouts and the income certificate) is an outline, refined after MS-B. §3.8 (the fairness read) was drafted on 2026-10-25, frozen on approval.
+**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). When this spec is approved, §3.1 (applications, KYC and review), §3.2 (training), §3.3 (partners, roles, pause and suspend), §3.4 (kitchens, capacity and tiffin assignments) and §3.5 (know your cook and ratings) are frozen for S6. §3.6 (earnings) is frozen too; its rates, decided by the owner on 2026-10-09, are the seeded defaults of each hub's rate card. §3.7's payout facades are built (as built, below); its income certificate was drafted on 2026-10-28, frozen on approval. §3.8 (the fairness read) was drafted on 2026-10-25, frozen on approval.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S6 (the partner core in S5, see the build order)
 **Postgres schema:** `partners` · **Python package:** `gharbasket.modules.partners`
@@ -20,7 +20,7 @@ What M8 does **not** do:
 - (d) **Ratings and the card** (§3.5).
 - (e) **Earnings** (§3.6).
 
-(b)–(e) are S6, for MS-B ("a tiffin day; a partner completes KYC"). (f) **Payouts and the income certificate** (§3.7) come after MS-B.
+(b)–(e) are S6, for MS-B ("a tiffin day; a partner completes KYC"). (f) **Payouts and the income certificate** (§3.7) come after MS-B: the payout facades are built; the certificate is built against its contract once approved.
 
 ## 2. User stories
 | # | Story | Acceptance criteria |
@@ -36,6 +36,7 @@ What M8 does **not** do:
 | US-9 | As a customer, I want to rate my tiffin so that good kitchens get more orders. | 1–5 stars for 48 h after delivery, once per order; it feeds the kitchen's rating and the rating floor. |
 | US-10 | As a partner, I want to see what I earned this week so that my income is transparent. | Weekly view from the ledger by day and kind; payout status. |
 | US-11 | As a hub manager, I want to suspend a partner so that quality and safety problems stop at once. | Role revoked (M1), captain appointment ended (M9), future assignments released and reassigned. |
+| US-12 | As a partner, I want a certificate of my monthly income from GharBasket so that I can show it for a loan or a rental. | A PDF of up to 12 months from the ledger: earned per month and kind, paid out, owed; my name, kinds, hubs and a reference; never an address, phone or KYC number. A hub manager can issue it for me when I can no longer sign in as a partner. |
 
 ## 3. API endpoints
 | Method | Path | Permission / role | Idempotency | Notes |
@@ -69,6 +70,8 @@ What M8 does **not** do:
 | GET | `/v1/partners/{id}/card` | Authenticated | — | §3.5 know your cook (kitchens) |
 | POST | `/v1/ratings` · GET `/v1/ratings?order_id=` | customer (own order) | Required (POST) | §3.5 |
 | GET | `/v1/earnings?week=` | partner (own) | — | §3.6, from `billing.api` |
+| GET | `/v1/earnings/certificate?from=&to=` | partner (own; every kind the caller has) | — | §3.7; a 5-minute link to the PDF; rate-limited, audit-logged |
+| GET | `/v1/partners/{id}/earnings/certificate?from=&to=` | hub_manager (hub), admin | — | §3.7; the same document, issued by staff; audit-logged |
 | GET / PUT | `/v1/hubs/{id}/partner-rates` | hub_manager, franchise_owner (hub, read), admin (write) | — | §3.6 |
 | POST | `/v1/internal/jobs/assign_kitchens` · `assignment_acceptance_timeout` · `refund_unassigned_tiffins` · `prompt_tiffin_ratings` | operator token | — | §6 |
 
@@ -647,16 +650,116 @@ PUT /v1/hubs/{id}/partner-rates    admin; { "rates": [ { "kind", "basis", "amoun
 - **Reading back.** The view comes from `billing.api.partner_week(session, partner_ids, week)` (M5 §3.5) with the caller's partner ids; M8 adds each partner's `kind`. M8 keeps no earnings table: the draft's `partners.earnings` mirror is dropped.
 - **Statements.** The weekly statement and payouts are M5's (§3.7). The draft's M8 job `weekly_earnings_statement` is dropped.
 
-### 3.7 Payouts and the income certificate (outline; after MS-B)
+### 3.7 Payouts and the income certificate (payouts built; certificate drafted 2026-10-28, frozen on approval)
 - M5's `weekly_payouts` (Monday 10:00 IST) pays each partner's payable balance through M5's simulated payout provider (no real money moves in the prototype; owner, 2026-10-09) when `partners.api.payout_eligibility(partner_id)` answers `eligible`: status `active`, `paused` or `left` (a partner who left is still paid what she earned; `suspended` is held with reason `suspended`), the KYC documents accepted (else `kyc_incomplete`), and a `bank` document `accepted` with `penny_drop_ok` (else `no_payout_account`). Otherwise the payout is `held` with that reason (M5 §3.5).
 - The account details come only from `partners.api.payout_account(partner_id)`, which decrypts and is audit-logged; only a real provider (pilot) calls it, never the simulated one.
-- Income certificate: `GET /v1/earnings/certificate?from=&to=` (PDF of the ledger totals per month, for loans). Refined with M5's statement PDF.
+- Income certificate: `GET /v1/earnings/certificate?from=&to=`, a PDF of the ledger's totals per month, for loans. Its contract is below ("Income certificate").
 - **As built (the payout facades, `partners/payouts.py`).**
   - **Order of the reasons.** `payout_eligibility` checks, in order: the status (`suspended` holds; `active`, `paused` and `left` go on); then every required document of the kind other than `bank` must be current and `accepted` (else `kyc_incomplete`); then the current `bank` document must be `accepted` with `check_code: penny_drop_ok` (else `no_payout_account`, which also covers a missing, pending or rejected bank document and a `duplicate` check, since a duplicate wins over the penny drop's code). An unknown partner is 404 `partners.partner_not_found`.
   - **Which documents.** The current documents of the application the partner was verified from (`partners.application_id`). A seeded partner has no application, so she is held as `kyc_incomplete`.
   - **The account.** `payout_account(session, partner_id, *, actor_user_id=None)` answers `{ account_number, ifsc, holder }`; the number never shows in its `repr`. Each call writes `partners.payout_account_read` (actor, document id, key version; never the number). Without an accepted bank document whose penny drop passed it is 409 `partners.no_payout_account`, and nothing is decrypted or logged. It uses the current `KYC_ENCRYPTION_KEY`; reading a document encrypted under an older key version waits for key rotation.
   - **Also for M5.** `get_partners(session, ids)` (a batch of `PartnerRef`) and `partners_for_user(session, user_id)` (every record of a person, whatever its status).
   - **The earnings week's payouts.** With M5's `weekly_payouts` built (M5 §3.5, as built), `GET /v1/earnings` carries the week's payout rows of the caller's records as `PayoutOut & { kind }` (typed in openapi.json now, no longer a free-form object); it is `[]` until the week is paid out.
+
+#### Income certificate (drafted 2026-10-28, frozen on approval)
+US-12. The Earnings screens of the mobile app (kitchen `routes/_auth/kitchen/earnings.jsx`, captain `features/captain/queries.js`, rider `features/logistics/queries.js`) and the console's partner page (`(hub)/partners/[id]/income-certificate`, today an HTML page the console builds from processed payouts) build against this. The money comes from M5's ledger only, through one new M5 facade; M8 adds who she is and renders the document. Same sign-in and review rules as §3.1.
+
+```
+CertificateLink : {
+  "reference": "GBIC-7K3M-QX9P-2TAB-H4WE",   printed on the PDF; the audit row's entity id
+  "from": "2026-05", "to": "2026-10",          the months the PDF covers (IST calendar months)
+  "url": "https://…",                          a 5-minute signed GET of the PDF (M0 storage.signed_get)
+  "filename": "gharbasket-income-certificate-2026-05-to-2026-10.pdf",
+  "expires_at": "2026-10-28T08:40:00Z" }        when the link stops working
+
+GET /v1/earnings/certificate?from=2026-05&to=2026-10
+    partner (earnings:read): every partner record of the caller, every kind and status, as
+    GET /v1/earnings. Cache-Control: no-store
+    from, to: months as YYYY-MM (IST), both included. Neither: the six months ending with the
+    current month. Only to: the six months ending with it. Only from: from it to the current month.
+    to no later than the current month; from ≤ to; at most 12 months
+  200 CertificateLink
+  422 "partners.certificate_period_invalid"   any rule above broken; the problem carries "max_months": 12
+  429 "partners.certificate_rate_limited"     more than 10 in an hour (Retry-After)
+  503 "platform.storage_unavailable"          no object storage; nothing is recorded
+
+GET /v1/partners/{id}/earnings/certificate?from=&to=
+    hub_manager (the record's hub), admin (earnings:certify). Cache-Control: no-store
+    {id} is one partner record; the certificate covers that person's records in the hubs the
+    caller may act in (an admin: all of them). Same parameters, document and answer
+  200 CertificateLink
+  403 "auth.forbidden"                        a record of another hub
+  404 "partners.partner_not_found"            unknown, or `left`
+  422, 503 as above · 429 "partners.certificate_rate_limited" over 60 in an hour per staff user
+```
+
+**The numbers: a new M5 facade.** M8 keeps no earnings table (§3.6), so M5 answers the months:
+```
+billing.api.partner_months(session, partner_ids, first: "YYYY-MM", last: "YYYY-MM", *, until)
+    -> PartnerMonths                                                    reads M5's own tables only
+  PartnerMonths : { "months": [ { "month": "2026-10",
+                                  "by_basis": [ { "partner_id", "basis", "units", "amount_paise" } ],
+                                  "earned_paise": 72600, "paid_out_paise": 64000 } ],
+                                                    every month from first to last, zeros included
+                    "owed_paise": 8600 }
+```
+- **Earned** is the `earning` entries posted to those partners' `partner_payable` accounts, by `earned_at` in IST months (as `partner_week` counts a week), less `earning_reversal` entries by the month they were posted (none in v1, §3.6). It is the fee for work done in that month, before tax.
+- **Paid out** is the money that left those accounts for her bank account in the month: minus the sum of their `payout` and `payout_reversed` postings, by when they were posted (IST). A failed transfer comes back and cancels out. The payout for the week of 27 Oct–2 Nov, posted on Monday 3 Nov, falls in November.
+- **Owed** is the balance of those accounts at the end of `last`, or at `until` (now) when `last` is the current month, by posting time. It is the `closing_paise` of `GET /v1/statements?period=<last>&account=earnings` (M5 §3.5) at that moment. It includes held payouts, a balance under ₹100 carried forward, and the current week.
+
+**Records and kinds.** The partner path takes `partners_for_user` (every record, whatever its status). The staff path takes the records of the `{id}` record's user that the caller may act in (`permit.allows(record.hub_id)`), and leaves out `left` records. The table has one column per kind among those records, in the order kitchen, captain, rider, packer, even when that kind earned nothing in the range.
+
+**Empty range.** A month with nothing is a row of zeros. When the whole range earned nothing, the answer is still 200: the table shows zeros and the PDF adds "No earnings were recorded in this period." The app needs no new error state.
+
+**The PDF.** A4 portrait, English, one page for up to 12 months and four kinds (two pages at most). In this order:
+1. **Header:** "GharBasket" and "Income certificate"; the reference; "Issued on 28 Oct 2026 at 14:05 IST".
+2. **Issuer line:** the setting `PARTNERS_CERTIFICATE_ISSUER` (default below, §11 question 1).
+3. **Who:** "This is to certify that **<name>** has worked with GharBasket as:", then one line per record: "<kind label>, <hub name> hub, since <month of `verified_at`>". The name is her profile name (`identity.api.user_names`), else the display name of her oldest record. The kind labels are "Home kitchen partner", "Society Captain", "Delivery rider" and "Packer". The hub name comes from `hub_ops.api.get_hub`.
+4. **Period:** "1 May 2026 to 31 Oct 2026", or "… to 28 Oct 2026 (to date)" when `to` is the current month.
+5. **Monthly table:** Month ("May 2026") · one "Earned: <kind>" column per kind · Total earned · Paid out. The last row has the totals.
+6. **Work done in the period**, per kind, from `by_basis` units: "1,180 tiffin portions cooked", "30 bags delivered", "212 orders picked up for delivery", "95 orders packed".
+7. **Owed:** "Earned but not yet paid out on 31 Oct 2026: ₹86.00. GharBasket pays partners every Monday."
+8. **Notes** (fixed text): what *Earned* and *Paid out* mean (as above); the amounts are fees before tax, and GharBasket deducts no TDS (M5 §11); the figures come from GharBasket's double-entry ledger.
+9. **Footer on every page:** "Computer-generated document; no signature is needed. To verify it, quote the reference to GharBasket." and "Page n of m". While `PAYOUTS_PROVIDER` is `simulated`, every page also carries a banner: "PROTOTYPE: payouts are simulated and no money was paid. Not valid as proof of income."
+
+**Never on the certificate:** her phone, e-mail, address, society or flat; any KYC number, in clear or masked; the bank account, not even its last digits; the FSSAI number; partner, user or order ids; hold reasons; her status (`paused`, `suspended`); ratings; per-order lines. Held payouts are inside "owed" without a reason: a reason such as `suspended` or `kyc_incomplete` would prejudice a loan and says nothing about income.
+
+**Formats.** Money is ₹ with Indian grouping and always two decimals ("₹1,23,456.00", "₹0.00"), the grouping of M11's `render.money`. Counts use Indian grouping too. Months are written "May 2026", dates "28 Oct 2026", times IST.
+
+**Rendering: a shared PDF helper.** The repository has no PDF stack yet. M5's statement PDF (M5 §3.2, "Later") is not built, so the certificate cannot reuse it. The certificate therefore introduces `gharbasket.platform.pdf` (M0), and M5's statement PDF uses the same helper when it comes.
+- **Library:** fpdf2. It is pure Python, so the API image needs no system libraries (WeasyPrint needs Pango). Text shaping comes from `uharfbuzz`, so a name in Devanagari renders correctly.
+- **Fonts:** Noto Sans regular and bold, with Noto Sans Devanagari as the fallback font (SIL OFL). They are bundled as package data in `platform/fonts/`. The PDF core fonts are never used, because they have no ₹ glyph.
+- **Helper:** a small builder (heading, paragraph, table with a totals row, banner, footer with page numbers), `rupees(paise)`, and `output() -> bytes`. It sets the PDF's creation date to the issue time and the title and author metadata, and it embeds no links, JavaScript or attachments.
+- **Building:** render in `asyncio.to_thread`, since it is CPU work; aim for under 300 ms for 12 months. Check fpdf2's current `add_font`, `set_fallback_fonts`, `set_text_shaping` and `table()` with Context7 when building; do not rely on memory.
+
+**Storage and the link (no PDF bytes from the API).** M0's rule is that the API never streams file bytes. Also, the Capacitor app cannot add its Bearer token to a download that opens outside the WebView. So the answer is a link to a server-written object, as M1's data export does (M1 §3.3). There is no `Accept: application/pdf` variant.
+- **The object:** a new server-written M0 purpose, `income_certificate` (`application/pdf`, kept 1 day, not presignable), at the key `income_certificate/<the person's user_id>/<uuidv7>.pdf`.
+- **Order of work, in the request's transaction:** render the PDF; `files.record(…, purpose="income_certificate", by="partners", delete_after=now + 1 day)`; `storage.put(key, body, "application/pdf", content_disposition='attachment; filename="…"')` (M0's `put` gains this optional argument); write the audit row; commit; then mint `signed_get(key)`.
+- **Without storage:** if storage is missing (`app.state.storage` is None) or the put fails, the answer is 503 `platform.storage_unavailable` and the transaction rolls back: no upload row and no audit row.
+- **The file name:** the stored `Content-Disposition` names the file in a browser or the system browser. An `<a download>` on another origin ignores `download`.
+- **Clean-up:** `sweep_uploads` deletes the object after a day, and M1's purge deletes it with everything under `*/<user_id>/`.
+
+**Audit and verification.** Every certificate, from either path, writes `partners.income_certificate_issued`:
+- **Fields:** actor (the caller), entity type `income_certificate`, entity id the reference. `after` holds `{ user_id, partner_ids, from, to, earned_paise, paid_out_paise, owed_paise, sha256, key }`, where `sha256` is that of the PDF's bytes. It holds no name.
+- **The reference:** `GBIC-` and 20 Crockford base32 characters (100 random bits) in groups of four. It is not derived from any id.
+- **Verifying:** support checks a presented certificate by its reference. The totals, and the SHA-256 of the file if the bank sends it, must match the audit row. There is no public verification endpoint and no QR code in the prototype (§11 question 2).
+
+**Rate limit and repeats.**
+- **Limits:** `platform.rate_limit.enforce`, keyed `partners.certificate:user:<user_id>` (10 an hour) and `partners.certificate:staff:<user_id>` (60 an hour). Over the limit: 429 `partners.certificate_rate_limited` with `Retry-After`. When Valkey is down the request is allowed, as everywhere.
+- **Repeats:** each call issues a new certificate with a new reference, because the ledger may have moved. There is no idempotency key on a GET.
+
+**Who can get one.** The partner path needs `earnings:read`, and that needs an active partner role in M1. A suspended partner, or a captain whose appointment ended, no longer has the role and cannot download her own certificate. A hub manager issues it for her through the staff path, which is why the staff path exists. The staff path never shows the PDF's numbers in a JSON body; the hub manager opens the link and hands over or prints the document.
+
+**What it is not.** It is not a tax document (Form 16A) or a salary slip. The weekly earnings statement stays M5's `GET /v1/statements?account=earnings`.
+
+| Mock or page today | Contract |
+|---|---|
+| Captain and kitchen mocks answer `{ url, filename }`; the logistics mock `{ url, expires_in: 300 }` | `{ reference, from, to, url, filename, expires_at }`; align the three mocks (one shared handler). The rider screen reads only `url` and keeps working |
+| The app sends no `from` or `to` | Allowed: the server's default is the six months ending this month. A month-range picker is optional |
+| Kitchen and captain click an `<a href=url download=filename>`; the rider opens `window.open` during the tap, then sets its location | One helper for all three, the rider's way (it survives popup blockers). On a device, check that the signed link opens outside the WebView; the stored `Content-Disposition` names the file, since `download` is ignored on another origin |
+| Mock comments call it "M8 US-7" | US-12 (US-7 is the kitchen's ready flow) |
+| A 429 or 503 shows the generic "try again" toast | Fine; for a 429 the app may say "try again in an hour" from `Retry-After` |
+| Console `(hub)/partners/[id]/income-certificate` builds HTML from `processed` payouts per week | Call `GET /v1/partners/{id}/earnings/certificate` and redirect to `url`. The content is per month (earned, paid out, owed), not the paid weeks |
 
 ### 3.8 Fairness read (drafted 2026-10-25, frozen on approval)
 The console's Fairness page (`(hub)/fairness`) builds against this, together with M12's weekly Gini (`GET /v1/analytics/partner-earnings`, M12 §3.5), which it already reads. Today it calls `GET /v1/hubs/{id}/fairness` as a proposal (`mocks/partners.js`). It reads M8's own `partners.assignment_runs` (§3.4, step 7) and the setting the runs use. Same sign-in and review rules as §3.1.
@@ -770,17 +873,18 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 | `assignments:manage` | hub_manager (hub), admin (run a round, manual assignment) |
 | `ratings:write` | customer (own orders) |
 | `earnings:read` | kitchen_partner, captain, rider, packer (own) |
+| `earnings:certify` | hub_manager (hub), admin (issue a partner's income certificate, §3.7; every issue audit-logged) |
 | `partner_rates:read` · `partner_rates:write` | hub_manager, franchise_owner (hub) · admin |
 
 ## 8. Screens
 **Mobile:**
 - Become a partner: role, steps, apply (done on `feat/mobile-partner`); then documents with the camera, training with the quiz, and status.
 - Kitchen: Today's counts with accept or decline, Capacity, Prep and ready with the checklist and pickup QR, Ratings.
-- Earnings, for every partner kind.
+- Earnings, for every partner kind, with "Download income certificate" (§3.7).
 - Know-your-cook card on a tiffin order.
 - Rate a tiffin.
 
-**Console:** Partners and KYC review queue (documents with 5-minute links, checks, decision), partner profile with suspend and reinstate, kitchen inspection, tiffin board, fairness dashboard (from `assignment_runs`: Gini and km per portion over time), rate card.
+**Console:** Partners and KYC review queue (documents with 5-minute links, checks, decision), partner profile with suspend and reinstate and the income certificate (§3.7), kitchen inspection, tiffin board, fairness dashboard (from `assignment_runs`: Gini and km per portion over time), rate card.
 
 **Mock today vs contract** (`feat/mobile-partner`: `mocks/partners.js`, `features/partners/queries.js`, `lib/session.js`, `mocks/orders.js`)
 
@@ -857,16 +961,27 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - no earning for `hub` or `system` actors;
   - the rate is the one valid on the delivery date;
   - the week view sums equal the ledger (against M5's facade).
+- **Income certificate (§3.7):**
+  - `from` and `to`: the three defaults; 422 `partners.certificate_period_invalid` for a malformed month, `to` after the current IST month, `from` after `to`, and 13 months (12 pass);
+  - the months match the ledger: earned by `earned_at` month (an earning at 23:59 IST on the 31st and one at 00:01 on the 1st land in different months), paid out by posting month, a `payout_reversed` cancels its payout, and `owed_paise` equals the `closing_paise` of `GET /v1/statements?period=<to>&account=earnings` (against M5's facade, with a property test over random entries);
+  - a person with a kitchen and a captain record gets both columns; a kind with a record but no earnings gets a column of zeros; a range with nothing is 200 with the "No earnings" sentence;
+  - the PDF's text (extracted in the test, e.g. with `pypdf` as a test dependency) has the name, the kinds and hubs, each month's figures and totals in ₹ with Indian grouping, the reference, and the prototype banner while `PAYOUTS_PROVIDER=simulated`; a Devanagari name and ₹ render (no missing-glyph warning);
+  - privacy: a test seeds a phone, an address, a masked and a clear KYC number, a bank number, an FSSAI number and a `suspended` hold, and asserts that none of them, nor any partner, user or order id, appears in the PDF's text, the JSON answer, the audit row or the log lines;
+  - the object: purpose `income_certificate`, key under the person's user id, `delete_after` one day on, `Content-Type: application/pdf` and the `Content-Disposition` file name; the answer's `url` is a signed GET of that key and `expires_at` is 5 minutes on; no storage gives 503 with no upload row and no audit row;
+  - every issue writes one `partners.income_certificate_issued` with the totals and the SHA-256 of the stored bytes; two calls give two references;
+  - the rate limits give 429 with `Retry-After` on the 11th partner call in an hour (60th + 1 for staff);
+  - roles: a customer without a partner role gets 403; a hub manager of another hub gets 403; a `left` record is 404; a hub manager gets the certificate of a suspended partner of her hub; an admin gets every record of the person.
 - **E2E (MS-B):** apply as a kitchen → documents (simulated checks) → training → hub manager approves → the kitchen role appears → set capacity → cut-off → `assign_kitchens` → accept → start → ready → rider pickup → delivered → earning in the week view; on the simulator seed.
 
 ## 10. Dependencies
-- **M1** (`identity.api`: household and society of a user, `household_location`, names and phones for hub staff; role grants on M8's and M9's events).
+- **M1** (`identity.api`: household and society of a user, `household_location`, names and phones for hub staff, `user_names` for the income certificate; role grants on M8's and M9's events).
 - **M9** (`community.api`: society names and points, `captain_for_society` for the review queue; appoints captains on `partners.verified`).
 - **M4** (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with actor `kitchen` and `actor_user_id`, `set_kitchen`, `get_order_ref` for ratings; fulfilment events with `kind`, `actor` and `actor_user_id`).
 - **M10** (`intel_gateway.api.assign_kitchens`, M10 §3.5 on `feat/M10-assign-kitchens`).
 - **M2** (`catalog.api`: tiffin products and their skill tags).
-- **M5** (`billing.api`: `accrue_earning`, `partner_week`, `partner_rolling_earnings`; M5 §3.5).
-- **M0** (`platform.files` for `kyc_document`, audit log, jobs).
+- **M5** (`billing.api`: `accrue_earning`, `partner_week`, `partner_rolling_earnings`; M5 §3.5; `partner_months` for the income certificate, §3.7).
+- **M6** (`hub_ops.api.get_hub`: the hub's name on the income certificate).
+- **M0** (`platform.files` for `kyc_document` and `income_certificate`, audit log, rate limits, jobs, and the PDF helper `platform.pdf`, §3.7).
 - **M7** (rider pickup through `partners.api.pickup`).
 - **M11** (notifications for the events above).
 
@@ -895,6 +1010,8 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 
   Also: M5 consumes neither `orders.delivered` for captain pay nor `partners.assignment_completed` for earnings (M8 posts them); `weekly_payouts` reads `partners.api.payout_eligibility` and, for a real provider only, `payout_account`; the partner's statement is `GET /v1/statements?account=earnings`.
 - **M0.** §3.1: KYC files are read by admins and by the hub managers of the application's hub, every link audit-logged (owner, 2026-10-09). A `partner_photo` purpose comes later, not in S6.
+- **M0 (income certificate, §3.7).** §3.1 gains the server-written purpose `income_certificate` (`application/pdf`, M8, kept 1 day); `ObjectStore.put` gains an optional `content_disposition`. A new `platform.pdf` helper on fpdf2 and `uharfbuzz`, with Noto Sans and Noto Sans Devanagari bundled. These are new API dependencies, with `pypdf` for tests only.
+- **M5 (income certificate, §3.7).** A new facade, `billing.api.partner_months(session, partner_ids, first, last, *, until)`, as in §3.7. M5 §3.2's later statement PDF should use `platform.pdf` rather than a second PDF stack; that line is added to M5 in the PR that builds the certificate.
 - **M2.** Tiffin products carry skill tags. `catalog.tiffin_menus` stays per kitchen partner, as in M2 §4: one menu per kitchen, date and meal, with its tiffin `product_id`, shown to the customers of her hub once a hub manager approves it (`tiffin_menus:write`). The customer books a menu (M4 §3.5); its kitchen is the order's `preferred_partner_id`, a preference the assignment honours while that kitchen can take the order (§3.4), not a hard choice.
 - **M7.** Tiffin pickups through `partners.api.tiffin_pickups` and `pickup` (the `GB1A:` QR, M7 §3.7); the handover records the captain's `user_id` and `partner_id` from `community.api.captain_for_society` (M7 §4, done in M7 v2).
 - **M9** (outside §3.2). `community.api.society_points(society_ids)` for assignment distances, the same facade M7 needs (M7 §10): the society's gate point, else a point inside its boundary. A society with neither has no point, and its tiffin orders stay unassigned with the reason `no_location`.
@@ -905,6 +1022,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - `partners.tiffins_unassigned` (to the hub managers);
   - `community.captain_assigned` (to the captain).
 - **M12.** The partners and KYC queue, and the fairness dashboard from `partners.assignment_runs`.
+- **Frontend (income certificate, §3.7).** The mock and call-site changes in §3.7's table (`docs/integration/gaps.json`, `GET /v1/earnings/certificate`), and the console's partner page moving to the staff path.
 - **Handbook.**
   - 06 §6.6: lower-case statuses; training in parallel with review; VERIFIED and ACTIVE merged (the partner is `active` from verification).
   - 05 §5.5.8: the ERD as in §4 (no earnings mirror, trainings per user).
@@ -938,3 +1056,11 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 - **Defaults set by [ADR-0027](../adr/0027-operations-contract-amendments.md) (2026-10-09), which the owner may change:**
   - the booked menu's kitchen gets the order first, while she is eligible and has room; only the rest is fair-assigned (§3.4, step 3). A soft per-portion bonus inside M10's solver instead (so fairness can outweigh the preference) needs an M10 change to `POST /assign/kitchens` and is not planned for S6;
   - a captain earns nothing for a tiffin she delivers (§3.6).
+- **Open questions for the owner: the income certificate (§3.7, 2026-10-28).** Each has the recommended answer that the draft already uses.
+  1. **Issuer line.** GharBasket is a student project, not a company. Recommended: `PARTNERS_CERTIFICATE_ISSUER` defaults to "GharBasket, a B.Tech project of SIES Graduate School of Technology, Nerul, Navi Mumbai". The prototype banner stays while payouts are simulated. Wording for a real pilot is confirmed with Prof. Kranti Bade (as handbook 13's open item on legal wording).
+  2. **Verification.** Recommended: a printed reference, with the audit row (totals and SHA-256) checked by support. There is no public verification page or QR code: a public page would expose income to anyone who holds a reference, and it is a new unauthenticated surface. Revisit for the pilot.
+  3. **Identity details for the bank.** Banks may ask for a PAN or the account paid into. Recommended: none in v1, not even masked; the name, kinds, hubs and "since" are enough for a prototype (data minimisation, handbook 13.6). If the owner wants one, the masked PAN (`number_masked` of an accepted `pan` document) is the only candidate; never a clear or decrypted number.
+  4. **Staff issuing it.** Recommended: yes, `GET /v1/partners/{id}/earnings/certificate` for hub_manager (hub) and admin (`earnings:certify`). A suspended partner, or a captain whose appointment ended, loses the role and cannot download her own. The console already has a page for this. `franchise_owner` is not included: it is a personal document. If the owner says no, drop the staff path, `earnings:certify` and the console row.
+  5. **The range.** Recommended: months, at most 12, default the six months ending with the current month, which is included "to date". Six and twelve months are what lenders usually ask for, and the app sends no range today. The alternative, complete months only, gives a new partner an empty default.
+  6. **Earned and paid out, both.** Recommended: both, per month, plus what is owed at the end. Earned is the income, and paid out is what reached the bank. Held payouts are inside "owed", without a reason.
+  7. **Language.** Recommended: English only in v1, since banks read English. The fonts already render a Devanagari name, so Hindi and Marathi versions later need only the fixed texts.

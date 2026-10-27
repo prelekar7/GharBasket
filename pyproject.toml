@@ -23,6 +23,7 @@ members = ["backend/api", "backend/ml", "backend/training", "data/simulator", "e
 dev = [
     "hypothesis>=6.168.3",
     "import-linter>=2.15",
+    "pypdf>=6.21.3",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
