@@ -27,7 +27,9 @@ from gharbasket.platform.errors import ProblemError
 BP = 10_000
 MAX_DAYS, MAX_WEEKS = 92, 104
 DEFAULT_WEEKS = 12
-MIN_PARTNERS = 5  # a Gini under this many paid partners says nothing and could identify them
+# Under this many paid partners a Gini says nothing, and a total of earnings is (nearly) one
+# person's pay: only the count is shown (PR #380's rule for `/partner-earnings`).
+MIN_PAID_PARTNERS = 5
 
 KPI_KEYS = (
     "active_households",
@@ -116,11 +118,17 @@ def gini_bp(earnings: list[int]) -> int | None:
     """Gini of paid partners' earnings in basis points, as `mv_partner_earnings_weekly` computes
     it (2 Σ i·x_i ÷ (n Σ x) - (n + 1) ÷ n over the ascending values); None under 5 partners."""
     n, total = len(earnings), sum(earnings)
-    if n < MIN_PARTNERS or total <= 0:
+    if n < MIN_PAID_PARTNERS or total <= 0:
         return None
     ranked = sorted(earnings)
     gini = Fraction(2 * sum(i * x for i, x in enumerate(ranked, 1)), n * total) - Fraction(n + 1, n)
     return math.floor(gini * BP + Fraction(1, 2))
+
+
+def shown_earnings(earnings_paise: int, partners_paid: int) -> int | None:
+    """The earnings total of a period, or None under `MIN_PAID_PARTNERS` paid partners: never an
+    individual's pay (the count `partners_paid` is still shown)."""
+    return earnings_paise if partners_paid >= MIN_PAID_PARTNERS else None
 
 
 def metrics(s: Mapping[str, int]) -> dict[str, int | None]:
@@ -273,9 +281,10 @@ async def _partner_keys(
     def summary(earned: Mapping[tuple[uuid.UUID, str], int]) -> dict[str, int | None]:
         paid = {key: paise for key, paise in earned.items() if paise > 0}
         kitchen = [paise for (_, kind), paise in paid.items() if kind == "kitchen"]
+        partners_paid = len({partner_id for partner_id, _ in paid})
         return {
-            "partner_earnings_paise": sum(earned.values()),
-            "partners_paid": len({partner_id for partner_id, _ in paid}),
+            "partner_earnings_paise": shown_earnings(sum(earned.values()), partners_paid),
+            "partners_paid": partners_paid,
             "kitchen_gini_bp": gini_bp(kitchen),
         }
 
@@ -308,7 +317,7 @@ async def kpis(
     for period in periods:
         row = metrics(sums.get(period, zero))
         row["active_households"] = active.get(period, 0)
-        row.update(weekly.get(period, {"partner_earnings_paise": 0, "partners_paid": 0}))
+        row.update(weekly.get(period, {"partner_earnings_paise": None, "partners_paid": 0}))
         per_period.append(row)
     total = metrics({name: sum(s[name] for s in sums.values()) for name in SUMS})
     total["active_households"] = active_last_week
