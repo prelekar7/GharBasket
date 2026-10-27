@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import pickups, plans
+from gharbasket.modules.logistics import pickups, plans, solver
 from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop, booked
 from gharbasket.modules.logistics.routing import clock
 from gharbasket.modules.logistics.schemas import (
@@ -29,7 +29,6 @@ from gharbasket.modules.logistics.schemas import (
     StopSociety,
     VehicleRef,
 )
-from gharbasket.modules.logistics.solver import seconds
 from gharbasket.modules.orders import api as orders_api
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -101,7 +100,7 @@ def eta_now(route: Route, stops: list[RouteStop]) -> dict[uuid.UUID, str | None]
         if stop.arrived_at is not None:
             delay = stop.delay_s
         running = route.status == "in_progress" and stop.status in ("pending", "arrived")
-        out[stop.id] = clock(seconds(stop.eta) + delay) if running else None
+        out[stop.id] = clock(solver.seconds(stop.eta) + delay) if running else None
     return out
 
 

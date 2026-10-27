@@ -99,11 +99,13 @@ __all__ = [
     "OrderRef",
     "OrderSummary",
     "PaymentFailedOrder",
+    "SlotAvailability",
     "SlotRef",
     "SoldLine",
     "TodayCounts",
     "anonymise_for_user",
     "box_fee",
+    "box_slots",
     "cancel_from_cycle",
     "carried_lines",
     "carry_over",
@@ -360,6 +362,35 @@ async def sold_lines(
         for summary in summaries
         if data_source is None or summary.order.data_source == data_source
         for line in summary.lines
+    ]
+
+
+@dataclass(frozen=True)
+class SlotAvailability:
+    id: uuid.UUID
+    label: str
+    start: time
+    end: time
+    capacity: int
+    booked: int
+    available: int
+
+
+async def box_slots(session: AsyncSession, hub_id: uuid.UUID, day: date) -> list[SlotAvailability]:
+    """The hub's active box slots by start time, with their capacity, bookings and room on `day`
+    (what `GET /v1/slots` computes, for any date), for M3's slot quote and M7's tentative day."""
+    loads = await service.slot_loads(session, hub_id, day, kind="box")
+    return [
+        SlotAvailability(
+            x.slot.id,
+            x.slot.label,
+            x.slot.start_time,
+            x.slot.end_time,
+            x.slot.capacity,
+            x.booked,
+            x.available,
+        )
+        for x in loads
     ]
 
 

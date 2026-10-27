@@ -95,6 +95,9 @@ class Settings(DatabaseSettings):
     # /route/solve may take time_limit_s plus this: the ML service's OSRM timeout
     # (OSRM_TIMEOUT_S, 2.5 s) plus a margin for the checker and the network.
     ml_route_overhead_s: float = Field(default=6.0, gt=0, le=30)
+    # /slots/price for a customer's quote (M10 §3.8), shorter because a customer is waiting; the
+    # gateway uses at most ML_TIMEOUT_S. It covers the ML service's SLOT_OSRM_TIMEOUT_S (1 s).
+    ml_slot_timeout_s: float = Field(default=2.0, gt=0, le=10)
     # The pantry twin (M10 §3.3) drafts the perishable daily-use quantities only when this is on
     # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
     # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
