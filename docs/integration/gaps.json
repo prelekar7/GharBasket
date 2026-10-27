@@ -43,13 +43,6 @@
       "fix": "F4: drop the 'Check now' button; the hourly Razorpay check is a job. Ask for an admin trigger only if wanted.",
       "note": "No endpoint in M5 §3.4."
     },
-    "GET /v1/hubs/{}/tiffin-menus": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M2 §3.4: the review list, every status, at the mock's path. Supersedes F5 for this page: GET /v1/tiffin-menus (M4 §3.5) lists approved menus only."
-    },
     "GET /v1/tiffin-offers": {
       "app": "mobile",
       "class": "fix-frontend",
@@ -113,13 +106,6 @@
       "milestone": "MS-A",
       "note": "M9 §3.1 lists POST /v1/admin/societies (frozen for S1) but main has only PATCH /v1/admin/societies/{id}."
     },
-    "GET /v1/hubs/{}/delivery-days": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M3 §3.5 (drafted 2026-10-25): every society of the hub with its status; no not_live list."
-    },
     "GET /v1/hubs/{}/cycles": {
       "app": "console",
       "class": "drop",
@@ -152,13 +138,6 @@
       "owner": "yash",
       "note": "Dropped (M1 §3.6, owner 2026-10-25): staff roles through POST /v1/admin/user-roles (admin; a new number gets a pending grant), riders and packers through M8's POST /v1/hubs/{id}/partner-applications (hub manager); kitchens and captains apply in the app. Remove the Invite sheet from the franchise Staff page."
     },
-    "GET /v1/admin/plans": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M3 §3.5: AdminPlan with state and subscriber_count; read-only (plan writes dropped)."
-    },
     "POST /v1/admin/plans": {
       "app": "console",
       "class": "drop",
@@ -176,62 +155,6 @@
       "class": "drop",
       "owner": "yash",
       "note": "Dropped (M5 §3.8, owner 2026-10-25): refunds are automatic (M5 §3.3); disputes are M4's issue triage (M4 §3.6). The Refunds page becomes a read-only list."
-    },
-    "GET /v1/admin/societies": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M9 §3.9 (drafted 2026-10-25): the staff list with hub, households and the edited fields; with_unassigned is admin-only."
-    },
-    "GET /v1/admin/society-requests": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M9 §3.9."
-    },
-    "PATCH /v1/admin/society-requests/{}": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M9 §3.9: only { status: \"received\" }, the undo of a duplicate."
-    },
-    "POST /v1/admin/society-requests/{}/accept": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M9 §3.9: creates a prospect society through POST /v1/admin/societies's create path (itself later, MS-A)."
-    },
-    "POST /v1/admin/society-requests/{}/duplicate": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M9 §3.9."
-    },
-    "POST /v1/tiffin-menus/{}/approve": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M2 §3.4 (drafted 2026-10-25): catalog_editor and admin; only approved menus are bookable."
-    },
-    "POST /v1/tiffin-menus/{}/send-back": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M2 §3.4: { note } required; status sent_back."
-    },
-    "POST /v1/tiffin-menus/{}/reopen": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M2 §3.4: from approved or sent_back, before order_by."
     },
     "GET /v1/budget-lock/preferences": {
       "app": "mobile",

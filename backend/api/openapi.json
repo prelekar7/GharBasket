@@ -400,6 +400,76 @@
         "title": "AdminPayoutOut",
         "type": "object"
       },
+      "AdminPlanOut": {
+        "properties": {
+          "code": {
+            "enum": [
+              "autopilot",
+              "tiffin",
+              "salad"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "fee_paise": {
+            "title": "Fee Paise",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "description": "live: the plan's active flag; GET /v1/plans lists live plans only",
+            "enum": [
+              "live",
+              "draft"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "subscriber_count": {
+            "description": "Subscriptions on the plan that are not ended; 0, never null",
+            "minimum": 0.0,
+            "title": "Subscriber Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "fee_paise",
+          "features",
+          "state",
+          "subscriber_count"
+        ],
+        "title": "AdminPlanOut",
+        "type": "object"
+      },
+      "AdminPlansOut": {
+        "properties": {
+          "items": {
+            "description": "Every plan, by code",
+            "items": {
+              "$ref": "#/components/schemas/AdminPlanOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AdminPlansOut",
+        "type": "object"
+      },
       "AdminProduct": {
         "properties": {
           "active": {
@@ -700,6 +770,148 @@
           "updated_by"
         ],
         "title": "AdminRecipe",
+        "type": "object"
+      },
+      "AdminSociety": {
+        "description": "A society as hub staff and admins see it: never a captain or a requester.",
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "boundary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/gharbasket__modules__community__schemas__GeoPolygon"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "flats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flats"
+          },
+          "households": {
+            "description": "Households whose address is in it (the unlock count)",
+            "title": "Households",
+            "type": "integer"
+          },
+          "hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HubRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: no hub yet (admins only)"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "live_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "threshold_source": {
+            "enum": [
+              "model",
+              "hub",
+              "default"
+            ],
+            "title": "Threshold Source",
+            "type": "string"
+          },
+          "towers": {
+            "items": {
+              "$ref": "#/components/schemas/Tower"
+            },
+            "title": "Towers",
+            "type": "array"
+          },
+          "unlock_threshold": {
+            "title": "Unlock Threshold",
+            "type": "integer"
+          },
+          "unlock_threshold_pinned": {
+            "title": "Unlock Threshold Pinned",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "area",
+          "status",
+          "hub",
+          "households",
+          "unlock_threshold",
+          "unlock_threshold_pinned",
+          "threshold_source",
+          "live_at",
+          "flats",
+          "towers",
+          "boundary",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AdminSociety",
         "type": "object"
       },
       "AdminUser": {
@@ -6841,7 +7053,7 @@
         "title": "GeneratedPurchaseOrders",
         "type": "object"
       },
-      "GeoPolygon": {
+      "GeoPolygon-Input": {
         "description": "GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no\nholes, not self-intersecting.",
         "properties": {
           "coordinates": {
@@ -8186,6 +8398,29 @@
         "title": "HubDeliveryDatesOut",
         "type": "object"
       },
+      "HubDeliveryDaysOut": {
+        "properties": {
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "items": {
+            "description": "Every society of the hub: live, unlocking, prospect, paused, then by name",
+            "items": {
+              "$ref": "#/components/schemas/HubSocietyDaysOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "items"
+        ],
+        "title": "HubDeliveryDaysOut",
+        "type": "object"
+      },
       "HubDriftOut": {
         "properties": {
           "backtest_wape": {
@@ -8345,7 +8580,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GeoPolygon"
+                "$ref": "#/components/schemas/GeoPolygon-Input"
               },
               {
                 "type": "null"
@@ -8426,7 +8661,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GeoPolygon"
+                "$ref": "#/components/schemas/gharbasket__modules__hub_ops__schemas__GeoPolygon"
               },
               {
                 "type": "null"
@@ -8549,7 +8784,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GeoPolygon"
+                "$ref": "#/components/schemas/GeoPolygon-Input"
               },
               {
                 "type": "null"
@@ -8670,6 +8905,86 @@
           "items"
         ],
         "title": "HubPickupsOut",
+        "type": "object"
+      },
+      "HubRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Kharghar hub"
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "HubRef",
+        "type": "object"
+      },
+      "HubSocietyDaysOut": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "items": {
+            "description": "Empty for a society with no delivery days",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryDayOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "society_id",
+          "name",
+          "area",
+          "status",
+          "items"
+        ],
+        "title": "HubSocietyDaysOut",
         "type": "object"
       },
       "HubStaff": {
@@ -12864,6 +13179,52 @@
         "title": "MemberUpdate",
         "type": "object"
       },
+      "MenuDish": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "recipe_id": {
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipe_id",
+          "name"
+        ],
+        "title": "MenuDish",
+        "type": "object"
+      },
+      "MenuKitchen": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The kitchen's name; null if the partner is gone",
+            "title": "Display Name"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partner_id",
+          "display_name"
+        ],
+        "title": "MenuKitchen",
+        "type": "object"
+      },
       "MenuKitchenOut": {
         "properties": {
           "display_name": {
@@ -12897,6 +13258,93 @@
           "photo_url"
         ],
         "title": "MenuKitchenOut",
+        "type": "object"
+      },
+      "MenuProduct": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "tags"
+        ],
+        "title": "MenuProduct",
+        "type": "object"
+      },
+      "MenuReviewer": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "MenuReviewer",
+        "type": "object"
+      },
+      "MenuRules": {
+        "description": "True only when every dish's recipe has the rule (§3.2); false for a menu without dishes.",
+        "properties": {
+          "diabetic_ok": {
+            "title": "Diabetic Ok",
+            "type": "boolean"
+          },
+          "fasting_ok": {
+            "title": "Fasting Ok",
+            "type": "boolean"
+          },
+          "jain_ok": {
+            "title": "Jain Ok",
+            "type": "boolean"
+          },
+          "no_onion_garlic": {
+            "title": "No Onion Garlic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "jain_ok",
+          "no_onion_garlic",
+          "fasting_ok",
+          "diabetic_ok"
+        ],
+        "title": "MenuRules",
         "type": "object"
       },
       "MessageIn": {
@@ -15233,6 +15681,34 @@
         "title": "Page[AdminRecipe]",
         "type": "object"
       },
+      "Page_AdminSociety_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminSociety"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[AdminSociety]",
+        "type": "object"
+      },
       "Page_AdminUser_": {
         "properties": {
           "items": {
@@ -15653,6 +16129,34 @@
         "title": "Page[RefundRow]",
         "type": "object"
       },
+      "Page_SocietyRequestAdmin_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SocietyRequestAdmin"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[SocietyRequestAdmin]",
+        "type": "object"
+      },
       "Page_SocietySummary_": {
         "properties": {
           "items": {
@@ -15707,6 +16211,34 @@
           "next_cursor"
         ],
         "title": "Page[StaffDonationOut]",
+        "type": "object"
+      },
+      "Page_TiffinMenuReview_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TiffinMenuReview"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[TiffinMenuReview]",
         "type": "object"
       },
       "Page_WasteLogOut_": {
@@ -23377,6 +23909,22 @@
         "title": "SearchResults",
         "type": "object"
       },
+      "SendBackIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "SendBackIn",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "created_at": {
@@ -24363,6 +24911,175 @@
         "title": "SocietyOut",
         "type": "object"
       },
+      "SocietyRequestAcceptIn": {
+        "additionalProperties": false,
+        "properties": {
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: the caller's hub for a hub manager, none for an admin",
+            "title": "Hub Id"
+          }
+        },
+        "title": "SocietyRequestAcceptIn",
+        "type": "object"
+      },
+      "SocietyRequestAccepted": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/SocietyRequestAdmin"
+          },
+          "society": {
+            "$ref": "#/components/schemas/AdminSociety"
+          }
+        },
+        "required": [
+          "request",
+          "society"
+        ],
+        "title": "SocietyRequestAccepted",
+        "type": "object"
+      },
+      "SocietyRequestAdmin": {
+        "description": "A society request in the review queue: never the requester's id, name or phone.",
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The society it repeats (duplicate)",
+            "title": "Duplicate Of"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLngOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "society_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The society it became (accepted)",
+            "title": "Society Id"
+          },
+          "status": {
+            "enum": [
+              "received",
+              "accepted",
+              "duplicate",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "area",
+          "location",
+          "note",
+          "status",
+          "society_id",
+          "duplicate_of",
+          "created_at",
+          "reviewed_at"
+        ],
+        "title": "SocietyRequestAdmin",
+        "type": "object"
+      },
+      "SocietyRequestDuplicateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "society_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Any listed society; missing or unknown is 422",
+            "title": "Society Id"
+          }
+        },
+        "title": "SocietyRequestDuplicateIn",
+        "type": "object"
+      },
       "SocietyRequestIn": {
         "additionalProperties": false,
         "description": "Ask GharBasket to come to a society that isn't listed (US-8).",
@@ -24450,6 +25167,22 @@
           "created_at"
         ],
         "title": "SocietyRequestOut",
+        "type": "object"
+      },
+      "SocietyRequestUndoIn": {
+        "additionalProperties": false,
+        "description": "The undo of \"Duplicate\": `{ \"status\": \"received\" }` and nothing else.",
+        "properties": {
+          "status": {
+            "const": "received",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SocietyRequestUndoIn",
         "type": "object"
       },
       "SocietyRowOut": {
@@ -26813,6 +27546,143 @@
           "order_by"
         ],
         "title": "TiffinMenuOut",
+        "type": "object"
+      },
+      "TiffinMenuReview": {
+        "properties": {
+          "contains": {
+            "description": "The dishes' non-optional ingredients, in the language",
+            "items": {
+              "type": "string"
+            },
+            "title": "Contains",
+            "type": "array"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MenuReviewer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reviewer (staff)"
+          },
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/MenuDish"
+            },
+            "title": "Dishes",
+            "type": "array"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kitchen": {
+            "$ref": "#/components/schemas/MenuKitchen"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The send-back reason",
+            "title": "Note"
+          },
+          "order_by": {
+            "description": "The date's cut-off: 21:00 IST the day before",
+            "format": "date-time",
+            "title": "Order By",
+            "type": "string"
+          },
+          "price_paise": {
+            "description": "Per portion, the menu's own price",
+            "title": "Price Paise",
+            "type": "integer"
+          },
+          "product": {
+            "$ref": "#/components/schemas/MenuProduct"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/MenuRules"
+          },
+          "status": {
+            "enum": [
+              "submitted",
+              "approved",
+              "sent_back",
+              "withdrawn"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "date",
+          "meal",
+          "status",
+          "kitchen",
+          "product",
+          "dishes",
+          "price_paise",
+          "rules",
+          "contains",
+          "order_by",
+          "submitted_at",
+          "decided_at",
+          "decided_by",
+          "note",
+          "version"
+        ],
+        "title": "TiffinMenuReview",
         "type": "object"
       },
       "TiffinMenusOut": {
@@ -29739,6 +30609,35 @@
         "title": "CaptainOut",
         "type": "object"
       },
+      "gharbasket__modules__community__schemas__GeoPolygon": {
+        "description": "GeoJSON, WGS 84, `[lng, lat]` (M6 §3.1's shape).",
+        "properties": {
+          "coordinates": {
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "Polygon",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "GeoPolygon",
+        "type": "object"
+      },
       "gharbasket__modules__hub_ops__schemas__CompleteIn": {
         "additionalProperties": false,
         "properties": {
@@ -29783,6 +30682,61 @@
           }
         },
         "title": "CompleteIn",
+        "type": "object"
+      },
+      "gharbasket__modules__hub_ops__schemas__GeoPolygon": {
+        "description": "GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no\nholes, not self-intersecting.",
+        "properties": {
+          "coordinates": {
+            "examples": [
+              [
+                [
+                  [
+                    73.02,
+                    19.0
+                  ],
+                  [
+                    73.13,
+                    19.0
+                  ],
+                  [
+                    73.13,
+                    19.05
+                  ],
+                  [
+                    73.02,
+                    19.05
+                  ],
+                  [
+                    73.02,
+                    19.0
+                  ]
+                ]
+              ]
+            ],
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "Polygon",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "GeoPolygon",
         "type": "object"
       },
       "gharbasket__modules__hub_ops__schemas__StartIn": {
@@ -33536,6 +34490,98 @@
         ]
       }
     },
+    "/v1/admin/plans": {
+      "get": {
+        "operationId": "admin_plans_v1_admin_plans_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPlansOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Every plan, live or draft, with its subscriber count (admin)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
     "/v1/admin/point-rates/{code}": {
       "put": {
         "operationId": "put_point_rate_v1_admin_point_rates__code__put",
@@ -35854,6 +36900,187 @@
         ]
       }
     },
+    "/v1/admin/societies": {
+      "get": {
+        "operationId": "list_admin_societies_v1_admin_societies_get",
+        "parameters": [
+          {
+            "description": "Words of the name or area, as the public list",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words of the name or area, as the public list",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "One hub",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One hub",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "prospect",
+                    "unlocking",
+                    "live",
+                    "paused"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Add societies with no hub (admins only; ignored for hub staff)",
+            "in": "query",
+            "name": "with_unassigned",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Add societies with no hub (admins only; ignored for hub staff)",
+              "title": "With Unassigned",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AdminSociety_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub_id outside the caller's grants)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Every society for the console: live, unlocking, prospect, paused, then by name (hub manager: their hubs; admin: all, with hub-less ones)",
+        "tags": [
+          "community",
+          "community"
+        ]
+      }
+    },
     "/v1/admin/societies/{society_id}": {
       "patch": {
         "operationId": "update_society_unlock_v1_admin_societies__society_id__patch",
@@ -36087,6 +37314,554 @@
         "summary": "Set a society's delivery days (hub manager of its hub, or admin; audit-logged)",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/admin/society-requests": {
+      "get": {
+        "operationId": "list_society_requests_v1_admin_society_requests_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "received",
+                    "accepted",
+                    "duplicate",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SocietyRequestAdmin_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The society request queue, newest first (hub manager, admin)",
+        "tags": [
+          "community",
+          "community"
+        ]
+      }
+    },
+    "/v1/admin/society-requests/{request_id}": {
+      "patch": {
+        "operationId": "undo_duplicate_request_v1_admin_society_requests__request_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietyRequestUndoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyRequestAdmin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_closed (not a duplicate)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (any body other than {\"status\": \"received\"})"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Undo \"Duplicate\": the request goes back to received",
+        "tags": [
+          "community",
+          "community"
+        ]
+      }
+    },
+    "/v1/admin/society-requests/{request_id}/accept": {
+      "post": {
+        "operationId": "accept_society_request_v1_admin_society_requests__request_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SocietyRequestAcceptIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyRequestAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside the caller's grants)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (hub_id)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Accept a request: it becomes a prospect society (Idempotency-Key required)",
+        "tags": [
+          "community",
+          "community"
+        ]
+      }
+    },
+    "/v1/admin/society-requests/{request_id}/duplicate": {
+      "post": {
+        "operationId": "duplicate_society_request_v1_admin_society_requests__request_id__duplicate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietyRequestDuplicateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyRequestAdmin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (errors[].field: society_id)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Mark a request a duplicate of a listed society (Idempotency-Key required)",
+        "tags": [
+          "community",
+          "community"
         ]
       }
     },
@@ -45238,6 +47013,91 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/delivery-days": {
+      "get": {
+        "operationId": "hub_delivery_days_v1_hubs__hub_id__delivery_days_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubDeliveryDaysOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Every society of the hub with its delivery days, whatever its status (hub staff)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/fairness": {
       "get": {
         "operationId": "fairness_v1_hubs__hub_id__fairness_get",
@@ -50015,6 +51875,200 @@
         "tags": [
           "partners",
           "partners"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/tiffin-menus": {
+      "get": {
+        "operationId": "list_hub_menus_v1_hubs__hub_id__tiffin_menus_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "submitted",
+                    "approved",
+                    "sent_back",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Default: today (IST)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: today (IST)",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Default: today + 7 days",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: today + 7 days",
+              "title": "To"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TiffinMenuReview_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A hub's tiffin menus of every status for review: waiting ones first, oldest first, then by date and meal (default: today to 7 days on)",
+        "tags": [
+          "catalog",
+          "catalog"
         ]
       }
     },
@@ -64582,6 +66636,395 @@
         "tags": [
           "orders",
           "orders"
+        ]
+      }
+    },
+    "/v1/tiffin-menus/{menu_id}/approve": {
+      "post": {
+        "operationId": "approve_menu_v1_tiffin_menus__menu_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menu_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Menu Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinMenuReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_submitted, catalog.menu_closed (past order_by)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_invalid (reasons: product_inactive, recipe_inactive, price_invalid)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Approve a submitted menu so customers can book it (an approved menu: 200, unchanged)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
+    "/v1/tiffin-menus/{menu_id}/reopen": {
+      "post": {
+        "operationId": "reopen_menu_v1_tiffin_menus__menu_id__reopen_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menu_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Menu Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinMenuReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_decided, catalog.menu_closed (past order_by)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Take an approved or sent-back menu back to review (the console's undo)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
+    "/v1/tiffin-menus/{menu_id}/send-back": {
+      "post": {
+        "operationId": "send_back_menu_v1_tiffin_menus__menu_id__send_back_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menu_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Menu Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinMenuReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_submitted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (no note)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Send a submitted menu back to its kitchen with a reason",
+        "tags": [
+          "catalog",
+          "catalog"
         ]
       }
     },

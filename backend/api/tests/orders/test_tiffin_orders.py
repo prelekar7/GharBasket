@@ -147,7 +147,7 @@ async def test_what_cannot_be_booked(
 ) -> None:
     await tiffin_slot(db_session, capacity=1)
     lunch = (await menu(db_session, DAY)).id
-    draft = (await menu(db_session, DAY, meal="dinner", status="draft")).id
+    unreviewed = (await menu(db_session, DAY, meal="dinner", status="submitted")).id
     elsewhere = (await menu(db_session, DAY, hub_id=uuid.uuid4())).id
     dinner = (await menu(db_session, DAY, meal="dinner")).id  # the hub has no dinner slot
     await db_session.commit()
@@ -161,7 +161,7 @@ async def test_what_cannot_be_booked(
     )
     no_menu = await book(api, priya)
     unknown = await book(api, priya, menu_id=str(uuid.uuid4()))
-    unapproved = await book(api, priya, menu_id=str(draft))
+    unapproved = await book(api, priya, menu_id=str(unreviewed))
     other_hub = await book(api, priya, menu_id=str(elsewhere))
     too_many = await book(api, priya, menu_id=str(lunch), portions=13)
     none = await book(api, priya, menu_id=str(lunch), portions=0)

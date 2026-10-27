@@ -119,8 +119,11 @@ class SocietyRequest(Base):
     )
     note: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[str] = mapped_column(String(16), server_default="received")
-    # Set when a hub manager matches the request to a society.
+    # Set when a hub manager matches the request to a society: the society it became (accepted)
+    # or the one it repeats (duplicate), read by status (§3.9).
     society_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

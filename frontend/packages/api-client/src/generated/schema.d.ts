@@ -330,6 +330,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every plan, live or draft, with its subscriber count (admin) */
+        get: operations["admin_plans_v1_admin_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/point-rates/{code}": {
         parameters: {
             query?: never;
@@ -538,6 +555,23 @@ export interface paths {
         patch: operations["patch_slot_v1_admin_slots__slot_id__patch"];
         trace?: never;
     };
+    "/v1/admin/societies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every society for the console: live, unlocking, prospect, paused, then by name (hub manager: their hubs; admin: all, with hub-less ones) */
+        get: operations["list_admin_societies_v1_admin_societies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/societies/{society_id}": {
         parameters: {
             query?: never;
@@ -566,6 +600,74 @@ export interface paths {
         /** Set a society's delivery days (hub manager of its hub, or admin; audit-logged) */
         put: operations["put_delivery_days_v1_admin_societies__society_id__delivery_days_put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/society-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The society request queue, newest first (hub manager, admin) */
+        get: operations["list_society_requests_v1_admin_society_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/society-requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Undo "Duplicate": the request goes back to received */
+        patch: operations["undo_duplicate_request_v1_admin_society_requests__request_id__patch"];
+        trace?: never;
+    };
+    "/v1/admin/society-requests/{request_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept a request: it becomes a prospect society (Idempotency-Key required) */
+        post: operations["accept_society_request_v1_admin_society_requests__request_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/society-requests/{request_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a request a duplicate of a listed society (Idempotency-Key required) */
+        post: operations["duplicate_society_request_v1_admin_society_requests__request_id__duplicate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1707,6 +1809,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/delivery-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every society of the hub with its delivery days, whatever its status (hub staff) */
+        get: operations["hub_delivery_days_v1_hubs__hub_id__delivery_days_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/fairness": {
         parameters: {
             query?: never;
@@ -2188,6 +2307,23 @@ export interface paths {
         };
         /** The day's tiffins per meal, the assignments and the runs (hub staff, admin) */
         get: operations["tiffin_board_v1_hubs__hub_id__tiffin_board_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/tiffin-menus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's tiffin menus of every status for review: waiting ones first, oldest first, then by date and meal (default: today to 7 days on) */
+        get: operations["list_hub_menus_v1_hubs__hub_id__tiffin_menus_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4142,6 +4278,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/tiffin-menus/{menu_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a submitted menu so customers can book it (an approved menu: 200, unchanged) */
+        post: operations["approve_menu_v1_tiffin_menus__menu_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tiffin-menus/{menu_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take an approved or sent-back menu back to review (the console's undo) */
+        post: operations["reopen_menu_v1_tiffin_menus__menu_id__reopen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tiffin-menus/{menu_id}/send-back": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a submitted menu back to its kitchen with a reason */
+        post: operations["send_back_menu_v1_tiffin_menus__menu_id__send_back_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trainings": {
         parameters: {
             query?: never;
@@ -4521,6 +4708,39 @@ export interface components {
              */
             week: string;
         };
+        /** AdminPlanOut */
+        AdminPlanOut: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "autopilot" | "tiffin" | "salad";
+            /** Features */
+            features: string[];
+            /** Fee Paise */
+            fee_paise: number;
+            /** Name */
+            name: string;
+            /**
+             * State
+             * @description live: the plan's active flag; GET /v1/plans lists live plans only
+             * @enum {string}
+             */
+            state: "live" | "draft";
+            /**
+             * Subscriber Count
+             * @description Subscriptions on the plan that are not ended; 0, never null
+             */
+            subscriber_count: number;
+        };
+        /** AdminPlansOut */
+        AdminPlansOut: {
+            /**
+             * Items
+             * @description Every plan, by code
+             */
+            items: components["schemas"]["AdminPlanOut"][];
+        };
         /** AdminProduct */
         AdminProduct: {
             /** Active */
@@ -4634,6 +4854,61 @@ export interface components {
             updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
             /** Version */
             version: number;
+        };
+        /**
+         * AdminSociety
+         * @description A society as hub staff and admins see it: never a captain or a requester.
+         */
+        AdminSociety: {
+            /** Area */
+            area: string | null;
+            boundary: components["schemas"]["gharbasket__modules__community__schemas__GeoPolygon"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Flats */
+            flats: number | null;
+            /**
+             * Households
+             * @description Households whose address is in it (the unlock count)
+             */
+            households: number;
+            /** @description null: no hub yet (admins only) */
+            hub: components["schemas"]["HubRef"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Live At */
+            live_at: string | null;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prospect" | "unlocking" | "live" | "paused";
+            /**
+             * Threshold Source
+             * @enum {string}
+             */
+            threshold_source: "model" | "hub" | "default";
+            /** Towers */
+            towers: components["schemas"]["Tower"][];
+            /** Unlock Threshold */
+            unlock_threshold: number;
+            /** Unlock Threshold Pinned */
+            unlock_threshold_pinned: boolean;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** AdminUser */
         AdminUser: {
@@ -7356,7 +7631,7 @@ export interface components {
          * @description GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
          *     holes, not self-intersecting.
          */
-        GeoPolygon: {
+        "GeoPolygon-Input": {
             /**
              * Coordinates
              * @example [
@@ -7930,6 +8205,19 @@ export interface components {
              */
             to: string;
         };
+        /** HubDeliveryDaysOut */
+        HubDeliveryDaysOut: {
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Items
+             * @description Every society of the hub: live, unlocking, prospect, paused, then by name
+             */
+            items: components["schemas"]["HubSocietyDaysOut"][];
+        };
         /** HubDriftOut */
         HubDriftOut: {
             /**
@@ -8007,7 +8295,7 @@ export interface components {
              * @default 10
              */
             procurement_buffer_pct: number;
-            service_area?: components["schemas"]["GeoPolygon"] | null;
+            service_area?: components["schemas"]["GeoPolygon-Input"] | null;
             /**
              * Slug
              * @description Never changes
@@ -8049,7 +8337,7 @@ export interface components {
              */
             procurement_buffer_pct: number;
             /** @description null until an admin draws it */
-            service_area: components["schemas"]["GeoPolygon"] | null;
+            service_area: components["schemas"]["gharbasket__modules__hub_ops__schemas__GeoPolygon"] | null;
             /**
              * Slug
              * @example kharghar
@@ -8083,7 +8371,7 @@ export interface components {
             pre_live_box_fee_paise?: number | null;
             /** Procurement Buffer Pct */
             procurement_buffer_pct?: number | null;
-            service_area?: components["schemas"]["GeoPolygon"] | null;
+            service_area?: components["schemas"]["GeoPolygon-Input"] | null;
             /** Status */
             status?: ("active" | "paused") | null;
             timings?: components["schemas"]["TimingsPatch"] | null;
@@ -8132,6 +8420,41 @@ export interface components {
              */
             items: components["schemas"]["HubPickupStop"][];
             totals: components["schemas"]["PickupTotals"];
+        };
+        /** HubRef */
+        HubRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string | null;
+        };
+        /** HubSocietyDaysOut */
+        HubSocietyDaysOut: {
+            /** Area */
+            area: string | null;
+            /**
+             * Items
+             * @description Empty for a society with no delivery days
+             */
+            items: components["schemas"]["DeliveryDayOut"][];
+            /** Name */
+            name: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prospect" | "unlocking" | "live" | "paused";
         };
         /** HubStaff */
         HubStaff: {
@@ -9926,6 +10249,29 @@ export interface components {
             /** Sex */
             sex?: ("f" | "m" | "other") | null;
         };
+        /** MenuDish */
+        MenuDish: {
+            /** Name */
+            name: string;
+            /**
+             * Recipe Id
+             * Format: uuid
+             */
+            recipe_id: string;
+        };
+        /** MenuKitchen */
+        MenuKitchen: {
+            /**
+             * Display Name
+             * @description The kitchen's name; null if the partner is gone
+             */
+            display_name: string | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+        };
         /** MenuKitchenOut */
         MenuKitchenOut: {
             /**
@@ -9943,6 +10289,44 @@ export interface components {
              * @description Null for now (M8 §3.5)
              */
             photo_url: string | null;
+        };
+        /** MenuProduct */
+        MenuProduct: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Tags */
+            tags: string[];
+        };
+        /** MenuReviewer */
+        MenuReviewer: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * MenuRules
+         * @description True only when every dish's recipe has the rule (§3.2); false for a menu without dishes.
+         */
+        MenuRules: {
+            /** Diabetic Ok */
+            diabetic_ok: boolean;
+            /** Fasting Ok */
+            fasting_ok: boolean;
+            /** Jain Ok */
+            jain_ok: boolean;
+            /** No Onion Garlic */
+            no_onion_garlic: boolean;
         };
         /** MessageIn */
         MessageIn: {
@@ -10948,6 +11332,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[AdminSociety] */
+        Page_AdminSociety_: {
+            /** Items */
+            items: components["schemas"]["AdminSociety"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[AdminUser] */
         Page_AdminUser_: {
             /** Items */
@@ -11053,6 +11444,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[SocietyRequestAdmin] */
+        Page_SocietyRequestAdmin_: {
+            /** Items */
+            items: components["schemas"]["SocietyRequestAdmin"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[SocietySummary] */
         Page_SocietySummary_: {
             /** Items */
@@ -11064,6 +11462,13 @@ export interface components {
         Page_StaffDonationOut_: {
             /** Items */
             items: components["schemas"]["StaffDonationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[TiffinMenuReview] */
+        Page_TiffinMenuReview_: {
+            /** Items */
+            items: components["schemas"]["TiffinMenuReview"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -14366,6 +14771,11 @@ export interface components {
             /** Items */
             items: components["schemas"]["SearchItem"][];
         };
+        /** SendBackIn */
+        SendBackIn: {
+            /** Note */
+            note: string;
+        };
         /** SessionOut */
         SessionOut: {
             /**
@@ -14812,6 +15222,67 @@ export interface components {
             /** Towers */
             towers: components["schemas"]["Tower"][];
         };
+        /** SocietyRequestAcceptIn */
+        SocietyRequestAcceptIn: {
+            /**
+             * Hub Id
+             * @description Default: the caller's hub for a hub manager, none for an admin
+             */
+            hub_id?: string | null;
+        };
+        /** SocietyRequestAccepted */
+        SocietyRequestAccepted: {
+            request: components["schemas"]["SocietyRequestAdmin"];
+            society: components["schemas"]["AdminSociety"];
+        };
+        /**
+         * SocietyRequestAdmin
+         * @description A society request in the review queue: never the requester's id, name or phone.
+         */
+        SocietyRequestAdmin: {
+            /** Area */
+            area: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Duplicate Of
+             * @description The society it repeats (duplicate)
+             */
+            duplicate_of: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            location: components["schemas"]["LatLngOut"] | null;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /**
+             * Society Id
+             * @description The society it became (accepted)
+             */
+            society_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "received" | "accepted" | "duplicate" | "rejected";
+        };
+        /** SocietyRequestDuplicateIn */
+        SocietyRequestDuplicateIn: {
+            /**
+             * Society Id
+             * @description Any listed society; missing or unknown is 422
+             */
+            society_id?: string | null;
+        };
         /**
          * SocietyRequestIn
          * @description Ask GharBasket to come to a society that isn't listed (US-8).
@@ -14849,6 +15320,17 @@ export interface components {
              * @enum {string}
              */
             status: "received" | "accepted" | "rejected" | "duplicate";
+        };
+        /**
+         * SocietyRequestUndoIn
+         * @description The undo of "Duplicate": `{ "status": "received" }` and nothing else.
+         */
+        SocietyRequestUndoIn: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "received";
         };
         /** SocietyRowOut */
         SocietyRowOut: {
@@ -15917,6 +16399,71 @@ export interface components {
              * @example 11000
              */
             price_paise: number;
+        };
+        /** TiffinMenuReview */
+        TiffinMenuReview: {
+            /**
+             * Contains
+             * @description The dishes' non-optional ingredients, in the language
+             */
+            contains: string[];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** @description The reviewer (staff) */
+            decided_by: components["schemas"]["MenuReviewer"] | null;
+            /** Dishes */
+            dishes: components["schemas"]["MenuDish"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kitchen: components["schemas"]["MenuKitchen"];
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /**
+             * Note
+             * @description The send-back reason
+             */
+            note: string | null;
+            /**
+             * Order By
+             * Format: date-time
+             * @description The date's cut-off: 21:00 IST the day before
+             */
+            order_by: string;
+            /**
+             * Price Paise
+             * @description Per portion, the menu's own price
+             */
+            price_paise: number;
+            product: components["schemas"]["MenuProduct"];
+            rules: components["schemas"]["MenuRules"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "submitted" | "approved" | "sent_back" | "withdrawn";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Version */
+            version: number;
         };
         /** TiffinMenusOut */
         TiffinMenusOut: {
@@ -17217,6 +17764,19 @@ export interface components {
              */
             user_id: string;
         };
+        /**
+         * GeoPolygon
+         * @description GeoJSON, WGS 84, `[lng, lat]` (M6 §3.1's shape).
+         */
+        gharbasket__modules__community__schemas__GeoPolygon: {
+            /** Coordinates */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
+        };
         /** CompleteIn */
         gharbasket__modules__hub_ops__schemas__CompleteIn: {
             /** Bags */
@@ -17228,6 +17788,46 @@ export interface components {
             client_at?: string | null;
             /** Crate No */
             crate_no?: number | null;
+        };
+        /**
+         * GeoPolygon
+         * @description GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
+         *     holes, not self-intersecting.
+         */
+        gharbasket__modules__hub_ops__schemas__GeoPolygon: {
+            /**
+             * Coordinates
+             * @example [
+             *       [
+             *         [
+             *           73.02,
+             *           19
+             *         ],
+             *         [
+             *           73.13,
+             *           19
+             *         ],
+             *         [
+             *           73.13,
+             *           19.05
+             *         ],
+             *         [
+             *           73.02,
+             *           19.05
+             *         ],
+             *         [
+             *           73.02,
+             *           19
+             *         ]
+             *       ]
+             *     ]
+             */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
         };
         /** StartIn */
         gharbasket__modules__hub_ops__schemas__StartIn: {
@@ -19093,6 +19693,56 @@ export interface operations {
             };
         };
     };
+    admin_plans_v1_admin_plans_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPlansOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     put_point_rate_v1_admin_point_rates__code__put: {
         parameters: {
             query?: never;
@@ -20216,6 +20866,67 @@ export interface operations {
             };
         };
     };
+    list_admin_societies_v1_admin_societies_get: {
+        parameters: {
+            query?: {
+                /** @description Words of the name or area, as the public list */
+                q?: string | null;
+                /** @description One hub */
+                hub_id?: string | null;
+                status?: ("prospect" | "unlocking" | "live" | "paused") | null;
+                /** @description Add societies with no hub (admins only; ignored for hub staff) */
+                with_unassigned?: boolean;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdminSociety_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub_id outside the caller's grants) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     update_society_unlock_v1_admin_societies__society_id__patch: {
         parameters: {
             query?: never;
@@ -20344,6 +21055,309 @@ export interface operations {
                 };
             };
             /** @description subscriptions.delivery_days_invalid, subscriptions.society_unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_society_requests_v1_admin_society_requests_get: {
+        parameters: {
+            query?: {
+                status?: ("received" | "accepted" | "duplicate" | "rejected") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SocietyRequestAdmin_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    undo_duplicate_request_v1_admin_society_requests__request_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocietyRequestUndoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyRequestAdmin"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_closed (not a duplicate) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (any body other than {"status": "received"}) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    accept_society_request_v1_admin_society_requests__request_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SocietyRequestAcceptIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyRequestAccepted"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside the caller's grants) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (hub_id) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    duplicate_society_request_v1_admin_society_requests__request_id__duplicate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocietyRequestDuplicateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyRequestAdmin"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (errors[].field: society_id) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -25369,6 +26383,57 @@ export interface operations {
             };
         };
     };
+    hub_delivery_days_v1_hubs__hub_id__delivery_days_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubDeliveryDaysOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     fairness_v1_hubs__hub_id__fairness_get: {
         parameters: {
             query?: {
@@ -27712,6 +28777,67 @@ export interface operations {
                 };
             };
             /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_hub_menus_v1_hubs__hub_id__tiffin_menus_get: {
+        parameters: {
+            query?: {
+                status?: ("submitted" | "approved" | "sent_back" | "withdrawn") | null;
+                /** @description Default: today (IST) */
+                from?: string | null;
+                /** @description Default: today + 7 days */
+                to?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TiffinMenuReview_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -36037,6 +37163,229 @@ export interface operations {
                 };
             };
             /** @description orders.hub_required, orders.date_out_of_range, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    approve_menu_v1_tiffin_menus__menu_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                menu_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinMenuReview"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_submitted, catalog.menu_closed (past order_by) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_invalid (reasons: product_inactive, recipe_inactive, price_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reopen_menu_v1_tiffin_menus__menu_id__reopen_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                menu_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinMenuReview"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_decided, catalog.menu_closed (past order_by) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    send_back_menu_v1_tiffin_menus__menu_id__send_back_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                menu_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendBackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinMenuReview"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_submitted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (no note) */
             422: {
                 headers: {
                     [name: string]: unknown;

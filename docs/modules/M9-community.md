@@ -749,6 +749,16 @@ PATCH /v1/admin/society-requests/{id}          { "status": "received" }: undo of
 - **New facade:** `identity.api.households_per_society(session, society_ids) -> dict[UUID, int]` (one read for the page; `households_in_society` stays for the unlock count). The hub name comes from `hub_ops.api.get_hub` (§10).
 - **Permissions:** `societies:read` and `society_requests:review` are new (§7).
 
+**As built (§3.9).**
+- **`service.create_society`** did not exist (`POST /v1/admin/societies` is still to build, §3), so it is written here: `create_society(session, *, name, area, hub_id)` makes the `prospect` society the accept needs and `POST /v1/admin/societies` can reuse it. It takes the request's `data_source`, so a simulator's request makes a synthetic society. The slug is the name in ASCII with `-` between words (`society` when a name has no ASCII letters); a taken slug gets `-2`, `-3`, and so on.
+- **Households.** The page reads `identity.api.households_in_societies` (M12 added it, one query for a list), so `households_per_society` is not added.
+- **`boundary`** is GeoJSON from `ST_AsGeoJSON`, in the shape of M6's `GeoPolygon` (`[lng, lat]`, one closed ring). `hub.name` is null if the hub cannot be read.
+- **Hub scope.** A hub manager's list covers the hubs of their grants (a `hub_id` outside them is 403). An admin's covers all, hub-less ones included; `with_unassigned` matters only with a `hub_id`, where it adds the hub-less ones. The list is paged by a cursor on (status rank, name, id); `q` matches name and area as the public search does.
+- **Accept.** The hub is the body's `hub_id` (a hub manager's own, else 403; an unknown hub 422 `request.invalid` with `errors[].field: "hub_id"`), else the caller's single hub, else none for an admin. A hub manager of several hubs who names none gets 422. The body may be empty or absent. The caller needs `societies:write` as well as `society_requests:review`.
+- **Order of refusals.** Accept: 403/422 for the hub, 404 `community.request_not_found`, 409 `community.request_closed`. Duplicate: 404, 409, then 422 for a missing or unknown `society_id`. The undo: 404, then 409 unless the request is a duplicate; it clears `society_id`, `reviewed_at` and `reviewed_by_user_id`.
+- **Audit.** `community.request_reviewed` carries `{ outcome: "accepted" | "duplicate" | "received", society_id }`; the undo records `received` with the society it released.
+- **Migration.** `reviewed_at` and `reviewed_by_user_id` on `community.society_requests`, in the file shared with M2 §3.4.
+
 | Status | Code | When |
 |---|---|---|
 | 404 | `community.request_not_found` | Unknown request |

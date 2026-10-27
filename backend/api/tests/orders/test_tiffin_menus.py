@@ -39,7 +39,8 @@ async def test_a_household_sees_its_hubs_approved_menus_until_their_cut_off(
     assert cook is not None
     lunch = (await menu(db_session, TOMORROW, partner_id=cook.id)).id
     dinner = (await menu(db_session, date(2026, 10, 14), meal="dinner")).id
-    await menu(db_session, TOMORROW, status="draft")
+    await menu(db_session, TOMORROW, status="submitted")
+    await menu(db_session, TOMORROW, status="sent_back")
     await menu(db_session, TOMORROW, status="withdrawn")
     await menu(db_session, TOMORROW, hub_id=uuid.uuid4())  # another hub
     await menu(db_session, date(2026, 10, 18))  # beyond a week

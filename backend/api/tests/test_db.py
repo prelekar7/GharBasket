@@ -185,3 +185,63 @@ def test_the_surplus_migration_marks_old_packed_tasks_as_drawn(database_url: str
     assert rows[1] is None  # still queued
     assert rows[2].isoformat() == "2026-10-20T10:00:00+00:00"  # its packed_at
     assert rows[3] is not None  # packed with no packed_at: now()
+
+
+@pytest.mark.services
+def test_the_tiffin_review_migration_renames_draft_both_ways(database_url: str) -> None:
+    """M2 §3.4: waiting `draft` menus become `submitted` (submitted when created), and back."""
+    config = alembic_config(database_url)
+
+    def menu(partner: str, status: str) -> str:
+        return (
+            "INSERT INTO catalog.tiffin_menus (hub_id, partner_id, date, meal, product_id, "
+            "price_paise, status, created_at) "
+            f"SELECT uuidv7(), '{partner}', '2026-10-20', 'lunch', id, 11000, '{status}', "
+            "'2026-10-01 10:00:00+00' FROM catalog.products WHERE slug = 'mig-test'"
+        )
+
+    draft, approved = "00000000-0000-7000-8000-00000000d001", "00000000-0000-7000-8000-00000000d002"
+    names = """'{"en": "Mig", "hi": "Mig", "mr": "Mig"}'::jsonb"""
+    command.downgrade(config, "5b8e1d3a7c42")  # the head the review migration sits on
+    try:
+        _sql(
+            database_url,
+            f"INSERT INTO catalog.categories (slug, names) VALUES ('mig-test', {names})",
+            "INSERT INTO catalog.products (slug, kind, category_id, names, step_qty, step_unit) "
+            f"SELECT 'mig-test', 'tiffin', id, {names}, 1, 'piece' "
+            "FROM catalog.categories WHERE slug = 'mig-test'",
+            menu(draft, "draft"),
+            menu(approved, "approved"),
+        )
+        command.upgrade(config, "head")
+        up = {
+            str(p): (s, at.isoformat(), v)
+            for p, s, at, v in _sql(
+                database_url,
+                "SELECT partner_id, status, submitted_at, version FROM catalog.tiffin_menus",
+            )
+        }
+        _sql(
+            database_url,
+            f"UPDATE catalog.tiffin_menus SET status = 'sent_back' WHERE partner_id = '{approved}'",
+        )
+        command.downgrade(config, "5b8e1d3a7c42")
+        down = dict(
+            (str(p), s)
+            for p, s in _sql(database_url, "SELECT partner_id, status FROM catalog.tiffin_menus")
+        )
+    finally:
+        command.upgrade(config, "head")
+        _sql(
+            database_url,
+            "DELETE FROM catalog.tiffin_menus WHERE product_id IN "
+            "(SELECT id FROM catalog.products WHERE slug = 'mig-test')",
+            "DELETE FROM catalog.products WHERE slug = 'mig-test'",
+            "DELETE FROM catalog.categories WHERE slug = 'mig-test'",
+        )
+
+    assert up == {
+        draft: ("submitted", "2026-10-01T10:00:00+00:00", 1),
+        approved: ("approved", "2026-10-01T10:00:00+00:00", 1),
+    }
+    assert down == {draft: "draft", approved: "withdrawn"}  # sent_back has no older status

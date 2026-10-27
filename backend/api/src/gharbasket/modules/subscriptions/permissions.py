@@ -8,3 +8,5 @@ PERMISSIONS.allow("hub_manager", "cycles:read", "delivery_days:read", "delivery_
 PERMISSIONS.allow("franchise_owner", "cycles:read", "delivery_days:read")
 PERMISSIONS.allow("packer", "delivery_days:read")
 PERMISSIONS.allow("admin", "cycles:read", "delivery_days:read", "delivery_days:write")
+# The admin plan list (§3.5): every plan with its subscriber count.
+PERMISSIONS.allow("admin", "plans:admin_read")
