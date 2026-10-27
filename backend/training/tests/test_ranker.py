@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx2
+import numpy as np
 import pytest
 from gharbasket_sim import config
 from gharbasket_sim.catalog import from_seed_files
@@ -326,6 +327,50 @@ def test_lambdarank_trains_and_is_scored_against_the_baselines(tmp_path: Path) -
     )["version"] == "test"
 
 
+def test_shap_contributions_add_up_to_the_score_and_the_artefact_is_deterministic() -> None:
+    tables = simulated_rows()
+    train, test = ranker.build(
+        baskets_of(tables), holdout_last=True, prices=ranker.price_book(tables["prices"])
+    )
+    model = ranker.train(train, rounds=50)
+
+    contrib = ranker.contributions(model, test)
+    raw = model.predict(ranker._matrix(test), pred_contrib=True)
+    scores = model.predict(ranker._matrix(test), raw_score=True)
+    assert contrib.shape == (len(test.rows), len(ranker.FEATURES))
+    assert np.allclose(contrib.sum(axis=1) + raw[:, -1], scores)  # the expected value is dropped
+
+    first = ranker.explain(model, test, sample=10)
+    assert first == ranker.explain(model, test, sample=10)
+    assert first["rows"] == len(test.rows) and first["baskets"] == len(test.groups)
+    assert set(first["mean_abs_shap"]) == set(ranker.FEATURES)
+    assert abs(sum(first["mean_abs_shap_share"].values()) - 1) < 0.01
+    assert first["mean_abs_shap"]["drafted"] > 0 or first["mean_abs_shap"]["frequency"] > 0
+    assert len(first["decisions"]) == 10
+    json.dumps(first)  # an artefact: plain JSON types only
+    for d in first["decisions"]:
+        top = d["top_features"]
+        assert len(top) == ranker.TOP_K and {t["feature"] for t in top} <= set(ranker.FEATURES)
+        assert [abs(t["contribution"]) for t in top] == sorted(
+            (abs(t["contribution"]) for t in top), reverse=True
+        )
+    assert len(ranker.explain(model, test, sample=10_000)["decisions"]) == len(test.rows)
+
+
+def test_top_contributions_order_by_size_and_break_ties_in_feature_order() -> None:
+    top = ranker.top_contributions([0.1, -0.5, 0.0, 0.0, 0.5, 0.0], [1, 2, 3, 4, 5, 6])
+    assert [(t["feature"], t["contribution"]) for t in top] == [
+        ("frequency", -0.5),
+        ("popularity", 0.5),
+        ("weeks_since", 0.1),
+    ]
+    assert top[0]["value"] == 2.0
+
+
+def test_explaining_an_empty_dataset_is_empty() -> None:
+    assert ranker.explain(object(), ranker.Dataset())["decisions"] == []
+
+
 def test_ndcg_and_recall_follow_the_textbook() -> None:
     assert ranker.ndcg_at(10, [1, 1, 0]) == 1.0 and ranker.ndcg_at(10, [0, 0, 1]) < 1.0
     assert ranker.recall_at(2, [1, 0, 1, 1]) == 1 / 3 and ranker.recall_at(2, [0, 0]) == 0.0
@@ -350,6 +395,10 @@ def test_the_job_trains_per_source_publishes_without_promoting(tmp_path: Path) -
     registry = open_registry(Settings(), tmp_path)
 
     where = train_ranker.publish(registry, trained[1])
+    explained = json.loads((tmp_path / f"{where}/explanations.json").read_text())
+    assert explained == trained[1].explanations
+    assert explained["version"] == "2026-10-05-synthetic" and explained["data"] == "holdout"
+    assert explained["decisions"] and "household" not in explained["decisions"][0]
 
     assert where == "basket_ranker/2026-10-05-synthetic"  # the MODELS_DIR layout
     assert (tmp_path / "basket_ranker/2026-10-05-synthetic/model.txt").exists()

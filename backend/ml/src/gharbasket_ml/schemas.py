@@ -440,10 +440,18 @@ class RankRequest(BaseModel):
     top_k: int = Field(default=10, ge=1, le=100)
 
 
+class FeatureContribution(BaseModel):
+    feature: str
+    contribution: float = Field(description="SHAP value in the model's raw score; sign = direction")
+
+
 class RankedOut(BaseModel):
     product: str
     score: float
     rank: int
+    # Additive (08 §8.4): the 3 features that moved this item's score most, by |contribution|;
+    # absent from the fallback and whenever the model's contributions could not be computed.
+    top_features: list[FeatureContribution] | None = None
 
 
 class RankResponse(BaseModel):

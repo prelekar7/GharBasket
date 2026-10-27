@@ -53,6 +53,9 @@ FEATURES = (
     "price_paise",
 )
 MODEL_NAME = "basket_ranker"
+TOP_K = 3  # features kept per explained decision (the serving response's top_features too)
+EXPLAIN_SAMPLE = 50  # decisions stored per run in explanations.json
+EXPLAIN_METHOD = "lightgbm pred_contrib (TreeSHAP, raw LambdaRank score)"
 FINAL_STATUSES = frozenset({"approved", "locked"})
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -313,6 +316,62 @@ def baseline_scores(ds: Dataset, kind: str) -> np.ndarray:
 
 def predict(model: Any, ds: Dataset) -> np.ndarray:
     return np.asarray(model.predict(_matrix(ds)), dtype=float)
+
+
+def contributions(model: Any, ds: Dataset) -> np.ndarray:
+    """Per-candidate SHAP values, one column per feature (LightGBM's native TreeSHAP,
+    `pred_contrib=True`, in the model's raw-score space; its last column, the expected value,
+    is dropped). A row's contributions plus the expected value sum to its score."""
+    raw = np.asarray(model.predict(_matrix(ds), pred_contrib=True), dtype=float)
+    return raw[:, : len(FEATURES)]
+
+
+def top_contributions(
+    contrib: Iterable[float], values: Iterable[float], k: int = TOP_K
+) -> list[dict[str, Any]]:
+    """The `k` features with the largest |contribution|, ties in `FEATURES` order."""
+    ranked = sorted(
+        zip(FEATURES, contrib, values, strict=True), key=lambda t: -abs(t[1])
+    )  # sorted is stable: ties keep FEATURES order
+    return [
+        {"feature": f, "contribution": round(float(c), 4), "value": round(float(v), 4)}
+        for f, c, v in ranked[:k]
+    ]
+
+
+def explain(
+    model: Any, ds: Dataset, *, sample: int = EXPLAIN_SAMPLE, k: int = TOP_K
+) -> dict[str, Any]:
+    """The ranker's explanation artefact (handbook 08 §8.4, paper analysis): global importance
+    as mean |SHAP| per feature, and the top-`k` features of `sample` decisions spread evenly
+    over the rows (deterministic). No household id: a decision is a week, a product and the
+    features' values."""
+    if not ds.rows:
+        return {"method": EXPLAIN_METHOD, "rows": 0, "mean_abs_shap": {}, "decisions": []}
+    contrib = contributions(model, ds)
+    scores = predict(model, ds)
+    mean_abs = np.abs(contrib).mean(axis=0)
+    total = float(mean_abs.sum()) or 1.0
+    picks = sorted({int(i) for i in np.linspace(0, len(ds.rows) - 1, min(sample, len(ds.rows)))})
+    return {
+        "method": EXPLAIN_METHOD,
+        "rows": len(ds.rows),
+        "baskets": len(ds.groups),
+        "mean_abs_shap": {f: round(float(v), 4) for f, v in zip(FEATURES, mean_abs, strict=True)},
+        "mean_abs_shap_share": {
+            f: round(float(v) / total, 4) for f, v in zip(FEATURES, mean_abs, strict=True)
+        },
+        "decisions": [
+            {
+                "week": ds.keys[i][1].isoformat(),
+                "product": ds.keys[i][2],
+                "label": ds.labels[i],
+                "score": round(float(scores[i]), 4),
+                "top_features": top_contributions(contrib[i], [ds.rows[i][f] for f in FEATURES], k),
+            }
+            for i in picks
+        ],
+    }
 
 
 def card(

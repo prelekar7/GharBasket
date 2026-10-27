@@ -198,11 +198,43 @@ def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Pa
 def test_the_cli_smoke_writes_the_report(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert cli.main(["--smoke", "--out", str(tmp_path)]) == 0
+    explanations = tmp_path / "explanations.json"
+    explanations.write_text(json.dumps(RANKER_EXPLANATIONS))
+    args = ["--smoke", "--out", str(tmp_path / "report"), "--ranker-explanations"]
+    assert cli.main([*args, str(explanations)]) == 0
     out = capsys.readouterr().out
     assert "greedy" in out and "pantry" in out and "report:" in out
     assert "pantry twin scope" in out and "pantry twin target" in out
-    assert list(tmp_path.glob("*.html")) and list(tmp_path.glob("*.json"))
+    page = next((tmp_path / "report").glob("*.html")).read_text()
+    assert "Ranker explanations" in page and "frequency" in page and "removed_last" in page
+    assert list((tmp_path / "report").glob("*.json"))
+
+
+RANKER_EXPLANATIONS = {
+    "method": "lightgbm pred_contrib",
+    "version": "v-synthetic",
+    "data": "holdout",
+    "rows": 120,
+    "mean_abs_shap": {"frequency": 0.6, "removed_last": 0.1},
+    "mean_abs_shap_share": {"frequency": 0.857, "removed_last": 0.143},
+    "decisions": [
+        {
+            "week": "2026-10-13",
+            "product": "milk",
+            "label": 1,
+            "score": 1.25,
+            "top_features": [{"feature": "frequency", "value": 0.9, "contribution": 0.7}],
+        }
+    ],
+}
+
+
+def test_the_report_has_no_ranker_section_without_explanations() -> None:
+    assert "Ranker explanations" not in report.to_html(report.build([], [], args={}))
+    empty = {**RANKER_EXPLANATIONS, "mean_abs_shap": {}}
+    assert "Ranker explanations" not in report.to_html(
+        report.build([], [], args={}, ranker_explanations=empty)
+    )
 
 
 def test_the_pantry_metric_is_mae_over_weekly_quantity_with_zero_weeks_kept(
