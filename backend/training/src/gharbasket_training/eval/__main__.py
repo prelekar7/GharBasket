@@ -13,7 +13,13 @@ from gharbasket_sim import config
 from gharbasket_sim.catalog import from_seed_files
 from gharbasket_sim.weeks import PLANNERS
 
-from gharbasket_training.eval import assignment_sweep, pantry_baseline, planner_ab, report
+from gharbasket_training.eval import (
+    assignment_sweep,
+    forecast_ab,
+    pantry_baseline,
+    planner_ab,
+    report,
+)
 from gharbasket_training.settings import Settings
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -52,6 +58,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--no-learned", action="store_true", help="skip the pantry learned-priors reference arm"
     )
+    parser.add_argument("--no-forecast", action="store_true", help="skip forecast v0 vs v1 (RQ3)")
+    parser.add_argument("--forecast-weeks", type=int, default=forecast_ab.WEEKS)
+    parser.add_argument(
+        "--forecast-start", type=date.fromisoformat, default=forecast_ab.START
+    )  # the festival calendar starts here
     parser.add_argument(
         "--ranker-explanations",
         type=Path,
@@ -69,6 +80,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.seeds, args.weeks, args.adoption = [7], 1, 0.02
         args.no_learned = True  # one week has no week to predict
         args.planners = [p for p in args.planners if not p.startswith("cpsat")]
+        args.forecast_weeks = 11  # the fewest with three backtest origins
 
     catalog = from_seed_files()
     shocks = None if args.no_shocks else config.load_shocks()
@@ -111,10 +123,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             for seed in args.seeds
             if (run := assignment_sweep.run_sweep(seed, catalog, adoption=args.adoption))
         ]
+    forecast_runs = []
+    if not args.no_forecast:
+        forecast_runs = [
+            run
+            for seed in args.seeds
+            for run in forecast_ab.run_forecast(
+                seed,
+                catalog,
+                weeks=args.forecast_weeks,
+                start=args.forecast_start,
+                adoption=args.adoption,
+                shocks=shocks,
+            )
+        ]
     built = report.build(
         planner_runs,
         pantry_runs,
         sweep_runs=sweep_runs,
+        forecast_runs=forecast_runs,
         ranker_explanations=(
             json.loads(args.ranker_explanations.read_text()) if args.ranker_explanations else None
         ),
@@ -127,6 +154,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "smoke": args.smoke,
             "no_assignment": args.no_assignment,
             "learned_from": sources,
+            "forecast_weeks": None if args.no_forecast else args.forecast_weeks,
+            "forecast_start": args.forecast_start.isoformat(),
         },
     )
     html_path, json_path = report.write(built, args.out)
@@ -209,6 +238,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"M-G Gini <= 0.25 at <= +5 % cost: {verdict}"
             + (f" (dropped seeds {dropped})" if dropped else "")
         )
+    forecast = built.get("forecast", {})
+    for arm, metrics in forecast.get("arms", {}).items():
+        print(
+            f"forecast {arm:8} "
+            + "  ".join(f"{m} {e['mean']:.3f}" for m, e in metrics.items() if e["n"])
+        )
+    for metric, e in forecast.get("v1_minus_v0", {}).items():
+        if metric in ("wape", "newsvendor_cost") and e["n"]:
+            print(f"forecast v1 - v0 {metric} {e['mean']:+.3f} ± {e['ci95']:.3f}")
     print(f"report: {html_path} ({json_path.name})")
     if args.push:
         settings = Settings()
