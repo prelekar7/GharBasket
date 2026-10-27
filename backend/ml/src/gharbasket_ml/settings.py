@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # How long /route/solve waits for OSRM's table before it prices with haversine instead. The
     # API's gateway allows time_limit_s plus ML_ROUTE_OVERHEAD_S (6 s), which must cover this.
     osrm_timeout_s: float = Field(default=2.5, gt=0, le=5)
+    # The same for /slots/price, shorter because a customer is waiting (M10 §3.8); the API's
+    # ML_SLOT_TIMEOUT_S (2 s) covers it.
+    slot_osrm_timeout_s: float = Field(default=1.0, gt=0, le=2)
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:

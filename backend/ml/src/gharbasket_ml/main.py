@@ -13,7 +13,16 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-from gharbasket_ml import __version__, assignment, assistant, pantry, ranker, registry, routing
+from gharbasket_ml import (
+    __version__,
+    assignment,
+    assistant,
+    pantry,
+    ranker,
+    registry,
+    routing,
+    slots,
+)
 from gharbasket_ml.planner import plan_week
 from gharbasket_ml.schemas import (
     AssignRequest,
@@ -28,6 +37,8 @@ from gharbasket_ml.schemas import (
     RankResponse,
     RouteRequest,
     RouteResponse,
+    SlotPriceRequest,
+    SlotPriceResponse,
 )
 from gharbasket_ml.settings import Settings, get_settings
 
@@ -196,6 +207,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body: RouteRequest, settings: Annotated[Settings, Depends(get_settings)]
     ) -> RouteResponse:
         return await routing.solve(body, settings.osrm_url, settings.osrm_timeout_s)
+
+    @app.post(
+        "/slots/price",
+        dependencies=[Depends(require_service_token)],
+        summary="A society's marginal route cost per delivery slot (cheapest insertion, M10 §3.8)",
+    )
+    async def slots_price(
+        body: SlotPriceRequest, settings: Annotated[Settings, Depends(get_settings)]
+    ) -> SlotPriceResponse:
+        return await slots.price(body, settings.osrm_url, settings.slot_osrm_timeout_s)
 
     @app.post(
         "/plan/week",

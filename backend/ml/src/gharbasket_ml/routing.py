@@ -173,6 +173,16 @@ async def osrm_matrix(
         return None
 
 
+async def matrix(
+    points: list[tuple[float, float]], osrm_url: str | None, timeout_s: float = OSRM_TIMEOUT_S
+) -> tuple[list[list[int]], list[list[int]], str]:
+    """Metres, seconds and their source: OSRM's table when it answers in time, else haversine."""
+    table = await osrm_matrix(osrm_url, points, timeout_s) if osrm_url else None
+    if table is None:
+        return *haversine_matrix(points), "haversine"
+    return *table, "osrm"
+
+
 # --- the instance -----------------------------------------------------------------------------
 
 
@@ -578,10 +588,6 @@ async def solve(
     """The endpoint: the matrix (OSRM within `osrm_timeout_s`, else haversine), then the waves
     and the checker on a worker thread so the event loop stays free."""
     nodes = nodes_of(req)
-    points = [(n.lat, n.lng) for n in nodes]
-    matrix = await osrm_matrix(osrm_url, points, osrm_timeout_s) if osrm_url else None
-    source = "osrm"
-    if matrix is None:
-        matrix, source = haversine_matrix(points), "haversine"
-    inst = Instance(nodes, matrix[0], matrix[1], req)
+    dist, dur, source = await matrix([(n.lat, n.lng) for n in nodes], osrm_url, osrm_timeout_s)
+    inst = Instance(nodes, dist, dur, req)
     return await asyncio.to_thread(plan, inst, req.time_limit_s, source)
