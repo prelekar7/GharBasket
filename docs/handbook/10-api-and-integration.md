@@ -142,6 +142,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Sun 03:00 | `retrain_models` (champion/challenger) | training (GitHub Actions) |
 | Hourly / daily / Mon 10:00 | `reconcile_payments` (hourly); `expire_kindness_points` (daily); `weekly_payouts` (partners' payables up to Sunday, eligible partners only, the simulated provider; GitHub Actions; M5 §3.5) | billing ← partners |
 | Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
+| Daily 04:18 | `expire_pending_grants` (staff role grants for numbers that never signed in, after 30 days; GitHub Actions; M1 §3.6) | identity |
 | Daily 03:33 | `purge_deleted_users` (accounts 30 days after `DELETE /v1/me`; M1 §3.5) | identity |
 | Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
 | Every 10 min | `expire_proposals` (cron-job.org) | assistant |
@@ -164,7 +165,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngos`, `/ngo/offers`, `/ngo-handoffs`, `/impact`; console: `/admin/societies`, `/admin/society-requests` (M9 §3.9) |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
 | M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
-| M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, unit economics, impact) |
+| M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, cohorts, partner earnings, unit economics, impact) |
 | M13 assistant | `/assistant/messages` (JSON in v0; SSE later), `/assistant/sessions/{id}`, `/assistant/confirm/{proposal}`, `/assistant/proposals/{id}/reject` |
 
 ## 10.6 External integrations

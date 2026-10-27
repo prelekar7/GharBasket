@@ -101,8 +101,18 @@ class Settings(DatabaseSettings):
     pantry_twin_enabled: bool = False
     # The tiffin assignment's fairness weight, paise per portion (M8 §3.4; M10's knee is 300).
     partners_fairness_lambda: float = Field(default=300.0, ge=0, le=10_000)
+    # The issuer line of a partner's income certificate (M8 §3.7). GharBasket is a student project,
+    # not a company; wording for a real pilot is confirmed with the guide (handbook 13).
+    partners_certificate_issuer: str = Field(
+        default="GharBasket, a B.Tech project of SIES Graduate School of Technology, "
+        "Nerul, Navi Mumbai",
+        max_length=200,
+    )
     # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
     public_web_url: str = "https://gharbasket.in"
+    # The customer app (PWA): a society page's join button opens APP_WEB_URL/join?s=<slug>
+    # (M12 §3.7).
+    app_web_url: str = "https://app.gharbasket.in"
     # Kindness points each side of a referral earns on the neighbour's first delivered box (M9
     # §3.3, owner 2026-10-09): half a donated meal each.
     referral_points_referrer: int = Field(default=250, ge=0, le=5000)

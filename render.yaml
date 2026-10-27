@@ -71,6 +71,12 @@ services:
       # Only the Capacitor Android app calls the API cross-origin; browsers use the Vercel rewrite.
       - key: CORS_ALLOW_ORIGINS
         value: https://localhost
+      # Where the API's links point: referral links (PUBLIC_WEB_URL, the console's /s/<slug>) and
+      # a society page's join button (APP_WEB_URL, the PWA). Unset: the production domains.
+      - key: PUBLIC_WEB_URL
+        sync: false
+      - key: APP_WEB_URL
+        sync: false
 
   - type: keyvalue
     name: gharbasket-valkey

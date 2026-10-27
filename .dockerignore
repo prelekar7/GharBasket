@@ -10,6 +10,7 @@
 !data/simulator/README.md
 !backend/training/pyproject.toml
 !backend/training/README.md
+!e2e/backend/pyproject.toml
 !backend/api/src/**
 **/__pycache__
 **/*.pyc

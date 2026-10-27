@@ -9,6 +9,7 @@ exports and erases through it.
 """
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Literal
@@ -17,7 +18,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy import cast, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.community import donations
+from gharbasket.modules.community import donations, impact
 from gharbasket.modules.community.events import (
     CAPTAIN_ASSIGNED,
     CAPTAIN_ENDED,
@@ -30,9 +31,11 @@ from gharbasket.modules.community.events import (
     SOCIETY_LIVE,
 )
 from gharbasket.modules.community.facts import ImpactFact, impact_facts
+from gharbasket.modules.community.impact import HubImpact, SocietyImpact
 from gharbasket.modules.community.models import (
     Captain,
     MealPledge,
+    Ngo,
     Referral,
     ReferralCode,
     Society,
@@ -55,11 +58,14 @@ __all__ = [
     "CaptainCard",
     "CaptainRef",
     "DonationPickup",
+    "HubImpact",
     "HubSociety",
     "ImpactFact",
+    "NgoRef",
     "PublicSociety",
     "ReferralFact",
     "SocietyCard",
+    "SocietyImpact",
     "SocietyLabels",
     "SocietyRef",
     "anonymise_for_user",
@@ -74,10 +80,12 @@ __all__ = [
     "hubs_with_societies",
     "impact_facts",
     "is_active_captain",
+    "ngo_refs",
     "pickups_for",
     "public_society",
     "record_pickup",
     "referral_facts",
+    "society_impact",
     "society_labels",
     "society_points",
 ]
@@ -503,3 +511,31 @@ async def hub_societies(session: AsyncSession, *, hub_id: uuid.UUID) -> list[Hub
         )
         for society in societies
     ]
+
+
+async def society_impact(
+    session: AsyncSession, society_id: uuid.UUID, period: str = "all", *, with_hub: bool = True
+) -> SocietyImpact | None:
+    """The `society` scope of M9 §3.7 with the k rules applied (M12's public society page, §3.8):
+    None for an unknown society. `period` is `all` or an IST month `YYYY-MM` within the last 12
+    (anything else is 422 `request.invalid`). The numbers are live; `with_hub=False` leaves out
+    the hub block (the public page does not use it)."""
+    return await impact.society_impact(session, society_id, period, with_hub=with_hub)
+
+
+@dataclass(frozen=True)
+class NgoRef:
+    """An NGO for M12's impact report: its name and the hubs it collects from."""
+
+    id: uuid.UUID
+    name: str
+    hub_ids: tuple[uuid.UUID, ...]
+
+
+async def ngo_refs(session: AsyncSession, ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, NgoRef]:
+    """The NGOs among `ids` (unknown ids are left out). No coordinator, phone or registration."""
+    wanted = set(ids)
+    if not wanted:
+        return {}
+    rows = await session.execute(select(Ngo.id, Ngo.name, Ngo.hub_ids).where(Ngo.id.in_(wanted)))
+    return {ngo_id: NgoRef(ngo_id, name, tuple(hubs)) for ngo_id, name, hubs in rows.all()}

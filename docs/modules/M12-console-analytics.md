@@ -193,7 +193,7 @@ GET /v1/analytics/societies?hub_id=&data_source=real
 | `waste_g_per_100kg` | Σ waste with `cascade_to = bin` ÷ Σ packed × 100 kg (M-E waste). Only the bin is waste: food a kitchen or an NGO took is rescued, not wasted. M6 §3.5 owns the definition (owner, 2026-10-25; the draft's `{ngo, bin}` is superseded) |
 | `delivery_cost_per_order_paise` · `km_per_order_m` | Route cost and route km of box routes ÷ orders on them (M-F) |
 | `issues_per_1000_orders` · `issue_auto_credit_bp` | Issues ÷ delivered orders × 1,000; issues credited automatically ÷ issues |
-| `partner_earnings_paise` · `partners_paid` | Σ earnings accrued (M5 §3.5) and the partners who earned anything |
+| `partner_earnings_paise` · `partners_paid` | Σ earnings accrued (M5 §3.5), `null` under 5 paid partners, and the partners who earned anything |
 | `kitchen_gini_bp` | Gini of kitchen partners' weekly earnings (M-G; week grain only) |
 | `donations_verified` · `meals_donated` · `referrals_converted` · `societies_live` | From M9's facts |
 
@@ -230,6 +230,7 @@ GET /v1/analytics/societies?hub_id=&data_source=real
   - Every key of the table is always present. `totals` are rates recomputed from the summed parts of the range.
   - `active_households` is the distinct households with a delivered order in the period (`fact_orders`, not the view's daily count); its total is the last 7 days of the range.
   - `partner_earnings_paise`, `partners_paid` and `kitchen_gini_bp` come from `fact_partner_weeks` (not the view, so an admin's all-hub series is one Gini), by ISO week. They are `null` at day grain, and over the range a partner paid in two weeks counts once. The Gini is `null` under 5 paid kitchens and equals `mv_partner_earnings_weekly`'s.
+  - **Never an individual's pay** (2026-10-26). Under 5 paid partners (`analytics.kpis.MIN_PAID_PARTNERS`, the rule of §3.5's `/partner-earnings`), `partner_earnings_paise` is `null` in that week's series entry and in the range's total, for every caller; `partners_paid`, the count, is still sent. A week with no earnings rows is `null` with a count of 0. No other KPI divides partner earnings, so none needs the rule.
   - `delivery_cost_per_order_paise` is `null` when the range's box-route cost is 0: a plan without a recorded cost is not free.
   - `edits_per_100_boxes` and `issues_per_1000_orders` are rounded half up to integers.
   - `waste_g_per_100kg` is the bin grams over the packed grams × 100,000 (grams per 100 kg), `null` when nothing was packed. It counts `cascade_to = bin` only: M6 §3.5 owns the definition and rescued food (kitchen, NGO) is not waste, which the owner confirmed over the draft's `{ngo, bin}` on 2026-10-25. `hub_ops.api.hub_day_facts` fills `waste_bin_g`, `waste_ngo_g` and `waste_kitchen_g` from `hub_ops.waste_logs` (`kg` × 1,000 by IST day and `cascade_to`; a log without a weight is left out, as in M6's summary), and a day with waste logs but no packing is a hub-day too. `waste_imperfect_g` stays 0 (Imperfect Sabzi is not in v1), and surplus offered and taken stay 0 until the surplus cascade lands.
@@ -367,6 +368,21 @@ GET /v1/analytics/partner-earnings?hub_id=&kind=kitchen&from=&to=&data_source=re
 | M-G kitchens: Gini of weekly earnings, ₹ per portion | `partner-earnings` (kitchen `gini_bp`), `kitchen_gini_bp` | λ sweep and Pareto figure: eval reports |
 | US-4 cohort retention (the paper's adoption figure) | `cohorts` per data source | — |
 
+**As built** (`feat/M12-cohorts-earnings`, 2026-10-25; no new view or migration: `mv_cohorts` and `mv_partner_earnings_weekly` of §3.2 already hold everything):
+- **Common.** Both endpoints answer 429 after 60 requests a minute per user, run under the 3-second read limit, carry `Cache-Control: private, max-age=60` and, as the KPIs do, `stale` beside `as_of` (the last nightly run or rebuild, 26 hours). `data_source` is required (`analytics.data_source_required`) and is `real | synthetic`, never pooled. `analytics:cohorts` is new and admin-only; `partner-earnings` uses `analytics:read` and the hub scope of §3.3 (a non-admin must give `hub_id`).
+- **Cohorts.**
+  - `weeks` is 4 to 26 (default 12): the number of signup weeks shown, this one last, and the length of every `retention_bp`. Over 26 is 422 `analytics.range_too_long`, under 4 `analytics.range_invalid`.
+  - A signup week with no households is left out, and the list is oldest first.
+  - A week after signup counts as reached once it has ended (its Sunday is past) and the view has been refreshed since: a week in progress, or one whose last deliveries the nightly refresh has not pulled yet (before 02:40 on Monday, or after a failed run), would read as households lost, so it is `null`. "Since" is the IST day of `as_of`; with no recorded run, today.
+  - `retention_bp` is rounded half up. `small` (under 5 households) only flags the cohort: its rates are still sent, to an admin.
+  - With no `hub_id`, hubs are added up (households and active households per cohort week), not averaged. A household that left through the erasure purge leaves the cohorts at the next nightly refresh (§4).
+- **Partner earnings.**
+  - `kind` defaults to `kitchen`; `from`/`to` default and limit as the KPIs' week grain (last 12 weeks, at most 104). The answer lists every ISO week of the range: a week nobody was paid in has 0 partners and everything else `null`.
+  - A partner counts as paid when their week's earnings, over every basis, add up above 0. Percentiles interpolate linearly (as Postgres `percentile_cont`) and round half up to a paisa.
+  - For one hub the weeks are read from the view. With no `hub_id` (admin) they are worked out from `fact_partner_weeks` in one pass, so the all-hub Gini is one Gini and not an average of hubs. The two give the same numbers for one hub (a test checks it) and `hub_id` is then `null`.
+  - **k = 5 applies to the total too (review, 2026-10-25).** The contract nulls the percentiles and the Gini under 5 paid partners, but a week with one paid partner would still show that partner's earnings as `total_paise`, against "Distribution only, no individual" (§3). So under 5 paid partners only `partners` is sent: `total_paise`, the percentiles and the Gini are `null`, for every caller, the admin included, and on both the view and the all-hub route (any mean added later follows the same rule). `total_paise` is therefore `int | null`. No individual id is ever sent. The console's fairness page reads only `gini_bp`.
+- **Research metrics.** All the live counterparts of the table above are keys of `/v1/analytics/kpis` (§3.3) and need no new code: `pantry_misses_bp`, `edits_per_100_boxes`, `weeks_accepted_bp` with `accepted_ml_bp` and `accepted_fallback_bp`, `waste_g_per_100kg`, `shortage_lines_bp`, `delivery_cost_per_order_paise`, `km_per_order_m`, `on_time_bp` and `kitchen_gini_bp`. A test checks they are present and that M-G's two forms (the KPI series and the kitchen `gini_bp` of `partner-earnings`) agree. "₹ per portion" (M-G) has no live counterpart in the table and is not built.
+
 ### 3.6 Impact contract (console) (drafted 2026-10-09, frozen on approval)
 The hub, NGO and platform impact views (M9 §3.7 keeps the customer's `me` and `society` scopes). The console's Impact page (`(community)/impact`), the NGO coordinator's report and the MS-D impact dashboard build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
 
@@ -405,6 +421,14 @@ GET /v1/analytics/impact?scope=hub&hub_id=&month=2027-02&format=json|csv
 | `societies: [{ id: "sunrise-towers", name, food_saved_kg, items_donated, earned_paise }]` | `society_id` (UUID); no `food_saved_kg` (surplus is per hub) and no `earned_paise` per society |
 | `GET /v1/analytics/impact/report?month=` → PDF; access admin and hub_manager | `format=csv`; NGO coordinators and franchise owners too |
 
+**As built** (`feat/M12-impact-public`, 2026-10-25):
+- **Query.** `scope` is required (`platform`, `hub` or `ngo`); `month` is `YYYY-MM` (this month by default; a future month is 422 `analytics.range_invalid`, one older than the last 24 is 422 `analytics.range_too_long`); `data_source` is `real` by default and `synthetic` is for admins (403 for anyone else). The answer also carries `data_source` (additive). A scope's `hub_id` or `ngo_id` left out is 403 `auth.forbidden` for a non-admin and 422 `request.invalid` for an admin. An unknown NGO is 404 `community.ngo_not_found` for an admin (and for a coordinator holding it), else 403.
+- **Who reads what.** `analytics:impact` goes to `ngo_coordinator`, `hub_manager`, `franchise_owner` and `admin`. `platform` is admin only; `hub` is the hub's manager or franchise owner (or admin); `ngo` is the NGO's coordinator or an admin, or the staff of a hub the NGO serves, who see its hand-offs at the hubs they manage only (an optional `hub_id` narrows it). The role in `X-Active-Role` narrows the grants, as elsewhere.
+- **What an NGO report holds.** Only what the NGO received, from its rows of `mv_impact_monthly`: `items_donated` and `kg_donated` are the items and kilograms of its items hand-offs, `food_saved_kg` its food, `meals_served` the meals it served, `people_reached` as it reported (null if none). `donations_verified`, `households_donating`, `meals_donated`, `referrals_converted`, `societies_live`, `partners_*` and `waste_g_per_100kg` are `null`, and `societies` is `null`: no donor, society or pay. For `platform` and `hub` the totals are the hub rows (`ngo_id` null): `items_donated` and `kg_donated` are verified donations, `food_saved_kg` the surplus handed to NGOs, `meals_donated` the meals pledged, `meals_served` the meals NGOs served.
+- **View.** `mv_impact_monthly` gains `handoff_items` and `handoff_kg_tenths` (migration `5b1d8c0a47e2`: the view is dropped and made again with the same grain and unique index). The trend reads the same rows over the 6 months up to `month`, in the scope's own terms.
+- **From the fact tables beside the view.** Partner pay (`partners_earned_paise`, `partners_paid`; null under 5 paid partners, a partner paid in several weeks counted once) is the ISO weeks whose Monday falls in the month, from `fact_partner_weeks`; `waste_g_per_100kg` is the month's bin grams over packed grams (`fact_hub_days`); `societies[]` (scope `hub`) is `community.api.hub_societies` (`households_joined`) with the month's verified donations from `fact_community`. A donated meal belongs to a hub in the facts, so a society's `meals_donated` is `null`. `ngos[]` names come from the new `community.api.ngo_refs`; its `items` and `kg` add up every kind of hand-off (as M9's report does) and `meals` the meals served.
+- **CSV.** `format=csv` is `text/csv` with `Content-Disposition: attachment; filename="impact-<month>-<scope>[-<id>].csv"`: a header row, then for `platform` and `hub` one row per hub (its totals, `ngo_id` blank, with partner pay and waste) followed by one row per NGO that received something there (the NGO's terms), and for `ngo` only the NGO's rows. At most 10,000 rows. A cell that does not apply is blank. Both formats are `Cache-Control: private, max-age=60` and share the per-user limit of 60 a minute.
+
 ### 3.7 Public society page contract (drafted 2026-10-09, frozen on approval)
 `/s/<slug>` on the console app (server-rendered, `(public)/s/[slug]`) is the referral landing page (M9 §3.3; handbook 02 §8). Anyone can open it, so it carries **aggregates only**.
 
@@ -434,6 +458,10 @@ GET /v1/public/societies/{slug}          no auth; Cache-Control: public, max-age
 |---|---|
 | `{ slug, name, area, status, homes_joined, unlock_target, captain_name: "Meena" \| null }` | No `captain_name`; `homes_joined` may be `null`; adds `progress_bp`, `live_since`, `delivery_days`, `impact`, `join_url` |
 | `GET /v1/public/societies` (list) | Not in v1 |
+
+**As built** (`feat/M12-impact-public`, 2026-10-25):
+- The endpoint is in M12's router (`analytics/public.py`). `join_url` is `APP_WEB_URL/join?s=<slug>` (new setting, default `https://app.gharbasket.in`). `?ref=` is ignored, so the answer is the same with or without a code, and the console adds the code to `join_url` itself. The per-IP limit is 60 a minute on the caller's address (`request.client`; uvicorn's `--proxy-headers` makes it the real one). The 200 carries `Cache-Control: public, max-age=300, stale-while-revalidate=600`; a 404 does not.
+- `delivery_days` are `mon`..`sun` from the new `subscriptions.api.delivery_days`, and `[]` for an `unlocking` society. `progress_bp` is `min(joined, target) / target` in basis points, half up. `impact` is `{items_donated, meals_donated}` from `community.api.society_impact(…, "all", with_hub=False)`, `null` until 5 households contributed.
 
 ### 3.8 AI health (built on `feat/M10-forecast-v1`, F25)
 `GET /v1/analytics/ai-health` (admin only, `analytics:ai_health`; Cache-Control: no-store) returns:
@@ -544,7 +572,7 @@ S9 pages on this contract:
 ## 10. Dependencies
 M1 for auth and household facts, and every module's facade listed in §3.1. The generated API client. M0 jobs and rate limiting.
 
-**Follow-ups for other specs** (each a facade or event addition, reviewed with that module). Built on `feat/M12-facts-refresh` (§3.2 "As built"): `household_facts`, `cycle_facts`, `order_facts`, `issue_facts`, `earning_facts`, `kindness_facts`, `hub_day_facts`, `route_facts`, `partner_facts`, `assignment_run_facts`, `impact_facts` and `referral_facts(by="converted")`, and the handbook 05 and 10 rows. Built on `feat/M12-today-kpis` (§3.3 "As built"): `open_issue_summary`, `today_counts`, `packing_progress`, `today_routes`. Still open: `society_impact` (M9 §3.7; hand-offs and pledges come through `impact_facts`, M9 §3.5), `delivery_days`, and M5's `fee_paise`.
+**Follow-ups for other specs** (each a facade or event addition, reviewed with that module). Built on `feat/M12-facts-refresh` (§3.2 "As built"): `household_facts`, `cycle_facts`, `order_facts`, `issue_facts`, `earning_facts`, `kindness_facts`, `hub_day_facts`, `route_facts`, `partner_facts`, `assignment_run_facts`, `impact_facts` and `referral_facts(by="converted")`, and the handbook 05 and 10 rows. Built on `feat/M12-today-kpis` (§3.3 "As built"): `open_issue_summary`, `today_counts`, `packing_progress`, `today_routes`. Built on `feat/M12-impact-public` (§3.6 and §3.7 "As built"): `society_impact`, `ngo_refs`, `subscriptions.api.delivery_days` and `identity.api.society_owners`. Still open: M5's `fee_paise`.
 - **M1:**
   - `household_facts`.
   - §3.5's purge matrix gains M12: the consumer of `identity.user_deleted` deletes `fact_households` and `fact_cycles`, and `fact_orders` is kept like M4's orders.

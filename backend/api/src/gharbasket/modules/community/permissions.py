@@ -29,3 +29,7 @@ for role in ("hub_manager", "ngo_coordinator"):
 # accepted, so any hub manager reviews; a society's hub is checked per request.
 for role in ("hub_manager", "admin"):
     PERMISSIONS.allow(role, "societies:read", "society_requests:review")
+# Impact (§3.7): a customer's own (`me`), and a society's for its residents (customers), its
+# captain, the staff of its hub (checked per request) and admins.
+for role in ("customer", "captain", "hub_manager", "franchise_owner", "admin"):
+    PERMISSIONS.allow(role, "impact:read")

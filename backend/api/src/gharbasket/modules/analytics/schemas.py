@@ -173,7 +173,10 @@ class KpisOut(BaseModel):
     stale: bool
     periods: list[date] = Field(description="The first day of each period (ISO weeks start Monday)")
     series: dict[str, list[int | None]] = Field(
-        description="One value per period for every KPI key; null when undefined"
+        description=(
+            "One value per period for every KPI key; null when undefined. "
+            "`partner_earnings_paise` is null under 5 paid partners (never an individual's pay)"
+        )
     )
     totals: dict[str, int | None] = Field(
         description="Over the whole range; rates recomputed from their parts, not averaged"
@@ -200,3 +203,50 @@ class SocietiesOut(BaseModel):
     hub_id: uuid.UUID | None
     as_of: datetime | None
     items: list[SocietyRowOut]
+
+
+# --- cohorts and partner earnings (spec §3.5) ----------------------------------------------------
+
+PartnerKind = Literal["kitchen", "captain", "rider", "packer"]
+
+
+class CohortOut(BaseModel):
+    week: date = Field(description="The Monday of the households' signup ISO week")
+    households: int
+    small: bool = Field(description="Under 5 households: too few to read a rate from")
+    retention_bp: list[int | None] = Field(
+        description="Entry i: the share of the cohort with a delivered order in the ISO week "
+        "i + 1 after the signup week; null when that week has not ended yet"
+    )
+
+
+class CohortsOut(BaseModel):
+    data_source: KpiSource
+    hub_id: uuid.UUID | None = Field(description="Null: every hub")
+    weeks: int
+    as_of: datetime | None = Field(description="Finish time of the last nightly run or rebuild")
+    stale: bool
+    cohorts: list[CohortOut] = Field(description="Oldest first; a week without signups is left out")
+
+
+class PartnerEarningsWeekOut(BaseModel):
+    week: date = Field(description="The Monday of the ISO week")
+    partners: int = Field(description="Partners paid something that week")
+    total_paise: int | None = Field(
+        description="Null under 5 paid partners: one partner's total is their earnings"
+    )
+    p10_paise: int | None = Field(description="Null under 5 paid partners")
+    median_paise: int | None = Field(description="Null under 5 paid partners")
+    p90_paise: int | None = Field(description="Null under 5 paid partners")
+    gini_bp: int | None = Field(description="Null under 5 paid partners")
+
+
+class PartnerEarningsOut(BaseModel):
+    hub_id: uuid.UUID | None = Field(description="Null: every hub (admin only)")
+    kind: PartnerKind
+    data_source: KpiSource
+    as_of: datetime | None = Field(description="Finish time of the last nightly run or rebuild")
+    stale: bool
+    weeks: list[PartnerEarningsWeekOut] = Field(
+        description="Every ISO week of the range; a distribution only, never one partner"
+    )

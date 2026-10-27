@@ -3,7 +3,7 @@
 One migration for two small contracts built in one PR.
 
 Revision ID: c4d81e6b2f95
-Revises: 5b8e1d3a7c42
+Revises: 5b1d8c0a47e2
 Create Date: 2026-10-25 15:00:00.000000+00:00
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "c4d81e6b2f95"
-down_revision: str | Sequence[str] | None = "5b8e1d3a7c42"
+down_revision: str | Sequence[str] | None = "5b1d8c0a47e2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

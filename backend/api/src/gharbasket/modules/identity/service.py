@@ -18,11 +18,18 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.identity.models import LoginSession, RefreshToken, User, UserRole
+from gharbasket.modules.identity.models import (
+    PENDING_ROLES,
+    LoginSession,
+    PendingRoleGrant,
+    RefreshToken,
+    User,
+    UserRole,
+)
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.permissions import ROLE_SCOPE
@@ -30,6 +37,7 @@ from gharbasket.platform.settings import Settings
 from gharbasket.platform.tokens import invalid_token, issue_access_token
 
 SESSION_LIFETIME = timedelta(days=30)
+PENDING_GRANT_LIFETIME = timedelta(days=30)
 REUSE_GRACE = timedelta(minutes=2)
 
 
@@ -82,7 +90,63 @@ async def find_or_create_user(session: AsyncSession, phone_e164: str) -> tuple[U
             )
         )
         await session.flush()
+        await claim_pending_grants(session, user)
     return user, created is not None
+
+
+async def _lock_phone(session: AsyncSession, phone_e164: str) -> None:
+    """Serialise "an admin gives a role to this number" with "this number signs up": whoever
+    comes second sees the other's committed work, so a pending grant is never left behind."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"identity.phone:{phone_e164}"},
+    )
+
+
+async def claim_pending_grants(session: AsyncSession, user: User) -> None:
+    """The first sign-in of a number turns its unexpired pending grants into verified roles, in
+    the same transaction, audit-logged as granted by the admin who gave them (spec §3.6)."""
+    await _lock_phone(session, user.phone_e164)
+    pending = (
+        (
+            await session.execute(
+                select(PendingRoleGrant)
+                .where(
+                    PendingRoleGrant.phone_e164 == user.phone_e164,
+                    PendingRoleGrant.expires_at > func.now(),
+                )
+                .order_by(PendingRoleGrant.created_at, PendingRoleGrant.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for waiting in pending:
+        session.add(
+            UserRole(
+                user_id=user.id,
+                role=waiting.role,
+                scope_type=waiting.scope_type,
+                scope_id=waiting.scope_id,
+                status="verified",
+                verified_at=datetime.now(UTC),
+            )
+        )
+        await session.delete(waiting)
+        await session.flush()
+        await audit.record(
+            session,
+            actor_user_id=waiting.granted_by,
+            action="roles.granted",
+            entity_type="user",
+            entity_id=str(user.id),
+            after={
+                "role": waiting.role,
+                "scope_type": waiting.scope_type,
+                "scope_id": str(waiting.scope_id) if waiting.scope_id else None,
+                "pending_grant_id": str(waiting.id),
+            },
+        )
 
 
 async def active_grants(session: AsyncSession, user_id: uuid.UUID) -> tuple[str, ...]:
@@ -316,6 +380,78 @@ async def grant_role(
 
     `granted_by` is None only for the operator command that creates the first admin.
     """
+    granted = await _grant(
+        session,
+        phone_e164=phone_e164,
+        role=role,
+        scope_id=scope_id,
+        granted_by=granted_by,
+        wait_for_sign_in=False,
+    )
+    assert isinstance(granted, UserRole)
+    return granted
+
+
+async def ensure_still_admin(session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Before an admin changes anyone's roles (grant, revoke, a pending grant given or
+    cancelled): the database, not only the 15-minute token, must say they are still a verified
+    admin (owner's decision, 2026-10-26). `FOR SHARE` keeps their admin row from being deleted
+    until this transaction ends, so a revoke of them waits for it, or it waits and sees the
+    revoke."""
+    held = (
+        await session.execute(
+            select(UserRole.id)
+            .where(
+                UserRole.user_id == user_id,
+                UserRole.role == "admin",
+                UserRole.status == "verified",
+            )
+            .with_for_update(read=True)
+        )
+    ).first()
+    if held is None:
+        raise not_admin()
+
+
+def not_admin() -> ProblemError:
+    return ProblemError(
+        403,
+        "identity.not_admin",
+        "Your admin role has been removed, so you cannot change roles. Sign in again.",
+    )
+
+
+async def grant_role_or_wait(
+    session: AsyncSession,
+    *,
+    phone_e164: str,
+    role: str,
+    scope_id: uuid.UUID | None,
+    granted_by: uuid.UUID,
+) -> UserRole | PendingRoleGrant:
+    """`grant_role`, except that a number with no account gets a pending grant when the role is a
+    staff role other than admin (spec §3.6); admin and the partner roles still need the account.
+    The granting admin must still be one in the database, not only in their token."""
+    await ensure_still_admin(session, granted_by)
+    return await _grant(
+        session,
+        phone_e164=phone_e164,
+        role=role,
+        scope_id=scope_id,
+        granted_by=granted_by,
+        wait_for_sign_in=True,
+    )
+
+
+async def _grant(
+    session: AsyncSession,
+    *,
+    phone_e164: str,
+    role: str,
+    scope_id: uuid.UUID | None,
+    granted_by: uuid.UUID | None,
+    wait_for_sign_in: bool,
+) -> UserRole | PendingRoleGrant:
     scope_type = ROLE_SCOPE[role]
     if (scope_type is None) != (scope_id is None):
         detail = (
@@ -325,12 +461,24 @@ async def grant_role(
         )
         raise ProblemError(422, "identity.invalid_scope", detail)
 
+    await _lock_phone(session, phone_e164)
     user = (
         await session.execute(select(User).where(User.phone_e164 == phone_e164))
     ).scalar_one_or_none()
     if user is None:
-        raise ProblemError(
-            404, "identity.user_not_found", "No account with this number; they must sign in once."
+        if not wait_for_sign_in or role not in PENDING_ROLES:
+            raise ProblemError(
+                404,
+                "identity.user_not_found",
+                "No account with this number; they must sign in once.",
+            )
+        return await _grant_pending(
+            session,
+            phone_e164=phone_e164,
+            role=role,
+            scope_type=scope_type,
+            scope_id=scope_id,
+            granted_by=granted_by,
         )
 
     existing = (
@@ -367,6 +515,59 @@ async def grant_role(
         },
     )
     return grant
+
+
+async def _grant_pending(
+    session: AsyncSession,
+    *,
+    phone_e164: str,
+    role: str,
+    scope_type: str | None,
+    scope_id: uuid.UUID | None,
+    granted_by: uuid.UUID | None,
+) -> PendingRoleGrant:
+    # An expired one still waits for the nightly job; it must not block a new grant.
+    await session.execute(
+        delete(PendingRoleGrant).where(
+            PendingRoleGrant.phone_e164 == phone_e164, PendingRoleGrant.expires_at <= func.now()
+        )
+    )
+    created = (
+        await session.execute(
+            insert(PendingRoleGrant)
+            .values(
+                phone_e164=phone_e164,
+                role=role,
+                scope_type=scope_type,
+                scope_id=scope_id,
+                granted_by=granted_by,
+                expires_at=func.now() + PENDING_GRANT_LIFETIME,
+            )
+            .on_conflict_do_nothing()
+            .returning(PendingRoleGrant.id)
+        )
+    ).scalar_one_or_none()
+    if created is None:
+        raise ProblemError(
+            409, "identity.role_exists", "This number already has this role waiting."
+        )
+    pending = await session.get(PendingRoleGrant, created, populate_existing=True)
+    assert pending is not None
+    await audit.record(
+        session,
+        actor_user_id=granted_by,
+        action="roles.granted",
+        entity_type="pending_role_grant",
+        entity_id=str(pending.id),
+        after={
+            "role": role,
+            "scope_type": scope_type,
+            "scope_id": str(scope_id) if scope_id else None,
+            "pending": True,
+            "expires_at": pending.expires_at.isoformat(),
+        },
+    )
+    return pending
 
 
 async def grant_system_role(

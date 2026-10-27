@@ -770,3 +770,17 @@ class EarningsWeekOut(BaseModel):
         description="M5's payouts of the week, one per partner record; [] until it is paid out"
     )
     generated_at: datetime
+
+
+class CertificateLinkOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    reference: str = Field(
+        examples=["GBIC-7K3M-QX9P-2TAB-H4WE"],
+        description="Printed on the PDF; support finds the issue by it in the audit log",
+    )
+    from_: str = Field(alias="from", examples=["2026-05"], description="First month, IST")
+    to: str = Field(examples=["2026-10"], description="Last month, IST; the current one is to date")
+    url: str = Field(description="A 5-minute signed GET of the PDF")
+    filename: str = Field(examples=["gharbasket-income-certificate-2026-05-to-2026-10.pdf"])
+    expires_at: datetime = Field(description="When the link stops working")

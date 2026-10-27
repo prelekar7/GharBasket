@@ -1,6 +1,6 @@
 # M3 — Plans & Subscriptions (Weekly Autopilot cycle)
 
-**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval; §3.4 (hub cut-off monitor, delivery dates) drafted 2026-10-25, frozen on approval; §3.5 (hub delivery days, admin plan list) drafted 2026-10-25, frozen on approval
+**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval; §3.4 (hub cut-off monitor, delivery dates) drafted 2026-10-25, frozen on approval; §3.5 (hub delivery days, admin plan list) drafted 2026-10-25, frozen on approval; §3.6 (green slots: moving this week's box to another slot) drafted 2026-10-28, contract in M10 §3.8, frozen on approval
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S3 (rule-based box); AI plans plugged in during P4 / S7–S8
 **Postgres schema:** `subscriptions` · **Python package:** `gharbasket.modules.subscriptions`
@@ -35,6 +35,8 @@ Owns the household's subscription and the weekly Autopilot cycle: plans, society
 | POST | `/v1/cycles/{id}/skip` | owner | Required | Before the cut-off (a `payment_failed` week until its grace period ends, §3.3) |
 | POST | `/v1/cycles/{id}/unskip` | owner | Required + `If-Match` | A skipped week back to approval, before the cut-off (§3.3) |
 | POST | `/v1/cycles/{id}/feedback` | owner | Required | After delivery: ran out, wasted, just right (the pantry twin's signals) |
+| POST | `/v1/cycles/{id}/slot-quotes` | owner | — (moves no money) | Green-slot quote for this week's box: every box slot that date with `green`, `saving_paise`, `reason_code` (§3.6, M10 §3.8) |
+| PUT | `/v1/cycles/{id}/slot` | owner | `If-Match` | Move this week's box to another slot on the same date at a quoted saving (§3.6) |
 | GET / PUT | `/v1/budget-lock` | owner | Required (PUT) | Month budget and what the month's boxes spent |
 | GET | `/v1/societies/{id}/delivery-days` | Authenticated | — | |
 | PUT | `/v1/admin/societies/{id}/delivery-days` | hub_manager (hub), admin | Required | |
@@ -357,6 +359,16 @@ GET /v1/admin/plans          admin (plans:admin_read); names in Accept-Language
 | `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` | Dropped: the Plans page stays read-only even when the admin list answers (`editable` false) |
 | `GET /v1/hubs/{id}/cycles?week=` (per society and week: drafted, approved, awaiting, skipped, payment needed, paused) | Dropped: the Cut-off page (§3.4) has the counts for each delivery date; the Cycles page leaves the console nav |
 
+### 3.6 Green slots (drafted 2026-10-28, frozen on approval)
+The contract (endpoints, `SlotQuote`, the saving rule, honouring a quote, tables, tests) is in **M10 §3.8**, next to the ML endpoint it depends on. It lives there so that the route cost and the price derived from it are reviewed together. What M3 owns:
+- **Endpoints.** `POST /v1/cycles/{id}/slot-quotes` and `PUT /v1/cycles/{id}/slot`, for a cycle that is `awaiting_approval` or `approved`, before the cut-off. Only the time slot changes; `delivery_date` and `cutoff_at` never do.
+- **The saving rule** (`subscriptions/green.py`). It is integer paise, at most the hub's `green_saving_max_paise` and the lines' total, in whole rupees, and 0 below ₹5. It is applied only through a quote that has not expired, and kept on the cycle until the cut-off.
+- **`CycleOut`** gains `green_slot` and `discount_paise`. `payable_paise` becomes `total_paise + fees_paise − discount_paise`; `total_paise` stays the lines' sum, which Budget Lock checks.
+- **`subscriptions.box_approved` and `ApprovedCycle`** gain `discount_paise` and `discount_code` (`"green_slot"`). M4 records them (M4 §3.9).
+- **Tables.** `subscriptions.slot_quotes` is new; `weekly_cycles` gains `slot_quote_id` and `slot_saving_paise`.
+- **Per week.** Generation keeps using the society's delivery day and slot (§3.1), so a move holds for that week only.
+- **Behind `GREEN_SLOTS_ENABLED`** (default off). Off, both endpoints answer 404 `subscriptions.green_slots_off`.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -403,7 +415,7 @@ Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-
 - E2E: generate → edit → approve; skip week.
 
 ## 10. Dependencies
-M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel_gateway.api`), M5 (pre-debit notice), M11 (notifications). Hands off to M4 via `subscriptions.box_approved`. The cut-off monitor (§3.4) reads `orders.api.hub_cutoff_counts`, `billing.api.balances`, `identity.api.delivery_labels` and `owners_of_households`, `community.api.hub_society_ids` and M0's `platform.job_runs`. The hub's delivery days (§3.5) read `community.api.hub_societies`.
+M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel_gateway.api`), M5 (pre-debit notice), M11 (notifications). Hands off to M4 via `subscriptions.box_approved`. The cut-off monitor (§3.4) reads `orders.api.hub_cutoff_counts`, `billing.api.balances`, `identity.api.delivery_labels` and `owners_of_households`, `community.api.hub_society_ids` and M0's `platform.job_runs`. The hub's delivery days (§3.5) read `community.api.hub_societies`. Green slots (§3.6) read `logistics.api.tentative_day`, `orders.api.box_slots`, `community.api.society_points`, `hub_ops.api.get_hub` and call `intel_gateway.api.price_slots`.
 
 ## 11. Open questions and decisions
 - **Decided (S3 contract):** add-ons are lines on the box order (M4 §3.1), never separate orders.

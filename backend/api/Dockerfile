@@ -16,6 +16,7 @@ COPY backend/api/pyproject.toml backend/api/README.md backend/api/
 COPY backend/ml/pyproject.toml backend/ml/README.md backend/ml/
 COPY data/simulator/pyproject.toml data/simulator/README.md data/simulator/
 COPY backend/training/pyproject.toml backend/training/README.md backend/training/
+COPY e2e/backend/pyproject.toml e2e/backend/
 RUN uv sync --locked --no-dev --package gharbasket-api --no-install-workspace
 
 # Then the API itself, installed into the virtualenv (not editable), so the source isn't needed.

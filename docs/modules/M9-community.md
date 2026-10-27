@@ -597,8 +597,12 @@ PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) ga
     - When the society has no delivery days yet, M11 also gives the hub's managers a console task, "set delivery days".
   - **The unlock bar** shows the fee beside the count (`box_fee_paise`), e.g. "₹30 delivery a box until 20 homes join, then free".
 - **The threshold `N`** is "the number of households at which a stop becomes cheaper than the delivery fee" (W10). The formula below is kept as drafted (owner, 2026-10-09): the pre-live fee does not enter it.
-  - **The weekly job.** `recompute_unlock_thresholds` (Monday 02:10 IST) asks M10, through `intel_gateway.api.society_stop_cost(society_id)` (an M10 follow-up on `/slots/price`), for the marginal cost of adding the society as a stop. It then sets `N = clamp(ceil(stop_cost_paise ÷ DELIVERY_ALLOWANCE_PAISE), 10, 60)`, where `DELIVERY_ALLOWANCE_PAISE` (default 4,000, ₹40, the console's delivery-per-box assumption) is what one household's box can carry towards a stop.
-  - **When M10 is down.** The job keeps the current threshold (`threshold_source` unchanged). A society never priced keeps the default 20 (`default`).
+  - **The weekly job.** `recompute_unlock_thresholds` (Monday 02:10 IST) asks M10 for the marginal cost of adding the society as a stop (M10 §3.8, drafted 2026-10-28).
+    - `unlock.stop_costs(session, http, settings, societies, today)` takes, per hub, the days of the past 7 with a published box plan (`logistics.api.tentative_day`).
+    - It prices each society that is neither live nor pinned as a candidate with one box and `own_stops: "ignore"`, so a society that already has a stop is priced as if it had none. Up to 50 societies go in one call per day (`intel_gateway.api.society_stop_costs`).
+    - A society's stop cost is its least feasible marginal cost over those days and slots: the slot the hub would pick.
+    - Then the job sets `N = clamp(ceil(stop_cost_paise ÷ DELIVERY_ALLOWANCE_PAISE), 10, 60)`, where `DELIVERY_ALLOWANCE_PAISE` (default 4,000, ₹40, the console's delivery-per-box assumption) is what one household's box can carry towards a stop.
+  - **When M10 is down.** The job keeps the current threshold (`threshold_source` unchanged). The same holds when the hub had no published box plan in the past 7 days. M10's rule fallback is never used for thresholds. A society never priced keeps the default 20 (`default`).
   - **Pinned thresholds.** A pinned threshold is never changed by the job (`hub`).
   - **Live societies.** The job skips them: a threshold changes nothing once live.
   - **A lower threshold.** When a new threshold is at or below `joined`, the society goes live in the job's transaction.
@@ -611,7 +615,7 @@ PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) ga
 **As built (S9).**
 - **The first captain.** `captains.appoint` moves a `prospect` society to `unlocking` in its own transaction (no consumer of `captain_assigned`), then checks the count, so a society that already has enough households goes live at once.
 - **The hub's PATCH.** `PATCH /v1/admin/societies/{id}` takes only `unlock_threshold` (1 to 500; the source becomes `hub`), `unlock_threshold_pinned` and `status` for now; the polygon and towers come with the console's map editor. Hub managers of the society's hub and admins (`societies:write`); another hub's society is 404. It answers the unlock view plus `unlock_threshold_pinned`, is audit-logged (`community.society_updated`), and needs no Idempotency-Key or If-Match. `status: "live"` goes live like the automatic path (`live_at` and `society_live` the first time only).
-- **M10 and M6 follow-ups.** `unlock.stop_cost` answers None until `intel_gateway.api.society_stop_cost` exists, so the job keeps every threshold; `box_fee_paise` is `unlock.PRE_LIVE_BOX_FEE_PAISE` (3,000) until the hub's `pre_live_box_fee_paise` exists.
+- **M10 and M6 follow-ups.** `unlock.stop_cost` answers None until M10 §3.8's PR 2 replaces it with `unlock.stop_costs`, which batches per hub through `intel_gateway.api.society_stop_costs`; `recompute_thresholds` then takes `ctx.http` and `ctx.settings`. Until then the job keeps every threshold; `box_fee_paise` is `unlock.PRE_LIVE_BOX_FEE_PAISE` (3,000) until the hub's `pre_live_box_fee_paise` exists.
 - **The job** skips societies that are live or have a `live_at`, and pinned ones; it returns `{ priced, kept, skipped, went_live }`.
 - **Societies already live** got `live_at = updated_at` in the migration, and the seed sets `live_at` when it seeds a society live.
 - **Facade.** `get_society` gains `live_at`; `public_society(session, slug)` is in place for M12 §3.7.
@@ -661,6 +665,16 @@ GET /v1/impact?scope=society&society_id=&period=all|2027-02
 | `?scope=society&id=` → `{ period: "2026-10", food_saved_kg, items_donated, cooks_earned_paise, homes }` | `society_id=`; `period` defaults to `all`; `food_saved_kg` and the earnings move under `hub` (`partners_earned_paise`, the console's `earned_paise` is renamed too); numbers may be `null` under 5 |
 | `?scope=me` → `{ food_saved_kg, items_donated, cooks_earned_paise, homes_invited, donated: [{ code, qty } \| { code, kg }], points_earned }` | No `food_saved_kg` or earnings for one household; adds `kg_donated`, `donations_verified`, `meals_donated`; `donated` lines carry `unit` and `qty` |
 | The society card is fetched only when the society is live | Any status; numbers are `null` until there are enough contributors |
+
+**As built (`feat/M12-impact-public`).**
+- **Roles.** `impact:read` goes to customers, captains, hub managers, franchise owners and admins. `me` needs the customer role (403 `auth.forbidden` otherwise; `Cache-Control: no-store`). `society` needs `society_id` (422 `request.invalid`; 404 `community.society_not_found`) and is for a resident acting as a customer, a captain of that society, a hub manager or franchise owner of its hub, or an admin (`private, max-age=60`). `period` is `all` only; anything else is 422 `request.invalid` (see "Tightened" below).
+- **Computed live, no `mv_society_impact`.** A donated meal is a pledge by a user at a hub and carries no society, so a view in `community` could not say which society it came from. `community.impact` reads M9's tables and `identity.api.society_owners` (owner user id to household id) on each request, and `as_of` is the time of the read. So there is no `refresh_impact_counters` job either (§6). The k rule is counted over distinct households that gave: a verified donation's household and the owner's household of a donated meal (see "Tightened" below). `homes_joined` is null under 5 households.
+- **`me`.** `points_earned` adds the user's verified donations' points, her converted referrals' referrer points and, if she was referred, her welcome points, from M9's own rows (no `billing.api.kindness_totals`). `items_donated` adds each verified or handed-over donation's items as the impact facts count them (pieces plus kilograms, half up per donation), and `meals_donated` her pledges.
+- **`hub`.** `food_saved_kg` and `meals_served` are the society's hub's food and meals hand-offs, all time. `partners_earned_paise` is the hub's partners' pay this month (through `billing.api.earning_facts` and `partners.api.partner_facts`, the ISO weeks whose Monday is in this month), null under 5 paid partners; `hub` is null for a society without a hub.
+- **Tightened (owner, 2026-10-26), over the contract above.** Two k-rule gaps were closed before freeze.
+  - **Converted referrals no longer count as contributors.** Only a verified donation or a donated meal makes a household count toward the 5. Otherwise referrals pad the count: five referred homes and one donor would show that one donor's giving on the society card and on the public page (M12 §3.7).
+  - **No monthly breakdown for a society.** `scope=society` is all time only, and a `period` other than `all` is 422 `request.invalid`. With months, the all-time total less the months shown (each at 5+) would give a month that was held back under 5, which could be one household's giving. `scope=me` is the user's own data and is all time as before, and the public page was all time already.
+- **Facade.** `society_impact(session, society_id, period="all", *, with_hub=True)` (any `period` but `all` is 422 `request.invalid`) returns `SocietyImpact` (or None), and `ngo_refs(session, ids)` the names and hubs of NGOs for M12's report.
 
 ### 3.8 Facade, export and erasure additions (drafted 2026-10-09)
 **Facade** (`gharbasket.modules.community.api`, in addition to §3.1 and §3.2):
@@ -832,7 +846,7 @@ No event carries a name, flat, phone or photo key.
 | `ngo_offers:read` | ngo_coordinator (an NGO serving the hub), hub_manager (hub), admin (§3.5) |
 | `ngo_offers:claim` · `ngo_handoffs:confirm` | ngo_coordinator (ngo) (§3.5) |
 | `ngo_handoffs:read` · `ngo_handoffs:write` | ngo_coordinator (ngo), hub_manager (hub), admin (read) (§3.5) |
-| `impact:read` | customer (`me`); residents, the society's captain, hub_manager (hub), admin (`society`) (§3.7) |
+| `impact:read` | customer (`me`); residents, the society's captain, hub_manager (hub), franchise_owner (hub), admin (`society`) (§3.7; franchise_owner added as built, as M12 §3.6 gives it the hub's report) |
 
 Captains have no M9 permission beyond a resident's: their society's unlock, drives and impact. The donations they collect at the door reach them through M7's flat checklist (`community.api.pickups_for`, §3.8).
 
@@ -898,7 +912,7 @@ Captains have no M9 permission beyond a resident's: their society's unlock, driv
 - **M6 (§3.5, being refined):** `surplus_offered`; `settle_surplus` with a taker; a `surplus_settled` event (new) so M9 can expire offers taken elsewhere. `hub_ops.api.get_hub` with the hub's `pre_live_box_fee_paise`, for the unlock bar (§3.6; the follow-up in §11).
 - **M7 (§3.6):** consumes `donation_scheduled` and `donation_cancelled`. `pickup_completed` must carry each donation's outcome, which is a change. M7 reads `pickups_for` for the captain's flat checklist.
 - **M8:** verified captain partners through `partners.api.get_partner` and `profile_card`, and its `partners.verified` and `partners.suspended` events. `partners.api.hub_earnings(hub_id, month) -> { paise, partners }` is new, for the impact card.
-- **M10:** `intel_gateway.api.society_stop_cost(society_id)` is new, on `/slots/price`.
+- **M10:** `intel_gateway.api.society_stop_costs(http, settings, days, candidates)` is new, on `/slots/price` (M10 §3.8). The days come from **M7**'s `logistics.api.tentative_day`.
 - **M0:** the `handoff_photo` upload purpose is new.
 - **M11:** event map rows for `society_live`, `donation_verified` and `donation_rejected`. It must not send twice for `points_credited` with `source_type: "donation"`.
 - **M12:** reads M9's facts through the §3.8 facade.

@@ -22,7 +22,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from gharbasket_ml.schemas import RankCandidate, RankedOut, RankRequest, RankResponse
+from gharbasket_ml.schemas import (
+    FeatureContribution,
+    RankCandidate,
+    RankedOut,
+    RankRequest,
+    RankResponse,
+)
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +42,7 @@ FEATURES = (
 )
 # The training job's cap on weeks since last bought, and its value for never bought.
 WEEKS_SINCE_NEVER = 52.0
+TOP_FEATURES = 3  # per ranked item, as the training job's explanations
 MODEL_NAME = "basket_ranker"
 RELOAD_S = 600.0
 
@@ -144,6 +151,33 @@ def _model_scores(loaded: Loaded, request: RankRequest) -> list[float] | None:
     return scores
 
 
+def _top_features(
+    loaded: Loaded, rows: list[list[float]]
+) -> list[list[FeatureContribution]] | None:
+    """The `TOP_FEATURES` largest |SHAP| contributions of each row, from LightGBM's native
+    `pred_contrib=True` (TreeSHAP; the last column is the expected value). None on any failure:
+    an explanation never costs the ranking."""
+    try:
+        raw = loaded.booster.predict(rows, pred_contrib=True)
+        out = []
+        for row in raw:
+            pairs = sorted(
+                zip(FEATURES, (float(x) for x in row), strict=False), key=lambda p: -abs(p[1])
+            )
+            if not all(math.isfinite(c) for _, c in pairs):
+                return None
+            out.append(
+                [
+                    FeatureContribution(feature=f, contribution=round(c, 4))
+                    for f, c in pairs[:TOP_FEATURES]
+                ]
+            )
+        return out
+    except Exception:
+        log.exception("basket ranker %s failed to explain; answering without", loaded.version)
+        return None
+
+
 def rank(request: RankRequest, models_dir: Path | None, reload_s: float = RELOAD_S) -> RankResponse:
     loaded = load(models_dir, reload_s=reload_s)
     scores = _model_scores(loaded, request) if loaded is not None else None
@@ -152,12 +186,22 @@ def rank(request: RankRequest, models_dir: Path | None, reload_s: float = RELOAD
     else:
         scores = [c.frequency + 0.001 * c.popularity for c in request.candidates]
         source, model = "fallback", "frequency-v0"
-    order = sorted(range(len(request.candidates)), key=lambda i: (-scores[i], i))
+    order = sorted(range(len(request.candidates)), key=lambda i: (-scores[i], i))[: request.top_k]
+    explained = (
+        _top_features(loaded, [_row(request.candidates[i]) for i in order])
+        if source == "ml" and loaded is not None
+        else None
+    )
     return RankResponse(
         source=source,  # pyright: ignore[reportArgumentType]
         model=model,
         ranked=[
-            RankedOut(product=request.candidates[i].product, score=round(scores[i], 4), rank=r + 1)
-            for r, i in enumerate(order[: request.top_k])
+            RankedOut(
+                product=request.candidates[i].product,
+                score=round(scores[i], 4),
+                rank=r + 1,
+                top_features=None if explained is None else explained[r],
+            )
+            for r, i in enumerate(order)
         ],
     )
