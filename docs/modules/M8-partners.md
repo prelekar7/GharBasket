@@ -752,6 +752,14 @@ billing.api.partner_months(session, partner_ids, first: "YYYY-MM", last: "YYYY-M
 
 **What it is not.** It is not a tax document (Form 16A) or a salary slip. The weekly earnings statement stays M5's `GET /v1/statements?account=earnings`.
 
+**As built (the income certificate, `partners/certificate.py` and `certificate_router.py`).**
+- **Order of answers.** A malformed or too-long period is 422 first; then no object storage is 503 (before any record is read, so a person with no record still gets 503 rather than 404 while storage is down); then the rate limit; then the records (404, 403). The 429 counts every attempt that passed the period check, whatever follows.
+- **The facade.** `billing.api.partner_months` (M5 §3.5, `billing/months.py`) counts "owed" as the balance at the earlier of the end of `last` and `until`, by posting time, so it equals the `closing_paise` of that month's earnings statement. `reverse_earning` and `earning_reversal` are not built (M5 §3.5), so earned is not reduced by anything yet; the facade reads only `earning`, `payout` and `payout_reversed` entries.
+- **The PDF.** `platform/pdf.py` (fpdf2 with uharfbuzz shaping; Noto Sans and Noto Sans Devanagari in `platform/fonts/`, SIL OFL). Each kind with a record has a column and a "Work done" line, zeros included. Rendering runs in `asyncio.to_thread`; twelve months and four kinds take about 150 ms.
+- **Audit and logs.** The audit row's `after` holds the ids the spec lists (user, partner records, the object key) and no name; the only log line is `income_certificate_issued` with the reference and the month count. The request log of the staff path carries the partner id in its URL, as every request log does.
+- **Limit keys.** `partners.certificate:user:<user_id>` and `partners.certificate:staff:<user_id>`, one fixed hour window each (`platform.rate_limit.enforce`).
+- **Not built here.** The frontend changes in the table above (shared mock, one open-the-link helper, the console page's redirect) are Yash's; `docs/integration/gaps.json` no longer lists `GET /v1/earnings/certificate`, since the backend has it.
+
 | Mock or page today | Contract |
 |---|---|
 | Captain and kitchen mocks answer `{ url, filename }`; the logistics mock `{ url, expires_in: 300 }` | `{ reference, from, to, url, filename, expires_at }`; align the three mocks (one shared handler). The rider screen reads only `url` and keeps working |

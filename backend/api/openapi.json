@@ -3094,6 +3094,62 @@
         "title": "CategoryRef",
         "type": "object"
       },
+      "CertificateLinkOut": {
+        "properties": {
+          "expires_at": {
+            "description": "When the link stops working",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "filename": {
+            "examples": [
+              "gharbasket-income-certificate-2026-05-to-2026-10.pdf"
+            ],
+            "title": "Filename",
+            "type": "string"
+          },
+          "from": {
+            "description": "First month, IST",
+            "examples": [
+              "2026-05"
+            ],
+            "title": "From",
+            "type": "string"
+          },
+          "reference": {
+            "description": "Printed on the PDF; support finds the issue by it in the audit log",
+            "examples": [
+              "GBIC-7K3M-QX9P-2TAB-H4WE"
+            ],
+            "title": "Reference",
+            "type": "string"
+          },
+          "to": {
+            "description": "Last month, IST; the current one is to date",
+            "examples": [
+              "2026-10"
+            ],
+            "title": "To",
+            "type": "string"
+          },
+          "url": {
+            "description": "A 5-minute signed GET of the PDF",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "from",
+          "to",
+          "url",
+          "filename",
+          "expires_at"
+        ],
+        "title": "CertificateLinkOut",
+        "type": "object"
+      },
       "ChangeOut": {
         "properties": {
           "from": {
@@ -43300,6 +43356,152 @@
         ]
       }
     },
+    "/v1/earnings/certificate": {
+      "get": {
+        "operationId": "my_certificate_v1_earnings_certificate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 7,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2026-05"
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 7,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2026-10"
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.partner_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.certificate_period_invalid (with max_months), request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.certificate_rate_limited (see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Your income certificate: a 5-minute link to a PDF of your earnings by month",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
     "/v1/festivals": {
       "get": {
         "operationId": "list_festivals_v1_festivals_get",
@@ -57567,6 +57769,162 @@
           }
         ],
         "summary": "Know your cook: a kitchen's public card (any signed-in user)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/partners/{partner_id}/earnings/certificate": {
+      "get": {
+        "operationId": "partner_certificate_v1_partners__partner_id__earnings_certificate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partner_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Partner Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 7,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2026-05"
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 7,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2026-10"
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.partner_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.certificate_period_invalid (with max_months), request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.certificate_rate_limited (see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A partner's income certificate, issued by hub staff (audit-logged)",
         "tags": [
           "partners",
           "partners"

@@ -1447,6 +1447,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/earnings/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your income certificate: a 5-minute link to a PDF of your earnings by month */
+        get: operations["my_certificate_v1_earnings_certificate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/festivals": {
         parameters: {
             query?: never;
@@ -3201,6 +3218,23 @@ export interface paths {
         };
         /** Know your cook: a kitchen's public card (any signed-in user) */
         get: operations["kitchen_card_v1_partners__partner_id__card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partners/{partner_id}/earnings/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A partner's income certificate, issued by hub staff (audit-logged) */
+        get: operations["partner_certificate_v1_partners__partner_id__earnings_certificate_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5683,6 +5717,43 @@ export interface components {
              * @example leafy-greens
              */
             slug: string;
+        };
+        /** CertificateLinkOut */
+        CertificateLinkOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             * @description When the link stops working
+             */
+            expires_at: string;
+            /**
+             * Filename
+             * @example gharbasket-income-certificate-2026-05-to-2026-10.pdf
+             */
+            filename: string;
+            /**
+             * From
+             * @description First month, IST
+             * @example 2026-05
+             */
+            from: string;
+            /**
+             * Reference
+             * @description Printed on the PDF; support finds the issue by it in the audit log
+             * @example GBIC-7K3M-QX9P-2TAB-H4WE
+             */
+            reference: string;
+            /**
+             * To
+             * @description Last month, IST; the current one is to date
+             * @example 2026-10
+             */
+            to: string;
+            /**
+             * Url
+             * @description A 5-minute signed GET of the PDF
+             */
+            url: string;
         };
         /** ChangeOut */
         ChangeOut: {
@@ -24235,6 +24306,85 @@ export interface operations {
             };
         };
     };
+    my_certificate_v1_earnings_certificate_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CertificateLinkOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_period_invalid (with max_months), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_rate_limited (see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_festivals_v1_festivals_get: {
         parameters: {
             query?: {
@@ -32080,6 +32230,87 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    partner_certificate_v1_partners__partner_id__earnings_certificate_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CertificateLinkOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_period_invalid (with max_months), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_rate_limited (see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
