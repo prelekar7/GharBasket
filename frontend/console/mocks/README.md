@@ -91,7 +91,7 @@ missing route.
 | `prices.js` | `GET /v1/prices` (PriceListOut), `POST /v1/hubs/{id}/price-lists` (whole list, PriceListCreated) and the proposed `GET /v1/hubs/{id}/price-lists` |
 | `orders.js` | `GET /v1/orders` (OrderSummaryOut, paged by `cursor`, `from` and `to`), `GET /v1/slots` (SlotsOut), `POST /v1/admin/slots`, `PATCH /v1/admin/slots/{id}`, and the proposed `GET /v1/hubs/{id}/delivery-dates`, `GET /v1/hubs/{id}/cutoff`, `POST /v1/hubs/{id}/cutoff/run` |
 | `cycles.js` | `GET` and `PUT /v1/societies/{id}/delivery-days` (weekday 0 = Monday, 1 to 3 items) and the proposed `GET /v1/hubs/{id}/delivery-days` |
-| `plans.js` | `GET /v1/plans` (PlanOut), and the proposed `GET /v1/admin/plans`, `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` |
+| `plans.js` | The real `GET /v1/plans` (PlanOut, live plans only) and `GET /v1/admin/plans` (AdminPlanOut, admin only). Read-only: plan create and edit were dropped (M3 §3.5) |
 | `festivals.js` | `GET /v1/festivals` (FestivalOut, one row per date), and the proposed `POST /v1/admin/festivals`, `PATCH /v1/admin/festivals/{id}` |
 | `partners.js` | The real M8: `GET /v1/hubs/{id}/partners` and `GET /v1/partners/{id}` (PartnerStaff), `POST …/suspend` (`reason_code`, `note`) and `…/reinstate`, `GET /v1/partners/{id}/card`, `GET /v1/hubs/{id}/partner-applications` (ApplicationReview, `status` defaults to `kyc_pending`), `POST /v1/partner-applications/{id}/decision` (approve, resubmit, reject), `POST /v1/kyc-documents/{id}/file-links`, `POST /v1/kitchens/{id}/inspection`, `GET /v1/hubs/{id}/partner-rates`; the proposed fairness dashboard (`GET /v1/hubs/{id}/fairness`, `PUT …/fairness-weight`) stays here. Seed partner ids are in `partner-ids.js`. |
 | `payouts.js` | The real M5 §3.5: `GET /v1/admin/payouts?week=&status=&hub_id=` (ISO weeks relative to today; admin and hub_manager) and `POST /v1/admin/payouts/{id}/retry` (admin, a held or failed payout goes to `pending`) |
@@ -99,7 +99,7 @@ missing route.
 
 Proposals (marked `@proposal (not in the contract yet)` in the mocks; in real mode they 404 and the page says "not available yet",
 see `lib/proposal.js`): `GET /v1/admin/products` (`?active=false`), `GET /v1/admin/products/{id}`, `POST/PATCH /v1/admin/products`,
-`GET /v1/hubs/{id}/price-lists`, `GET /v1/admin/plans` and its writes, and `POST/PATCH /v1/admin/festivals` (the id of a run is
+`GET /v1/hubs/{id}/price-lists`, and `POST/PATCH /v1/admin/festivals` (the id of a run is
 `code:region:starts_on`). The real contract has no category list, no `q` or `include_inactive` on products, and no `active` on
 a product: pages derive categories from the products, filter in the browser, and treat a missing `active` as active.
 Slots, societies and orders have uuids too (`ids.js`, `mockUuid`); the real order has no flat, society name or item summary, so the Orders board shows the society (named from `GET /v1/societies`), the kind and the slot. Product ids are uuids (`mockUuid` in `util.js`); the slug is in `slug`.

@@ -1,13 +1,18 @@
+import { NoAccess } from "@/components/admin/Page.jsx";
+import { isForbidden } from "@/lib/admin/safe.js";
 import { apiGet } from "@/lib/api.js";
-import { orNotShipped } from "@/lib/proposal.js";
 import { PlansView } from "./PlansView.jsx";
 
 export const metadata = { title: "Plans" };
 
 export default async function Page() {
-  // @proposal (not in the contract yet): GET /v1/admin/plans adds `state` and `subscriber_count` and
-  // comes with the edit endpoints. Without it the page shows the real plans, read-only.
-  const admin = await orNotShipped(apiGet("/v1/admin/plans"));
-  const { items } = admin ?? (await apiGet("/v1/plans"));
-  return <PlansView plans={items} editable={admin !== null} />;
+  try {
+    // GET /v1/admin/plans (M3 §3.5, admin): every plan, live or draft, with its subscriber count.
+    // Read-only by decision: plans are seeded and a fee is a price, so there is no create or edit.
+    const { items } = await apiGet("/v1/admin/plans");
+    return <PlansView plans={items} />;
+  } catch (error) {
+    if (isForbidden(error)) return <NoAccess title="Plans" />;
+    throw error;
+  }
 }
