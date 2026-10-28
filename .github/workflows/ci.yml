@@ -156,7 +156,7 @@ jobs:
           exit 1
 
       - name: Tests (coverage gate in backend/api/pyproject.toml)
-        run: uv run --directory backend/api pytest --cov -n 4 --dist worksteal --durations=80 --durations-min=3
+        run: uv run --directory backend/api pytest --cov -n 4 --dist worksteal --durations=15
 
       - name: ML service tests (coverage gate in backend/ml/pyproject.toml)
         run: uv run --directory backend/ml pytest --cov
