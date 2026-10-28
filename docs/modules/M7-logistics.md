@@ -1,6 +1,6 @@
 # M7 — Logistics
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md) and its amendments in [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (vehicles), §3.2 (route plans: solve, fallback, publish), §3.3 (rider execution, GPS and live tracking), §3.4 (handover, door proof, undelivered, hold and redelivery) and §3.5 (the customer's delivery view) are frozen for S5 when this spec is approved; §3.6 (return-leg pickups) was refined on 2026-10-25 and is frozen on approval; §3.7 (tiffin routes) is an outline, refined in the PR that builds it.
+**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md) and its amendments in [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (vehicles), §3.2 (route plans: solve, fallback, publish), §3.3 (rider execution, GPS and live tracking), §3.4 (handover, door proof, undelivered, hold and redelivery) and §3.5 (the customer's delivery view) are frozen for S5 when this spec is approved; §3.6 (return-leg pickups) was refined on 2026-10-25, is frozen on approval and is built; §3.7 (tiffin routes) is an outline, refined in the PR that builds it.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S5
 **Postgres schema:** `logistics` · **Python package:** `gharbasket.modules.logistics`

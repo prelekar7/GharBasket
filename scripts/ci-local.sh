@@ -8,7 +8,7 @@
 #
 # Needs the local stack (`just up`), uv, corepack (pnpm), gitleaks and an authenticated `gh`.
 # Each run gets its own worktree and a fresh test database, and removes both at the end, so runs
-# for different PRs can go side by side (use CI_VALKEY_DB, 0 to 47, to give each a different Valkey db).
+# for different PRs can go side by side (use CI_VALKEY_DB, 0 to 15, to give each a different Valkey db).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)

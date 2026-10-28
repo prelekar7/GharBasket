@@ -1,6 +1,6 @@
 # M12 — Console & Analytics
 
-**Status:** Draft v2. §3.1–§3.9 were drafted on 2026-10-09 and are frozen for S9 on approval. They cover how M12 reads other modules, the fact tables and materialised views with their refresh jobs, the today board, KPIs, unit economics and P&L, cohorts and partner earnings, impact, the public society page, AI health and the common rules. AI health (§3.8) is built on `feat/M10-forecast-v1` and is not on `main` yet.
+**Status:** Draft v2. §3.1–§3.9 were drafted on 2026-10-09 and are frozen for S9 on approval. They cover how M12 reads other modules, the fact tables and materialised views with their refresh jobs, the today board, KPIs, unit economics and P&L, cohorts and partner earnings, impact, the public society page, AI health and the common rules. §3.2–§3.8 are built (each "As built" below), and AI health (§3.8) is on `main`. No KPI shows one partner's pay (§3.3).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** Shell in P1 / S0; screens grow with each phase (P2–P5). The analytics backend (§3.1–§3.7) is S9, for MS-D ("impact dashboard").
 **Deployables:** `frontend/console` (Next.js 16) + analytics endpoints in the API (`gharbasket.modules.analytics`, read-only towards every other module)

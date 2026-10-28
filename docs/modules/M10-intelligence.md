@@ -1,6 +1,6 @@
 # M10 — Intelligence (ML & Optimisation Service)
 
-**Status:** Draft v1.1. §3.1 (`POST /plan/week`, v0) is frozen and built in `backend/ml`; §3.8 (`POST /slots/price` and green slots) drafted 2026-10-28, frozen on approval; the rest is refined at phase start (spec-first).
+**Status:** Draft v1.1. §3.1 (`POST /plan/week`, v0) is frozen and built in `backend/ml`; §3.8 (`POST /slots/price` and green slots) drafted 2026-10-28, frozen on approval, built behind `GREEN_SLOTS_ENABLED` (off by default; as built, below); §3.6 (the forecast job, v0 and v1) and §3.7 (the ranker, with SHAP) are built; the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
 **Phase / Sprint:** Simulator and skeleton from P1 / S0; models in P4 / S7–S8
 **Deployables:** `backend/ml` (FastAPI, stateless; served from a Hugging Face Space with OSRM as a second process, ADR-0025); `backend/training` (training, forecasting, snapshots and data jobs, run in GitHub Actions, ADR-0025); models and the lake on R2 with a `latest.json` pointer per model; MLflow local only; gateway module in the API: `gharbasket.modules.intel_gateway`

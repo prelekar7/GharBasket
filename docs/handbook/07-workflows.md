@@ -319,7 +319,7 @@ sequenceDiagram
     DB-->>W: Outbox orders.locked complete for hub and T
     W->>ML: forecast_uncommitted(hub, T)
     ML->>DB: Read history, prices, festivals, weekday features
-    ML->>ML: StatsForecast, MLForecast, Chronos-2 for new hubs
+    ML->>ML: StatsForecast, LightGBM, Chronos-2 for new hubs
     ML->>ML: Reconcile hierarchy and conformal quantiles
     ML->>DB: intel.predictions kind forecast
     ML-->>W: intel.forecast_ready

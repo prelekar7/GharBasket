@@ -1,6 +1,6 @@
 # M1 — Identity & Household
 
-**Status:** Draft v1.2. §3.1 (auth) and §3.2 (household, consents, address) are frozen; §3.3 (data export) frozen on 2026-10-08; §3.4 (shortage preference) and §3.5 (account deletion) drafted 2026-10-09, frozen on approval; §3.6 (staff lookup, revoke, the hub's staff, pending grants) drafted 2026-10-25, frozen on approval; the rest is refined at phase start (spec-first).
+**Status:** Draft v1.2. §3.1 (auth) and §3.2 (household, consents, address) are frozen; §3.3 (data export) frozen on 2026-10-08; §3.4 (shortage preference) and §3.5 (account deletion) drafted 2026-10-09, frozen on approval; §3.6 (staff lookup, revoke, the hub's staff, pending grants) drafted 2026-10-25, frozen on approval, built (as built, below); the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `identity` · **Python package:** `gharbasket.modules.identity`

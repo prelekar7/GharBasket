@@ -18,10 +18,10 @@ Each backend/product module has one specification file. Specs are written **befo
 | M9 | Draft v1.3 | §3.1 societies and society requests (for S1); §3.2 captains (for S5, on approval); §3.3–§3.8 referrals, point rates, drives and donations, NGOs and hand-offs, society unlock, impact (drafted 2026-10-09, for S9 on approval) |
 | M10 | Draft v1.1 | §3.1 `POST /plan/week` v0 (built in `backend/ml`) |
 | M11 | v1.1 | §3.1 inbox, preferences, push token and event map (2026-10-08) |
-| M12 | Draft v2 | §3.1–§3.9 facade-only reads, fact tables and views, today board, KPIs, unit economics and P&L, cohorts, impact, public society page (drafted 2026-10-09, for S9 on approval); §3.8 AI health built on `feat/M10-forecast-v1` |
+| M12 | Draft v2 | §3.1–§3.9 facade-only reads, fact tables and views, today board, KPIs, unit economics and P&L, cohorts, impact, public society page (drafted 2026-10-09, for S9 on approval); §3.2–§3.8 built, AI health included |
 | M13 | Draft v1 | None yet |
 
-Keep this table in step with the spec headers when a section is frozen.
+Keep this table in step with the spec headers when a section is frozen. The header of each spec is the source of truth, including which sections are built; this table lags behind it.
 
 ## Index
 

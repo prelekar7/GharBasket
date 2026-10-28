@@ -134,7 +134,7 @@ flowchart TD
 
 *Figure 11.2 — CI/CD pipeline*
 
-**Local CI while Actions cannot run (Oct 2026).** GitHub Actions stopped starting jobs ("recent account payments have failed"). Until that is fixed, `just ci-local <pr-number|ref>` (`scripts/ci-local.sh`) runs the same four jobs on a developer machine (lint, secrets, python, frontend) against the local stack, each run in its own worktree with a fresh test database, and posts each job as a GitHub commit status `local-ci/<job>` on the PR head. A PR is green when its four `local-ci/*` statuses are; the full log stays in `.ci-local/<sha>.log`. It needs `just up`, uv, corepack, gitleaks and `gh auth login`. The scheduled workflows (`jobs-staging.yml`, `training-jobs.yml`) do not run either until Actions works again.
+**Local CI (a fallback since Oct 2026).** GitHub Actions stopped starting jobs for a while ("recent account payments have failed"). The repository is now public, so Actions runs free again and CI, the staging deploy and the scheduled workflows run there. When Actions is unavailable again, `just ci-local <pr-number|ref>` (`scripts/ci-local.sh`) runs the same four jobs on a developer machine (lint, secrets, python, frontend) against the local stack, each run in its own worktree with a fresh test database, and posts each job as a GitHub commit status `local-ci/<job>` on the PR head. A PR is green when its four `local-ci/*` statuses are; the full log stays in `.ci-local/<sha>.log`. It needs `just up`, uv, corepack, gitleaks and `gh auth login`. The scheduled workflows (`jobs-staging.yml`, `training-jobs.yml`) do not run without Actions.
 
 | Workflow | Trigger | Steps |
 |---|---|---|

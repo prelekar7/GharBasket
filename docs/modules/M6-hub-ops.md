@@ -1,6 +1,6 @@
 # M6 — Hub Operations
 
-**Status:** Draft v3 (with [ADR-0026](../adr/0026-operations-contract.md) and [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (hubs, service areas, vendors) and §3.2 (packing) are frozen for S4 and built. §3.3 (procurement plans and purchase orders), §3.4 (goods receipt, lots and stock) and §3.5 (waste, the surplus cascade and kept items) were refined on 2026-10-09 and are **frozen on approval**; §3.5's kept items and returned bags are built with M7's redelivery PR (ADR-0027 §2). §3.6 (shortages today, for the packer app) was drafted on 2026-10-25, frozen on approval.
+**Status:** Draft v3 (with [ADR-0026](../adr/0026-operations-contract.md) and [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (hubs, service areas, vendors) and §3.2 (packing) are frozen for S4 and built. §3.3 (procurement plans and purchase orders), §3.4 (goods receipt, lots and stock) and §3.5 (waste, the surplus cascade and kept items) were refined on 2026-10-09 and are **frozen on approval**; §3.5's kept items and returned bags are built with M7's redelivery PR (ADR-0027 §2). §3.6 (shortages today, for the packer app) was drafted on 2026-10-25, frozen on approval, and is built (as built, below).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S4
 **Postgres schema:** `hub_ops` · **Python package:** `gharbasket.modules.hub_ops`
