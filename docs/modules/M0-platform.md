@@ -1,6 +1,6 @@
 # M0 — Platform
 
-**Status:** Draft v1; §3.1 (file uploads) frozen on 2026-10-08
+**Status:** Draft v1; §3.1 (file uploads) frozen on 2026-10-08. The server-side PDF helper (`platform/pdf.py`) and the server-only `income_certificate` purpose are built with M8 §3.7.
 **Owner:** Prathamesh Relekar (backend: API platform, auth plumbing, infra, ML skeleton, simulator), Yash Salunkhe (screens: frontend shells, UI tokens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P1 / S0
 **Postgres schema:** `platform` · **Python package:** `gharbasket.platform`

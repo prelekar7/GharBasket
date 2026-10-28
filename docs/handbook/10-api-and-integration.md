@@ -156,16 +156,16 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M0 platform | `/health`, `/ready`, `POST /files/presign`; internal `GET /internal/jobs`, `POST /internal/jobs/{name}` (`JOBS_TOKEN`) |
 | M1 identity | `POST /auth/exchange`, `/auth/refresh`, `GET/PATCH /me`, `/households`, `/households/{id}/members`, `/addresses`, `/consents`, `/me/roles`, `POST/GET /me/data-export`, `DELETE /me`; console: `/admin/users`, `/admin/user-roles`, `/hubs/{id}/staff` (M1 §3.6) |
 | M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals`, `/categories`; console: `/admin/products`, `/admin/recipes`, `/admin/festivals`, `/hubs/{id}/price-lists` (M2 §3.3), `/hubs/{id}/tiffin-menus` with `/tiffin-menus/{id}/approve`, `/send-back`, `/reopen` (M2 §3.4) |
-| M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/unskip`, `/feedback`, `/budget-lock`; console: `/hubs/{id}/cutoff`, `/hubs/{id}/delivery-dates`, `/hubs/{id}/delivery-days`, `/admin/plans` (M3 §3.4, §3.5) |
-| M4 orders | `/orders` (GET; POST for tiffins), `/orders/{id}`, `/orders/{id}/events` (SSE or JSON), `/orders/{id}/pay`, `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots`, `/tiffin-menus`; console: `/admin/order-issues` (M4 §3.3–§3.6) |
+| M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/unskip`, `/feedback`, `/budget-lock`; console: `/hubs/{id}/cutoff`, `/hubs/{id}/delivery-dates`, `/hubs/{id}/delivery-days`, `/admin/plans` (M3 §3.4, §3.5); green slots, off by default (`GREEN_SLOTS_ENABLED`, else 404): `POST /cycles/{id}/slot-quotes`, `PUT /cycles/{id}/slot` (M3 §3.6, M10 §3.8) |
+| M4 orders | `/orders` (GET; POST for tiffins), `/orders/{id}`, `/orders/{id}/events` (SSE or JSON), `/orders/{id}/pay`, `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots`, `/tiffin-menus`; console: `/admin/order-issues` (M4 §3.3–§3.6); a green-slot move shows as `discount_paise` and `discount_code` on the order (M4 §3.9) |
 | M5 billing | `/wallet`, `/wallet/topups`, `/wallet/refund-to-source`, `/wallet/refunds`, `/payments/webhook/razorpay`, `/kindness/balance`, `/kindness/entries`, `/statements?period=` (`&account=earnings` for a partner), `/payouts`; console: `/admin/reconciliation`, `/admin/payouts`, `/admin/payouts/{id}/retry`, `/admin/refunds` (read-only, served by M4, M5 §3.8); `/mandates` at the pilot (M5 §3.3–§3.7) |
 | M6 ops | `/hubs/{id}/procurement-plans`, `/purchase-orders`, `/grn`, `/packing-tasks`, `/hubs/{id}/shortages` (M6 §3.6), `/waste-logs`, `/vendors` |
 | M7 logistics | `/routes?date&slot`, `/routes/{id}/live` (SSE), `/stops/{id}/handover`, `/deliveries/{order}/proof`, `/pickups` |
-| M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/payouts`; console: `/hubs/{id}/fairness` (M8 §3.8) |
-| M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngos`, `/ngo/offers`, `/ngo-handoffs`, `/impact`; console: `/admin/societies`, `/admin/society-requests` (M9 §3.9) |
+| M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/earnings/certificate` (income certificate: a 5-minute link to a PDF, M8 §3.7), `/payouts`; console: `/partners/{id}/earnings/certificate` (hub staff, audit-logged), `/hubs/{id}/fairness` (M8 §3.8) |
+| M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngos`, `/ngo/offers`, `/ngo-handoffs`, `/impact` (`scope=me` or `society`); console: `GET` and `POST /admin/societies` (created on the shared path of society requests, M9 §3.1), `PATCH /admin/societies/{id}` (boundary polygon and towers, M9 §3.6), `/admin/society-requests` (M9 §3.9) |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
 | M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
-| M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, cohorts, partner earnings, unit economics, impact) |
+| M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, cohorts, partner earnings, unit economics, impact; no KPI shows one partner's pay); public, no sign-in: `GET /public/societies/{slug}` (the society page, small numbers hidden; M12 §3.7) |
 | M13 assistant | `/assistant/messages` (JSON in v0; SSE later), `/assistant/sessions/{id}`, `/assistant/confirm/{proposal}`, `/assistant/proposals/{id}/reject` |
 
 ## 10.6 External integrations
@@ -174,7 +174,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 flowchart LR
     subgraph GB["GharBasket platform (Render, Vercel, Neon)"]
         API["api<br/>outbox handlers + jobs"]
-        ML["ml service<br/>(host to be decided)"]
+        ML["ml service<br/>(Hugging Face Space)"]
     end
     MOB["Mobile app<br/>(Capacitor)"] --> FBA["Firebase Auth<br/>phone OTP"]
     MOB --> API

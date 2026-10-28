@@ -1,6 +1,6 @@
 # M4 — Orders & Checkout
 
-**Status:** Draft v1; §3.1 (slots, box orders, add-ons, cancel, cut-off) frozen for S2; §3.2 (order issues) frozen on 2026-10-08; §3.3–§3.7 (live timeline, paying a failed order, tiffin orders, issue triage, facade additions) drafted 2026-10-09, frozen on approval; §3.9 (green-slot discount) drafted 2026-10-28, frozen on approval
+**Status:** Draft v1; §3.1 (slots, box orders, add-ons, cancel, cut-off) frozen for S2; §3.2 (order issues) frozen on 2026-10-08; §3.3–§3.7 (live timeline, paying a failed order, tiffin orders, issue triage, facade additions) drafted 2026-10-09, frozen on approval; §3.9 (green-slot discount) drafted 2026-10-28, frozen on approval, built behind `GREEN_SLOTS_ENABLED` (off by default; as built in M10 §3.8)
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (cut-off in S3)
 **Postgres schema:** `orders` · **Python package:** `gharbasket.modules.orders`

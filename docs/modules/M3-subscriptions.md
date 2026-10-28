@@ -1,6 +1,6 @@
 # M3 — Plans & Subscriptions (Weekly Autopilot cycle)
 
-**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval; §3.4 (hub cut-off monitor, delivery dates) drafted 2026-10-25, frozen on approval; §3.5 (hub delivery days, admin plan list) drafted 2026-10-25, frozen on approval; §3.6 (green slots: moving this week's box to another slot) drafted 2026-10-28, contract in M10 §3.8, frozen on approval
+**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval; §3.4 (hub cut-off monitor, delivery dates) drafted 2026-10-25, frozen on approval, built; §3.5 (hub delivery days, admin plan list) drafted 2026-10-25, frozen on approval, built (as built, below); §3.6 (green slots: moving this week's box to another slot) drafted 2026-10-28, contract in M10 §3.8, frozen on approval, built behind `GREEN_SLOTS_ENABLED` (off by default; as built in M10 §3.8)
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S3 (rule-based box); AI plans plugged in during P4 / S7–S8
 **Postgres schema:** `subscriptions` · **Python package:** `gharbasket.modules.subscriptions`

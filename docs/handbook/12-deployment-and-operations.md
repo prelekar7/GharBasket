@@ -1,9 +1,9 @@
 # Chapter 12 — Deployment and Operations
 
 > **In short:**
-> - Staging runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
+> - Staging is **live** at `https://gharbasket-api.onrender.com` and runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
 > - **PostgreSQL 18 is on Neon** (Singapore): one shared database for the Infisical `dev` and `staging` environments, with guardrails. There is no database branch per PR. Daily work uses local Docker Postgres.
-> - **Deploys:** GitHub Actions on `main` after CI runs `alembic upgrade head` on Neon, then calls the Render deploy hook. Scheduled jobs are internal endpoints called by a GitHub Actions schedule for daily and weekly jobs (D21) and by **cron-job.org** for minute-level ones (D25). Training and data jobs run in GitHub Actions (`training-jobs.yml`, `backend/training`). Secrets live in **Infisical**.
+> - **Deploys:** every green CI run on `main` triggers `deploy-staging.yml`, which runs `alembic upgrade head` on Neon, calls the Render deploy hook and runs a smoke test. CI on `main` cancels a superseded run, so only the newest commit deploys. The repository is public, so Actions minutes are free. Scheduled jobs are internal endpoints called by a GitHub Actions schedule for daily and weekly jobs (D21) and by **cron-job.org** for minute-level ones (D25). Training and data jobs run in GitHub Actions (`training-jobs.yml`, `backend/training`). Secrets live in **Infisical**.
 > - **Backups:** Neon's built-in point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow.
 > - **Observability:** structlog JSON logs, UptimeRobot (which also keeps the free API awake), PostHog. Explicit SLOs; runbooks are planned and written before the pilot (S10).
 > - **ML runtime (D25):** the ML service and OSRM run on one free **Hugging Face Space**; models and the data lake live on R2 with a `latest.json` pointer per model; MLflow stays local.
@@ -109,15 +109,17 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 | Minute-level schedules | cron-job.org | The 21:00 cut-off, the outbox sweep every few minutes, proposal expiry: `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` (D25) |
 | ML serving | Hugging Face Space (free CPU) | The ML service and OSRM (D25) |
 | DNS and TLS | Render and Vercel default URLs | No custom domain yet; TLS by the platforms |
-| Cost | Free tiers only until the pilot | Nothing here can bill us during development |
+| Cost | Free tiers only until the pilot | Nothing here can bill us during development. The repository is public, so GitHub Actions minutes are free |
 
 ### How a change reaches staging
-1. A PR merges into `main`, and CI runs on the merge commit.
-2. When CI passes, `.github/workflows/deploy-staging.yml`:
+1. A PR merges into `main`, and CI runs on the merge commit. CI's concurrency group is per ref with `cancel-in-progress`, so a newer push to `main` cancels the older run; a cancelled run never deploys, and only the newest commit does.
+2. When CI passes (`workflow_run` on a push, never on a PR), `.github/workflows/deploy-staging.yml`:
    - runs `alembic upgrade head` on Neon (the direct URL);
    - calls the Render deploy hook with `?ref=<commit>`;
    - waits until `/v1/health` reports that commit;
    - runs the smoke test (`scripts/smoke-staging.sh`, also `just cloud <url>`).
+
+   The workflow queues deploys (one at a time, no cancelling, so a migration is never cut off half-way) and skips with a notice while any of its four secrets is missing. It can also be started by hand (`workflow_dispatch`).
 3. Render builds `backend/api/Dockerfile` (uv, Python 3.13, non-root) and starts uvicorn on `$PORT` with `--proxy-headers`. Render's own auto-deploy is off (`render.yaml`), so a commit is never deployed before its migrations.
 4. Migrations are expand-then-contract (add first, remove a release later), so the old API keeps working while they apply.
 
@@ -125,7 +127,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 1. Add `APP_ENV`, `JWT_SIGNING_KEY`, `REFRESH_TOKEN_PEPPER`, `KYC_ENCRYPTION_KEY`, `KYC_HASH_PEPPER` (each `openssl rand -base64 48`) and `JOBS_TOKEN` to Infisical `staging`. `KYC_KEY_VERSION` (default 1) names the KYC key; raise it when the key is rotated.
 2. Sign up to Render with GitHub and give it access to this repository only. Then Render → New → **Blueprint** → this repo, which reads `render.yaml`. Enter the `sync: false` values from Infisical.
 3. Copy the API's deploy hook (Settings → Deploy Hook).
-4. Add the GitHub Actions secrets `DATABASE_URL_DIRECT`, `RENDER_DEPLOY_HOOK_URL`, `JOBS_TOKEN` and `STAGING_API_URL`.
+4. Add the GitHub Actions secrets `DATABASE_URL_DIRECT` (Neon, direct), `RENDER_DEPLOY_HOOK_URL`, `JOBS_TOKEN` and `STAGING_API_URL` (done; the deploy workflow needs exactly these four).
 5. Add an UptimeRobot monitor on `/v1/health` every 10 minutes.
 6. Add cron-job.org jobs for the minute-level schedules, each calling `POST <STAGING_API_URL>/v1/internal/jobs/<name>` with `Authorization: Bearer <JOBS_TOKEN>`.
 

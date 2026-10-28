@@ -1,6 +1,6 @@
 # M2 — Catalog & Pricing
 
-**Status:** Draft v1.3. §3.1 (products, search, prices, substitutes) and §3.2 (recipes, festivals) are frozen for S1; §3.3 (catalog admin) drafted 2026-10-09, frozen on approval; §3.4 (tiffin menu review) drafted 2026-10-25, frozen on approval; kits and the kitchen's own menu writes are refined when they are built (spec-first).
+**Status:** Draft v1.3. §3.1 (products, search, prices, substitutes) and §3.2 (recipes, festivals) are frozen for S1; §3.3 (catalog admin) drafted 2026-10-09, frozen on approval; §3.4 (tiffin menu review) drafted 2026-10-25, frozen on approval, built (as built, below); kits and the kitchen's own menu writes are refined when they are built (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (also curate translations and search synonyms)
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `catalog` · **Python package:** `gharbasket.modules.catalog`

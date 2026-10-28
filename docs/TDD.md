@@ -227,7 +227,7 @@ Staging runs on free tiers (ADR-0020): the API is a Render free web service (Sin
 | Data | Polars, DuckDB (reads Postgres via its `postgres` extension; writes Parquet to S3-API object storage) |
 | Classical ML | scikit-learn, LightGBM (LambdaRank, churn), SHAP |
 | Bayesian | NumPyro (CPU); SciPy closed-form Gamma–Poisson online updates |
-| Forecasting | StatsForecast ✓ (AutoETS, CrostonOptimized/TSB/ADIDA, conformal intervals ✓), MLForecast (LightGBM), HierarchicalForecast (MinT), Chronos-2 ✓ (CPU, covariates, quantiles) |
+| Forecasting | StatsForecast ✓ (AutoETS, CrostonOptimized/TSB/ADIDA, conformal intervals ✓), LightGBM ✓ (native booster, direct multi-step; mlforecast needs pandas < 3), HierarchicalForecast (MinT), Chronos-2 ✓ (CPU, covariates, quantiles) |
 | Optimisation | OR-Tools ✓ — routing (CVRPTW + pickup-and-delivery ✓) and CP-SAT |
 | Embeddings | sentence-transformers with BAAI bge-m3 (multilingual), batch on CPU → pgvector (validate in S7 spike) |
 | LLM | anthropic Python SDK |
@@ -450,7 +450,7 @@ No GPU is required in v1; the models are statistical, tabular and solver-based.
 |---|---|---|---|---|
 | Pantry digital twin | Hierarchical Bayesian (NumPyro) + closed-form online updates | `backend/training` in GitHub Actions (CPU, ADR-0025); laptops for development | Weekly fit; online update per order/feedback | 1–5 min |
 | Next-basket ranker | LightGBM LambdaRank | `backend/training` (GitHub Actions) | Weekly | < 2 min |
-| Demand forecast | StatsForecast + MLForecast + reconciliation | `backend/training` (GitHub Actions) | Nightly | < 5 min |
+| Demand forecast | StatsForecast + LightGBM + reconciliation | `backend/training` (GitHub Actions) | Nightly | < 5 min |
 | Chronos-2 | Pretrained, zero-shot (no training) | CPU inference in a `backend/training` job (optional torch extra) | Nightly, new hubs | seconds–minutes |
 | Meal planner, routing, kitchen assignment, kit selection | OR-Tools solvers (no training) | ml service | Per cycle / per slot | 1–30 s |
 | Churn + uplift | LightGBM + T-learner | `backend/training` (GitHub Actions) | Monthly | < 1 min |
@@ -480,7 +480,7 @@ Training uses synthetic + pilot + live data; metrics are reported separately for
 
 **M-D Budget Lock optimiser.** Same CP-SAT model with the budget as a hard constraint and substitution penalties from `catalog.substitutions`; explanation chips such as "Tomato +62% → lauki".
 
-**M-E Demand forecast + newsvendor procurement (research).** Forecast only uncommitted demand per hub × item × day. StatsForecast (AutoETS, CrostonOptimized, TSB) for intermittent series; MLForecast LightGBM with festival, weekday, price and weather features; Chronos-2 zero-shot for hubs with under 8 weeks of data; HierarchicalForecast MinT reconciliation; conformal intervals. `order_qty = committed + Q_τ(uncommitted)`, τ = C<sub>u</sub>/(C<sub>u</sub>+C<sub>o</sub>), with C<sub>o</sub> reduced by surplus-cascade salvage value and capped by shelf life. Metrics: WAPE, MASE, pinball loss, waste kg per 100 kg sold, stock-out %; baselines: seasonal naive, buy-last-week.
+**M-E Demand forecast + newsvendor procurement (research).** Forecast only uncommitted demand per hub × item × day. StatsForecast (AutoETS, CrostonOptimized, TSB) for intermittent series; a global LightGBM (native booster) with festival, weekday, price and weather features; Chronos-2 zero-shot for hubs with under 8 weeks of data; HierarchicalForecast MinT reconciliation; conformal intervals. `order_qty = committed + Q_τ(uncommitted)`, τ = C<sub>u</sub>/(C<sub>u</sub>+C<sub>o</sub>), with C<sub>o</sub> reduced by surplus-cascade salvage value and capped by shelf life. Metrics: WAPE, MASE, pinball loss, waste kg per 100 kg sold, stock-out %; baselines: seasonal naive, buy-last-week.
 
 **M-F Routing.** OR-Tools CVRPTW with pickup-and-delivery: capacities in kg and crates, society time windows, service time per stop, donation/crate pickups on the return leg (same-vehicle constraint). OSRM matrix; 30 s guided local search. Vans do two trips by solving one captain-window wave at a time (spike S-3). Metrics: ₹/order, km/order, on-time %; baselines: one trip per order, nearest neighbour.
 
@@ -782,7 +782,7 @@ GharBasket uses a **service-based architecture**: one modular monolith plus a sm
 | Mobile app | React 19 + Vite + TanStack Router → PWA + Capacitor 8 (Android) | One JavaScript codebase with the console (ADR-0018); Flutter dropped (second language, no shared UI); React Native/Expo rejected (no UI sharing with web) |
 | Web console + public site | Next.js 16 | Server rendering for dashboards and SEO landing/referral pages; route groups; `proxy.js` auth gate |
 | Backend API | FastAPI (Python 3.13) modular monolith | Python ML ecosystem; async + Pydantic + automatic OpenAPI → generated client and types; NestJS rejected (second backend language); Django rejected (sync-first, heavier) |
-| ML / optimisation | Separate FastAPI service: OR-Tools, StatsForecast/MLForecast, LightGBM, NumPyro, Chronos-2, MLflow | Isolated heavy dependencies; CPU-only training |
+| ML / optimisation | Separate FastAPI service: OR-Tools, StatsForecast, LightGBM, NumPyro, Chronos-2, MLflow | Isolated heavy dependencies; CPU-only training |
 | Jobs | Postgres outbox + GitHub Actions schedule calling internal job endpoints; Taskiq + Valkey at the pilot | Free, no broker to run (ADR-0021); Celery rejected |
 | Database | PostgreSQL 18 (+PostGIS, pgvector, pg_trgm), Valkey, S3-API object storage (Cloudflare R2; SeaweedFS locally), DuckDB | Relational integrity for money and orders; JSONB for flexibility |
 | API contract | OpenAPI → openapi-typescript + openapi-fetch + openapi-react-query (ADR-0022) | Generated contract between teammates; editor hints in JavaScript |
