@@ -30,7 +30,6 @@ from gharbasket.tools import seed as real_seeds
 
 @dataclass(frozen=True)
 class Kept:
-    before: Mapping[str, str]  # a hash of every table before the seed ran
     changed: Mapping[str, list[str]]  # the tables it changed: their rows, after it ran
     columns: Mapping[str, str]  # the columns an INSERT names (not the generated ones)
     had_rows: frozenset[str]  # changed tables that held rows before: emptied before the insert
@@ -128,10 +127,18 @@ def cached[**P, R](
         if not await _may_replay(session):
             return await seed(session, *args, **kwargs)
         hour = datetime.now(UTC).strftime("%Y%m%d%H")
-        key = (seed.__qualname__, args, tuple(sorted(kwargs.items())), hour)
         before = await _hashes(session)
+        # What the database holds is part of the key: `seed_hubs` runs after `seed` in one
+        # fixture and after the whole world in another, which are two sets of rows.
+        key = (
+            seed.__qualname__,
+            args,
+            tuple(sorted(kwargs.items())),
+            hour,
+            tuple(sorted(before.items())),
+        )
         kept = _kept.get(key)
-        if kept is not None and kept.before == before:
+        if kept is not None:
             await _replay(session, kept)
             return kept.result
         tables = await _table_names(session)
@@ -140,7 +147,6 @@ def cached[**P, R](
         rows_after = {table: await _rows(session, table) for table in tables}
         changed = {t: rows for t, rows in rows_after.items() if rows != rows_before[t]}
         _kept[key] = Kept(
-            before=before,
             changed=changed,
             columns={table: await _insert_columns(session, table) for table in changed},
             had_rows=frozenset(t for t in changed if rows_before[t]),
