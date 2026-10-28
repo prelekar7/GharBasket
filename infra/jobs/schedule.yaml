@@ -203,12 +203,18 @@ jobs:
     cron: "15 23 * * *"
     why: M7 §6 T-1 23:15
 
+  - name: solve_tiffin_routes
+    runner: cron-job.org
+    cron: "35 9 * * *"
+    why: M7 §3.7 T 09:35, five minutes after manual tiffin assignment closes (09:30); shares the 09:30 wake
+
   - name: persist_gps_pings
     runner: cron-job.org
     cron:
       - "* 6-7 * * *"
       - "0-45 8 * * *"
-    why: M7 §6 every minute; riders ping on delivery mornings only, and close_routes (16:00) ends strays
+      - "30 12,14 * * *"
+    why: M7 §6 every minute on delivery mornings; the lunch tiffin run's pings wait in Valkey for the 12:30 and 14:30 wakes (§3.7), and close_routes (16:00) ends strays
 
   - name: close_routes
     runner: cron-job.org

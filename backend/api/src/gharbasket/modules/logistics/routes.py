@@ -157,18 +157,22 @@ async def _check_vehicle(session: AsyncSession, route: Route, vehicle_id: uuid.U
             select(
                 func.coalesce(func.sum(RouteStop.kg_tenths), 0),
                 func.coalesce(func.sum(RouteStop.crates), 0),
+                # A tiffin route's portions: what its kitchen stops collect (§3.7)
+                func.coalesce(func.sum(RouteStop.portions).filter(RouteStop.kind == "kitchen"), 0),
             ).where(RouteStop.route_id == route.id)
         )
     ).one()
     carries = CARRIES[vehicle.kind]
-    if load[0] > vehicle.capacity_kg * 10 or (
-        carries == "capacity_crates" and load[1] > vehicle.capacity_crates
+    if (
+        load[0] > vehicle.capacity_kg * 10
+        or (carries == "capacity_crates" and load[1] > vehicle.capacity_crates)
+        or (carries == "capacity_tiffins" and load[2] > vehicle.capacity_tiffins)
     ):
         raise ProblemError(
             422,
             "logistics.vehicle_too_small",
             f"{vehicle.label} cannot carry this route's load.",
-            extra={"kg": load[0] / 10, "crates": int(load[1])},
+            extra={"kg": load[0] / 10, "crates": int(load[1]), "portions": int(load[2])},
         )
 
 

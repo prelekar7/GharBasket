@@ -129,7 +129,8 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |
 | T-1 23:00 | `payment_grace_expiry` (cron-job.org) | orders |
 | T-1 23:15 | `solve_routes` (a box plan per active hub for T; published when M7's check finds no problems, else `logistics.plan_needs_review`; also solves manual plans left queued; cron-job.org) | logistics ← intel |
-| every minute | `persist_gps_pings` (riders' pings from the Valkey stream into `logistics.gps_pings`; cron-job.org) | logistics |
+| T 09:35 | `solve_tiffin_routes` (a lunch `tiffin` plan per active hub for T from M8's assignments, kitchens first then societies, in M7 without the ML service; published when M7's check is clean; cron-job.org; M7 §3.7) | logistics ← partners |
+| every minute | `persist_gps_pings` (riders' pings from the Valkey stream into `logistics.gps_pings`; every minute in the morning window, plus 12:30 and 14:30 for the lunch tiffin run; cron-job.org) | logistics |
 | T 16:00 | `close_routes` (completes routes still in progress; their bags ride back; cron-job.org) | logistics |
 | T 20:30 | `hold_expiry` (bags still at the society become undelivered; cron-job.org) | logistics |
 | T 20:45 | `schedule_redeliveries` (the one free redelivery for T+1, or the second miss refunded; cron-job.org) | logistics |

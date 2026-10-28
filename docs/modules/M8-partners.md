@@ -566,7 +566,7 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 
 **As built (fulfilment events, pickups and leaving, part 5).**
 - **Consumers** (`partners.fulfilment`): a tiffin's `orders.dispatched`, `orders.delivered` and `orders.delivery_failed` move its row in the assignment to `picked_up`, `delivered` or `failed`. A row only moves forward, so a redelivered event changes nothing; an order in no assignment (a hub's own move) is ignored. When every order the assignment still holds is `delivered` or `failed`, a live assignment becomes `completed` and `partners.assignment_completed` is published (`portions_delivered` counts delivered portions, `orders_failed` failed orders).
-- **Facade for M7.** `partners.api.tiffin_pickups(hub, date, meal)` lists the kitchens whose assignment is accepted, preparing or ready, by `ready_by`, with the orders not yet picked up. `pickup(code, hub)` answers the orders `ready` at the kitchen whose `GB1A:` code it is; a malformed, unknown, other hub's or empty-of-ready-orders code is 404 `partners.pickup_invalid` (the spec does not give the status).
+- **Facade for M7.** `partners.api.tiffin_pickups(hub, date, meal)` lists the kitchens whose assignment is accepted, preparing or ready, by `ready_by`, with the orders not yet picked up. `pickup(code, hub)` answers the orders `ready` at the kitchen whose `GB1A:` code it is (none ready: an empty list, which M7 answers with `logistics.nothing_ready`); a malformed, unknown or other hub's code is 404 `partners.pickup_invalid` (the spec does not give the status). Each answer also carries the assignment's `slot_id` and `orders` with short codes and portions (M7 §3.7), and `kitchen_places` gives M7's kitchen stops the kitchen's area, address and point.
 - **Leaving.** `identity.deletion_requested` makes every partner record of the user that has not left `left` (audit `partners.left`), cancels a kitchen's offered and accepted assignments from today as a suspension does, publishes `partners.suspended` with `reason_code: "left"` and sets `delete_after` 30 days on her KYC files. Running it again changes nothing.
 
 ### 3.5 Know your cook and ratings (frozen for S6)
@@ -810,8 +810,9 @@ GET /v1/hubs/{hub_id}/fairness?runs=28
 - `get_partner(session, partner_id) -> PartnerRef | None` — `{ id, user_id, kind, hub_id, status, display_name }` (M9 appointments, M7).
 - `partner_for_user(session, user_id, kind) -> PartnerRef | None`.
 - `profile_card(session, partner_id) -> { display_name, photo_url } | None` — M9's captain card.
-- `tiffin_pickups(session, hub_id, date, meal) -> list[PickupRef]` — `{ assignment_id, partner_id, display_name, address, lat, lng, ready_by, status, order_ids }` for M7's tiffin routes.
-- `pickup(session, pickup_qr, hub_id) -> PickupRef` — the orders ready at that kitchen; raises `partners.pickup_invalid` for an unknown or other hub's code.
+- `tiffin_pickups(session, hub_id, date, meal) -> list[PickupRef]` — `{ assignment_id, partner_id, display_name, address, lat, lng, ready_by, status, order_ids, slot_id, orders }` for M7's tiffin routes; `orders` is `[PickupOrder { order_id, short_code, portions }]`, the same orders as `order_ids` (added for M7 §3.7: the orders not yet picked up).
+- `pickup(session, pickup_qr, hub_id) -> PickupRef` — the orders ready at that kitchen (`orders` empty when none is ready); raises `partners.pickup_invalid` for an unknown or other hub's code.
+- `kitchen_places(session, partner_ids) -> dict[partner_id, KitchenPlace]` — `{ partner_id, display_name, area, address, lat, lng }` for M7's kitchen stops (M7 §3.7, as built); M7 shows the address and the point only to the route's rider at pickup and to hub staff.
 - `payout_eligibility(session, partner_id) -> { eligible, reason: "kyc_incomplete" | "suspended" | "no_payout_account" | None }` and `payout_account(session, partner_id) -> { account_number, ifsc, holder }` (M5 §3.5, §3.7 here).
 - `export_for_user(session, user_id) -> dict` — the M1 data export (§3.3 of M1): applications with masked KYC references and check and review states (no files, no hashes), training results, partner records, ratings given.
 

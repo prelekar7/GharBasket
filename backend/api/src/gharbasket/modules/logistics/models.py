@@ -45,7 +45,8 @@ PLAN_KINDS = ("box", "tiffin")
 PLAN_STATUSES = ("queued", "solving", "solved", "published", "failed", "superseded")
 IN_FLIGHT = ("queued", "solving")
 PLAN_TRIGGERS = ("job", "manual")
-PLAN_SOURCES = ("ml", "ml_fallback", "fallback_previous", "fallback_nearest")
+# nearest: a tiffin plan, kitchens then societies by nearest neighbour in M7 (§3.7)
+PLAN_SOURCES = ("ml", "ml_fallback", "fallback_previous", "fallback_nearest", "nearest")
 ROUTE_STATUSES = ("draft", "published", "in_progress", "completed", "cancelled")
 STARTED = ("in_progress", "completed")
 STOP_KINDS = ("drop", "bank", "kitchen")
@@ -63,6 +64,7 @@ FIELD_ACTIONS = (
     "complete",
     "pickup",
     "rider_mode",
+    "collect",
 )
 
 
@@ -197,8 +199,9 @@ class Route(Base):
 
 
 class RouteStop(Base):
-    """A society and slot on a route (`drop`); `bank` and `kitchen` stops come with §3.6, §3.7.
-    Window and ETA are IST clock times; crates and bags are planned until the route starts."""
+    """A society and slot on a route (`drop`), or a kitchen a tiffin route collects from
+    (`kitchen`, §3.7); `bank` stops come with donations. Window and ETA are IST clock times;
+    crates and bags are planned until the route starts."""
 
     __tablename__ = "route_stops"
     __table_args__ = (
@@ -221,6 +224,10 @@ class RouteStop(Base):
     kind: Mapped[str] = mapped_column(String(8), server_default="drop")
     society_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     slot_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # A kitchen stop's M8 assignment and kitchen (§3.7); plain ids, no cross-schema FK.
+    assignment_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    partner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    portions: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))  # tiffins
     window_start: Mapped[time | None] = mapped_column(Time)
     window_end: Mapped[time | None] = mapped_column(Time)
     eta: Mapped[time] = mapped_column(Time)
@@ -238,6 +245,26 @@ class RouteStop(Base):
     arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     skip_reason: Mapped[str | None] = mapped_column(String(16))
     handed_over_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class StopOrder(Base):
+    """A tiffin on a stop of a tiffin route (§3.7): each tiffin is on two rows of one route, its
+    kitchen stop and its drop. No personal data."""
+
+    __tablename__ = "stop_orders"
+    __table_args__ = (
+        UniqueConstraint("stop_id", "order_id"),
+        Index("ix_stop_orders_order_id", "order_id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    stop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.route_stops.id", ondelete="CASCADE")
+    )
+    order_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M4's tiffin order
+    short_code: Mapped[str] = mapped_column(String(8))  # M8's label, "T-07"
+    portions: Mapped[int] = mapped_column(SmallInteger)
 
 
 HANDOVER_ACTORS = ("captain", "rider", "hub")
@@ -439,6 +466,7 @@ class Delivery(Base):
     # Attempt 1 booked again for a later day because the hub left the bag behind: it rides like a
     # redelivery, but it is no customer miss, so a real miss on it still gets the free redelivery.
     hub_ride: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    short_code: Mapped[str | None] = mapped_column(String(8))  # a tiffin's label (§3.7)
     delivery_code: Mapped[str] = mapped_column(String(8))
     code_attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     by_actor: Mapped[str | None] = mapped_column(String(8))

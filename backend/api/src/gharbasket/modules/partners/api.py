@@ -42,7 +42,7 @@ from gharbasket.modules.partners.payouts import (
     payout_account,
     payout_eligibility,
 )
-from gharbasket.modules.partners.pickups import PickupRef
+from gharbasket.modules.partners.pickups import KitchenPlace, PickupOrder, PickupRef
 
 __all__ = [
     "APPLICATION_DECIDED",
@@ -56,10 +56,12 @@ __all__ = [
     "TIFFINS_UNASSIGNED",
     "VERIFIED",
     "AssignmentRunFact",
+    "KitchenPlace",
     "PartnerFact",
     "PartnerRef",
     "PayoutAccount",
     "PayoutEligibility",
+    "PickupOrder",
     "PickupRef",
     "ProfileCard",
     "anonymise_for_user",
@@ -68,6 +70,7 @@ __all__ = [
     "export_for_user",
     "get_partner",
     "get_partners",
+    "kitchen_places",
     "partner_facts",
     "partner_for_user",
     "partners_for_user",
@@ -156,14 +159,24 @@ async def profile_card(session: AsyncSession, partner_id: uuid.UUID) -> ProfileC
 async def tiffin_pickups(
     session: AsyncSession, hub_id: uuid.UUID, on_date: date, meal: str
 ) -> list[PickupRef]:
-    """M7's tiffin routes: the hub's kitchens with tiffins to collect for a date and meal."""
+    """M7's tiffin routes: the hub's kitchens with tiffins to collect for a date and meal; `orders`
+    are those not yet picked up, with their short codes and portions (M7 §3.7)."""
     return await pickups.tiffin_pickups(session, hub_id, on_date, meal)
 
 
 async def pickup(session: AsyncSession, pickup_qr: str, hub_id: uuid.UUID) -> PickupRef:
-    """M7's rider scan: the orders ready at the kitchen whose `GB1A:` code this is. Raises 404
-    `partners.pickup_invalid` for an unknown, malformed or other hub's code."""
+    """M7's rider scan: the orders ready at the kitchen whose `GB1A:` code this is (`orders` is
+    empty when none is ready). Raises 404 `partners.pickup_invalid` for an unknown, malformed or
+    other hub's code."""
     return await pickups.pickup(session, pickup_qr, hub_id)
+
+
+async def kitchen_places(
+    session: AsyncSession, partner_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, KitchenPlace]:
+    """M7's kitchen stops (§3.7): each kitchen's name, public area, address and point. M7 shows
+    the address and the point only to the route's rider at pickup and to hub staff."""
+    return await pickups.kitchen_places(session, partner_ids)
 
 
 async def application_reason(session: AsyncSession, application_id: uuid.UUID) -> str | None:

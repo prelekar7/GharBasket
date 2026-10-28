@@ -113,7 +113,7 @@ class VehiclePatch(_VehicleFields):
 
 PlanKind = Literal["box", "tiffin"]
 PlanStatus = Literal["queued", "solving", "solved", "published", "failed", "superseded"]
-PlanSource = Literal["ml", "ml_fallback", "fallback_previous", "fallback_nearest"]
+PlanSource = Literal["ml", "ml_fallback", "fallback_previous", "fallback_nearest", "nearest"]
 RouteStatus = Literal["draft", "published", "in_progress", "completed", "cancelled"]
 
 
@@ -176,7 +176,8 @@ class RoutePlanSummary(BaseModel):
     trigger: Literal["job", "manual"]
     source: PlanSource | None = Field(
         description="Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own "
-        "nearest neighbour; fallback_*: M7 planned it because M10 did not answer"
+        "nearest neighbour; fallback_*: M7 planned it because M10 did not answer; nearest: a "
+        "tiffin plan, kitchens then societies by nearest neighbour in M7 (§3.7)"
     )
     distance_source: Literal["osrm", "haversine"] | None = Field(
         description="How the distances were priced"
@@ -204,7 +205,9 @@ class SolveIn(BaseModel):
     delivery_date: date = Field(
         alias="date", examples=["2026-12-29"], description="Today or tomorrow (IST)"
     )
-    kind: Literal["box"] = Field(default="box", description="tiffin plans come with M8 (§3.7)")
+    kind: PlanKind = Field(
+        default="box", description="tiffin: the lunch tiffins of M8's assignments (§3.7)"
+    )
 
 
 class PublishIn(BaseModel):
