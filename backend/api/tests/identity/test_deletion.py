@@ -675,6 +675,7 @@ async def test_every_module_erases_its_part(
         "edit_feedback": 0,
         "pantry_feedback": 0,
         "box_lines": 1,
+        "slot_quotes": 0,
         "weekly_cycles": 1,
         "budget_locks": 0,
         "subscriptions": 1,

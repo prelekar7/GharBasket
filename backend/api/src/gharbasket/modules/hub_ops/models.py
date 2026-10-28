@@ -69,6 +69,10 @@ class Hub(Base):
         CheckConstraint(
             "pre_live_box_fee_paise BETWEEN 0 AND 10000", name="pre_live_box_fee_paise"
         ),
+        CheckConstraint("green_saving_share_pct BETWEEN 0 AND 100", name="green_saving_share_pct"),
+        CheckConstraint(
+            "green_saving_max_paise BETWEEN 0 AND 10000", name="green_saving_max_paise"
+        ),
         CheckConstraint("jsonb_typeof(timings) = 'object'", name="timings"),
         CheckConstraint("version >= 1", name="version"),
         Index("ix_hubs_service_area", "service_area", postgresql_using="gist"),
@@ -93,6 +97,9 @@ class Hub(Base):
     procurement_buffer_pct: Mapped[int] = mapped_column(SmallInteger, server_default=text("10"))
     # The delivery fee on each box for a society that is not live yet (M9 §3.6), set by an admin.
     pre_live_box_fee_paise: Mapped[int] = mapped_column(BigInteger, server_default=text("3000"))
+    # The green-slot saving (M10 §3.8): the share of a move's route saving passed on, and its cap.
+    green_saving_share_pct: Mapped[int] = mapped_column(SmallInteger, server_default=text("50"))
+    green_saving_max_paise: Mapped[int] = mapped_column(BigInteger, server_default=text("1500"))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

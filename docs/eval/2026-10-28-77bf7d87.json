@@ -1,0 +1,4861 @@
+{
+  "generated_at": "2026-10-28T05:28:29+00:00",
+  "commit": "77bf7d87",
+  "args": {
+    "weeks": 5,
+    "start": "2026-10-05",
+    "planners": [
+      "cpsat",
+      "cpsat_v2",
+      "greedy",
+      "random",
+      "rules"
+    ],
+    "adoption": null,
+    "shocks": true,
+    "smoke": false,
+    "no_assignment": false,
+    "learned_from": {
+      "7": 11,
+      "11": 13,
+      "13": 17,
+      "17": 19,
+      "19": 7
+    },
+    "forecast_weeks": 20,
+    "forecast_start": "2026-09-07"
+  },
+  "provenance": {
+    "simulator_version": "0.1.0",
+    "simulator_source_sha256": "4e1165b47bb19895e7d6ac50aba6705dd9e842fc965b24d777d2bb184b647f8d",
+    "cohorts_sha256": "e5b0ceedce05e3cae6e0d7c87fbdb528fdfd008d6cf0627b6f7f8eb3a847993f",
+    "shocks_sha256": "1e49d7a4e09c0bcf717d27f3a531c4894c5a0b3af68a5687c583deada716ea50",
+    "catalog_sha256": {
+      "README.md": "bac0e8da4a49ea3210fdbd9fd3e9c543e2a91d42584755e756a1e25b3669a181",
+      "categories.json": "d53665465b7f5581de310eb08cf8febd4a216d3c2e6a84b3872dde3790b2a5f6",
+      "festivals.json": "f00e19d6a17ebe681bae1ab0dadce571b10d045e223c930b6f62c8424af3e80c",
+      "nutrition.json": "357dddc2a812dcafa2851efa2c7ee7cfd1198631986c1039afe4713b37e98ad5",
+      "prices.json": "16594700220e6aef6c8245deb2dca2cb9171a220e047aa11060ff19624bc3b7c",
+      "products.json": "bb424975d093094d27e00ba857f598b6502c2a00a80fce88f4a42bd6c35ba3eb",
+      "recipes.json": "7a62150fd8657efbff96de7350611f45eff1750373532e59eeef091219e5a5f1"
+    },
+    "assignment": {
+      "lambdas": [
+        0.0,
+        100.0,
+        200.0,
+        300.0,
+        500.0,
+        700.0,
+        1000.0,
+        2000.0
+      ],
+      "kitchens": 6,
+      "hub": [
+        19.03,
+        73.069
+      ],
+      "evenings": 7,
+      "weekday_tiffin_share": 0.5,
+      "kitchen_capacity": "max(8, the evening's portions // 3)",
+      "max_km": 8.0,
+      "time_limit_s": 2.0,
+      "deterministic": true,
+      "paise_per_portion": 6000,
+      "quality_paise_per_star": 500,
+      "rider_paise_per_portion_km": 300,
+      "rating_floor": 3.8,
+      "max_kitchens_per_order": 15,
+      "model": "assignment-cpsat-v0",
+      "baseline": "greedy-v0",
+      "ortools_version": "9.15.6755",
+      "societies_source": "gharbasket.tools.seed.SOCIETIES",
+      "societies_sha256": "53f46ca94a9445507acefd68af6d65b33f179703a4cae668c1f3a9c7fc52247c",
+      "gini_population": "kitchens eligible on at least one evening of the week"
+    }
+  },
+  "seeds": [
+    7,
+    11,
+    13,
+    17,
+    19
+  ],
+  "planner": {
+    "cpsat": {
+      "acceptance": {
+        "mean": 0.7964,
+        "ci95": 0.0147,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.8625,
+        "ci95": 0.0506,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 3.7306,
+        "ci95": 0.4259,
+        "n": 5
+      },
+      "variety": {
+        "mean": 20.314,
+        "ci95": 0.2413,
+        "n": 5
+      },
+      "preference": {
+        "mean": 15.7775,
+        "ci95": 0.8909,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 83974.9425,
+        "ci95": 6768.8981,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "cpsat_v2": {
+      "acceptance": {
+        "mean": 0.8123,
+        "ci95": 0.0155,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.869,
+        "ci95": 0.0657,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 3.7683,
+        "ci95": 0.3886,
+        "n": 5
+      },
+      "variety": {
+        "mean": 19.8037,
+        "ci95": 0.3614,
+        "n": 5
+      },
+      "preference": {
+        "mean": 16.2395,
+        "ci95": 0.8453,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 83955.263,
+        "ci95": 6908.7258,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "greedy": {
+      "acceptance": {
+        "mean": 0.829,
+        "ci95": 0.0177,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.6552,
+        "ci95": 0.0516,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 6.2345,
+        "ci95": 0.1018,
+        "n": 5
+      },
+      "variety": {
+        "mean": 9.3416,
+        "ci95": 0.1191,
+        "n": 5
+      },
+      "preference": {
+        "mean": 18.3991,
+        "ci95": 0.8631,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0198,
+        "ci95": 0.0077,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 63078.5798,
+        "ci95": 5294.522,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "random": {
+      "acceptance": {
+        "mean": 0.7073,
+        "ci95": 0.0114,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.7894,
+        "ci95": 0.0409,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 11.2441,
+        "ci95": 0.3405,
+        "n": 5
+      },
+      "variety": {
+        "mean": 18.4832,
+        "ci95": 0.2475,
+        "n": 5
+      },
+      "preference": {
+        "mean": 7.8359,
+        "ci95": 0.548,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0294,
+        "ci95": 0.0145,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 91643.7471,
+        "ci95": 6369.9157,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "rules": {
+      "acceptance": {
+        "mean": 0.8269,
+        "ci95": 0.0168,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.6317,
+        "ci95": 0.0804,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 5.9154,
+        "ci95": 0.1171,
+        "n": 5
+      },
+      "variety": {
+        "mean": 8.3218,
+        "ci95": 0.0993,
+        "n": 5
+      },
+      "preference": {
+        "mean": 18.4179,
+        "ci95": 0.8638,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 61647.7526,
+        "ci95": 4961.3767,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    }
+  },
+  "planner_paired": {
+    "cpsat": {
+      "greedy": {
+        "acceptance": {
+          "mean": -0.0326,
+          "ci95": 0.0087,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": 0.2074,
+          "ci95": 0.0498,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": -2.5039,
+          "ci95": 0.3327,
+          "n": 5
+        },
+        "variety": {
+          "mean": 10.9724,
+          "ci95": 0.1839,
+          "n": 5
+        },
+        "preference": {
+          "mean": -2.6216,
+          "ci95": 0.2338,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": -0.0129,
+          "ci95": 0.0074,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": 20896.3628,
+          "ci95": 1817.9663,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": 0.4021,
+          "ci95": 0.0592,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": 0.7411,
+          "ci95": 0.0352,
+          "n": 5
+        }
+      },
+      "random": {
+        "acceptance": {
+          "mean": 0.0892,
+          "ci95": 0.0085,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": 0.0731,
+          "ci95": 0.0607,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": -7.5136,
+          "ci95": 0.3446,
+          "n": 5
+        },
+        "variety": {
+          "mean": 1.8308,
+          "ci95": 0.0516,
+          "n": 5
+        },
+        "preference": {
+          "mean": 7.9416,
+          "ci95": 0.5123,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": -0.0225,
+          "ci95": 0.0147,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": -7668.8046,
+          "ci95": 1118.8085,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": 0.6684,
+          "ci95": 0.0325,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": 0.8885,
+          "ci95": 0.0254,
+          "n": 5
+        }
+      }
+    },
+    "rules": {
+      "greedy": {
+        "acceptance": {
+          "mean": -0.0021,
+          "ci95": 0.0049,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": -0.0234,
+          "ci95": 0.0334,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": -0.3191,
+          "ci95": 0.0759,
+          "n": 5
+        },
+        "variety": {
+          "mean": -1.0198,
+          "ci95": 0.1228,
+          "n": 5
+        },
+        "preference": {
+          "mean": 0.0189,
+          "ci95": 0.1054,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": -0.0129,
+          "ci95": 0.0074,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": -1430.8271,
+          "ci95": 358.5689,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": 0.0512,
+          "ci95": 0.0121,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": -0.0489,
+          "ci95": 0.0096,
+          "n": 5
+        }
+      },
+      "random": {
+        "acceptance": {
+          "mean": 0.1197,
+          "ci95": 0.0103,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": -0.1577,
+          "ci95": 0.1164,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": -5.3287,
+          "ci95": 0.3064,
+          "n": 5
+        },
+        "variety": {
+          "mean": -10.1614,
+          "ci95": 0.1657,
+          "n": 5
+        },
+        "preference": {
+          "mean": 10.5821,
+          "ci95": 0.3757,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": -0.0225,
+          "ci95": 0.0147,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": -29995.9945,
+          "ci95": 1953.226,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": 0.4737,
+          "ci95": 0.0147,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": 0.0319,
+          "ci95": 0.0305,
+          "n": 5
+        }
+      }
+    },
+    "cpsat_v2": {
+      "cpsat": {
+        "acceptance": {
+          "mean": 0.0159,
+          "ci95": 0.006,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": 0.0064,
+          "ci95": 0.0644,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": 0.0377,
+          "ci95": 0.0515,
+          "n": 5
+        },
+        "variety": {
+          "mean": -0.5103,
+          "ci95": 0.1255,
+          "n": 5
+        },
+        "preference": {
+          "mean": 0.4621,
+          "ci95": 0.1104,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": -19.6795,
+          "ci95": 170.985,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": -0.0108,
+          "ci95": 0.0155,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": -0.0098,
+          "ci95": 0.0017,
+          "n": 5
+        }
+      }
+    }
+  },
+  "planner_paired_later": {
+    "from_week": 2,
+    "pairs": {
+      "cpsat_v2": {
+        "cpsat": {
+          "acceptance": {
+            "mean": 0.0265,
+            "ci95": 0.01,
+            "n": 5
+          },
+          "edits_per_box": {
+            "mean": 0.0107,
+            "ci95": 0.1073,
+            "n": 5
+          },
+          "distinct_perishables": {
+            "mean": 0.0628,
+            "ci95": 0.0859,
+            "n": 5
+          },
+          "variety": {
+            "mean": -0.8506,
+            "ci95": 0.2092,
+            "n": 5
+          },
+          "preference": {
+            "mean": 0.7701,
+            "ci95": 0.184,
+            "n": 5
+          },
+          "relaxed_share": {
+            "mean": 0.0,
+            "ci95": 0.0,
+            "n": 5
+          },
+          "infeasible_share": {
+            "mean": 0.0,
+            "ci95": 0.0,
+            "n": 5
+          },
+          "cost_paise": {
+            "mean": -32.7992,
+            "ci95": 284.9749,
+            "n": 5
+          },
+          "hard_rule_violations": {
+            "mean": 0.0,
+            "ci95": 0.0,
+            "n": 5
+          },
+          "perishables_fewer": {
+            "mean": -0.0186,
+            "ci95": 0.0269,
+            "n": 5
+          },
+          "score_gain": {
+            "mean": -0.0162,
+            "ci95": 0.0027,
+            "n": 5
+          }
+        }
+      }
+    }
+  },
+  "planner_targets": {
+    "acceptance_ge_70pct": {
+      "value": 0.7964250289060757,
+      "ci95": 0.014658830968166902,
+      "n": 5,
+      "holds": true,
+      "rule": "mean acceptance \u2265 0.70"
+    },
+    "acceptance_over_greedy": {
+      "value": -0.03259577555351849,
+      "ci95": 0.008738429003181926,
+      "n": 5,
+      "holds": false,
+      "rule": "paired difference vs greedy: 95 % CI above 0"
+    },
+    "acceptance_over_random": {
+      "value": 0.08916632537634746,
+      "ci95": 0.008530962629314978,
+      "n": 5,
+      "holds": true,
+      "rule": "paired difference vs random: 95 % CI above 0"
+    },
+    "hard_rules_100pct": {
+      "value": 0.0,
+      "ci95": 0.0,
+      "n": 5,
+      "holds": true,
+      "rule": "no violation in any seed"
+    },
+    "perishables_25pct_fewer_than_greedy": {
+      "value": 0.4020805437663821,
+      "ci95": 0.059196964374834224,
+      "n": 5,
+      "holds": true,
+      "rule": "mean per-seed share fewer \u2265 0.25"
+    },
+    "score_30pct_over_greedy": {
+      "value": 0.741103053600241,
+      "ci95": 0.03517750163966762,
+      "n": 5,
+      "holds": true,
+      "rule": "mean per-seed objective gain \u2265 0.30"
+    },
+    "verdict": {
+      "hypothesis": "M-C on its primary metric",
+      "holds": false,
+      "rule": "acceptance \u2265 0.70 and above greedy and random (paired CI), hard rules kept"
+    },
+    "v2_acceptance_over_v1_all_weeks": {
+      "value": 0.015921621879895008,
+      "ci95": 0.005978482653380983,
+      "n": 5,
+      "holds": null,
+      "rule": "reference: weeks < 2 are identical by construction"
+    },
+    "v2_acceptance_over_v1": {
+      "value": 0.02653603646649172,
+      "ci95": 0.009964137755634948,
+      "n": 5,
+      "holds": true,
+      "rule": "paired difference vs cpsat, weeks \u2265 2: 95 % CI lower bound \u2265 0"
+    },
+    "v2_hard_rules_100pct": {
+      "value": 0.0,
+      "ci95": 0.0,
+      "n": 5,
+      "holds": true,
+      "rule": "no violation in any seed"
+    },
+    "v2_perishables_within_1_of_v1": {
+      "value": 0.06283524904214559,
+      "ci95": 0.08585577093029123,
+      "n": 5,
+      "holds": true,
+      "rule": "mean paired difference in distinct perishables, weeks \u2265 2: \u2264 +1"
+    },
+    "v2_verdict": {
+      "hypothesis": "planner v2 (liking) against v1",
+      "holds": true,
+      "rule": "acceptance not below v1 (paired CI lower bound \u2265 0, weeks \u2265 2), hard rules kept, perishables \u2264 v1 + 1; no verdict below 5 paired seeds"
+    }
+  },
+  "pantry": {
+    "metric": "quantity MAE as a share of weekly quantity (sum |error| / sum actual per household item, zero weeks kept; mean over items)",
+    "rule_table_mae": {
+      "mean": 0.294,
+      "ci95": 0.0035,
+      "n": 5
+    },
+    "cold_start_mae": [
+      {
+        "mean": 0.1265,
+        "ci95": 0.0061,
+        "n": 5
+      },
+      {
+        "mean": 0.1,
+        "ci95": 0.0034,
+        "n": 5
+      },
+      {
+        "mean": 0.0907,
+        "ci95": 0.005,
+        "n": 5
+      },
+      {
+        "mean": 0.0868,
+        "ci95": 0.0049,
+        "n": 5
+      }
+    ],
+    "twin_scope": {
+      "rule_table_mae": {
+        "mean": 0.194,
+        "ci95": 0.0048,
+        "n": 5
+      },
+      "running_mean_mae": [
+        {
+          "mean": 0.1155,
+          "ci95": 0.0055,
+          "n": 5
+        },
+        {
+          "mean": 0.0966,
+          "ci95": 0.0089,
+          "n": 5
+        },
+        {
+          "mean": 0.0853,
+          "ci95": 0.0051,
+          "n": 5
+        },
+        {
+          "mean": 0.0895,
+          "ci95": 0.0078,
+          "n": 5
+        }
+      ],
+      "twin_mae": [
+        {
+          "mean": 0.2039,
+          "ci95": 0.0084,
+          "n": 5
+        },
+        {
+          "mean": 0.2172,
+          "ci95": 0.0181,
+          "n": 5
+        },
+        {
+          "mean": 0.218,
+          "ci95": 0.0141,
+          "n": 5
+        },
+        {
+          "mean": 0.2274,
+          "ci95": 0.0173,
+          "n": 5
+        }
+      ],
+      "twin_coverage_80": [
+        {
+          "mean": 0.9828,
+          "ci95": 0.0133,
+          "n": 5
+        },
+        {
+          "mean": 0.9885,
+          "ci95": 0.0101,
+          "n": 5
+        },
+        {
+          "mean": 0.9805,
+          "ci95": 0.0108,
+          "n": 5
+        },
+        {
+          "mean": 0.9851,
+          "ci95": 0.0148,
+          "n": 5
+        }
+      ],
+      "twin_learned_mae": [
+        {
+          "mean": 0.3101,
+          "ci95": 0.0221,
+          "n": 5
+        },
+        {
+          "mean": 0.3115,
+          "ci95": 0.0236,
+          "n": 5
+        },
+        {
+          "mean": 0.3005,
+          "ci95": 0.017,
+          "n": 5
+        },
+        {
+          "mean": 0.2997,
+          "ci95": 0.0257,
+          "n": 5
+        }
+      ],
+      "learned_from": {
+        "7": 11,
+        "11": 13,
+        "13": 17,
+        "17": 19,
+        "19": 7
+      }
+    },
+    "target_mae_le_15pct_after_4_weeks": {
+      "estimator": "pantry_twin_v0 (twin scope)",
+      "value": 0.22737528909602073,
+      "holds": false,
+      "reference_running_mean": 0.08682623316073226
+    },
+    "cold_start_lt_4_weeks": {
+      "estimator": "running_mean (reference only)",
+      "value": 1,
+      "per_seed": {
+        "7": 1,
+        "11": 1,
+        "13": 1,
+        "17": 1,
+        "19": 1
+      },
+      "holds": null
+    }
+  },
+  "assignment": {
+    "greedy": {
+      "gini": {
+        "mean": 0.42,
+        "ci95": 0.0557,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.42,
+        "ci95": 0.0557,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 945.658,
+        "ci95": 240.5467,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 611.622,
+        "ci95": 190.9286,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 2.0404,
+        "ci95": 0.6365,
+        "n": 5
+      }
+    },
+    "0": {
+      "gini": {
+        "mean": 0.435,
+        "ci95": 0.0493,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.435,
+        "ci95": 0.0493,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 906.226,
+        "ci95": 248.5712,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 579.666,
+        "ci95": 188.005,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.9338,
+        "ci95": 0.6265,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0436,
+        "ci95": 0.0299,
+        "n": 5
+      }
+    },
+    "100": {
+      "gini": {
+        "mean": 0.4268,
+        "ci95": 0.0271,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.4268,
+        "ci95": 0.0271,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 906.738,
+        "ci95": 249.9102,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 581.63,
+        "ci95": 192.7307,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.9404,
+        "ci95": 0.6424,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0432,
+        "ci95": 0.0306,
+        "n": 5
+      }
+    },
+    "200": {
+      "gini": {
+        "mean": 0.4226,
+        "ci95": 0.0163,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.4226,
+        "ci95": 0.0163,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 907.32,
+        "ci95": 251.4334,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 582.676,
+        "ci95": 195.263,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.9438,
+        "ci95": 0.6507,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0427,
+        "ci95": 0.0313,
+        "n": 5
+      }
+    },
+    "300": {
+      "gini": {
+        "mean": 0.419,
+        "ci95": 0.0176,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.419,
+        "ci95": 0.0176,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 908.206,
+        "ci95": 250.9402,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 582.958,
+        "ci95": 194.7501,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.9448,
+        "ci95": 0.6493,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0417,
+        "ci95": 0.0304,
+        "n": 5
+      }
+    },
+    "500": {
+      "gini": {
+        "mean": 0.3956,
+        "ci95": 0.0301,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.3956,
+        "ci95": 0.0301,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 915.634,
+        "ci95": 258.4084,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 592.02,
+        "ci95": 205.1742,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.975,
+        "ci95": 0.6842,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0344,
+        "ci95": 0.0329,
+        "n": 5
+      }
+    },
+    "700": {
+      "gini": {
+        "mean": 0.2616,
+        "ci95": 0.1894,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.2616,
+        "ci95": 0.1894,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 970.548,
+        "ci95": 273.3848,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 659.638,
+        "ci95": 238.5997,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 2.2002,
+        "ci95": 0.7953,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": 0.0254,
+        "ci95": 0.0886,
+        "n": 5
+      }
+    },
+    "1000": {
+      "gini": {
+        "mean": 0.2014,
+        "ci95": 0.2053,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.2014,
+        "ci95": 0.2053,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 1009.802,
+        "ci95": 293.4135,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 697.912,
+        "ci95": 270.5827,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 2.328,
+        "ci95": 0.902,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": 0.0654,
+        "ci95": 0.083,
+        "n": 5
+      }
+    },
+    "2000": {
+      "gini": {
+        "mean": 0.0294,
+        "ci95": 0.0616,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.0294,
+        "ci95": 0.0616,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 1161.78,
+        "ci95": 254.6249,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 831.08,
+        "ci95": 219.9725,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 2.7718,
+        "ci95": 0.7331,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": 0.235,
+        "ci95": 0.1142,
+        "n": 5
+      }
+    }
+  },
+  "assignment_targets": {
+    "gini_le_0_25_at_le_5pct_cost": {
+      "rule": "per-seed paired: 95 % CI upper bounds of cost_\u03bb / cost_greedy - 1 \u2264 0.05 and of the weekly Gini \u2264 0.25, \u03bb > 0",
+      "holds": false,
+      "lambda": null,
+      "n": 5,
+      "seeds": [
+        7,
+        11,
+        13,
+        17,
+        19
+      ],
+      "dropped_seeds": [],
+      "greedy_gini": {
+        "mean": 0.42,
+        "ci95": 0.0557,
+        "n": 5
+      },
+      "per_lambda": {
+        "0": {
+          "extra_cost": {
+            "mean": -0.0436,
+            "ci95": 0.0299,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0137,
+          "gini": {
+            "mean": 0.435,
+            "ci95": 0.0493,
+            "n": 5
+          },
+          "gini_upper": 0.4843,
+          "eligible": false,
+          "holds": false
+        },
+        "100": {
+          "extra_cost": {
+            "mean": -0.0432,
+            "ci95": 0.0306,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0126,
+          "gini": {
+            "mean": 0.4268,
+            "ci95": 0.0271,
+            "n": 5
+          },
+          "gini_upper": 0.4539,
+          "eligible": true,
+          "holds": false
+        },
+        "200": {
+          "extra_cost": {
+            "mean": -0.0427,
+            "ci95": 0.0313,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0114,
+          "gini": {
+            "mean": 0.4226,
+            "ci95": 0.0163,
+            "n": 5
+          },
+          "gini_upper": 0.4389,
+          "eligible": true,
+          "holds": false
+        },
+        "300": {
+          "extra_cost": {
+            "mean": -0.0417,
+            "ci95": 0.0304,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0114,
+          "gini": {
+            "mean": 0.419,
+            "ci95": 0.0176,
+            "n": 5
+          },
+          "gini_upper": 0.4366,
+          "eligible": true,
+          "holds": false
+        },
+        "500": {
+          "extra_cost": {
+            "mean": -0.0344,
+            "ci95": 0.0329,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0015,
+          "gini": {
+            "mean": 0.3956,
+            "ci95": 0.0301,
+            "n": 5
+          },
+          "gini_upper": 0.4257,
+          "eligible": true,
+          "holds": false
+        },
+        "700": {
+          "extra_cost": {
+            "mean": 0.0254,
+            "ci95": 0.0886,
+            "n": 5
+          },
+          "extra_cost_upper": 0.1141,
+          "gini": {
+            "mean": 0.2616,
+            "ci95": 0.1894,
+            "n": 5
+          },
+          "gini_upper": 0.451,
+          "eligible": true,
+          "holds": false
+        },
+        "1000": {
+          "extra_cost": {
+            "mean": 0.0654,
+            "ci95": 0.083,
+            "n": 5
+          },
+          "extra_cost_upper": 0.1484,
+          "gini": {
+            "mean": 0.2014,
+            "ci95": 0.2053,
+            "n": 5
+          },
+          "gini_upper": 0.4067,
+          "eligible": true,
+          "holds": false
+        },
+        "2000": {
+          "extra_cost": {
+            "mean": 0.235,
+            "ci95": 0.1142,
+            "n": 5
+          },
+          "extra_cost_upper": 0.3492,
+          "gini": {
+            "mean": 0.0294,
+            "ci95": 0.0616,
+            "n": 5
+          },
+          "gini_upper": 0.091,
+          "eligible": true,
+          "holds": false
+        }
+      }
+    }
+  },
+  "forecast": {
+    "assumptions": {
+      "addon_take": 0.5,
+      "price_elasticity": 1.0,
+      "festival_lift_per_day": 0.1,
+      "tiffin_take": 0.7,
+      "planner": "rules",
+      "costs": {
+        "underage": 0.3,
+        "overage": 0.5
+      }
+    },
+    "arms": {
+      "v0": {
+        "wape": {
+          "mean": 0.1878,
+          "ci95": 0.0073,
+          "n": 5
+        },
+        "mase": {
+          "mean": 1.0011,
+          "ci95": 0.3456,
+          "n": 5
+        },
+        "pinball_q50": {
+          "mean": 1.1941,
+          "ci95": 0.1549,
+          "n": 5
+        },
+        "pinball_qtau": {
+          "mean": 2.3488,
+          "ci95": 0.9247,
+          "n": 5
+        },
+        "coverage_qtau": {
+          "mean": 0.422,
+          "ci95": 0.0693,
+          "n": 5
+        },
+        "waste": {
+          "mean": 0.0207,
+          "ci95": 0.0091,
+          "n": 5
+        },
+        "stockout": {
+          "mean": 0.4531,
+          "ci95": 0.2025,
+          "n": 5
+        },
+        "newsvendor_cost": {
+          "mean": 0.1463,
+          "ci95": 0.0566,
+          "n": 5
+        }
+      },
+      "v1": {
+        "wape": {
+          "mean": 0.203,
+          "ci95": 0.0135,
+          "n": 5
+        },
+        "mase": {
+          "mean": 1.0144,
+          "ci95": 0.1727,
+          "n": 5
+        },
+        "pinball_q50": {
+          "mean": 1.2951,
+          "ci95": 0.1507,
+          "n": 5
+        },
+        "pinball_qtau": {
+          "mean": 1.989,
+          "ci95": 0.208,
+          "n": 5
+        },
+        "coverage_qtau": {
+          "mean": 0.4386,
+          "ci95": 0.0321,
+          "n": 5
+        },
+        "waste": {
+          "mean": 0.0246,
+          "ci95": 0.0094,
+          "n": 5
+        },
+        "stockout": {
+          "mean": 0.3763,
+          "ci95": 0.0831,
+          "n": 5
+        },
+        "newsvendor_cost": {
+          "mean": 0.1252,
+          "ci95": 0.0209,
+          "n": 5
+        }
+      },
+      "champion": {
+        "wape": {
+          "mean": 0.1878,
+          "ci95": 0.0073,
+          "n": 5
+        },
+        "mase": {
+          "mean": 1.0011,
+          "ci95": 0.3456,
+          "n": 5
+        },
+        "pinball_q50": {
+          "mean": 1.1941,
+          "ci95": 0.1549,
+          "n": 5
+        },
+        "pinball_qtau": {
+          "mean": 2.3488,
+          "ci95": 0.9247,
+          "n": 5
+        },
+        "coverage_qtau": {
+          "mean": 0.422,
+          "ci95": 0.0693,
+          "n": 5
+        },
+        "waste": {
+          "mean": 0.0207,
+          "ci95": 0.0091,
+          "n": 5
+        },
+        "stockout": {
+          "mean": 0.4531,
+          "ci95": 0.2025,
+          "n": 5
+        },
+        "newsvendor_cost": {
+          "mean": 0.1463,
+          "ci95": 0.0566,
+          "n": 5
+        }
+      }
+    },
+    "v1_minus_v0": {
+      "wape": {
+        "mean": 0.0151,
+        "ci95": 0.0081,
+        "n": 5
+      },
+      "mase": {
+        "mean": 0.0133,
+        "ci95": 0.2883,
+        "n": 5
+      },
+      "pinball_q50": {
+        "mean": 0.101,
+        "ci95": 0.0751,
+        "n": 5
+      },
+      "pinball_qtau": {
+        "mean": -0.3597,
+        "ci95": 0.8263,
+        "n": 5
+      },
+      "coverage_qtau": {
+        "mean": 0.0167,
+        "ci95": 0.0384,
+        "n": 5
+      },
+      "waste": {
+        "mean": 0.0039,
+        "ci95": 0.0099,
+        "n": 5
+      },
+      "stockout": {
+        "mean": -0.0769,
+        "ci95": 0.1823,
+        "n": 5
+      },
+      "newsvendor_cost": {
+        "mean": -0.0211,
+        "ci95": 0.0518,
+        "n": 5
+      }
+    },
+    "picks": [
+      {
+        "seed": 7,
+        "v0": "CrostonOptimized",
+        "champion": "CrostonOptimized",
+        "windows": 8
+      },
+      {
+        "seed": 11,
+        "v0": "CrostonOptimized",
+        "champion": "CrostonOptimized",
+        "windows": 8
+      },
+      {
+        "seed": 13,
+        "v0": "AutoETS",
+        "champion": "AutoETS",
+        "windows": 8
+      },
+      {
+        "seed": 17,
+        "v0": "AutoETS",
+        "champion": "AutoETS",
+        "windows": 8
+      },
+      {
+        "seed": 19,
+        "v0": "AutoETS",
+        "champion": "AutoETS",
+        "windows": 8
+      }
+    ]
+  },
+  "ranker_explanations": {
+    "method": "lightgbm pred_contrib (TreeSHAP, raw LambdaRank score)",
+    "rows": 4698,
+    "baskets": 87,
+    "mean_abs_shap": {
+      "weeks_since": 0.1896,
+      "frequency": 0.1718,
+      "drafted": 1.1561,
+      "removed_last": 0.0187,
+      "popularity": 1.0747,
+      "price_paise": 0.9125
+    },
+    "mean_abs_shap_share": {
+      "weeks_since": 0.0538,
+      "frequency": 0.0488,
+      "drafted": 0.3281,
+      "removed_last": 0.0053,
+      "popularity": 0.305,
+      "price_paise": 0.259
+    },
+    "decisions": [
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-42f7-7126-a49f-78830bac0c12",
+        "label": 1,
+        "score": -3.8928,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": -1.8184,
+            "value": 0.2877
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.68,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.5208,
+            "value": 2000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-45ec-733b-9c89-7e44437dfc2c",
+        "label": 1,
+        "score": 1.5071,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 2.0317,
+            "value": 0.9589
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.1386,
+            "value": 0.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.1471,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-451c-723e-be39-38aac42f628b",
+        "label": 1,
+        "score": -1.2256,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.3731,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.7754,
+            "value": 9000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 0.2153,
+            "value": 0.8219
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-43a7-7647-8197-4ade4a3f5298",
+        "label": 1,
+        "score": 3.8127,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 1.5199,
+            "value": 0.9315
+          },
+          {
+            "feature": "drafted",
+            "contribution": 1.0503,
+            "value": 1.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.3501,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-432a-765e-a8e6-d2b3eeb9adc3",
+        "label": 1,
+        "score": 7.3283,
+        "top_features": [
+          {
+            "feature": "price_paise",
+            "contribution": 4.364,
+            "value": 1000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 1.7039,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": 0.6301,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-47bb-7e74-baa7-63248e54d66e",
+        "label": 1,
+        "score": -2.86,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": -1.7526,
+            "value": 0.2192
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.6754,
+            "value": 0.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.1284,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-20",
+        "product": "01a17f82-460d-77eb-879b-ce6c68b1daf4",
+        "label": 1,
+        "score": 1.6382,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 2.1575,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.394,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.1898,
+            "value": 4000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4526-7f12-a6e0-4ed627dbece4",
+        "label": 0,
+        "score": -2.4292,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.6031,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.604,
+            "value": 7000.0
+          },
+          {
+            "feature": "frequency",
+            "contribution": -0.5014,
+            "value": 0.5
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-437f-72e7-9228-2315c30a2681",
+        "label": 1,
+        "score": -2.8564,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.8454,
+            "value": 0.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -1.1391,
+            "value": 0.1096
+          },
+          {
+            "feature": "frequency",
+            "contribution": -0.2306,
+            "value": 0.3333
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4721-759e-a382-c18a76f299db",
+        "label": 1,
+        "score": 2.9308,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 2.6034,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.3141,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.9591,
+            "value": 3500.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-45b4-77ec-9087-a79aa135edc0",
+        "label": 1,
+        "score": 6.3608,
+        "top_features": [
+          {
+            "feature": "price_paise",
+            "contribution": 4.7314,
+            "value": 19000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 1.9151,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": -0.8848,
+            "value": 0.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-444c-7814-9331-a8507644adb7",
+        "label": 1,
+        "score": 2.2447,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": 0.8706,
+            "value": 1.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 0.6562,
+            "value": 0.8904
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.389,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-47cd-7e75-96b9-eaa700d6d614",
+        "label": 1,
+        "score": -0.5444,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.2426,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.5116,
+            "value": 3000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 0.5041,
+            "value": 0.8356
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-459f-78e4-b11b-d039bab1cde7",
+        "label": 1,
+        "score": 1.8452,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 1.2378,
+            "value": 0.9726
+          },
+          {
+            "feature": "drafted",
+            "contribution": -0.8762,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.4972,
+            "value": 7500.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-441b-7338-9baf-f557f99da762",
+        "label": 1,
+        "score": 7.3283,
+        "top_features": [
+          {
+            "feature": "price_paise",
+            "contribution": 4.364,
+            "value": 1000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 1.7039,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": 0.6301,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-47dc-7ec2-9ea8-1ec5c3d30feb",
+        "label": 1,
+        "score": -2.2542,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.7572,
+            "value": 0.0
+          },
+          {
+            "feature": "frequency",
+            "contribution": -0.473,
+            "value": 0.6667
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.4468,
+            "value": 3000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4786-7208-88c9-42c7a6b8d7dd",
+        "label": 0,
+        "score": -2.4892,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.4098,
+            "value": 0.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -1.3365,
+            "value": 0.4247
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.4479,
+            "value": 6500.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-20",
+        "product": "01a17f82-4693-7d73-b940-66d4f7aae7fa",
+        "label": 0,
+        "score": -2.2156,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": -1.5972,
+            "value": 0.4605
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.9336,
+            "value": 3000.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": 0.6629,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-20",
+        "product": "01a17f82-4586-78ce-91a3-6660b6a7e077",
+        "label": 1,
+        "score": -2.0474,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": -1.4897,
+            "value": 0.5
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.2913,
+            "value": 0.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.1008,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4458-7f93-93ff-28fa5c5fc9cf",
+        "label": 1,
+        "score": 2.4865,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": 0.8195,
+            "value": 1.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.7571,
+            "value": 1500.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.3437,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-43a7-7647-8197-4ade4a3f5298",
+        "label": 1,
+        "score": 3.8127,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 1.5199,
+            "value": 0.9315
+          },
+          {
+            "feature": "drafted",
+            "contribution": 1.0503,
+            "value": 1.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.3501,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-13",
+        "product": "01a17f82-4434-7011-ba7f-960422483e44",
+        "label": 0,
+        "score": -1.3156,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.5995,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.2016,
+            "value": 4000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -0.1693,
+            "value": 0.9155
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-441b-7338-9baf-f557f99da762",
+        "label": 1,
+        "score": 7.3283,
+        "top_features": [
+          {
+            "feature": "price_paise",
+            "contribution": 4.364,
+            "value": 1000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 1.7039,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": 0.6301,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4721-759e-a382-c18a76f299db",
+        "label": 1,
+        "score": 1.5377,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 2.1597,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.5841,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.918,
+            "value": 3500.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4693-7d73-b940-66d4f7aae7fa",
+        "label": 1,
+        "score": -1.4733,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": -1.1045,
+            "value": 0.3973
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.7971,
+            "value": 3000.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": 0.6348,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4526-7f12-a6e0-4ed627dbece4",
+        "label": 0,
+        "score": -1.7155,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.4211,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.5386,
+            "value": 7000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -0.5136,
+            "value": 0.6986
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4490-72ea-92fd-0ef3b5300586",
+        "label": 1,
+        "score": 4.1875,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 2.2115,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": 0.8105,
+            "value": 1.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.3555,
+            "value": 4000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-47dc-7ec2-9ea8-1ec5c3d30feb",
+        "label": 0,
+        "score": -1.4667,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.5169,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.4015,
+            "value": 3000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -0.2409,
+            "value": 0.6164
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-45e0-7039-8068-fec34a17f121",
+        "label": 1,
+        "score": -2.6824,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.2518,
+            "value": 0.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -1.244,
+            "value": 0.5068
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.8801,
+            "value": 3000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-13",
+        "product": "01a17f82-4441-764c-ae01-a58747c3376f",
+        "label": 0,
+        "score": 1.4148,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": 0.8274,
+            "value": 1.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.2671,
+            "value": 1.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -0.131,
+            "value": 0.9155
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4779-722a-988f-d35b54c3a951",
+        "label": 1,
+        "score": -0.6581,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -0.9092,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.8864,
+            "value": 4500.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 0.4071,
+            "value": 0.8219
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-46da-711b-a7bd-d0e477c39f40",
+        "label": 1,
+        "score": 1.7482,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": 0.8601,
+            "value": 1.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.3075,
+            "value": 1.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 0.1397,
+            "value": 0.9178
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-45fd-79d8-ac46-a7569773ca00",
+        "label": 0,
+        "score": -2.5667,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.5322,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.9826,
+            "value": 4500.0
+          },
+          {
+            "feature": "frequency",
+            "contribution": -0.4303,
+            "value": 0.6667
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4458-7f93-93ff-28fa5c5fc9cf",
+        "label": 1,
+        "score": 2.4865,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": 0.8195,
+            "value": 1.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.7571,
+            "value": 1500.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.3437,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4355-7bc6-8e00-022764de707f",
+        "label": 1,
+        "score": 3.4693,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 1.4351,
+            "value": 0.9726
+          },
+          {
+            "feature": "drafted",
+            "contribution": 0.9978,
+            "value": 1.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.3114,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4721-759e-a382-c18a76f299db",
+        "label": 1,
+        "score": 2.9308,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 2.6034,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.3141,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.9591,
+            "value": 3500.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-45e0-7039-8068-fec34a17f121",
+        "label": 1,
+        "score": -3.3694,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.4086,
+            "value": 0.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -0.9753,
+            "value": 0.5068
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.9582,
+            "value": 3000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-20",
+        "product": "01a17f82-44fd-715d-bf24-f72bc5170fdf",
+        "label": 0,
+        "score": -2.9713,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.5958,
+            "value": 0.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -1.2622,
+            "value": 0.0395
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.4952,
+            "value": 7000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-47cd-7e75-96b9-eaa700d6d614",
+        "label": 1,
+        "score": -0.5444,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.2426,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.5116,
+            "value": 3000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 0.5041,
+            "value": 0.8356
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-46ef-7c36-b6d1-ef6c728232f0",
+        "label": 1,
+        "score": -1.7237,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.4308,
+            "value": 0.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -0.8155,
+            "value": 0.6438
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.1427,
+            "value": 4000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-45ec-733b-9c89-7e44437dfc2c",
+        "label": 1,
+        "score": 0.8991,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 1.9541,
+            "value": 0.9589
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.3008,
+            "value": 0.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": -0.236,
+            "value": 2.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-45b4-77ec-9087-a79aa135edc0",
+        "label": 1,
+        "score": 6.3608,
+        "top_features": [
+          {
+            "feature": "price_paise",
+            "contribution": 4.7314,
+            "value": 19000.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 1.9151,
+            "value": 1.0
+          },
+          {
+            "feature": "drafted",
+            "contribution": -0.8848,
+            "value": 0.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4441-764c-ae01-a58747c3376f",
+        "label": 1,
+        "score": 1.3925,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": 0.5689,
+            "value": 1.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.2924,
+            "value": 1.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -0.1387,
+            "value": 0.8767
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4303-75f7-96f2-236fc3afefd5",
+        "label": 1,
+        "score": 2.4865,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": 0.8195,
+            "value": 1.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": 0.7571,
+            "value": 1500.0
+          },
+          {
+            "feature": "weeks_since",
+            "contribution": 0.3437,
+            "value": 1.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-20",
+        "product": "01a17f82-4737-765b-832c-87538861b640",
+        "label": 1,
+        "score": -2.475,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.3074,
+            "value": 0.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": -1.1499,
+            "value": 0.3947
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.685,
+            "value": 2500.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4779-722a-988f-d35b54c3a951",
+        "label": 1,
+        "score": -0.6581,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -0.9092,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.8864,
+            "value": 4500.0
+          },
+          {
+            "feature": "popularity",
+            "contribution": 0.4071,
+            "value": 0.8219
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-460d-77eb-879b-ce6c68b1daf4",
+        "label": 1,
+        "score": 0.5948,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 1.1195,
+            "value": 0.9726
+          },
+          {
+            "feature": "drafted",
+            "contribution": -1.0178,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.1787,
+            "value": 4000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4552-7c09-82cb-a3626dc22ac9",
+        "label": 1,
+        "score": 0.3016,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": 0.9221,
+            "value": 0.9863
+          },
+          {
+            "feature": "drafted",
+            "contribution": -0.7882,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.6134,
+            "value": 7000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-4427-7fd7-83da-762bad60a0ab",
+        "label": 1,
+        "score": 0.2594,
+        "top_features": [
+          {
+            "feature": "popularity",
+            "contribution": -1.0726,
+            "value": 0.7671
+          },
+          {
+            "feature": "drafted",
+            "contribution": 0.7717,
+            "value": 1.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.3673,
+            "value": 2000.0
+          }
+        ]
+      },
+      {
+        "week": "2026-10-27",
+        "product": "01a17f82-47dc-7ec2-9ea8-1ec5c3d30feb",
+        "label": 1,
+        "score": -1.4151,
+        "top_features": [
+          {
+            "feature": "drafted",
+            "contribution": -1.5686,
+            "value": 0.0
+          },
+          {
+            "feature": "price_paise",
+            "contribution": -0.4273,
+            "value": 3000.0
+          },
+          {
+            "feature": "frequency",
+            "contribution": 0.161,
+            "value": 1.0
+          }
+        ]
+      }
+    ],
+    "version": "2026-10-28-synthetic",
+    "data": "holdout"
+  },
+  "runs": {
+    "planner": [
+      {
+        "planner": "cpsat",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8039660056657224,
+          "edits_per_box": 1.8436781609195403,
+          "distinct_perishables": 3.7701149425287355,
+          "variety": 20.089655172413792,
+          "preference": 15.425287356321839,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79702.83448275863,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8081208687440982,
+          "edits_per_box": 2.6934865900383143,
+          "distinct_perishables": 3.6743295019157087,
+          "variety": 20.1455938697318,
+          "preference": 15.735632183908047,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79381.52490421456,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8120603015075377,
+          "edits_per_box": 1.8482758620689654,
+          "distinct_perishables": 4.206896551724138,
+          "variety": 20.317241379310346,
+          "preference": 16.8183908045977,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77922.56781609195,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8110924995347106,
+          "edits_per_box": 2.689655172413793,
+          "distinct_perishables": 4.114942528735632,
+          "variety": 20.340996168582375,
+          "preference": 17.126436781609197,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77574.16475095786,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7956545961002786,
+          "edits_per_box": 1.825287356321839,
+          "distinct_perishables": 3.4873563218390804,
+          "variety": 20.57471264367816,
+          "preference": 16.108045977011493,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 86280.69425287357,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7959145775301765,
+          "edits_per_box": 2.6436781609195403,
+          "distinct_perishables": 3.4061302681992336,
+          "variety": 20.620689655172413,
+          "preference": 16.32183908045977,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 85908.99616858238,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7867638810992709,
+          "edits_per_box": 1.9310344827586208,
+          "distinct_perishables": 3.3241379310344827,
+          "variety": 20.420689655172414,
+          "preference": 15.602298850574712,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91628.7356321839,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7911759207328473,
+          "edits_per_box": 2.7662835249042144,
+          "distinct_perishables": 3.203065134099617,
+          "variety": 20.478927203065133,
+          "preference": 15.900383141762452,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91251.86206896552,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7836803601575689,
+          "edits_per_box": 1.8643678160919541,
+          "distinct_perishables": 3.864367816091954,
+          "variety": 20.167816091954023,
+          "preference": 14.933333333333334,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 84339.88045977011,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7829675483023822,
+          "edits_per_box": 2.7279693486590038,
+          "distinct_perishables": 3.7279693486590038,
+          "variety": 20.195402298850574,
+          "preference": 15.199233716475096,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 83983.1724137931,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8202832861189802,
+          "edits_per_box": 1.839080459770115,
+          "distinct_perishables": 3.767816091954023,
+          "variety": 19.45287356321839,
+          "preference": 15.979310344827587,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79551.94482758621,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8353163361661945,
+          "edits_per_box": 2.685823754789272,
+          "distinct_perishables": 3.6704980842911876,
+          "variety": 19.084291187739463,
+          "preference": 16.659003831417625,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79130.04214559386,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.829034059184813,
+          "edits_per_box": 1.9402298850574713,
+          "distinct_perishables": 4.213793103448276,
+          "variety": 19.795402298850576,
+          "preference": 17.275862068965516,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77824.21379310345,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8393820956635027,
+          "edits_per_box": 2.842911877394636,
+          "distinct_perishables": 4.126436781609195,
+          "variety": 19.471264367816094,
+          "preference": 17.88888888888889,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77410.24137931035,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8085793871866295,
+          "edits_per_box": 1.8,
+          "distinct_perishables": 3.5264367816091955,
+          "variety": 20.15632183908046,
+          "preference": 16.49425287356322,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 86418.81379310344,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8174558960074281,
+          "edits_per_box": 2.6015325670498086,
+          "distinct_perishables": 3.471264367816092,
+          "variety": 19.92337164750958,
+          "preference": 16.96551724137931,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 86139.19540229885,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7970835670218732,
+          "edits_per_box": 1.889655172413793,
+          "distinct_perishables": 3.4275862068965517,
+          "variety": 20.020689655172415,
+          "preference": 15.96551724137931,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91749.58390804597,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8083753972705179,
+          "edits_per_box": 2.6973180076628354,
+          "distinct_perishables": 3.375478927203065,
+          "variety": 19.81226053639847,
+          "preference": 16.50574712643678,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91453.27586206897,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8067529544175577,
+          "edits_per_box": 1.8758620689655172,
+          "distinct_perishables": 3.905747126436782,
+          "variety": 19.593103448275862,
+          "preference": 15.482758620689655,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 84231.75862068965,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8214218720690302,
+          "edits_per_box": 2.7471264367816093,
+          "distinct_perishables": 3.796934865900383,
+          "variety": 19.237547892720308,
+          "preference": 16.114942528735632,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 83802.969348659,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8392067988668556,
+          "edits_per_box": 1.645977011494253,
+          "distinct_perishables": 6.266666666666667,
+          "variety": 9.358620689655172,
+          "preference": 18.363218390804597,
+          "relaxed_share": 0.020689655172413793,
+          "infeasible_share": 0.0,
+          "cost_paise": 60168.558620689655,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8381491973559962,
+          "edits_per_box": 2.4022988505747125,
+          "distinct_perishables": 6.2796934865900385,
+          "variety": 9.452107279693486,
+          "preference": 18.50191570881226,
+          "relaxed_share": 0.01532567049808429,
+          "infeasible_share": 0.0,
+          "cost_paise": 60052.89655172414,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.844891122278057,
+          "edits_per_box": 1.6413793103448275,
+          "distinct_perishables": 6.342528735632184,
+          "variety": 9.266666666666667,
+          "preference": 19.413793103448278,
+          "relaxed_share": 0.02528735632183908,
+          "infeasible_share": 0.0,
+          "cost_paise": 58441.58620689655,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8479434208077424,
+          "edits_per_box": 2.413793103448276,
+          "distinct_perishables": 6.35632183908046,
+          "variety": 9.344827586206897,
+          "preference": 19.486590038314176,
+          "relaxed_share": 0.022988505747126436,
+          "infeasible_share": 0.0,
+          "cost_paise": 58240.38697318007,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8230640668523677,
+          "edits_per_box": 1.6022988505747127,
+          "distinct_perishables": 6.213793103448276,
+          "variety": 9.462068965517242,
+          "preference": 18.542528735632185,
+          "relaxed_share": 0.009195402298850575,
+          "infeasible_share": 0.0,
+          "cost_paise": 63556.39770114943,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8310120705663882,
+          "edits_per_box": 2.3333333333333335,
+          "distinct_perishables": 6.210727969348659,
+          "variety": 9.559386973180077,
+          "preference": 18.662835249042146,
+          "relaxed_share": 0.007662835249042145,
+          "infeasible_share": 0.0,
+          "cost_paise": 63505.93103448276,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8295008412787437,
+          "edits_per_box": 1.671264367816092,
+          "distinct_perishables": 6.117241379310345,
+          "variety": 9.395402298850575,
+          "preference": 18.193103448275863,
+          "relaxed_share": 0.022988505747126436,
+          "infeasible_share": 0.0,
+          "cost_paise": 69576.86896551723,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8317442512619181,
+          "edits_per_box": 2.4444444444444446,
+          "distinct_perishables": 6.130268199233717,
+          "variety": 9.521072796934867,
+          "preference": 18.34865900383142,
+          "relaxed_share": 0.01532567049808429,
+          "infeasible_share": 0.0,
+          "cost_paise": 69546.25670498084,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8084411930219471,
+          "edits_per_box": 1.7149425287356321,
+          "distinct_perishables": 6.232183908045977,
+          "variety": 9.22528735632184,
+          "preference": 17.482758620689655,
+          "relaxed_share": 0.020689655172413793,
+          "infeasible_share": 0.0,
+          "cost_paise": 63649.48735632184,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8077283811667605,
+          "edits_per_box": 2.5057471264367814,
+          "distinct_perishables": 6.245210727969349,
+          "variety": 9.32183908045977,
+          "preference": 17.597701149425287,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 63629.48275862069,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7159206798866855,
+          "edits_per_box": 1.793103448275862,
+          "distinct_perishables": 11.427586206896551,
+          "variety": 18.25057471264368,
+          "preference": 7.974712643678161,
+          "relaxed_share": 0.02528735632183908,
+          "infeasible_share": 0.0,
+          "cost_paise": 88146.09425287356,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7121813031161474,
+          "edits_per_box": 2.6551724137931036,
+          "distinct_perishables": 11.455938697318008,
+          "variety": 18.344827586206897,
+          "preference": 8.015325670498084,
+          "relaxed_share": 0.019157088122605363,
+          "infeasible_share": 0.0,
+          "cost_paise": 88243.63218390805,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7117811278615299,
+          "edits_per_box": 1.7862068965517242,
+          "distinct_perishables": 11.613793103448275,
+          "variety": 18.517241379310345,
+          "preference": 8.450574712643679,
+          "relaxed_share": 0.0367816091954023,
+          "infeasible_share": 0.0,
+          "cost_paise": 86335.94712643677,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.718034617532105,
+          "edits_per_box": 2.628352490421456,
+          "distinct_perishables": 11.71264367816092,
+          "variety": 18.624521072796934,
+          "preference": 8.46360153256705,
+          "relaxed_share": 0.034482758620689655,
+          "infeasible_share": 0.0,
+          "cost_paise": 86405.65900383142,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7138718662952647,
+          "edits_per_box": 1.8160919540229885,
+          "distinct_perishables": 10.986206896551725,
+          "variety": 18.698850574712644,
+          "preference": 7.942528735632184,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 93858.35402298851,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7132776230269267,
+          "edits_per_box": 2.6551724137931036,
+          "distinct_perishables": 11.026819923371647,
+          "variety": 18.79310344827586,
+          "preference": 7.904214559386973,
+          "relaxed_share": 0.0038314176245210726,
+          "infeasible_share": 0.0,
+          "cost_paise": 93884.9846743295,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.6971396522714526,
+          "edits_per_box": 1.8160919540229885,
+          "distinct_perishables": 11.197701149425287,
+          "variety": 18.64367816091954,
+          "preference": 7.427586206896552,
+          "relaxed_share": 0.041379310344827586,
+          "infeasible_share": 0.0,
+          "cost_paise": 99313.91954022988,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7001308655823518,
+          "edits_per_box": 2.7164750957854404,
+          "distinct_perishables": 11.210727969348659,
+          "variety": 18.727969348659006,
+          "preference": 7.4559386973180075,
+          "relaxed_share": 0.02681992337164751,
+          "infeasible_share": 0.0,
+          "cost_paise": 99013.32183908045,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.6975801913337085,
+          "edits_per_box": 1.735632183908046,
+          "distinct_perishables": 10.995402298850575,
+          "variety": 18.30574712643678,
+          "preference": 7.3839080459770114,
+          "relaxed_share": 0.03218390804597701,
+          "infeasible_share": 0.0,
+          "cost_paise": 90564.42068965518,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.6991183642843745,
+          "edits_per_box": 2.5517241379310347,
+          "distinct_perishables": 11.049808429118775,
+          "variety": 18.455938697318008,
+          "preference": 7.467432950191571,
+          "relaxed_share": 0.022988505747126436,
+          "infeasible_share": 0.0,
+          "cost_paise": 90459.38697318008,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8379603399433427,
+          "edits_per_box": 1.5931034482758621,
+          "distinct_perishables": 5.880459770114943,
+          "variety": 8.222988505747127,
+          "preference": 18.39080459770115,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 58939.76551724138,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8358829084041549,
+          "edits_per_box": 2.3371647509578546,
+          "distinct_perishables": 5.850574712643678,
+          "variety": 8.210727969348659,
+          "preference": 18.551724137931036,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 58612.15325670498,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.840536013400335,
+          "edits_per_box": 1.6229885057471265,
+          "distinct_perishables": 6.048275862068966,
+          "variety": 8.351724137931035,
+          "preference": 19.46896551724138,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 57183.77931034483,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8442211055276382,
+          "edits_per_box": 2.421455938697318,
+          "distinct_perishables": 6.038314176245211,
+          "variety": 8.32567049808429,
+          "preference": 19.555555555555557,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 56870.164750957854,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.826740947075209,
+          "edits_per_box": 1.5632183908045978,
+          "distinct_perishables": 5.974712643678161,
+          "variety": 8.34712643678161,
+          "preference": 18.570114942528736,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 62187.56091954023,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8323119777158774,
+          "edits_per_box": 2.2796934865900385,
+          "distinct_perishables": 5.954022988505747,
+          "variety": 8.360153256704981,
+          "preference": 18.731800766283524,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 61988.877394636016,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.822546270330903,
+          "edits_per_box": 1.645977011494253,
+          "distinct_perishables": 5.816091954022989,
+          "variety": 8.425287356321839,
+          "preference": 18.07126436781609,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 67641.52643678161,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8244531688166012,
+          "edits_per_box": 2.3946360153256707,
+          "distinct_perishables": 5.800766283524904,
+          "variety": 8.409961685823754,
+          "preference": 18.237547892720308,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 67261.11111111111,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8068655036578503,
+          "edits_per_box": 1.7333333333333334,
+          "distinct_perishables": 5.857471264367816,
+          "variety": 8.26206896551724,
+          "preference": 17.588505747126437,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 62286.13103448276,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8077283811667605,
+          "edits_per_box": 2.521072796934866,
+          "distinct_perishables": 5.831417624521073,
+          "variety": 8.241379310344827,
+          "preference": 17.78544061302682,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 62091.42911877394,
+          "hard_rule_violations": 0.0
+        }
+      }
+    ],
+    "pantry": [
+      {
+        "seed": 7,
+        "households": 87,
+        "rule_table_mae": 0.291304873894542,
+        "cold_start": [
+          0.1295678481193672,
+          0.09884392531063663,
+          0.08948581102780186,
+          0.08250375938997109
+        ],
+        "twin_rule_mae": 0.19411403499370442,
+        "twin_running_mean": [
+          0.12025936464571949,
+          0.09919428244765578,
+          0.08319303436623851,
+          0.09234553185271727
+        ],
+        "twin": [
+          0.19893813178024425,
+          0.20870152050772373,
+          0.2075669029902909,
+          0.22906237250565847
+        ],
+        "twin_coverage": [
+          1.0,
+          0.9942528735632183,
+          0.9942528735632183,
+          1.0
+        ],
+        "twin_learned": [
+          0.3098785863774986,
+          0.3154046539393696,
+          0.29523700464337027,
+          0.3077704711992762
+        ],
+        "learned_from": 11
+      },
+      {
+        "seed": 11,
+        "households": 87,
+        "rule_table_mae": 0.29488357933810944,
+        "cold_start": [
+          0.11809204876935483,
+          0.09782194052128962,
+          0.08764217530439054,
+          0.08766682667379902
+        ],
+        "twin_rule_mae": 0.1923343724941896,
+        "twin_running_mean": [
+          0.11446701173563047,
+          0.10451747776988943,
+          0.07937974615382198,
+          0.08662213110149214
+        ],
+        "twin": [
+          0.20780043510946034,
+          0.23914474700721178,
+          0.23438560477658382,
+          0.23138986994485033
+        ],
+        "twin_coverage": [
+          0.9827586206896551,
+          0.9827586206896551,
+          0.9770114942528736,
+          0.9827586206896551
+        ],
+        "twin_learned": [
+          0.3143593995788086,
+          0.3280549640369378,
+          0.3132789539869978,
+          0.29924701529564385
+        ],
+        "learned_from": 13
+      },
+      {
+        "seed": 13,
+        "households": 87,
+        "rule_table_mae": 0.2950848641686269,
+        "cold_start": [
+          0.12672539833514848,
+          0.10472847450737455,
+          0.08661077317252724,
+          0.09273084464073003
+        ],
+        "twin_rule_mae": 0.1886468322399027,
+        "twin_running_mean": [
+          0.11032077356703099,
+          0.09802362239552634,
+          0.08702086786654992,
+          0.09902856064122532
+        ],
+        "twin": [
+          0.21035924908404746,
+          0.21120346874486834,
+          0.21830589201282977,
+          0.2386348854034116
+        ],
+        "twin_coverage": [
+          0.9827586206896551,
+          1.0,
+          0.9827586206896551,
+          0.9942528735632183
+        ],
+        "twin_learned": [
+          0.3195000170337775,
+          0.3035260068666971,
+          0.3044744010190523,
+          0.3114079058414692
+        ],
+        "learned_from": 17
+      },
+      {
+        "seed": 17,
+        "households": 87,
+        "rule_table_mae": 0.2976153881114856,
+        "cold_start": [
+          0.13010686737594648,
+          0.09867220942023665,
+          0.09521727201909046,
+          0.08400958238574811
+        ],
+        "twin_rule_mae": 0.1955817615201208,
+        "twin_running_mean": [
+          0.119887826808957,
+          0.08494247186106592,
+          0.08705467861286852,
+          0.08291063394445934
+        ],
+        "twin": [
+          0.194593444221626,
+          0.20268108844525362,
+          0.2071187373100203,
+          0.2033515313953538
+        ],
+        "twin_coverage": [
+          0.9770114942528736,
+          0.9827586206896551,
+          0.9712643678160919,
+          0.9770114942528736
+        ],
+        "twin_learned": [
+          0.28035316172845437,
+          0.28264240792825035,
+          0.2793827664085714,
+          0.2641998509564778
+        ],
+        "learned_from": 19
+      },
+      {
+        "seed": 19,
+        "households": 87,
+        "rule_table_mae": 0.2908922733881273,
+        "cold_start": [
+          0.12795167542506208,
+          0.09975608298890855,
+          0.09465637430467035,
+          0.08722015271341309
+        ],
+        "twin_rule_mae": 0.19917692786096747,
+        "twin_running_mean": [
+          0.11261144893263358,
+          0.09622309695575307,
+          0.08987799838059032,
+          0.08668723162040673
+        ],
+        "twin": [
+          0.2076523724680914,
+          0.22414765489152472,
+          0.22245043506929954,
+          0.2344377862308295
+        ],
+        "twin_coverage": [
+          0.9712643678160919,
+          0.9827586206896551,
+          0.9770114942528736,
+          0.9712643678160919
+        ],
+        "twin_learned": [
+          0.3266530853819506,
+          0.32769811390896786,
+          0.31017185382720874,
+          0.3157552733829823
+        ],
+        "learned_from": 7
+      }
+    ],
+    "assignment": [
+      {
+        "seed": 7,
+        "evenings": 7,
+        "orders": 122,
+        "portions": 362,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.389,
+            "gini_all": 0.389,
+            "cost_paise_per_portion": 795.08,
+            "rider_paise_per_portion": 490.24,
+            "km_per_portion": 1.636,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.093,
+            "gini": 0.425,
+            "gini_all": 0.425,
+            "cost_paise_per_portion": 741.52,
+            "rider_paise_per_portion": 465.97,
+            "km_per_portion": 1.555,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.034,
+            "gini": 0.425,
+            "gini_all": 0.425,
+            "cost_paise_per_portion": 741.52,
+            "rider_paise_per_portion": 465.97,
+            "km_per_portion": 1.555,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.035,
+            "gini": 0.425,
+            "gini_all": 0.425,
+            "cost_paise_per_portion": 741.52,
+            "rider_paise_per_portion": 465.97,
+            "km_per_portion": 1.555,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.035,
+            "gini": 0.417,
+            "gini_all": 0.417,
+            "cost_paise_per_portion": 744.41,
+            "rider_paise_per_portion": 468.72,
+            "km_per_portion": 1.564,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.051,
+            "gini": 0.378,
+            "gini_all": 0.378,
+            "cost_paise_per_portion": 759.39,
+            "rider_paise_per_portion": 486.19,
+            "km_per_portion": 1.622,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.128,
+            "gini": 0.041,
+            "gini_all": 0.041,
+            "cost_paise_per_portion": 899.33,
+            "rider_paise_per_portion": 635.24,
+            "km_per_portion": 2.119,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.356,
+            "gini": 0.006,
+            "gini_all": 0.006,
+            "cost_paise_per_portion": 916.94,
+            "rider_paise_per_portion": 658.38,
+            "km_per_portion": 2.196,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.127,
+            "gini": 0.004,
+            "gini_all": 0.004,
+            "cost_paise_per_portion": 920.46,
+            "rider_paise_per_portion": 661.9,
+            "km_per_portion": 2.208,
+            "kitchens_used": 6
+          }
+        ]
+      },
+      {
+        "seed": 11,
+        "evenings": 7,
+        "orders": 73,
+        "portions": 239,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.391,
+            "gini_all": 0.391,
+            "cost_paise_per_portion": 965.15,
+            "rider_paise_per_portion": 671.84,
+            "km_per_portion": 2.241,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.016,
+            "gini": 0.407,
+            "gini_all": 0.407,
+            "cost_paise_per_portion": 923.08,
+            "rider_paise_per_portion": 636.05,
+            "km_per_portion": 2.122,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.026,
+            "gini": 0.407,
+            "gini_all": 0.407,
+            "cost_paise_per_portion": 923.08,
+            "rider_paise_per_portion": 636.05,
+            "km_per_portion": 2.122,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.407,
+            "gini_all": 0.407,
+            "cost_paise_per_portion": 923.08,
+            "rider_paise_per_portion": 636.05,
+            "km_per_portion": 2.122,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.4,
+            "gini_all": 0.4,
+            "cost_paise_per_portion": 924.22,
+            "rider_paise_per_portion": 634.05,
+            "km_per_portion": 2.115,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.397,
+            "gini_all": 0.397,
+            "cost_paise_per_portion": 925.35,
+            "rider_paise_per_portion": 633.09,
+            "km_per_portion": 2.112,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.026,
+            "gini": 0.384,
+            "gini_all": 0.384,
+            "cost_paise_per_portion": 934.69,
+            "rider_paise_per_portion": 643.06,
+            "km_per_portion": 2.145,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.033,
+            "gini": 0.345,
+            "gini_all": 0.345,
+            "cost_paise_per_portion": 968.69,
+            "rider_paise_per_portion": 671.41,
+            "km_per_portion": 2.24,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.162,
+            "gini": 0.009,
+            "gini_all": 0.009,
+            "cost_paise_per_portion": 1245.66,
+            "rider_paise_per_portion": 897.33,
+            "km_per_portion": 2.993,
+            "kitchens_used": 6
+          }
+        ]
+      },
+      {
+        "seed": 13,
+        "evenings": 7,
+        "orders": 62,
+        "portions": 193,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.498,
+            "gini_all": 0.498,
+            "cost_paise_per_portion": 1268.52,
+            "rider_paise_per_portion": 839.77,
+            "km_per_portion": 2.801,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.019,
+            "gini": 0.505,
+            "gini_all": 0.505,
+            "cost_paise_per_portion": 1243.55,
+            "rider_paise_per_portion": 813.5,
+            "km_per_portion": 2.713,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.019,
+            "gini": 0.464,
+            "gini_all": 0.464,
+            "cost_paise_per_portion": 1246.11,
+            "rider_paise_per_portion": 823.32,
+            "km_per_portion": 2.746,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.021,
+            "gini": 0.443,
+            "gini_all": 0.443,
+            "cost_paise_per_portion": 1249.02,
+            "rider_paise_per_portion": 828.55,
+            "km_per_portion": 2.763,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.023,
+            "gini": 0.44,
+            "gini_all": 0.44,
+            "cost_paise_per_portion": 1249.42,
+            "rider_paise_per_portion": 829.21,
+            "km_per_portion": 2.766,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.046,
+            "gini": 0.365,
+            "gini_all": 0.365,
+            "cost_paise_per_portion": 1270.45,
+            "rider_paise_per_portion": 858.01,
+            "km_per_portion": 2.862,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.048,
+            "gini": 0.18,
+            "gini_all": 0.18,
+            "cost_paise_per_portion": 1353.45,
+            "rider_paise_per_portion": 971.32,
+            "km_per_portion": 3.239,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.051,
+            "gini": 0.054,
+            "gini_all": 0.054,
+            "cost_paise_per_portion": 1421.43,
+            "rider_paise_per_portion": 1056.4,
+            "km_per_portion": 3.523,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.115,
+            "gini": 0.011,
+            "gini_all": 0.011,
+            "cost_paise_per_portion": 1465.38,
+            "rider_paise_per_portion": 1106.32,
+            "km_per_portion": 3.689,
+            "kitchens_used": 6
+          }
+        ]
+      },
+      {
+        "seed": 17,
+        "evenings": 7,
+        "orders": 102,
+        "portions": 315,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.413,
+            "gini_all": 0.413,
+            "cost_paise_per_portion": 802.39,
+            "rider_paise_per_portion": 456.52,
+            "km_per_portion": 1.523,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.021,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.028,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.029,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.027,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.031,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.051,
+            "gini": 0.409,
+            "gini_all": 0.409,
+            "cost_paise_per_portion": 794.16,
+            "rider_paise_per_portion": 443.37,
+            "km_per_portion": 1.479,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.041,
+            "gini": 0.368,
+            "gini_all": 0.368,
+            "cost_paise_per_portion": 820.29,
+            "rider_paise_per_portion": 460.93,
+            "km_per_portion": 1.538,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.124,
+            "gini": 0.005,
+            "gini_all": 0.005,
+            "cost_paise_per_portion": 1097.04,
+            "rider_paise_per_portion": 713.55,
+            "km_per_portion": 2.38,
+            "kitchens_used": 6
+          }
+        ]
+      },
+      {
+        "seed": 19,
+        "evenings": 7,
+        "orders": 102,
+        "portions": 308,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.409,
+            "gini_all": 0.409,
+            "cost_paise_per_portion": 897.15,
+            "rider_paise_per_portion": 599.74,
+            "km_per_portion": 2.001,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.022,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.029,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.029,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.031,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.03,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.031,
+            "gini": 0.294,
+            "gini_all": 0.294,
+            "cost_paise_per_portion": 871.11,
+            "rider_paise_per_portion": 605.2,
+            "km_per_portion": 2.019,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.039,
+            "gini": 0.234,
+            "gini_all": 0.234,
+            "cost_paise_per_portion": 921.66,
+            "rider_paise_per_portion": 642.44,
+            "km_per_portion": 2.143,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.081,
+            "gini": 0.118,
+            "gini_all": 0.118,
+            "cost_paise_per_portion": 1080.36,
+            "rider_paise_per_portion": 776.3,
+            "km_per_portion": 2.589,
+            "kitchens_used": 6
+          }
+        ]
+      }
+    ],
+    "forecast": [
+      {
+        "seed": 7,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 47,
+        "windows": 8,
+        "eval_points": 592,
+        "v0_model": "CrostonOptimized",
+        "champion": "CrostonOptimized",
+        "wape": {
+          "Naive": 0.2271,
+          "SeasonalNaive": 0.2068,
+          "CrostonOptimized": 0.183,
+          "AutoETS": 0.1831,
+          "LightGBM": 0.1973
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.183,
+            "mase": 0.958,
+            "pinball_q50": 1.3947,
+            "pinball_qtau": 2.7163,
+            "coverage_qtau": 0.3682,
+            "waste": 0.0221,
+            "stockout": 0.4473,
+            "newsvendor_cost": 0.1452
+          },
+          "v1": {
+            "wape": 0.1973,
+            "mase": 0.8644,
+            "pinball_q50": 1.4516,
+            "pinball_qtau": 1.8383,
+            "coverage_qtau": 0.4139,
+            "waste": 0.0357,
+            "stockout": 0.2682,
+            "newsvendor_cost": 0.0983
+          },
+          "champion": {
+            "wape": 0.183,
+            "mase": 0.958,
+            "pinball_q50": 1.3947,
+            "pinball_qtau": 2.7163,
+            "coverage_qtau": 0.3682,
+            "waste": 0.0221,
+            "stockout": 0.4473,
+            "newsvendor_cost": 0.1452
+          }
+        }
+      },
+      {
+        "seed": 11,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 52,
+        "windows": 8,
+        "eval_points": 661,
+        "v0_model": "CrostonOptimized",
+        "champion": "CrostonOptimized",
+        "wape": {
+          "Naive": 0.2323,
+          "SeasonalNaive": 0.2284,
+          "CrostonOptimized": 0.184,
+          "AutoETS": 0.1847,
+          "LightGBM": 0.2014
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.184,
+            "mase": 1.4902,
+            "pinball_q50": 1.1064,
+            "pinball_qtau": 3.245,
+            "coverage_qtau": 0.3722,
+            "waste": 0.0145,
+            "stockout": 0.6709,
+            "newsvendor_cost": 0.2085
+          },
+          "v1": {
+            "wape": 0.2014,
+            "mase": 1.178,
+            "pinball_q50": 1.2274,
+            "pinball_qtau": 2.1418,
+            "coverage_qtau": 0.416,
+            "waste": 0.0154,
+            "stockout": 0.4331,
+            "newsvendor_cost": 0.1376
+          },
+          "champion": {
+            "wape": 0.184,
+            "mase": 1.4902,
+            "pinball_q50": 1.1064,
+            "pinball_qtau": 3.245,
+            "coverage_qtau": 0.3722,
+            "waste": 0.0145,
+            "stockout": 0.6709,
+            "newsvendor_cost": 0.2085
+          }
+        }
+      },
+      {
+        "seed": 13,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 58,
+        "windows": 8,
+        "eval_points": 744,
+        "v0_model": "AutoETS",
+        "champion": "AutoETS",
+        "wape": {
+          "Naive": 0.2323,
+          "SeasonalNaive": 0.2206,
+          "CrostonOptimized": 0.1955,
+          "AutoETS": 0.194,
+          "LightGBM": 0.2069
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.194,
+            "mase": 0.8917,
+            "pinball_q50": 1.0885,
+            "pinball_qtau": 1.3588,
+            "coverage_qtau": 0.504,
+            "waste": 0.0296,
+            "stockout": 0.2692,
+            "newsvendor_cost": 0.0956
+          },
+          "v1": {
+            "wape": 0.2069,
+            "mase": 1.0116,
+            "pinball_q50": 1.1317,
+            "pinball_qtau": 1.7806,
+            "coverage_qtau": 0.4772,
+            "waste": 0.0275,
+            "stockout": 0.3716,
+            "newsvendor_cost": 0.1252
+          },
+          "champion": {
+            "wape": 0.194,
+            "mase": 0.8917,
+            "pinball_q50": 1.0885,
+            "pinball_qtau": 1.3588,
+            "coverage_qtau": 0.504,
+            "waste": 0.0296,
+            "stockout": 0.2692,
+            "newsvendor_cost": 0.0956
+          }
+        }
+      },
+      {
+        "seed": 17,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 55,
+        "windows": 8,
+        "eval_points": 714,
+        "v0_model": "AutoETS",
+        "champion": "AutoETS",
+        "wape": {
+          "Naive": 0.2255,
+          "SeasonalNaive": 0.2286,
+          "CrostonOptimized": 0.1857,
+          "AutoETS": 0.1836,
+          "LightGBM": 0.1902
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.1836,
+            "mase": 0.8448,
+            "pinball_q50": 1.2301,
+            "pinball_qtau": 1.849,
+            "coverage_qtau": 0.4412,
+            "waste": 0.0252,
+            "stockout": 0.3279,
+            "newsvendor_cost": 0.111
+          },
+          "v1": {
+            "wape": 0.1902,
+            "mase": 0.8906,
+            "pinball_q50": 1.3194,
+            "pinball_qtau": 2.0644,
+            "coverage_qtau": 0.4398,
+            "waste": 0.0213,
+            "stockout": 0.3774,
+            "newsvendor_cost": 0.1239
+          },
+          "champion": {
+            "wape": 0.1836,
+            "mase": 0.8448,
+            "pinball_q50": 1.2301,
+            "pinball_qtau": 1.849,
+            "coverage_qtau": 0.4412,
+            "waste": 0.0252,
+            "stockout": 0.3279,
+            "newsvendor_cost": 0.111
+          }
+        }
+      },
+      {
+        "seed": 19,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 56,
+        "windows": 8,
+        "eval_points": 726,
+        "v0_model": "AutoETS",
+        "champion": "AutoETS",
+        "wape": {
+          "Naive": 0.2244,
+          "SeasonalNaive": 0.2203,
+          "CrostonOptimized": 0.1982,
+          "AutoETS": 0.1946,
+          "LightGBM": 0.219
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.1946,
+            "mase": 0.8209,
+            "pinball_q50": 1.1508,
+            "pinball_qtau": 2.5747,
+            "coverage_qtau": 0.4242,
+            "waste": 0.0121,
+            "stockout": 0.5504,
+            "newsvendor_cost": 0.1712
+          },
+          "v1": {
+            "wape": 0.219,
+            "mase": 1.1274,
+            "pinball_q50": 1.3456,
+            "pinball_qtau": 2.12,
+            "coverage_qtau": 0.4463,
+            "waste": 0.0233,
+            "stockout": 0.4311,
+            "newsvendor_cost": 0.141
+          },
+          "champion": {
+            "wape": 0.1946,
+            "mase": 0.8209,
+            "pinball_q50": 1.1508,
+            "pinball_qtau": 2.5747,
+            "coverage_qtau": 0.4242,
+            "waste": 0.0121,
+            "stockout": 0.5504,
+            "newsvendor_cost": 0.1712
+          }
+        }
+      }
+    ]
+  }
+}

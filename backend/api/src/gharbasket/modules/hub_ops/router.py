@@ -144,6 +144,8 @@ def _hub_out(hub: Hub) -> HubOut:
         timings=Timings.model_validate(hub.timings),
         procurement_buffer_pct=hub.procurement_buffer_pct,
         pre_live_box_fee_paise=hub.pre_live_box_fee_paise,
+        green_saving_share_pct=hub.green_saving_share_pct,
+        green_saving_max_paise=hub.green_saving_max_paise,
         version=hub.version,
         created_at=hub.created_at,
         updated_at=hub.updated_at,

@@ -76,6 +76,12 @@ class HubOut(HubSummary):
     pre_live_box_fee_paise: int = Field(
         examples=[3000], description="Delivery fee per box while a society is not live (M9 §3.6)"
     )
+    green_saving_share_pct: int = Field(
+        examples=[50], description="Share of a green-slot move's route saving passed on (M10 §3.8)"
+    )
+    green_saving_max_paise: int = Field(
+        examples=[1500], description="The most a green-slot move saves on a box (M10 §3.8)"
+    )
     version: int
     created_at: datetime
     updated_at: datetime
@@ -100,6 +106,8 @@ class HubIn(_HubFields):
     timings: TimingsPatch | None = Field(default=None, description="Missing times: the defaults")
     procurement_buffer_pct: int = Field(default=10, ge=0, le=50)
     pre_live_box_fee_paise: int = Field(default=3000, ge=0, le=10_000)
+    green_saving_share_pct: int = Field(default=50, ge=0, le=100)
+    green_saving_max_paise: int = Field(default=1500, ge=0, le=10_000)
 
 
 class HubPatch(_HubFields, _Patch):
@@ -115,6 +123,8 @@ class HubPatch(_HubFields, _Patch):
     timings: TimingsPatch | None = None
     procurement_buffer_pct: int | None = Field(default=None, ge=0, le=50)
     pre_live_box_fee_paise: int | None = Field(default=None, ge=0, le=10_000)
+    green_saving_share_pct: int | None = Field(default=None, ge=0, le=100)
+    green_saving_max_paise: int | None = Field(default=None, ge=0, le=10_000)
 
 
 class VendorOut(BaseModel):

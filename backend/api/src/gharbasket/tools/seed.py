@@ -393,7 +393,14 @@ async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
         )
     else:
         fields = SEED_HUB.model_dump(
-            exclude={"slug", "timings", "procurement_buffer_pct", "pre_live_box_fee_paise"}
+            exclude={
+                "slug",
+                "timings",
+                "procurement_buffer_pct",
+                "pre_live_box_fee_paise",
+                "green_saving_share_pct",
+                "green_saving_max_paise",
+            }
         )
         await hub_service.update_hub(session, hub, HubPatch.model_validate(fields))
     vendors = await hub_service.list_vendors(session, hub.id, None)
