@@ -1,6 +1,6 @@
 # ADR-0030 — The staging ML service runs on a free Render web service, without OSRM
 
-- **Status:** Proposed (2026-10-28)
+- **Status:** Accepted (2026-10-28, by the owner, Prathamesh)
 - **Date:** 2026-10-28
 - **Decision ID:** D30
 - **Amends:** [ADR-0025](0025-ml-runtime-spaces-actions-r2.md), the "Serving: one Hugging Face Space" decision and the rejected alternative "Render free for the ML service". Training in GitHub Actions, R2 as the lake and registry, and cron-job.org stay as decided there.

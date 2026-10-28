@@ -39,4 +39,4 @@ Each ADR records one significant decision: the context, what we decided, the alt
 | [0027](0027-operations-contract-amendments.md) | Operations contract amendments: unassigned tiffins refunded, boxes missed twice (perishables refunded, the rest carried over), captain pay at `delivered`, M7's order moves, the preferred cook | Accepted |
 | [0028](0028-m7-order-moves-by-hub-managers-and-orphan-redeliveries.md) | M7 order moves: a hub manager's tap for a rider moves the orders as `rider`; a redelivery no route picked up can be refunded (`redelivery → refunded`) | Accepted |
 | [0029](0029-public-repository.md) | The repository is public: Actions minutes are free, so CI and the staging deploy run on every change; nothing secret or personal may be committed | Accepted |
-| [0030](0030-ml-service-on-render-free.md) | The staging ML service runs on a free Render web service without OSRM; Hugging Face Docker Spaces now need a paid plan | Proposed |
+| [0030](0030-ml-service-on-render-free.md) | The staging ML service runs on a free Render web service without OSRM; Hugging Face Docker Spaces now need a paid plan | Accepted |
