@@ -185,18 +185,20 @@ export const communityHandlers = [
       if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
       return HttpResponse.json(myImpact(phone));
     }
-    const period = url.searchParams.get("period") ?? "all";
-    if (period !== "all" && !/^\d{4}-(0[1-9]|1[0-2])$/.test(period))
+    // A society's numbers are all time only (a month would let a held-back month be worked out).
+    if ((url.searchParams.get("period") ?? "all") !== "all")
       return problem(422, "request.invalid", "Unprocessable Content");
     const id = url.searchParams.get("society_id") ?? "";
+    if (!id) return problem(422, "request.invalid", "Give the society_id of the society.");
     const found = find(id);
-    const society = found && current(found);
-    const live = society?.status === "live";
-    const homes = live ? 50 : (society?.unlock.joined ?? 0);
+    if (!found) return noSociety();
+    const society = current(found);
+    const live = society.status === "live";
+    const homes = live ? 50 : society.unlock.joined;
     return HttpResponse.json({
       scope: "society",
       society_id: id,
-      period,
+      period: "all",
       as_of: new Date().toISOString(),
       homes_joined: homes >= 5 ? homes : null,
       items_donated: live ? 18 : null,

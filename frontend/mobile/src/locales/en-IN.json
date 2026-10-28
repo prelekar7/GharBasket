@@ -673,7 +673,7 @@
       "messageGeneric": "Hum GharBasket join kar rahe hain. Hafte ka khana aur sabzi pehle se plan. {society} mein delivery shuru karwane ke liye join karo: {link}"
     },
     "impact": {
-      "title": "This month in {society}",
+      "title": "{society} so far",
       "body": "{kg} kg food not wasted · {n} items donated ·",
       "cooks": "earned by partners in our hub"
     },
@@ -1771,7 +1771,7 @@
   },
   "impact": {
     "title": "Our impact",
-    "link": "Our impact this month",
+    "link": "Our impact",
     "scope": "Whose impact",
     "me": "My family",
     "society": "Our society",
@@ -1795,7 +1795,7 @@
     "youNone": "Nothing given yet. Give clothes, books or toys from the Kindness tab.",
     "how": "Counted from verified donations, surplus that was eaten instead of thrown away, and partner earnings in the ledger. Updated every hour.",
     "share": "Share with neighbours",
-    "shareMessage": "This month {society} saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}",
+    "shareMessage": "{society} has saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}",
     "allTime": "So far",
     "underFive": "Numbers show once 5 homes in the society have joined in."
   }

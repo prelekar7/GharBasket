@@ -774,27 +774,45 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
     expect((await sixth.json()).code).toBe("community.request_rate_limited");
   });
 
-  it("reports a society's impact with hub numbers apart, and null while under 5 homes", async () => {
+  it("reports a society's impact, all time, with hub numbers apart", async () => {
     const live = await getJson(
-      "/v1/impact?scope=society&society_id=0199a000-0000-7000-8000-00000000b001&period=2026-10",
+      "/v1/impact?scope=society&society_id=0199a000-0000-7000-8000-00000000b001",
     );
     expect(live).toMatchObject({
       scope: "society",
-      period: "2026-10",
+      period: "all",
       homes_joined: 50,
       items_donated: 18,
       contributors: "5+",
       hub: { food_saved_kg: 420.5, partners_earned_paise: 1240000 },
     });
-    const none = await getJson("/v1/impact?scope=society&society_id=nowhere");
+    expect(typeof live.as_of).toBe("string");
+  });
+
+  it("answers null numbers while under 5 homes, and the API's problems for a bad ask", async () => {
+    const unlocking = (await getJson("/v1/societies")).items.find(
+      (/** @type {{ status: string }} */ s) => s.status !== "live",
+    );
+    const none = await getJson(`/v1/impact?scope=society&society_id=${unlocking.id}`);
     expect(none).toMatchObject({
       period: "all",
-      homes_joined: null,
       items_donated: null,
+      kg_donated: null,
+      meals_donated: null,
       contributors: "under_5",
     });
-    const bad = await mockFetch(new Request("http://localhost/v1/impact?scope=society&period=oct"));
-    expect(bad.status).toBe(422);
+    const ask = (/** @type {string} */ q) =>
+      mockFetch(new Request(`http://localhost/v1/impact?${q}`));
+    // A month is not served: a society's numbers are all time only.
+    const month = await ask(
+      "scope=society&society_id=0199a000-0000-7000-8000-00000000b001&period=2026-10",
+    );
+    expect(month.status).toBe(422);
+    expect((await month.json()).code).toBe("request.invalid");
+    expect((await ask("scope=society")).status).toBe(422);
+    const missing = await ask("scope=society&society_id=nowhere");
+    expect(missing.status).toBe(404);
+    expect((await missing.json()).code).toBe("community.society_not_found");
   });
 
   it("reports what your household gave, all time, for a signed-in person", async () => {
@@ -814,6 +832,20 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
         { code: "clothes", unit: "kg", qty: 3 },
         { code: "books", unit: "each", qty: 5 },
       ],
+    });
+  });
+  it("reports zeros and no lines for a new person", async () => {
+    await signIn("+919876543210");
+    expect(await getJson("/v1/impact?scope=me")).toEqual({
+      scope: "me",
+      period: "all",
+      items_donated: 0,
+      kg_donated: 0,
+      donations_verified: 0,
+      points_earned: 0,
+      meals_donated: 0,
+      homes_invited: 0,
+      donated: [],
     });
   });
 });
