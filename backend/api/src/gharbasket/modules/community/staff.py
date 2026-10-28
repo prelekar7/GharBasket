@@ -19,6 +19,7 @@ from gharbasket.modules.community.models import Society, SocietyRequest
 from gharbasket.modules.community.schemas import (
     AdminSociety,
     GeoPolygon,
+    SocietyCreateIn,
     SocietyRequestAdmin,
 )
 from gharbasket.modules.hub_ops import api as hub_ops_api
@@ -135,6 +136,36 @@ async def society_out(session: AsyncSession, society: Society) -> AdminSociety:
         )
     ).scalar_one()
     return (await societies_out(session, [(society, geojson)]))[0]
+
+
+async def create(
+    session: AsyncSession, body: SocietyCreateIn, hub_id: uuid.UUID | None, actor: uuid.UUID
+) -> Society:
+    """A society made by hand: the shared create path (service.create_society), audit-logged."""
+    society = await service.create_society(
+        session,
+        name=body.name,
+        area=body.area,
+        hub_id=hub_id,
+        unlock_threshold=body.unlock_threshold,
+        flats=body.flats,
+        towers=[{"id": t.id or "", "label": t.label} for t in body.towers],
+    )
+    await audit.record(
+        session,
+        actor_user_id=actor,
+        action="community.society_created",
+        entity_type="society",
+        entity_id=str(society.id),
+        after={
+            "name": society.name,
+            "slug": society.slug,
+            "hub_id": str(hub_id) if hub_id else None,
+            "unlock_threshold": society.unlock_threshold,
+            "status": society.status,
+        },
+    )
+    return society
 
 
 # --- society requests ----------------------------------------------------------------------------
