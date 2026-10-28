@@ -118,12 +118,14 @@ flowchart TD
     CI -->|always| LINT["Lint job<br/>Biome, Ruff, agent-docs sync check"]
     CI -->|always| SEC["Secrets job<br/>gitleaks"]
     CI -->|"backend/api exists"| PY["Python job<br/>pyright, import-linter,<br/>pytest + coverage gate on real Postgres + Valkey,<br/>alembic check, OpenAPI drift check"]
+    CI -->|"backend changed, or push to main"| E2E["Simulated-day job<br/>just e2e-day on real Postgres + Valkey"]
     CI -->|"frontend exists"| FE["Frontend job<br/>api-client drift check + tests,<br/>build mobile PWA, console, UI kit"]
     CI -->|"jsconfig.json exists"| HINT["JS editor hints<br/>checkJs (informational, never blocks)"]
     PR --> VP["Vercel preview<br/>PWA + console"]
     LINT --> OK{"All green +<br/>CODEOWNER approval?"}
     SEC --> OK
     PY --> OK
+    E2E --> OK
     FE --> OK
     OK -->|yes| MG["Squash merge to main"]
     MG --> STG["deploy-staging<br/>alembic upgrade head on Neon,<br/>Render deploy hook, smoke test"]
@@ -138,7 +140,7 @@ flowchart TD
 
 | Workflow | Trigger | Steps |
 |---|---|---|
-| `ci.yml` | PR, push to main | Lint, secrets, Python, frontend build and JS editor hints jobs (above) |
+| `ci.yml` | PR, push to main | Lint, secrets, Python, simulated-day, frontend build and JS editor hints jobs (above). The simulated-day job (`just e2e-day`: the whole delivery day through the HTTP API on a fresh Postgres + Valkey, ML service down, no object storage) runs on every push to main and on PRs that touch `backend/`, `e2e/backend/`, `data/`, `infra/postgres/`, the lockfile or `ci.yml`; a red day blocks the merge and, on main, the staging deploy |
 | `claude.yml` | `@claude` in an issue, PR comment or review | On-demand Claude Code; no automatic review on every PR (the Opus review of ML PRs above runs locally, not here) |
 | `deploy-staging.yml` | CI passed on a push to main (or "Run workflow") | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook for that commit (Render's pre-deploy step is paid-only), then waits until `/v1/health` reports the commit and runs `scripts/smoke-staging.sh`. Skips with a notice until its secrets exist |
 | `jobs-staging.yml` | GitHub Actions schedule (daily and weekly) or "Run workflow" with a job name | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` and the scheduled time (D21). Minute-level jobs (the 21:00 cut-off, the outbox sweep every few minutes) are called the same way by cron-job.org, since a private repository has 2,000 free Actions minutes a month. Skips with a notice until the secrets exist |
