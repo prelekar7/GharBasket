@@ -1,6 +1,6 @@
 # M7 — Logistics
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md) and its amendments in [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (vehicles), §3.2 (route plans: solve, fallback, publish), §3.3 (rider execution, GPS and live tracking), §3.4 (handover, door proof, undelivered, hold and redelivery) and §3.5 (the customer's delivery view) are frozen for S5 when this spec is approved; §3.6 (return-leg pickups) was refined on 2026-10-25, is frozen on approval and is built; §3.7 (tiffin routes) is an outline, refined in the PR that builds it.
+**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md) and its amendments in [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (vehicles), §3.2 (route plans: solve, fallback, publish), §3.3 (rider execution, GPS and live tracking), §3.4 (handover, door proof, undelivered, hold and redelivery) and §3.5 (the customer's delivery view) are frozen for S5 when this spec is approved; §3.6 (return-leg pickups) was refined on 2026-10-25, is frozen on approval and is built; §3.7 (tiffin routes) was refined on 2026-10-28 and is frozen on approval.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S5
 **Postgres schema:** `logistics` · **Python package:** `gharbasket.modules.logistics`
@@ -8,7 +8,7 @@
 ## 1. Purpose
 Getting bags from the hub to each society and each flat: vehicles, route plans (solved by M10's OR-Tools CVRPTW through `intel_gateway.api.solve_routes`, with a fallback in M7 when the ML service is down), rider execution, live location, the **Society Captain handover**, the last 50 metres with proof, failed deliveries (hold, one redelivery, refund) and return-leg pickups. M7 moves orders only through `orders.api` (M4 owns the order and its states), reads the captain of a society only through `community.api` (M9 is the source of truth, ADR-0026 §4) and reads bag counts from `hub_ops.api` (M6). It does not pack, pay anyone or send messages.
 
-**Build order for MS-B** ("OR-Tools routes → captain handover → delivered"): (a) vehicles and route plans → (b) rider execution with GPS and live tracking → (c) handover, door proof, undelivered, hold and redelivery → (d) return-leg pickups (with M9 donations, P5) and tiffin routes (with M8, S6). (a)–(c) are frozen below; (d)'s pickups are specified in §3.6.
+**Build order for MS-B** ("OR-Tools routes → captain handover → delivered"): (a) vehicles and route plans → (b) rider execution with GPS and live tracking → (c) handover, door proof, undelivered, hold and redelivery → (d) return-leg pickups (with M9 donations, P5) and tiffin routes (with M8, S6). (a)–(c) are frozen below; (d)'s pickups are specified in §3.6 and its tiffin routes in §3.7.
 
 ## 2. User stories
 | # | Story | Acceptance criteria |
@@ -51,8 +51,9 @@ Getting bags from the hub to each society and each flat: vehicles, route plans (
 | GET | `/v1/hubs/{id}/deliveries?date=&status=` | hub_manager, franchise_owner (hub) | — | §3.4; exceptions board; cursor |
 | GET | `/v1/deliveries/{order_id}` | customer (own household), hub staff | — | §3.5 |
 | POST | `/v1/stops/{id}/pickups` | rider (own route) | Required | §3.6; empties, donations and bags taken back at a stop |
+| POST | `/v1/stops/{id}/collect` | rider (own route) | Required | §3.7; the kitchen's `GB1A:` scan: its ready tiffins `packed → dispatched` |
 | GET | `/v1/hubs/{id}/pickups?date=` | hub_manager (hub), admin | — | §3.6 |
-| POST | `/v1/internal/jobs/solve_routes` · `persist_gps_pings` · `hold_expiry` · `schedule_redeliveries` · `close_routes` · `purge_gps_pings` | operator token | — | §6 |
+| POST | `/v1/internal/jobs/solve_routes` · `solve_tiffin_routes` · `persist_gps_pings` · `hold_expiry` · `schedule_redeliveries` · `close_routes` · `purge_gps_pings` | operator token | — | §6 |
 
 **For every section.** Every endpoint needs sign-in (M1 §3.1). Hub staff and riders act in one hub (`X-Active-Role` `hub_manager:<hub>`, `rider:<hub>`, …); a captain acts for one society (`captain:<society>`), **and** M7 checks on every write that `community.api.captain_for_society(society_id).user_id` is the caller (the role grant and the M9 assignment must agree; ADR-0026 §4). A request outside the caller's scope is 403 `auth.forbidden`. Dates are IST calendar dates (`date` defaults to today in IST; allowed today − 7 … today + 1, else 422 `logistics.date_out_of_range`); clock times (windows, ETAs) are IST `HH:MM`; timestamps are UTC. Money is integer paise. Reads send `Cache-Control: no-store`. **Field writes** (rider and captain) follow M6's offline rule: the `Idempotency-Key` is made when the person taps, the phone's outbox sends taps in order, a replay answers what the first call answered (M0, keys live 24 h), and `client_at` (when the tap happened) is stored for audit while the server's time decides everything else. M7 never writes `orders.*`; every order move is `orders.api.transition(…, actor=<kind>, actor_user_id=<caller>)`, and an illegal move comes back as 409 `orders.illegal_transition` with nothing changed in M7.
 
@@ -419,14 +420,193 @@ GET  /v1/hubs/{id}/pickups?date=  hub_manager (hub), admin; Cache-Control: no-st
 | No bags | `pickups.bags[]` (`order_id`, `flat_label`, `status`); the rider scans the bag's `GB1:` QR and sends it in `bags` |
 | POST answers `{ stop_id, empties, donations }`; an unknown donation is 422 `request.invalid` | The answer is the `Stop`; an unknown donation or bag is 422 `logistics.pickup_unknown`, a changed status 409 `logistics.pickup_already_reported` |
 
-### 3.7 Tiffin routes (outline; refined at the M8 tiffin PR, S6)
-- A `tiffin` plan per hub at T 10:30, from the day's kitchen assignments, so riders know their kitchens before READY (11:30): two-wheeler routes from M8's assignments (`partners.api`), `kitchen` stops first, then societies, window 12:30–13:30; ordered by nearest neighbour in M7 (the v0 solver has no kitchen pickups).
-- At the kitchen the rider scans the assignment's pickup QR on the kitchen's phone (`GB1A:` + the assignment id, M8 §3.4); M7 calls `partners.api.pickup`, which returns the ready orders, and moves each `packed → dispatched` (actor `rider`). Tiffins carry the kitchen's `short_code` label, not a bag QR. At the society the rider hands tiffins to the captain or delivers them; `dispatched → delivered` by `captain` or `rider` with the door rules above (the `short_code` and `otp` or `photo`). A failed tiffin is refunded in full at once.
-- **Captain pay for tiffins:** none in the prototype. A captain who delivers a tiffin earns nothing for it (M8 §3.6 pays her per box and add-on bag; the rider is paid for the pickup). This is a default set by [ADR-0027](../adr/0027-operations-contract-amendments.md) that the owner may change.
+### 3.7 Tiffin routes (refined 2026-10-28, frozen on approval)
+The rider's tiffin screens (Today, Route map, Kitchen stop with the scanner, Stop detail), the tiffin rows of the captain's Today and Flat checklist, the customer's delivery card for a tiffin and the console's Route plans (kind `tiffin`) build against this. Same review rule as §3.1. A tiffin day reuses §3.2's plans, §3.3's routes, stops and rider endpoints, §3.4's handover, door and undelivered endpoints and §3.5's card. The only new endpoint is the rider's **collect** at a kitchen. This section covers **lunch** only (dinner: question 6 below).
+
+**The day (IST, delivery day T, lunch slot 12:30–13:30)**
+
+| When | What | Who |
+|---|---|---|
+| 00:00 → 11:30 | Kitchens tap Start and Ready (M8 §3.4); `ready_by` = slot start − 60 min = 11:30 | kitchen |
+| 09:30 | Manual assignment closes (`ready_by` − 2 h) and `refund_unassigned_tiffins` refunds tiffins nobody cooks (M8) | M8 |
+| **09:35** | **`solve_tiffin_routes`**: one `tiffin` plan per active hub for T, published when M7's check is clean | M7 job |
+| about 11:00 | The rider starts his route (`POST /v1/routes/{id}/start`) | rider |
+| from 11:30 | At each kitchen the rider scans the kitchen's `GB1A:` code (`POST /v1/stops/{id}/collect`): its ready tiffins go `packed → dispatched` | rider |
+| 12:30–13:30 | At each society: the captain takes the tiffins and delivers them, or the rider delivers them in rider mode | captain, rider |
+| 16:00 | `close_routes` closes what is still open (below) | M7 job |
+
+**The plan** (§3.2 with `kind: "tiffin"`)
+
+What a solve reads, for hub H and day T:
+- **Kitchens and their tiffins:** `partners.api.tiffin_pickups(session, H, T, "lunch") -> list[PickupRef]` (built, M8 §3.4 "As built, part 5"): the assignments that are `accepted`, `preparing` or `ready`, by `ready_by`, each with its orders not yet picked up. `PickupRef` is `{ assignment_id, partner_id, display_name, address, lat, lng, ready_by, status, order_ids }` plus two additions made in the build PR (see "Facade additions" below): `slot_id` and `orders: [PickupOrder { order_id, short_code, portions }]`. A kitchen without a location is left out and named in `problems` (M8 offers such a kitchen nothing, so this should not happen).
+- **Societies:** `orders.api.summaries(session, order_ids)` gives each tiffin's `society_id` and `slot_id`; the location comes from `community.api.society_points` (as §3.2); the window is the slot's start and end (`orders.api.slot_ref`). A locked tiffin in no live assignment is not M7's: it is not routed and not a problem (M8's tiffin board lists it, and M8 refunds it at 09:30).
+- **Fleet:** the hub's active `two_wheeler` vehicles, by label (§3.1). As in §3.2, the v0 rule takes one capacity per fleet: the smallest `capacity_tiffins`, counted in **portions** (default 30; question 4). Weight is not checked (30 portions are about 15 kg, below the two-wheeler's 40 kg). A hub with tiffins and no active two-wheeler ends `failed` with "no active two_wheeler vehicle at the hub". A hub with no tiffins that day gets a `solved` plan with no routes, which auto-publishes (as §3.2).
+- **No ML.** M10's v0 solver has no pickup-and-delivery, so no gateway call is made and no `intel.predictions` row is written. The plan has `source: "nearest"` (a new value), `model: "tiffin-nn-v0"` and `distance_source: "haversine"`.
+
+How the stops and trips are made (in the API, deterministic, under a second; reusing `routing.py`):
+1. **Kitchen stops.** One per assignment: `kind: "kitchen"`, at the kitchen's location, window `[ready_by, ready_by + 30 min]`, `portions` = its tiffins' portions, `bags` = its tiffins (one per order). They are ordered with `routing.order_nearest` from the hub: earliest `ready_by` first, then nearest neighbour by haversine × 1.3, ties by id.
+2. **Trips.** Kitchens are taken in that order into trips, each up to the capacity in portions. A kitchen is never split between trips. A kitchen with more portions than the capacity rides alone and is named in `problems` ("kitchen <assignment_id>: 34 portions, a two-wheeler carries 30").
+3. **Drop stops of a trip.** One `drop` per (society, slot) among the trip's tiffins, ordered with `routing.order_nearest` starting from the trip's last kitchen. A society whose tiffins come from kitchens on two trips gets a drop on each, and each drop carries its own tiffins. So every tiffin is on exactly one drop, on the trip that holds its kitchen, after that kitchen.
+4. **Trips to vehicles.** Each trip goes to the vehicle that is free first (by label), at most two trips a vehicle (as `routing.fill`). A trip starts at the later of: the vehicle being free, and the first kitchen's `ready_by` minus the travel time from the hub. ETAs come from `routing.replay` (haversine × 1.3 at 22 km/h × the traffic factor 1.5; the rider waits for a kitchen's `ready_by` and a drop's window start; 4 minutes a stop, no time per tiffin). A second trip leaves when the first is back at the hub (no reload time). `depart` is the trip's start; `return_by` is the latest window end + 60 min (14:30).
+5. **Rider and captain.** The route's rider is the vehicle's `default_rider` (as §3.2). A drop's `rider_mode` follows §3.4: it is true when the society has no active captain.
+
+**M7's check for a tiffin plan** (its findings join `summary.problems`): every tiffin is on exactly one drop, on the route of its kitchen stop and after it; every kitchen stop is on exactly one route; the portions on board never exceed the vehicle's `capacity_tiffins`; at most two routes per vehicle, the second leaving after the first is back; every route is back by `return_by`. Lateness against the window shows in `summary.on_time` and `late_min` and is not a problem (as for boxes). `summary.orders` counts tiffins and `summary.stops` counts kitchen and drop stops.
+
+**Publish rules** are §3.2's, with these differences:
+- The job's plan is published at once when `problems` is empty and every tiffin is on a route; otherwise it stays `solved` and M7 publishes `logistics.plan_needs_review` (`kind: "tiffin"`).
+- The hub manager solves again with `POST /v1/hubs/{id}/route-plans { "date", "kind": "tiffin" }` (date today or tomorrow), then publishes (with `accept_problems` if needed). A new plan replaces the published one only while none of its routes has started (409 `logistics.routes_started`).
+- **`plan_incomplete` for a tiffin plan** is a tiffin on no drop or on two (`order_ids`). §3.2's (society, slot) rule does not apply, because a society may have a drop on two tiffin routes.
+- Each published route publishes `logistics.route_published` with `kind: "tiffin"`. Its stops include the kitchen stops (`society_id: null`) and a new `partner_id` field (the kitchen's on kitchen stops, null otherwise).
+
+**When an assignment changes after the solve.** M7 consumes no M8 event: the plan is a snapshot taken at 09:35. M8 adds no tiffins after 09:30 (manual assignment has closed), so the only possible change is a removal:
+- **A kitchen suspended or leaving** cancels her assignments (M8 §3.4). Her code then answers 422 `logistics.pickup_code_invalid` (below), so the rider skips the kitchen stop (reason `other`). Her tiffins never ride; M8 has released them.
+- **Before any route starts,** the hub manager can solve again and publish, which replaces the plan.
+- **A tiffin ready at the scanned kitchen but on no drop of the route** (a manual plan solved before a manual assignment that came later) is returned in `not_on_route` by collect and stays at the kitchen. The hub sees it on the exceptions board at the end of the day (`left_behind`, below).
+
+**Rider execution** (§3.3 reused)
+- `GET /v1/riders/me/routes?date=` lists the tiffin route from its publish (09:35) as a `RouteSummary` with `kind: "tiffin"`. `GET /v1/routes/{id}` gives the `RouteDetail`, whose stops carry the tiffin fields below.
+- **Start** (`POST /v1/routes/{id}/start`) of a tiffin route needs its date to be today and a rider on the route: 409 `logistics.rider_required` otherwise (the hub manager sets the rider with `PATCH /v1/routes/{id}`). The rider may not have another route in progress (`logistics.rider_busy`, as §3.3), so he completes a morning box route first. Start moves **no** order (the tiffins are still at the kitchens), reads no `society_loads`, makes no expected pickups (§3.6 is deferred for tiffin routes) and ignores `leave_behind`. It sets the handover codes of captain drops and refreshes `rider_mode` (as §3.3).
+- **`arrive`, `skip`, location and live** work as in §3.3. Arriving at a kitchen stop publishes `logistics.stop_arrived` with `society_id` and `captain_user_id` null, which M11 does not turn into a message. Skipping a kitchen stop leaves its tiffins uncollected; skipping a drop leaves its tiffins with the rider.
+- **Complete** (`POST /v1/routes/{id}/complete`) needs every stop `handed_over` (a kitchen stop: collected) or `skipped` (409 `logistics.stops_open`). Then:
+  - tiffins still `on_route` (with the rider) become `undelivered` (reason `returned_to_hub`; actor `rider`, also when a hub manager taps, ADR-0028 §1) and are refunded in full at once (below);
+  - tiffins of the route's kitchen stops that were never collected get attempt 1 in `triage` with reason `left_behind` (settled by the hub, below);
+  - tiffins with a captain are not touched: her taps end them, or `close_routes` does.
+
+**Stop fields on tiffin routes** (additions to §3.3's `Stop`; null or absent on box routes)
+
+```
+Stop (tiffin routes) adds :
+  "kitchen": { "partner_id", "display_name", "area": "Sector 20, Kharghar",   kitchen stops only
+               "ready_by": "11:30",
+               "address": "B-1103, Sunrise Towers, Sector 20" | null,   to the route's rider from
+               "location": { "lat", "lng" } | null } | null,            route start until collected
+                                                                        (and hub staff); null before
+  "portions": 12,                                   the stop's tiffin portions
+  "tiffins": [ TiffinItem ] | null                  kitchen stop: what to collect; drop: what to deliver
+TiffinItem : { "order_id", "short_code": "T-07", "portions": 2,
+  "status": "to_collect" | "on_route" | "with_captain" | "delivered" | "undelivered" | "left_behind",
+  "flat_label": "B wing, 402" | null }              rider-mode drops of a route in progress only (§Privacy)
+```
+On a kitchen stop `society` and `slot` are null, `crates` is 0 and `bags` is its tiffins; `navigate_url` points at the kitchen once `address` is shown. On a tiffin drop `crates` is 0 and `bags` is its tiffins. `handover_code` is set on captain drops only.
+
+**Collect at a kitchen** (new)
+
+```
+POST /v1/stops/{id}/collect       the route's rider; Idempotency-Key
+  request : { "pickup_qr": "GB1A:0199a0000000700080000000000000ab",   scanned on the kitchen's phone
+              "client_at"? }
+  200 : { "stop": Stop,                                   the kitchen stop, as it is now
+          "collected": [ { "order_id", "short_code", "drop_seq": 4 } ],   moved packed → dispatched now
+          "already": [ "<order_id>" ],                    collected by an earlier scan
+          "not_ready": [ { "order_id", "short_code" } ],  on this stop, not ready yet: scan again later
+          "not_on_route": [ "<order_id>" ] }              ready here, on no drop of this route: left there
+```
+- **Who and when.** Only the route's rider (another rider: 403 `logistics.not_your_route`; a role without `routes:execute`, a hub manager included: 403 `auth.forbidden`; a stop outside the rider's hubs: 404 `logistics.stop_not_found`). The route must be in progress (409 `logistics.route_not_started` · `logistics.route_closed`), the stop must be a kitchen stop (422 `logistics.not_a_kitchen_stop`) and not skipped (409 `logistics.stop_skipped`). Arrive is not required first.
+- **The code.** M7 calls `partners.api.pickup(session, pickup_qr, route.hub_id)`. Its 404 `partners.pickup_invalid` (malformed, unknown, or another hub's code) becomes 422 `logistics.pickup_code_invalid`. A valid code of another assignment than the stop's is 422 `logistics.pickup_wrong_kitchen`. Nothing changes in either case.
+- **The moves.** For each ready order of the answer that is on this stop (`logistics.stop_orders`), M7 locks the order (`orders.api.get(…, for_update=True)`) and reads it again:
+  - `packed`: `orders.api.transition(order, "dispatched", actor="rider", actor_user_id=route.rider_user_id)`. Attempt 1 opens (`on_route`, `stop_id` = its drop stop, the tiffin's `short_code`, a new delivery code). It is listed in `collected`.
+  - already `dispatched`, with its attempt on this route: listed in `already`, nothing changes. M8 marks a row `picked_up` from `orders.dispatched` through the outbox, so a second scan can still see it as ready.
+
+  Tiffins of the stop that are neither in the answer nor dispatched are listed in `not_ready`. Ready orders of the answer that are not on this stop are listed in `not_on_route` and are not moved.
+- **Nothing ready.** When nothing is collected by this scan and nothing was collected before, the answer is 409 `logistics.nothing_ready` with `not_ready`, and nothing changes: the kitchen has not tapped Ready yet, so the rider waits and scans again.
+- **Repeat scans** are allowed while the route is in progress; each one collects what has become ready since. The first scan that collects anything marks the stop `handed_over` (`handed_over_at`; also `arrived_at` if it was not set). `bags` becomes the number of tiffins collected so far.
+- Each scan that changes something writes a `collect` field event (`{ assignment_id, collected, not_ready }`, with `client_at`) and bumps the route's version. A replay with the same key answers the first call (M0); the app sends the scan through its outbox like any field tap.
+- **Events.** M7 publishes no new event. For each tiffin, M4 publishes `orders.dispatched` (`kind: "tiffin"`, actor `rider`): M8 marks the row `picked_up` and accrues the rider's ₹8 (M8 §3.6), and M11 tells the household.
+
+**Delivering a tiffin** (§3.4 reused)
+- **The attempt.** A tiffin has attempt 1 only, opened at collect. It has no attempt 2 and is never redelivered.
+- **At a captain's drop** (`rider_mode: false`):
+  - **Handover.** The rider gives her the tiffins. She counts them and types the handover code (or sends a photo) in `POST /v1/stops/{id}/handover` with `crates: 0` and `bags` = the tiffins. The expected count is the drop's tiffins that are still `on_route`.
+    - When the counts match, those attempts become `with_captain`. There is no M4 move, because tiffins skip `at_society` (ADR-0026 §3), so no `orders.at_society` is published. `logistics.handover_completed` carries the order ids. No empties are left (crates 0).
+    - When they do not match: 409 `logistics.count_mismatch`, with the expected count and the expected `short_codes`. `scanned_bags` is not accepted on a tiffin drop (422 `request.invalid`). The rider first settles a tiffin he does not have (`undelivered`, reason `missing`) or delivers it himself, and then they hand over again.
+  - **At the door** she proves each delivery with `POST /v1/deliveries/{order_id}/proof { "short_code": "T-07", "proof": "otp" | "photo", "delivery_code"?, "photo_key"? }`. This is `dispatched → delivered`, actor `captain`. She earns nothing for it; this is the default set by [ADR-0027](../adr/0027-operations-contract-amendments.md) §7, unchanged here, which the owner may change. On `orders.delivered` M8 accrues the kitchen's ₹60 a portion and completes the assignment.
+  - **When she cannot deliver** a tiffin, she calls `POST /v1/deliveries/{order_id}/undelivered` with any reason. That is `dispatched → undelivered` (actor `captain`), refunded at once. A tiffin is never held, even for `not_home` (a lunch is not kept for the evening, ADR-0026 §3), and nobody collects it back.
+- **At a rider-mode drop**, the rider delivers each tiffin with the same proof rules. No handover is needed, because there is no `at_society`. The stop becomes `handed_over` when its last tiffin is delivered or undelivered, or the rider skips it. He sees the flat labels there (`tiffins[].flat_label`, `GET /v1/stops/{id}/deliveries`). When a captain is absent, the hub manager switches her drop to rider mode (`PATCH /v1/stops/{id}`), as for boxes. A rider may deliver any tiffin of his route that is still `on_route` (§3.4: "tiffin on their route").
+- **Proof rules** (as §3.4):
+  - Exactly one of `bag_qr` and `short_code` is sent (422 `request.invalid` otherwise). `short_code` is `T-` and digits, and must be the order's (422 `logistics.bag_mismatch` otherwise).
+  - `scan` is never enough for a tiffin, whoever delivers it (422 `logistics.proof_required`).
+  - After five wrong delivery codes: 429 `logistics.code_attempts_exceeded`, and then only a photo is accepted.
+  - A delivered or refunded tiffin: 409 `logistics.delivery_closed`.
+- **Undelivered means refunded at once.** Every tiffin that becomes `undelivered` is refunded in the same transaction, whatever the reason and whoever moved it (rider, captain, hub, or the rider's complete with `returned_to_hub`):
+  - M7 calls `orders.api.transition(order, "refunded", actor="system", payload={"refund_paise": orders.api.refundable_paise(order), "reason": <the reason>})`. M4 pays through `billing.api.refund_to_wallet`, or to the payment source when the wallet is full (M5 §3.3).
+  - The attempt becomes `refunded` with `refund_paise`, after M4's `orders.delivery_failed` (with the reason) and M5's `billing.refund_issued`.
+  - If even that refund is refused (`billing.wallet_limit`), the attempt goes to triage, as in §3.4.
+  - There is no redelivery: `resolve` with `redeliver` on a tiffin is 409 `logistics.no_redelivery`. `hold_expiry` and `schedule_redeliveries` never take tiffins.
+
+**The end of the day** (`close_routes`, T 16:00)
+- **Tiffin routes still in progress** are completed as in §3.3, with one difference. M4's tiffin state machine does not let `system` move `dispatched → undelivered` (ADR-0026 §2), so the job moves no tiffin:
+  - every tiffin attempt of the day still `on_route` or `with_captain` goes to `triage` with reason `not_confirmed`;
+  - tiffins of the route's kitchen stops that were never collected go to `triage` with reason `left_behind`, as complete does.
+
+  The job also sends to `triage` (`not_confirmed`) the tiffins still `with_captain` on routes the rider completed earlier. See question 1.
+- **The hub manager settles them** from the exceptions board (`GET /v1/hubs/{id}/deliveries?status=triage`):
+  - A `not_confirmed` tiffin (still `dispatched`): once the hub has checked with the captain or the family, `POST /v1/deliveries/{order_id}/proof` (photo) or `/undelivered` (actor `hub`, then refunded at once).
+  - A `left_behind` tiffin (never collected): `POST /v1/deliveries/{order_id}/resolve { "outcome": "refund", "note" }`. M7 makes the hub's moves from wherever the order is to `undelivered` (`locked → picking → packed → dispatched → undelivered`; ADR-0026 §2 allows each one to `hub`; reason `left_behind`), then refunds it in full (`system`). See question 2.
+
+**The customer's view** (§3.5 for a tiffin)
+- `status`: `scheduled` until it is collected (there is no attempt yet), then `on_route`, `with_captain`, `delivered`, `refunded` or `triage`.
+- `window`: the tiffin slot.
+- `eta`: the `eta_now` of the drop that holds the order on the published tiffin plan, found through `logistics.stop_orders`, not by society and slot. It is null before a plan exists.
+- `tracking`: from collect, while the tiffin is `on_route` and the route is in progress. For a tiffin, §3.3's customer audience is "my tiffin is collected and on this route": the stream ends with `end` (`handed_over`) when the tiffin is handed to the captain, delivered or undelivered.
+- `captain`: the society's captain card, only when the drop is not in rider mode; null otherwise.
+- `delivery_code`: shown while the tiffin is `dispatched`. Every tiffin needs `otp` or `photo`, so the household gives this code at the door.
+- `hold_until` and `redelivery` are always null. The cook's card stays M4's `OrderOut.kitchen` with M8's card (unchanged).
+
+**The captain's day** (§3.4's `CaptainDay` for tiffins)
+- `stops` include her society's tiffin drops that are not in rider mode, with `expected` = `{ crates: 0, bags: <tiffins>, redelivery_bags: 0 }`.
+- `flats` include those tiffins: `kind: "tiffin"`, and a new `short_code` field (`"T-07"` on tiffins, null otherwise) so she can match the label to the flat.
+- A tiffin's status is `on_the_way` (no attempt yet, or `on_route`), `with_you` (`with_captain`), `delivered`, or `undelivered` (undelivered, refunded or triage). It is never `held`. `counts` include the tiffins.
+
+**Notifications.** There is no new event. The flow reuses:
+- `orders.dispatched` (the household: picked up from the kitchen), `orders.delivered`, `orders.delivery_failed` and `billing.refund_issued`. M11 already maps these; tiffin wording by `kind` is an M11 follow-up.
+- `logistics.route_published` with `kind: "tiffin"`: to the rider ("Lunch run: 3 kitchens, 6 societies, first pickup 11:30") and to each captain of a captain drop ("4 tiffins today, about 12:50"). Its new `partner_id` on kitchen stops lets M11 later tell a kitchen when the rider comes (optional, not in this build).
+- `logistics.stop_arrived` (drops only, to the captain) and `logistics.plan_needs_review` (`kind: "tiffin"`, to the hub managers).
+
+**Privacy**
+- **Kitchen address and location** are shown to the route's rider only from route start until the stop is collected (M8 §3.4: "the rider at pickup only"), and always to hub staff. Before start the rider sees the kitchen's `area` (public). Captains and customers never see them, and no event carries them.
+- **Short codes** are printed on the tiffin's label. The route's rider, the captain of the drop's society (today and yesterday) and hub staff see them; no event or log carries them.
+- **Flat labels** follow §Privacy unchanged: the rider sees them only on rider-mode drops of his route while it is in progress, and the captain only for her society.
+- **Kitchens** learn nothing about the rider from M7. `logistics.stop_orders` holds no personal data.
+
+**Facade additions**
+- **M8 (`partners.api`):** `PickupRef` gains `slot_id` and `orders: tuple[PickupOrder, ...]`, with `PickupOrder(order_id, short_code, portions)`. For `tiffin_pickups` these are the orders not yet picked up; for `pickup`, the ready ones. `order_ids` stays. `pickup` with no ready order returns an empty `orders` (as built), and M7 answers that with `logistics.nothing_ready`.
+- **M7 (`logistics.api`):** `route_for_order` returns a tiffin's drop stop, found through `logistics.stop_orders`. Nothing else changes.
+- **M4:** nothing new. `summaries`, `slot_ref`, `get(for_update)`, `refundable_paise` and `transition` already exist.
+
+**Storage** (one migration in the build PR):
+- `logistics.route_stops` gains `assignment_id` null, `partner_id` null and `portions` (default 0).
+- New `logistics.stop_orders` (`stop_id` → route_stops, `order_id`, `short_code`, `portions`; unique (`stop_id`, `order_id`); index on `order_id`). Each tiffin is on two rows of one route: its kitchen stop and its drop.
+- `logistics.deliveries` gains `short_code` null (tiffins).
+- `field_events.action` gains `collect`, and `route_plans.source` gains `nearest`.
+
+**Jobs** (to add to §6 and `infra/jobs/schedule.yaml`):
+- **`solve_tiffin_routes`**, T 09:35 IST (cron-job.org, `"35 9 * * *"`). For every active hub it solves a `tiffin` plan for **today** (the IST date of `scheduled_for`). It skips a hub that already has a published plan or a job plan (`has_job_plan`), runs each hub in its own savepoint and also solves manual tiffin plans still queued (as `solve_routes`).
+  - Why 09:35: manual assignment closes and `refund_unassigned_tiffins` runs at 09:30, so nothing is added after that.
+  - It shares Neon's 09:30 wake, and it is 2 hours before `ready_by`.
+- **`persist_gps_pings`** gains `"30 12,14 * * *"`. During the lunch run the pings wait in the Valkey stream and are moved at the 12:30 and 14:30 wakes, which already exist; no minute-level window is added (the 8-hour Neon budget). Live tracking reads Valkey, so it is not affected.
+- **`close_routes`** (T 16:00) also takes tiffin routes and tiffins, as above.
+
+**Deferred**
+- Dinner tiffins (question 6).
+- Empties and donations on tiffin routes.
+- A pickup-and-delivery solver in M10.
+- Splitting one kitchen's tiffins between two riders.
+- A hub manager collecting for a rider.
+- Telling a kitchen when its rider comes.
+
+**Questions for the owner.** Each default below is what §3.7 is written on. It holds until the owner says otherwise.
+1. **Tiffins still out at 16:00.** M4 has no `system` move from `dispatched` to `undelivered` for a tiffin (ADR-0026 §2; ADR-0027 §5 added one for boxes only). So `close_routes` cannot refund a tiffin still with the rider or a captain. **Default:** it goes to triage (`not_confirmed`) and the hub manager settles it. *The alternative* is to refund automatically at 16:00, which needs a **new ADR** amending ADR-0026 §2 to give tiffins `system` on `dispatched → undelivered`. This contract does not write that ADR.
+2. **A tiffin never collected** (the kitchen was late, or the stop was skipped). For a tiffin, M4 has no way from `locked`, `picking` or `packed` to `refunded`, except `locked → refunded` for `no_kitchen`. **Default:** the hub's triage refund makes the `hub` moves through `dispatched → undelivered`, then refunds. The cost is that the family's timeline shows "picked up" and then "failed", and they may get both pushes. *The alternative* is a tiffin move `picking` / `packed → refunded` (`system`), which would refund at complete without those moves; that needs a **new ADR**.
+3. **Solve time.** The outline said T 10:30. **Default: T 09:35**, right after the 09:30 close of assignment changes. It gives riders 2 hours' notice and shares Neon's 09:30 wake.
+4. **Capacity unit.** **Default:** `capacity_tiffins` counts **portions** (30 on a two-wheeler), because a 4-portion family order fills the bag more than a 1-portion order. The alternative is to count orders.
+5. **Who delivers tiffins at a society with a captain.** **Default:** the same rule as for boxes: the captain takes them by count and code and delivers them; rider mode applies only where there is no active captain. This keeps §3.4 and the captain USP, and the rider moves on sooner while the food is hot. But the captain is unpaid for tiffins (ADR-0027 §7's default, unchanged here). *The alternative* is that the rider does every tiffin door (every tiffin drop in rider mode). That is a single rule in the solve, with no other contract change.
+6. **Dinner.** **Default:** lunch only. A hub's dinner tiffins are not routed by M7 yet. When a hub opens a dinner slot, plans gain a `meal` (one published plan per hub, date, kind and meal), and `solve_tiffin_routes` gets a second run at the dinner slot's start − 2 h 55 min (5 minutes after its manual assignment closes).
+7. **The kitchen's address.** **Default:** shown to the rider from route start until the stop is collected, which is our reading of M8's "the rider at pickup only". Before start he sees only the area.
+8. **A hub manager collecting for a rider.** **Default:** no. Collect needs the rider at the kitchen with the scanner, as §3.6 pickups do. A route with no rider cannot start (`logistics.rider_required`).
 
 ### Facade for other modules (`gharbasket.modules.logistics.api`)
 - `published_stop_order(session, hub_id, delivery_date) -> dict[(society_id, slot_id), StopRef]` — `{ route_id, trip, stop_seq, depart }` of the published plan, for M6's packing sequence at build time.
-- `route_for_order(session, order_id) -> StopRef | None` — the route and stop an order rides on (M12 boards).
+- `route_for_order(session, order_id) -> StopRef | None` — the route and stop an order rides on (M12 boards); for a tiffin, its drop stop through `logistics.stop_orders` (§3.7).
 - `tentative_day(session, hub_id, day, *, expected=None) -> intel_api.SlotDay | None` (drafted 2026-10-28, for green slots, M10 §3.8). It gives a day's tentative routes: the published box plan's routes for `day`, else what this module's fallback would publish now (§3.2 `fallback_previous`, else `fallback_nearest`). The fallback runs over `expected` boxes per `(society, slot)` (M3's cycles, 8 kg and one bag a box), or over M4's orders. It includes the hub, the fleet, the times and the hub's box slots, and returns None without an active box vehicle. It is read-only and adds no routing code: it reuses `routing.order_previous`, `order_nearest` and `fill`.
 - `delivery_status(session, order_id) -> DeliveryRef | None` — `{ status, attempt, reason, proof, at }` (M12 triage, M13 assistant).
 - `export_for_user(session, user_id) -> dict` — the M1 data export section `logistics`: the household's deliveries (status, proof kind, times; no photos) and, for a rider, their routes and pings of the last 90 days. *Built:* also the handovers they made; the deliveries carry no photo, delivery code or note; pings are capped at 100,000 (newest) with `gps_pings_truncated`.
@@ -466,6 +646,10 @@ GET  /v1/hubs/{id}/pickups?date=  hub_manager (hub), admin; Cache-Control: no-st
 | 422 | `logistics.code_invalid` · `logistics.bag_mismatch` · `logistics.proof_required` · `logistics.photo_key_invalid` | Proof (§3.4) |
 | 422 | `logistics.reason_invalid` · `logistics.refund_invalid` · `logistics.partial_refund_not_final` | Undelivered and triage (a refund below what is left needs `final: true`) |
 | 422 | `logistics.date_out_of_range` | A date outside the allowed range |
+| 409 | `logistics.rider_required` | Starting a tiffin route that has no rider (§3.7) |
+| 409 | `logistics.nothing_ready` | Collect when nothing at the kitchen is ready and nothing was collected there yet (`not_ready`) (§3.7) |
+| 409 | `logistics.no_redelivery` | `resolve` with `redeliver` on a tiffin (§3.7) |
+| 422 | `logistics.not_a_kitchen_stop` · `logistics.pickup_code_invalid` · `logistics.pickup_wrong_kitchen` | Collect on a drop stop; a `GB1A:` code that is malformed, unknown or another hub's; a valid code of another kitchen than the stop's (§3.7) |
 | 429 | `logistics.location_rate_limited` · `logistics.code_attempts_exceeded` · `logistics.too_many_streams` | Limits |
 | 409 | `orders.illegal_transition` | The order is not in the status the step needs (from M4) |
 | 403 | `auth.forbidden` | A role without the permission, or outside its scope |
@@ -475,20 +659,21 @@ GET  /v1/hubs/{id}/pickups?date=  hub_manager (hub), admin; Cache-Control: no-st
 | Table | Key columns |
 |---|---|
 | `logistics.vehicles` | id (uuidv7), hub_id, label (unique per hub, case-insensitive), kind (cargo_3w, two_wheeler), registration null, capacity_kg, capacity_crates, capacity_tiffins, default_rider_user_id null, active, version, created_at |
-| `logistics.route_plans` | id, hub_id, delivery_date, kind (box, tiffin), status, trigger (job, manual), source null, distance_source null, model null, summary jsonb, seconds, error null, prediction_id null (`intel.predictions`), requested_by null, published_by null, published_at, created_at; one `published` plan per (hub_id, delivery_date, kind) (partial unique) |
+| `logistics.route_plans` | id, hub_id, delivery_date, kind (box, tiffin), status, trigger (job, manual), source null (§3.7 adds `nearest`), distance_source null, model null, summary jsonb, seconds, error null, prediction_id null (`intel.predictions`), requested_by null, published_by null, published_at, created_at; one `published` plan per (hub_id, delivery_date, kind) (partial unique) |
 | `logistics.routes` | id, plan_id → route_plans, hub_id, delivery_date, kind, trip, vehicle_id → vehicles, rider_user_id null, status (draft, published, in_progress, completed, cancelled), depart_time, return_by, planned_km, started_at, completed_at, empties_returned, version; RLS by hub (handbook 13 §13.4) |
-| `logistics.route_stops` | id, route_id → routes, seq (unique per route), kind (drop, bank, kitchen), society_id null, slot_id null, window_start, window_end, eta, late_s, delay_s, status (pending, arrived, handed_over, skipped), rider_mode, handover_code, code_attempts, crates, bags, empties_expected, arrived_at, skip_reason null |
+| `logistics.route_stops` | id, route_id → routes, seq (unique per route), kind (drop, bank, kitchen), society_id null, slot_id null, assignment_id null and partner_id null (kitchen stops, §3.7), portions (tiffin stops, §3.7), window_start, window_end, eta, late_s, delay_s, status (pending, arrived, handed_over, skipped), rider_mode, handover_code, code_attempts, crates, bags, empties_expected, arrived_at, skip_reason null |
 | `logistics.handovers` | id, stop_id (unique) → route_stops, society_id, by_actor (captain, rider, hub), user_id null, partner_id null, crates_expected, crates_counted, bags_expected, bags_counted, mismatch, proof (code, photo, rider_mode), photo_key null, distance_m null, note, client_at, at |
-| `logistics.deliveries` | id, order_id, attempt (1, 2), hub_id, society_id, order_kind, delivery_date (the attempt's day), slot_id, stop_id null, status, reason null, hold_until null, proof (scan, otp, photo) null, photo_key null, kept_by_captain (the bag is in the captain's hands overnight), hub_ride (attempt 1 booked again after the hub left the bag behind), delivery_code, code_attempts, by_actor null, user_id null, refund_paise null, client_at, at; unique (order_id, attempt) |
-| `logistics.field_events` | id, route_id, stop_id null, order_id null, action (start, arrive, skip, handover, proof, undelivered, hold, resolve, complete, pickup, rider_mode), user_id, payload jsonb, client_at null, at |
+| `logistics.deliveries` | id, order_id, attempt (1, 2), hub_id, society_id, order_kind, delivery_date (the attempt's day), slot_id, stop_id null, status, reason null, hold_until null, proof (scan, otp, photo) null, photo_key null, kept_by_captain (the bag is in the captain's hands overnight), hub_ride (attempt 1 booked again after the hub left the bag behind), short_code null (tiffins, §3.7), delivery_code, code_attempts, by_actor null, user_id null, refund_paise null, client_at, at; unique (order_id, attempt) |
+| `logistics.field_events` | id, route_id, stop_id null, order_id null, action (start, arrive, skip, handover, proof, undelivered, hold, resolve, complete, pickup, rider_mode, collect), user_id, payload jsonb, client_at null, at |
 | `logistics.pickups` | (§3.6) id, stop_id → route_stops, route_id → routes, hub_id, delivery_date, society_id, kind (empties, donation, bag), ref_id null (the donation or the order; null for empties), household_id null (donation and bag rows, for the flat label; nulled by the erasure), items null (M9's summary of a donation), qty (expected: the open empties, or 1), collected_qty null (empties: the count reported; 1 or 0 otherwise), status (expected, collected, not_ready), by_user_id null, client_at null, created_at, reported_at null; unique (stop_id, kind, ref_id) with nulls not distinct; index (hub_id, delivery_date) and (society_id, kind, status) |
+| `logistics.stop_orders` | (§3.7) id, stop_id → route_stops, order_id, short_code, portions; unique (stop_id, order_id); index on order_id. A tiffin is on two rows of one route: its kitchen stop and its drop |
 | `logistics.gps_pings` | rider_user_id, route_id, at, location geography(Point, 4326), accuracy_m, speed_mps null, heading null; partitioned by month on `at`, BRIN on `at`, index on (route_id, at DESC) for a route's newest ping, unique (rider_user_id, at) |
 
 Foreign keys stay inside `logistics`; hub, order, society, slot and user ids are plain UUIDs (ADR-0026 §5).
 
 ## 5. Events
 **Published** (no names, phones, flats, codes or coordinates in any payload):
-- `logistics.route_published { route_id, plan_id, hub_id, delivery_date, kind, trip, vehicle_id, rider_user_id, previous_rider_user_id, depart, stops: [ { seq, kind, society_id, slot_id, eta, bags, captain_user_id } ] }` — M6 packing sequence, M11 (the rider: "Tomorrow: EV-1, 6 stops, leave 06:30"; each captain: "14 bags tomorrow, van about 07:20").
+- `logistics.route_published { route_id, plan_id, hub_id, delivery_date, kind, trip, vehicle_id, rider_user_id, previous_rider_user_id, depart, stops: [ { seq, kind, society_id, slot_id, eta, bags, captain_user_id, partner_id } ] }` (`partner_id`: the kitchen on a tiffin route's kitchen stops, else null; §3.7) — M6 packing sequence, M11 (the rider: "Tomorrow: EV-1, 6 stops, leave 06:30"; each captain: "14 bags tomorrow, van about 07:20").
 - `logistics.route_cancelled { route_id, plan_id, hub_id, delivery_date, rider_user_id, reason: "superseded" }` — M6 clears route references, M11 tells the rider.
 - `logistics.plan_needs_review { plan_id, hub_id, delivery_date, kind, problems }` — M11 tells the hub's managers.
 - `logistics.stop_arrived { stop_id, route_id, hub_id, society_id, captain_user_id, at }` — M11 tells the captain.
@@ -508,10 +693,11 @@ Foreign keys stay inside `logistics`; hub, order, society, slot and user ids are
 | Job | Trigger (IST) | Notes |
 |---|---|---|
 | `solve_routes` | T-1 23:15 (cron-job.org → `POST /v1/internal/jobs/solve_routes`) | Every active hub: solves a `box` plan for T (each hub in its own savepoint), and any manual plan still queued; auto-publish rule in §3.2. Re-solves on demand through `POST /v1/hubs/{id}/route-plans` (the old T 07:00 solve) |
-| `persist_gps_pings` | Every minute (cron-job.org) | Valkey stream → `logistics.gps_pings`; idempotent on (rider, at) |
+| `solve_tiffin_routes` | T 09:35 (cron-job.org) | Every active hub: solves a `tiffin` plan for today from M8's assignments (§3.7); auto-publish rule as §3.2 |
+| `persist_gps_pings` | Every minute in the morning window, plus 12:30 and 14:30 for the lunch run (cron-job.org) | Valkey stream → `logistics.gps_pings`; idempotent on (rider, at) |
 | `hold_expiry` | T 20:30 (cron-job.org) | Still `at_society` → `undelivered` (actor `system`): `not_home` for held bags, `not_confirmed` for the rest (§3.4) |
 | `schedule_redeliveries` | T 20:45 (cron-job.org) | First miss → `redelivery` for T+1; second miss → perishables `refunded` minus the fee, non-perishables carried to the next delivery (§3.4) |
-| `close_routes` | T 16:00 (cron-job.org) | Completes routes still `in_progress` (actor `system` on the orders, reason `returned_to_hub`) and stops their location |
+| `close_routes` | T 16:00 (cron-job.org) | Completes routes still `in_progress` (actor `system` on the orders, reason `returned_to_hub`) and stops their location; tiffins still out go to triage instead (§3.7) |
 | `purge_gps_pings` | Daily 03:43 (GitHub Actions) | Deletes pings older than 90 days; drops a month's partition once it is empty |
 
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day follows from it), not the run time (ADR-0021, ADR-0025).
@@ -523,7 +709,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 | `routes:read` | hub_manager, franchise_owner, packer (hub), admin; rider (own routes) |
 | `route_plans:read` | hub_manager, franchise_owner (hub), admin: route plans (packers see routes, not plans) |
 | `routes:write` | hub_manager (hub): solve, publish, edit routes and stops, start or complete for a rider |
-| `routes:execute` | rider (own route): start, arrive, skip, complete, location, pickups |
+| `routes:execute` | rider (own route): start, arrive, skip, complete, location, pickups, collect (§3.7) |
 | `routes:live` | rider (own), hub_manager (hub), captain (her society's stop), customer (own order, until handover) |
 | `handover:write` | captain (society, active in M9), rider (rider-mode stop of own route), hub_manager (hub) |
 | `deliveries:read` | customer (own household), captain (her society), rider (rider-mode stop), hub staff (hub) |
@@ -546,10 +732,15 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 - SSE: the audience rules (rider, hub manager, captain, customer, stranger 403); the customer stream ends at handover; positions rounded for customers; snapshot first; 3-stream limit.
 - Handover (§3.4): matching counts move every order with actor `captain`; mismatch without scans refused, with scans moves only scanned ones; wrong code and the attempts limit; rider mode for a society without a captain; a captain whose M9 assignment ended is refused; replay returns the first answer.
 - Door and exceptions: bag QR must match; rider needs otp or photo; hold keeps `at_society` until `hold_expiry`; `hold_expiry` reasons; first miss → one redelivery on T+1's plan, and a bag the captain kept overnight is counted neither in `redelivery_bags` nor at the handover yet moves to `at_society` with it; second miss → refund of perishables minus ₹20, never negative, and the non-perishable lines passed to `orders.api.carry_over`; damaged/missing refunded in full; tiffin failure refunded at once; a tiffin is picked up by its assignment's `GB1A:` QR and delivered with its `short_code` and `otp` or `photo`, by a captain too; triage refund bounded by what is left of the paid total.
+- Tiffin routes (§3.7):
+  - the solve: kitchens from `tiffin_pickups` ordered by `ready_by` then nearest neighbour, trips filled to `capacity_tiffins` in portions without splitting a kitchen, drops after their kitchens, a society on two trips gets two drops; an over-capacity kitchen, no two-wheeler, and an empty day; the check catches a tiffin on no drop or before its kitchen; auto-publish and `plan_needs_review`; `plan_incomplete` by order;
+  - start moves nothing and needs a rider; collect by the rider only, on a kitchen stop of a route in progress; a wrong, foreign or other kitchen's code; `nothing_ready`; a partial Ready then a second scan; `already` on a repeat scan before M8's row moves; `not_on_route`; `orders.dispatched` with actor `rider`;
+  - a captain's tiffin handover moves no order and makes the attempts `with_captain`; the count mismatch lists short codes; `short_code` and `otp` or `photo` by the captain and by the rider; `scan` refused; every undelivered tiffin refunded in full at once, no hold, no redelivery; complete refunds what the rider still holds and sends uncollected tiffins to triage; `close_routes` sends tiffins still out to triage and moves none; the hub's triage refund of a never-collected tiffin;
+  - the customer's card and stream for a tiffin; the captain's day with tiffin rows and short codes; the kitchen's address hidden before start and after collect.
 - Pickups (§3.6): route start makes the expected empties (handover crates minus collected, rider-mode handovers left out), donations (`pickups_for`) and bags (attempt 2 refunded in the captain's hands), each on one stop only; a report by the route's rider only (another rider 403, a hub manager 403, another hub 404), not before start, after completion or at a skipped stop; partial reports, empties replaced, a changed status 409, an unexpected donation or bag 422; the idempotent replay; `pickup_completed` and its consumers (M9 `picked_up`, `not_ready` rolled then cancelled; M6 kept items and returned lots); rows still expected become `not_ready` at complete; the hub list's scope (hub manager of the hub, admin; another hub 403); the solve sends the open empties.
 - Privacy: captain views never contain names or phones and only her society; no event payload carries a code, phone, flat or coordinate; data export and erasure.
 - Solver integration (with M10): golden routes from fixed seeds are feasible; the 26 s gateway timeout leads to the fallback, never a missing plan.
-- E2E (MS-B): seeded hub → cut-off → 23:15 plan published → packing in route order → start → handover → every flat delivered, plus one held bag that becomes a redelivery and is delivered the next morning; on the simulator seed.
+- E2E (MS-B): seeded hub → cut-off → 23:15 plan published → packing in route order → start → handover → every flat delivered, plus one held bag that becomes a redelivery and is delivered the next morning; on the simulator seed. The tiffin journey (`e2e/backend/test_journey_tiffin_partner.py`) replaces its stand-ins (`partners.api.pickup` and the hub's `orders.api` moves) with `solve_tiffin_routes`, start, collect and the door proof (§3.7).
 - Device: background location on a low-end Android (Capacitor background geolocation plugin), pings stop at complete; offline handover and door scans replay once.
 
 ## 10. Dependencies
@@ -557,7 +748,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 - **M9** captains PR (before M7): `community.captains` with one active captain per society, `community.api.captain_for_society`, the `captain_assigned`/`captain_ended` events. **Also needed from M9:** `community.api.society_points(society_ids) -> {id: (lat, lng)}` (a nullable gate point on societies, else a point inside the boundary) and tower labels (already needed by M6).
 - **M6** (`hub_ops.api.society_loads`, `bag_for_order`; consumes `logistics.route_published` and `route_cancelled`; **follow-up:** a bag back after a second miss sends its perishables to the surplus cascade and keeps its non-perishables aside for the household, and packing adds a carried-over line from those kept items), **M1** (`identity.api.delivery_labels`, rider grants for a hub, the data export section `logistics`, the erase hook), **M0** (a new upload purpose `delivery_photo`: JPEG/WebP, 5 MB, 90 days after the delivery), **M2** (`catalog.api.grams_of` and shelf life per product), **M10** (`intel_gateway.api.solve_routes`, PR on `feat/M10-route-solve`), **M5** (refunds through M4), **M11** (the event map above), **M8** (tiffin assignments and the `GB1A:` pickup in §3.7; partner pay comes from M4's fulfilment events with `actor`, not from M7's events, M8 §3.6).
 - **Missing, found building M7:** (1) ~~a `billing.api` facade that refunds an order's money to its **original payment source** (M5's refund-to-source works from the wallet balance and has no per-order entry point), which triage needs when the wallet is at its cap~~. Done by M5 §3.3 "Order refunds when the wallet is full" (2026-10-21): `refund_to_wallet` sends the refund to the payment source itself, so triage needs no change; (2) M4's `carry_over` and its 14-day expiry job, and M6's kept items, for the non-perishables of a box missed twice; (3) ~~§3.6 pickups (`bag` kind), which would bring a bag the captain holds back to the hub after a second miss~~. Specified in §3.6 (2026-10-25): the bag is a pickup at the society's next stop, and M6's consumer of `logistics.pickup_completed` unpacks it.
-- **Docs to update with this spec:** handbook 07 §7.1 and W5 (solve at T-1 23:15 per hub, not T 07:00 per slot; crates by count and handover code, not crate QR; hold until 20:00, the held bag overnight with the captain, one redelivery, then the refund rule with the non-perishables carried to the next delivery; the fallback is the previous day's order or nearest neighbour), handbook 10 §10.4 (`solve_routes` T-1 23:15; the new M7 jobs) and §10.3 (the M7 events), handbook 05 §5.5 ERD for `logistics`, handbook 06 §6.2 (hold and redelivery triggers), M10 §3.4 (stop ids and the 23:15 trigger), M11 §3.1 event map (the six events above and a category for partner messages).
+- **Docs to update with this spec:** handbook 07 §7.1 and W5 (solve at T-1 23:15 per hub, not T 07:00 per slot; crates by count and handover code, not crate QR; hold until 20:00, the held bag overnight with the captain, one redelivery, then the refund rule with the non-perishables carried to the next delivery; the fallback is the previous day's order or nearest neighbour), handbook 10 §10.4 (`solve_routes` T-1 23:15; the new M7 jobs) and §10.3 (the M7 events), handbook 05 §5.5 ERD for `logistics`, handbook 06 §6.2 (hold and redelivery triggers), M10 §3.4 (stop ids and the 23:15 trigger), M11 §3.1 event map (the six events above and a category for partner messages). **For §3.7:** handbook 07 (the 09:35 tiffin solve in the daily table, W6's scan and proof going to M7), handbook 10 §10.4 (`solve_tiffin_routes`), handbook 05 §5.5 (`stop_orders`), M8 §3.4 (`PickupRef` additions).
 
 ## 11. Open questions and decisions
 - **Decided (ADR-0026, owner 2026-10-09):** captain from M9 (one per society), rider as the last-50-m fallback, crates counted not tracked, bag QR `GB1:<order_id>`, solve at T-1 23:15, hold until 20:00 with `hold_expiry` at 20:30, one free redelivery the next morning then the perishables refunded minus a fee, electric cargo three-wheeler (400 kg, 24 crates) for boxes and two-wheelers for tiffins.
