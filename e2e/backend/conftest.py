@@ -69,3 +69,8 @@ def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
         when = run.at.astimezone(IST).strftime("%a %d %b %H:%M")
         write(f"{when}  {run.name:<26} {run.status:<6} {run.summary}")
     write(f"pushes sent to the fake FCM: {len(_APP[0].outside.pushes)}")
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """The simulated day first: it migrates, seeds and simulates the weeks the journeys build on."""
+    items.sort(key=lambda item: item.path.name != "test_simulated_day.py")

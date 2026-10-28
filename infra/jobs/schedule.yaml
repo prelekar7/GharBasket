@@ -1,0 +1,341 @@
+# The schedule of every scheduled job: the single source of truth (ADR-0021, handbook 10 §10.4).
+# One entry per name in `gharbasket.platform.jobs.JOBS`; a test (`backend/api/tests/test_job_schedule.py`)
+# fails when a job has no entry, an entry has no job, a cron does not parse, or the `actions`
+# crons here and the `on.schedule` lines of `.github/workflows/jobs-staging.yml` differ.
+#
+# Read by `.github/workflows/jobs-staging.yml` (the `actions` entries, picked by their cron) and
+# by a future `scripts/cronjob_sync.py` that creates the cron-job.org jobs from the `cron-job.org`
+# entries. To add a job: register it, add an entry here, and for `actions` add the literal cron to
+# `on.schedule` of the workflow (GitHub accepts nothing else).
+#
+# Fields:
+#   name    the job name (snake_case, as in `@job("name")`)
+#   runner  cron-job.org | actions | manual
+#   cron    5 fields (minute hour day-of-month month day-of-week), or a list of them (one
+#           cron-job.org job each). IST for cron-job.org entries (the jobs are created with the
+#           timezone Asia/Kolkata); UTC for `actions` entries, because GitHub runs UTC. A
+#           `manual` entry has no cron.
+#   ist     `actions` entries only: the same time in IST, for people
+#   why     one line: where the time comes from
+#
+# Neon budget (staging, free tier: 100 compute-hours a month per project; when they run out the
+# compute is SUSPENDED until the next month, i.e. staging is down).
+# SET THE NEON COMPUTE TO A FIXED 0.25 CU (autoscaling min = max = 0.25) so autoscaling cannot
+# multiply the cost. Neon scales to zero after 5 idle minutes, so a job every minute around the
+# clock keeps it awake 24 hours a day (0.25 CU x 24 h x 31 days = 186 CU-hours). The minute-level
+# jobs therefore run only in short windows around the events that need them, written into their
+# crons (IST):
+#   morning  06:00-08:45  the delivery run (GPS pings, pushes); packing is one call at 05:00
+#   evening  18:30-19:05  box-ready notices (18:30) and cut-off reminders (19:00)
+#            20:30-21:45  held bags, redeliveries, auto-approve, the 21:00 cut-off, procurement
+#                         (21:10), kitchen assignment (21:30)
+#            23:00-23:30  payment grace (23:00), procurement refresh (23:05), routes (23:15)
+# Between the windows only the daily and weekly jobs wake Neon, each for about 6 minutes
+# (1 minute of work and 5 idle), plus the tiffin reassignment rounds every 15 minutes from 22:00
+# to 00:30 (M8 asks for that), which are short wakes of their own. The few jobs people wait for
+# (a data export, a push, a refund) also run at 09:30, 12:30 and 14:30, wakes that already exist
+# for refund_unassigned_tiffins, surplus_cascade and prompt_tiffin_ratings, so by day they wait up
+# to 3 hours and overnight until 06:00; start a job by hand to demo in the daytime.
+# reconcile_payments rides the same wakes (M5 says hourly; see its `why`).
+# Estimated awake time: about 7.8 hours a day, about 59 CU-hours a month at 0.25 CU, before
+# people and deploys. `test_job_schedule.py` computes it (run with `-s`) and fails above 8 hours.
+# The Render API stays awake on UptimeRobot's /v1/health ping (handbook 12), so cron-job.org's
+# 30-second timeout does not meet a cold start.
+
+jobs:
+  # --- M0 platform ------------------------------------------------------------------------
+  - name: outbox_sweep
+    runner: cron-job.org
+    cron:
+      - "*/5 6-7 * * *"
+      - "0-45/5 8 * * *"
+      - "30-59/5 18 * * *"
+      - "0-5/5 19 * * *"
+      - "30-59/5 20 * * *"
+      - "0-45/5 21 * * *"
+      - "0-30/5 23 * * *"
+      - "30 9,12,14 * * *"
+    why: M0 §6 hourly backstop and every few minutes from the external cron; outside the windows it runs at 09:30, 12:30 and 14:30, so the relay's retries (backoff up to 1 h) wait for the next window
+
+  - name: cleanup_idempotency_keys
+    runner: actions
+    cron: "33 22 * * *"
+    ist: "04:03 daily"
+    why: M0 §6 daily 04:03 IST
+
+  - name: sweep_uploads
+    runner: actions
+    cron: "43 22 * * *"
+    ist: "04:13 daily"
+    why: M0 §6 daily 04:13 IST
+
+  # --- M1 identity ------------------------------------------------------------------------
+  - name: build_data_export
+    runner: cron-job.org
+    cron:
+      - "*/10 6-7 * * *"
+      - "0-45/10 8 * * *"
+      - "30-59/10 18 * * *"
+      - "0-5/10 19 * * *"
+      - "30-59/10 20 * * *"
+      - "0-45/10 21 * * *"
+      - "0-30/10 23 * * *"
+      - "30 9,12,14 * * *"
+    why: M1 every 10 minutes in the windows; also 09:30, 12:30 and 14:30
+
+  - name: expire_data_exports
+    runner: actions
+    cron: "53 22 * * *"
+    ist: "04:23 daily"
+    why: M1 daily
+
+  - name: expire_pending_grants
+    runner: actions
+    cron: "48 22 * * *"
+    ist: "04:18 daily"
+    why: M1 §3.6 daily 04:18 IST
+
+  - name: purge_deleted_users
+    runner: actions
+    cron: "3 22 * * *"
+    ist: "03:33 daily"
+    why: M1 §3.5 daily 03:33 IST (shares the time with monitor_drift)
+
+  # --- M3 subscriptions -------------------------------------------------------------------
+  - name: generate_weekly_plans
+    runner: cron-job.org
+    cron: "0 18 * * *"
+    why: handbook 10 §10.4 T-3 18:00
+
+  - name: send_box_ready_notices
+    runner: cron-job.org
+    cron: "30 18 * * *"
+    why: handbook 10 §10.4 T-3 18:30 (the 24 h pre-debit notice)
+
+  - name: remind_unapproved
+    runner: cron-job.org
+    cron: "0 19 * * *"
+    why: handbook 10 §10.4 T-1 19:00
+
+  - name: apply_auto_approve
+    runner: cron-job.org
+    cron: "55 20 * * *"
+    why: handbook 10 §10.4 T-1 20:55, five minutes before the cut-off
+
+  # --- M4 orders --------------------------------------------------------------------------
+  - name: cutoff_lock
+    runner: cron-job.org
+    cron: "0 21 * * *"
+    why: M4 §3.1 the cut-off, T-1 21:00 IST
+
+  - name: payment_grace_expiry
+    runner: cron-job.org
+    cron: "0 23 * * *"
+    why: handbook 10 §10.4 T-1 23:00, after the 2 h grace
+
+  - name: expire_carry_overs
+    runner: cron-job.org
+    cron: "40 2 * * *"
+    why: M4 §6 daily 02:40 IST (Neon is awake then anyway for refresh_analytics_nightly)
+
+  # --- M5 billing -------------------------------------------------------------------------
+  - name: send_refunds
+    runner: cron-job.org
+    cron:
+      - "*/5 6-7 * * *"
+      - "0-45/5 8 * * *"
+      - "30-59/5 18 * * *"
+      - "0-5/5 19 * * *"
+      - "30-59/5 20 * * *"
+      - "0-45/5 21 * * *"
+      - "0-30/5 23 * * *"
+      - "30 9,12,14 * * *"
+    why: M5 §3.3 every 5 minutes in the windows; also 09:30, 12:30 and 14:30 (a refund to source waits for the next of these)
+
+  - name: reconcile_payments
+    runner: actions
+    cron: "0 1-4,7,9,13,15,16 * * *"
+    ist: "06:30, 07:30, 08:30, 09:30, 12:30, 14:30, 18:30, 20:30, 21:30"
+    why: DEVIATION from M5 §3.4 (hourly at :17), to save Neon hours on staging, it runs on the wakes Neon has anyway, every half hour inside the windows and at 09:30, 12:30 and 14:30 by day (so every 2-3 hours by day), never overnight, when no payment is made. Restore the hourly cron at the pilot. GitHub may start a :00 cron late, which costs an extra wake
+
+  - name: weekly_payouts
+    runner: actions
+    cron: "33 4 * * 1"
+    ist: "Monday 10:03"
+    why: M5 §3.5 Monday 10:00 IST, the past IST week
+
+  - name: expire_kindness_points
+    runner: actions
+    cron: "3 19 * * *"
+    ist: "00:33 daily"
+    why: M5 daily
+
+  # --- M6 hub ops -------------------------------------------------------------------------
+  - name: build_packing_tasks
+    runner: cron-job.org
+    cron: "0 5 * * *"
+    why: M6 §6 T 05:00
+
+  - name: surplus_cascade
+    runner: cron-job.org
+    cron: "30 12 * * *"
+    why: M6 §6 T 12:30
+
+  - name: build_procurement_plan
+    runner: cron-job.org
+    cron: "10 21 * * *"
+    why: M6 §6 T-1 21:10
+
+  - name: refresh_procurement_plan
+    runner: cron-job.org
+    cron: "5 23 * * *"
+    why: M6 §6 T-1 23:05, after payment_grace_expiry (23:00)
+
+  - name: compute_vendor_scores
+    runner: actions
+    cron: "3 22 * * 0"
+    ist: "Monday 03:33"
+    why: M6 Monday 03:33 IST, the past IST week
+
+  # --- M7 logistics -----------------------------------------------------------------------
+  - name: solve_routes
+    runner: cron-job.org
+    cron: "15 23 * * *"
+    why: M7 §6 T-1 23:15
+
+  - name: persist_gps_pings
+    runner: cron-job.org
+    cron:
+      - "* 6-7 * * *"
+      - "0-45 8 * * *"
+    why: M7 §6 every minute; riders ping on delivery mornings only, and close_routes (16:00) ends strays
+
+  - name: close_routes
+    runner: cron-job.org
+    cron: "0 16 * * *"
+    why: M7 §6 T 16:00
+
+  - name: hold_expiry
+    runner: cron-job.org
+    cron: "30 20 * * *"
+    why: M7 §6 T 20:30
+
+  - name: schedule_redeliveries
+    runner: cron-job.org
+    cron: "45 20 * * *"
+    why: M7 §6 T 20:45
+
+  - name: purge_gps_pings
+    runner: actions
+    cron: "13 22 * * *"
+    ist: "03:43 daily"
+    why: M7 §6 daily 03:43 IST
+
+  # --- M8 partners ------------------------------------------------------------------------
+  - name: assign_kitchens
+    runner: cron-job.org
+    cron: "30 21 * * *"
+    why: M8 §6 T-1 21:30, round 1
+
+  - name: assignment_acceptance_timeout
+    runner: cron-job.org
+    cron:
+      - "45 21 * * *"
+      - "0,15,30,45 22-23 * * *"
+      - "0,15,30 0 * * *"
+    why: M8 §6 every 15 minutes from T-1 21:45 to T 00:30 (no new round after 00:00)
+
+  - name: refund_unassigned_tiffins
+    runner: cron-job.org
+    cron:
+      - "30 9 * * *"
+      - "0 18 * * *"
+    why: M8 §6 T 09:30 for lunch (ready_by 11:30 - 2 h); the 18:00 run is for dinner, whose slot M8 gives no time for (it covers slots up to 21:00; a run before a meal closes refunds nothing, a later one only refunds later)
+
+  - name: prompt_tiffin_ratings
+    runner: cron-job.org
+    cron: "30 14 * * *"
+    why: M8 §6 T 14:30
+
+  # --- M9 community -----------------------------------------------------------------------
+  - name: recompute_unlock_thresholds
+    runner: actions
+    cron: "40 20 * * 0"
+    ist: "Monday 02:10"
+    why: M9 Monday 02:10 IST
+
+  - name: expire_referrals
+    runner: actions
+    cron: "40 21 * * *"
+    ist: "03:10 daily"
+    why: M9 daily 03:10 IST
+
+  - name: sweep_missed_pickups
+    runner: cron-job.org
+    cron: "30 22 * * *"
+    why: M9 daily 22:30 IST
+
+  # --- M10 intelligence -------------------------------------------------------------------
+  - name: monitor_drift
+    runner: actions
+    cron: "3 22 * * *"
+    ist: "03:33 daily"
+    why: handbook 10 §10.4 daily 03:33 IST (shares the time with purge_deleted_users)
+
+  # --- M11 notifications ------------------------------------------------------------------
+  - name: send_deliveries
+    runner: cron-job.org
+    cron:
+      - "* 6-7 * * *"
+      - "0-45 8 * * *"
+      - "30-59 18 * * *"
+      - "0-5 19 * * *"
+      - "30-59 20 * * *"
+      - "0-45 21 * * *"
+      - "0-30 23 * * *"
+      - "30 9,12,14 * * *"
+    why: M11 §6 every minute in the windows; also 09:30, 12:30 and 14:30 (a push outside them waits for the next; start it by hand to demo in the daytime)
+
+  - name: purge_notifications
+    runner: actions
+    cron: "3 23 * * *"
+    ist: "04:33 daily"
+    why: handbook 10 §10.4 daily 04:33 IST
+
+  # --- M12 analytics ----------------------------------------------------------------------
+  - name: refresh_analytics
+    runner: cron-job.org
+    cron:
+      - "*/15 6-7 * * *"
+      - "0-45/15 8 * * *"
+      - "30-59/15 18 * * *"
+      - "0-5/15 19 * * *"
+      - "30-59/15 20 * * *"
+      - "0-45/15 21 * * *"
+      - "0-30/15 23 * * *"
+      - "30 9,12,14 * * *"
+    why: M12 §3.2 every 15 minutes in the windows; also 09:30, 12:30 and 14:30; refresh_analytics_nightly covers the night
+
+  - name: refresh_analytics_nightly
+    runner: actions
+    cron: "10 21 * * *"
+    ist: "02:40 daily"
+    why: M12 §3.2 daily 02:40 IST
+
+  - name: rebuild_analytics
+    runner: manual
+    why: M12 §3.2 by hand only (`just job rebuild_analytics`), every fact since the first order
+
+  # --- M13 assistant ----------------------------------------------------------------------
+  - name: expire_proposals
+    runner: cron-job.org
+    cron:
+      - "*/10 6-7 * * *"
+      - "0-45/10 8 * * *"
+      - "30-59/10 18 * * *"
+      - "0-5/10 19 * * *"
+      - "30-59/10 20 * * *"
+      - "0-45/10 21 * * *"
+      - "0-30/10 23 * * *"
+      - "30 9,12,14 * * *"
+    why: M13 §6 every 10 minutes (cleanup only, a confirm after expires_at is refused anyway)
