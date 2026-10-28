@@ -1,0 +1,39 @@
+# The ML service on a free Render web service (staging), without OSRM: routing and slot pricing then
+# use their haversine fallback (OSRM_URL unset). The Hugging Face Space image (Dockerfile, with the
+# baked road network) stays the full image for a local or paid host. Built by Render from the
+# repository root, like the API image:
+#   docker build -f backend/ml/Dockerfile.render -t gharbasket-ml-render .
+# Dependencies come straight from the workspace's uv.lock (no requirements.lock to generate).
+
+FROM python:3.13-slim AS build
+COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /bin/uv
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+COPY backend/ml/pyproject.toml backend/ml/README.md backend/ml/
+# uv reads every workspace member's metadata; only the ML service is installed here.
+COPY backend/api/pyproject.toml backend/api/README.md backend/api/
+COPY data/simulator/pyproject.toml data/simulator/README.md data/simulator/
+COPY backend/training/pyproject.toml backend/training/README.md backend/training/
+COPY e2e/backend/pyproject.toml e2e/backend/
+RUN uv sync --locked --no-dev --package gharbasket-ml --no-install-workspace
+
+COPY backend/ml/src backend/ml/src
+RUN uv sync --locked --no-dev --package gharbasket-ml --no-editable
+
+
+FROM python:3.13-slim
+RUN useradd --create-home --uid 10001 app
+COPY --from=build --chown=app:app /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    APP_ENV=prod
+USER app
+WORKDIR /app
+EXPOSE 10000
+
+# Render sets $PORT (10000 by default). One worker: the free instance has 512 MB and 0.1 CPU.
+CMD ["sh", "-c", "exec uvicorn gharbasket_ml.main:create_app --factory --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*' --no-access-log"]

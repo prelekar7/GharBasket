@@ -1,0 +1,63 @@
+# Smoke-test the ML service on staging (a free Render web service, no longer a Hugging Face
+# Space), by hand. Render deploys it by itself after CI passes (render.yaml, autoDeployTrigger:
+# checksPass); this workflow only asks whether it answers: /health, /health/ai, /models, a week plan
+# and a pantry quantity (`just cloud-ml`). A free service sleeps after 15 minutes idle, so the first
+# step wakes it and waits up to 5 minutes for /health.
+#
+# Needs the repository secrets STAGING_ML_URL (the service's https URL) and ML_SERVICE_TOKEN (the
+# same value the service and the API hold). Until they are set the workflow skips with a notice.
+name: Smoke ML
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-ml
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Wake and smoke-test the ML service
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      STAGING_ML_URL: ${{ secrets.STAGING_ML_URL }}
+      ML_SERVICE_TOKEN: ${{ secrets.ML_SERVICE_TOKEN }}
+    steps:
+      - name: Check that the ML service is configured
+        id: configured
+        run: |
+          if [ -z "$STAGING_ML_URL" ] || [ -z "$ML_SERVICE_TOKEN" ]; then
+            echo "::notice::The ML service is not configured yet (STAGING_ML_URL, ML_SERVICE_TOKEN). Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.ready == 'true'
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        if: steps.configured.outputs.ready == 'true'
+
+      - name: Wake the service
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          for attempt in $(seq 1 30); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 20 "${STAGING_ML_URL%/}/health" || true)
+            if [ "$code" = "200" ]; then
+              echo "The ML service answers /health"
+              exit 0
+            fi
+            echo "Waiting (/health answered '${code:-nothing}')"
+            sleep 10
+          done
+          echo "::error::The ML service did not answer /health within 5 minutes; check the Render deploy log."
+          exit 1
+
+      - name: Smoke test
+        if: steps.configured.outputs.ready == 'true'
+        run: uv run --directory backend/ml --no-dev python -m gharbasket_ml.smoke "$STAGING_ML_URL" "$ML_SERVICE_TOKEN"
