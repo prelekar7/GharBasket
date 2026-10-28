@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from gharbasket.modules.catalog.models import SLUG
 
@@ -534,3 +534,65 @@ class PriceLists(BaseModel):
 
 class PriceListDetail(PriceListSummary):
     items: list[PriceListLine]
+
+
+# --- the tiffin menu review (§3.4) ---------------------------------------------------------------
+
+MenuStatus = Literal["submitted", "approved", "sent_back", "withdrawn"]
+
+
+class MenuKitchen(BaseModel):
+    partner_id: uuid.UUID
+    display_name: str | None = Field(description="The kitchen's name; null if the partner is gone")
+
+
+class MenuProduct(BaseModel):
+    id: uuid.UUID
+    slug: str
+    name: str
+    tags: list[str]
+
+
+class MenuDish(BaseModel):
+    recipe_id: uuid.UUID
+    name: str
+
+
+class MenuReviewer(BaseModel):
+    user_id: uuid.UUID
+    name: str | None
+
+
+class MenuRules(BaseModel):
+    """True only when every dish's recipe has the rule (§3.2); false for a menu without dishes."""
+
+    jain_ok: bool
+    no_onion_garlic: bool
+    fasting_ok: bool
+    diabetic_ok: bool
+
+
+class TiffinMenuReview(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    date: date
+    meal: Literal["lunch", "dinner"]
+    status: MenuStatus
+    kitchen: MenuKitchen
+    product: MenuProduct
+    dishes: list[MenuDish]
+    price_paise: int = Field(description="Per portion, the menu's own price")
+    rules: MenuRules
+    contains: list[str] = Field(description="The dishes' non-optional ingredients, in the language")
+    order_by: datetime = Field(description="The date's cut-off: 21:00 IST the day before")
+    submitted_at: datetime
+    decided_at: datetime | None
+    decided_by: MenuReviewer | None = Field(description="The reviewer (staff)")
+    note: str | None = Field(description="The send-back reason")
+    version: int
+
+
+class SendBackIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]

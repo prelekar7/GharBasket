@@ -24,6 +24,8 @@ from gharbasket.modules.subscriptions.models import (
     WeeklyCycle,
 )
 from gharbasket.modules.subscriptions.schemas import (
+    AdminPlanOut,
+    AdminPlansOut,
     BudgetLockIn,
     BudgetLockOut,
     CaptainOut,
@@ -40,6 +42,8 @@ from gharbasket.modules.subscriptions.schemas import (
     HighlightOut,
     HubCutoffOut,
     HubDeliveryDatesOut,
+    HubDeliveryDaysOut,
+    HubSocietyDaysOut,
     LinesPatch,
     MealOut,
     MealPlanOut,
@@ -73,6 +77,7 @@ CanWrite = Annotated[Permit, require("cycles:write")]
 CanSubscribe = Annotated[Permit, require("subscriptions:write")]
 CanSetDays = Annotated[Permit, require("delivery_days:write")]
 CanSeeDates = Annotated[Permit, require("delivery_days:read")]
+CanAdminPlans = Annotated[Permit, require("plans:admin_read")]
 # Calendar dates the console can ask for; the day arithmetic around them never leaves the range.
 CalendarDate = Annotated[date, Field(ge=date(2000, 1, 1), le=date(2100, 12, 31))]
 MonthParam = Annotated[str | None, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
@@ -276,6 +281,27 @@ async def list_plans(_permit: CanRead, session: DbSession, lang: Lang) -> PlansO
     return PlansOut(items=[_plan_out(p, lang) for p in await service.list_plans(session)])
 
 
+@router.get(
+    "/admin/plans",
+    summary="Every plan, live or draft, with its subscriber count (admin)",
+    responses={403: _problem("auth.forbidden")},
+)
+async def admin_plans(
+    _permit: CanAdminPlans, session: DbSession, lang: Lang, response: Response
+) -> AdminPlansOut:
+    response.headers["Cache-Control"] = "no-store"
+    return AdminPlansOut(
+        items=[
+            AdminPlanOut(
+                **_plan_out(plan, lang).model_dump(),
+                state="live" if plan.active else "draft",
+                subscriber_count=count,
+            )
+            for plan, count in await service.admin_plans(session)
+        ]
+    )
+
+
 @router.post(
     "/subscriptions",
     status_code=status.HTTP_201_CREATED,
@@ -391,6 +417,40 @@ async def put_delivery_days(
     await idem.save(200, out)
     await session.commit()
     return out
+
+
+@router.get(
+    "/hubs/{hub_id}/delivery-days",
+    summary="Every society of the hub with its delivery days, whatever its status (hub staff)",
+    responses={403: _problem("auth.forbidden")},
+)
+async def hub_delivery_days(
+    hub_id: uuid.UUID, permit: CanSeeDates, session: DbSession, response: Response
+) -> HubDeliveryDaysOut:
+    permit.ensure(hub_id)
+    response.headers["Cache-Control"] = "no-store"
+    societies = await community_api.hub_society_cards(session, hub_id)
+    days = await service.hub_delivery_days(session, [s.id for s in societies])
+    slots = {
+        slot_id: await _slot(session, slot_id)
+        for slot_id in {d.slot_id for each in days.values() for d in each}
+    }
+    return HubDeliveryDaysOut(
+        hub_id=hub_id,
+        items=[
+            HubSocietyDaysOut(
+                society_id=society.id,
+                name=society.name,
+                area=society.area,
+                status=society.status,  # pyright: ignore[reportArgumentType]
+                items=[
+                    DeliveryDayOut(weekday=d.weekday, slot=slots[d.slot_id])
+                    for d in days[society.id]
+                ],
+            )
+            for society in societies
+        ],
+    )
 
 
 @router.get(

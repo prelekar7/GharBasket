@@ -54,6 +54,17 @@ async def households_in_societies(
     return {society_id: counts.get(society_id, 0) for society_id in ids}
 
 
+async def society_owners(
+    session: AsyncSession, society_id: uuid.UUID
+) -> dict[uuid.UUID, uuid.UUID]:
+    """Each household of the society by its owner's user id (owner user id -> household id): M9
+    reads which society a donated meal came from (M9 §3.7). Ids only, no name or flat."""
+    rows = await session.execute(
+        select(Household.owner_user_id, Household.id).where(Household.society_id == society_id)
+    )
+    return {user_id: household_id for user_id, household_id in rows.all()}
+
+
 async def households_per_society(
     session: AsyncSession, society_ids: Iterable[uuid.UUID]
 ) -> dict[uuid.UUID, int]:

@@ -45,7 +45,9 @@ SLOTS = ("breakfast", "lunch", "dinner")
 DIETS = ("veg", "egg")
 INGREDIENT_UNITS = ("g", "ml", "piece", "bunch")
 MEALS = ("lunch", "dinner")
-MENU_STATUSES = ("draft", "approved", "withdrawn")
+# submitted -> approved | sent_back by a reviewer, back to submitted by reopen (§3.4); `withdrawn`
+# is the kitchen's own take-down, unused in v1.
+MENU_STATUSES = ("submitted", "approved", "sent_back", "withdrawn")
 # Product tag codes (spec §3.3). Recipes' derived rules read `root`, `onion_garlic` and `egg`.
 TAGS = (
     "dairy",
@@ -324,6 +326,7 @@ class TiffinMenu(Base):
         CheckConstraint(_one_of("meal", MEALS), name="meal"),
         CheckConstraint(_one_of("status", MENU_STATUSES), name="status"),
         CheckConstraint("price_paise > 0", name="price_paise"),
+        CheckConstraint("char_length(decision_note) <= 500", name="decision_note"),
         Index("ix_tiffin_menus_hub_id_date_status", "hub_id", "date", "status"),
         {"schema": SCHEMA},
     )
@@ -339,5 +342,13 @@ class TiffinMenu(Base):
     )
     recipe_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid), server_default=text("'{}'"))
     price_paise: Mapped[int] = mapped_column(BigInteger)  # per portion
-    status: Mapped[str] = mapped_column(String(12), server_default="draft")
+    status: Mapped[str] = mapped_column(String(12), server_default="submitted")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The review (§3.4): who decided and when, the send-back reason, and a counter of decisions.
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))

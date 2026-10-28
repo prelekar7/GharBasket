@@ -400,6 +400,76 @@
         "title": "AdminPayoutOut",
         "type": "object"
       },
+      "AdminPlanOut": {
+        "properties": {
+          "code": {
+            "enum": [
+              "autopilot",
+              "tiffin",
+              "salad"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "fee_paise": {
+            "title": "Fee Paise",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "description": "live: the plan's active flag; GET /v1/plans lists live plans only",
+            "enum": [
+              "live",
+              "draft"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "subscriber_count": {
+            "description": "Subscriptions on the plan that are not ended; 0, never null",
+            "minimum": 0.0,
+            "title": "Subscriber Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "fee_paise",
+          "features",
+          "state",
+          "subscriber_count"
+        ],
+        "title": "AdminPlanOut",
+        "type": "object"
+      },
+      "AdminPlansOut": {
+        "properties": {
+          "items": {
+            "description": "Every plan, by code",
+            "items": {
+              "$ref": "#/components/schemas/AdminPlanOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AdminPlansOut",
+        "type": "object"
+      },
       "AdminProduct": {
         "properties": {
           "active": {
@@ -700,6 +770,148 @@
           "updated_by"
         ],
         "title": "AdminRecipe",
+        "type": "object"
+      },
+      "AdminSociety": {
+        "description": "A society as hub staff and admins see it: never a captain or a requester.",
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "boundary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/gharbasket__modules__community__schemas__GeoPolygon"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "flats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flats"
+          },
+          "households": {
+            "description": "Households whose address is in it (the unlock count)",
+            "title": "Households",
+            "type": "integer"
+          },
+          "hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HubRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: no hub yet (admins only)"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "live_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "threshold_source": {
+            "enum": [
+              "model",
+              "hub",
+              "default"
+            ],
+            "title": "Threshold Source",
+            "type": "string"
+          },
+          "towers": {
+            "items": {
+              "$ref": "#/components/schemas/Tower"
+            },
+            "title": "Towers",
+            "type": "array"
+          },
+          "unlock_threshold": {
+            "title": "Unlock Threshold",
+            "type": "integer"
+          },
+          "unlock_threshold_pinned": {
+            "title": "Unlock Threshold Pinned",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "area",
+          "status",
+          "hub",
+          "households",
+          "unlock_threshold",
+          "unlock_threshold_pinned",
+          "threshold_source",
+          "live_at",
+          "flats",
+          "towers",
+          "boundary",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AdminSociety",
         "type": "object"
       },
       "AdminUser": {
@@ -3094,6 +3306,62 @@
         "title": "CategoryRef",
         "type": "object"
       },
+      "CertificateLinkOut": {
+        "properties": {
+          "expires_at": {
+            "description": "When the link stops working",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "filename": {
+            "examples": [
+              "gharbasket-income-certificate-2026-05-to-2026-10.pdf"
+            ],
+            "title": "Filename",
+            "type": "string"
+          },
+          "from": {
+            "description": "First month, IST",
+            "examples": [
+              "2026-05"
+            ],
+            "title": "From",
+            "type": "string"
+          },
+          "reference": {
+            "description": "Printed on the PDF; support finds the issue by it in the audit log",
+            "examples": [
+              "GBIC-7K3M-QX9P-2TAB-H4WE"
+            ],
+            "title": "Reference",
+            "type": "string"
+          },
+          "to": {
+            "description": "Last month, IST; the current one is to date",
+            "examples": [
+              "2026-10"
+            ],
+            "title": "To",
+            "type": "string"
+          },
+          "url": {
+            "description": "A 5-minute signed GET of the PDF",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "from",
+          "to",
+          "url",
+          "filename",
+          "expires_at"
+        ],
+        "title": "CertificateLinkOut",
+        "type": "object"
+      },
       "ChangeOut": {
         "properties": {
           "from": {
@@ -4524,6 +4792,37 @@
           "reason"
         ],
         "title": "DocumentRequirement",
+        "type": "object"
+      },
+      "DonatedLineOut": {
+        "properties": {
+          "code": {
+            "examples": [
+              "clothes"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Accepted (counted) total",
+            "title": "Qty",
+            "type": "number"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "each"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "unit",
+          "qty"
+        ],
+        "title": "DonatedLineOut",
         "type": "object"
       },
       "DonationLine": {
@@ -6784,7 +7083,7 @@
         "title": "GeneratedPurchaseOrders",
         "type": "object"
       },
-      "GeoPolygon": {
+      "GeoPolygon-Input": {
         "description": "GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no\nholes, not self-intersecting.",
         "properties": {
           "coordinates": {
@@ -8164,6 +8463,29 @@
         "title": "HubDeliveryDatesOut",
         "type": "object"
       },
+      "HubDeliveryDaysOut": {
+        "properties": {
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "items": {
+            "description": "Every society of the hub: live, unlocking, prospect, paused, then by name",
+            "items": {
+              "$ref": "#/components/schemas/HubSocietyDaysOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "items"
+        ],
+        "title": "HubDeliveryDaysOut",
+        "type": "object"
+      },
       "HubDriftOut": {
         "properties": {
           "backtest_wape": {
@@ -8243,6 +8565,48 @@
         "title": "HubDriftOut",
         "type": "object"
       },
+      "HubImpactOut": {
+        "properties": {
+          "food_saved_kg": {
+            "description": "Surplus the society's hub handed to NGOs",
+            "title": "Food Saved Kg",
+            "type": "number"
+          },
+          "meals_served": {
+            "description": "Donated meals NGOs served from the hub",
+            "title": "Meals Served",
+            "type": "integer"
+          },
+          "partners": {
+            "enum": [
+              "5+",
+              "under_5"
+            ],
+            "title": "Partners",
+            "type": "string"
+          },
+          "partners_earned_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The hub's partners this month (the asked one; this month for `all`); null under 5 paid partners",
+            "title": "Partners Earned Paise"
+          }
+        },
+        "required": [
+          "food_saved_kg",
+          "meals_served",
+          "partners_earned_paise",
+          "partners"
+        ],
+        "title": "HubImpactOut",
+        "type": "object"
+      },
       "HubIn": {
         "additionalProperties": false,
         "properties": {
@@ -8295,7 +8659,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GeoPolygon"
+                "$ref": "#/components/schemas/GeoPolygon-Input"
               },
               {
                 "type": "null"
@@ -8392,7 +8756,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GeoPolygon"
+                "$ref": "#/components/schemas/gharbasket__modules__hub_ops__schemas__GeoPolygon"
               },
               {
                 "type": "null"
@@ -8543,7 +8907,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GeoPolygon"
+                "$ref": "#/components/schemas/GeoPolygon-Input"
               },
               {
                 "type": "null"
@@ -8664,6 +9028,86 @@
           "items"
         ],
         "title": "HubPickupsOut",
+        "type": "object"
+      },
+      "HubRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Kharghar hub"
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "HubRef",
+        "type": "object"
+      },
+      "HubSocietyDaysOut": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "items": {
+            "description": "Empty for a society with no delivery days",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryDayOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "society_id",
+          "name",
+          "area",
+          "status",
+          "items"
+        ],
+        "title": "HubSocietyDaysOut",
         "type": "object"
       },
       "HubStaff": {
@@ -8877,6 +9321,403 @@
           "inspected_on"
         ],
         "title": "HygieneOut",
+        "type": "object"
+      },
+      "ImpactNgoOut": {
+        "properties": {
+          "handoffs": {
+            "title": "Handoffs",
+            "type": "integer"
+          },
+          "items": {
+            "title": "Items",
+            "type": "integer"
+          },
+          "kg": {
+            "title": "Kg",
+            "type": "number"
+          },
+          "meals": {
+            "title": "Meals",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ngo_id": {
+            "format": "uuid",
+            "title": "Ngo Id",
+            "type": "string"
+          },
+          "people_reached": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "People Reached"
+          }
+        },
+        "required": [
+          "ngo_id",
+          "name",
+          "handoffs",
+          "items",
+          "kg",
+          "meals",
+          "people_reached"
+        ],
+        "title": "ImpactNgoOut",
+        "type": "object"
+      },
+      "ImpactOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "data_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hub Id"
+          },
+          "month": {
+            "examples": [
+              "2027-02"
+            ],
+            "title": "Month",
+            "type": "string"
+          },
+          "ngo_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ngo Id"
+          },
+          "ngos": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactNgoOut"
+            },
+            "title": "Ngos",
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "platform",
+              "hub",
+              "ngo"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "societies": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ImpactSocietyOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Scope hub only; no earnings. Null for platform and ngo",
+            "title": "Societies"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/ImpactTotalsOut"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/ImpactTrendOut"
+          }
+        },
+        "required": [
+          "scope",
+          "hub_id",
+          "ngo_id",
+          "month",
+          "data_source",
+          "as_of",
+          "stale",
+          "totals",
+          "trend",
+          "societies",
+          "ngos"
+        ],
+        "title": "ImpactOut",
+        "type": "object"
+      },
+      "ImpactSocietyOut": {
+        "properties": {
+          "households_joined": {
+            "title": "Households Joined",
+            "type": "integer"
+          },
+          "items_donated": {
+            "title": "Items Donated",
+            "type": "integer"
+          },
+          "kg_donated": {
+            "title": "Kg Donated",
+            "type": "number"
+          },
+          "meals_donated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null: a donated meal belongs to a hub, not a society, in the facts",
+            "title": "Meals Donated"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "society_id",
+          "name",
+          "items_donated",
+          "kg_donated",
+          "meals_donated",
+          "households_joined"
+        ],
+        "title": "ImpactSocietyOut",
+        "type": "object"
+      },
+      "ImpactTotalsOut": {
+        "description": "The month's numbers. A field that does not apply to the scope, or that the facts cannot\ngive, is null: an NGO coordinator's report carries only what the NGO received.",
+        "properties": {
+          "donations_verified": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Donations Verified"
+          },
+          "food_saved_kg": {
+            "description": "Surplus food handed to NGOs (kind food)",
+            "title": "Food Saved Kg",
+            "type": "number"
+          },
+          "households_donating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5",
+            "title": "Households Donating"
+          },
+          "items_donated": {
+            "description": "Items of verified donations; for an NGO, items it received",
+            "title": "Items Donated",
+            "type": "integer"
+          },
+          "kg_donated": {
+            "description": "Kilograms of those items",
+            "title": "Kg Donated",
+            "type": "number"
+          },
+          "meals_donated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Meals pledged with Kindness points",
+            "title": "Meals Donated"
+          },
+          "meals_served": {
+            "description": "Donated meals NGOs served",
+            "title": "Meals Served",
+            "type": "integer"
+          },
+          "partners_earned_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners; never for scope ngo",
+            "title": "Partners Earned Paise"
+          },
+          "partners_paid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 paid partners; never for ngo",
+            "title": "Partners Paid"
+          },
+          "people_reached": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "As NGOs report it; null if none reported",
+            "title": "People Reached"
+          },
+          "referrals_converted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referrals Converted"
+          },
+          "societies_live": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Societies Live"
+          },
+          "waste_g_per_100kg": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hub and platform only; bin grams per 100 kg",
+            "title": "Waste G Per 100Kg"
+          }
+        },
+        "required": [
+          "food_saved_kg",
+          "items_donated",
+          "kg_donated",
+          "donations_verified",
+          "households_donating",
+          "meals_donated",
+          "meals_served",
+          "people_reached",
+          "referrals_converted",
+          "societies_live",
+          "partners_earned_paise",
+          "partners_paid",
+          "waste_g_per_100kg"
+        ],
+        "title": "ImpactTotalsOut",
+        "type": "object"
+      },
+      "ImpactTrendOut": {
+        "properties": {
+          "food_saved_kg": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Food Saved Kg",
+            "type": "array"
+          },
+          "items_donated": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Items Donated",
+            "type": "array"
+          },
+          "meals_served": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Meals Served",
+            "type": "array"
+          },
+          "months": {
+            "description": "The 6 months up to `month`, oldest first (YYYY-MM)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          }
+        },
+        "required": [
+          "months",
+          "food_saved_kg",
+          "items_donated",
+          "meals_served"
+        ],
+        "title": "ImpactTrendOut",
         "type": "object"
       },
       "InboxOut": {
@@ -10717,7 +11558,7 @@
               },
               "type": "array"
             },
-            "description": "One value per period for every KPI key; null when undefined",
+            "description": "One value per period for every KPI key; null when undefined. `partner_earnings_paise` is null under 5 paid partners (never an individual's pay)",
             "title": "Series",
             "type": "object"
           },
@@ -12461,6 +13302,52 @@
         "title": "MemberUpdate",
         "type": "object"
       },
+      "MenuDish": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "recipe_id": {
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipe_id",
+          "name"
+        ],
+        "title": "MenuDish",
+        "type": "object"
+      },
+      "MenuKitchen": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The kitchen's name; null if the partner is gone",
+            "title": "Display Name"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partner_id",
+          "display_name"
+        ],
+        "title": "MenuKitchen",
+        "type": "object"
+      },
       "MenuKitchenOut": {
         "properties": {
           "display_name": {
@@ -12494,6 +13381,93 @@
           "photo_url"
         ],
         "title": "MenuKitchenOut",
+        "type": "object"
+      },
+      "MenuProduct": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "tags"
+        ],
+        "title": "MenuProduct",
+        "type": "object"
+      },
+      "MenuReviewer": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "MenuReviewer",
+        "type": "object"
+      },
+      "MenuRules": {
+        "description": "True only when every dish's recipe has the rule (§3.2); false for a menu without dishes.",
+        "properties": {
+          "diabetic_ok": {
+            "title": "Diabetic Ok",
+            "type": "boolean"
+          },
+          "fasting_ok": {
+            "title": "Fasting Ok",
+            "type": "boolean"
+          },
+          "jain_ok": {
+            "title": "Jain Ok",
+            "type": "boolean"
+          },
+          "no_onion_garlic": {
+            "title": "No Onion Garlic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "jain_ok",
+          "no_onion_garlic",
+          "fasting_ok",
+          "diabetic_ok"
+        ],
+        "title": "MenuRules",
         "type": "object"
       },
       "MessageIn": {
@@ -12763,6 +13737,69 @@
           "accepted"
         ],
         "title": "ModelMetricsOut",
+        "type": "object"
+      },
+      "MyImpactOut": {
+        "properties": {
+          "donated": {
+            "description": "Accepted totals per code",
+            "items": {
+              "$ref": "#/components/schemas/DonatedLineOut"
+            },
+            "title": "Donated",
+            "type": "array"
+          },
+          "donations_verified": {
+            "title": "Donations Verified",
+            "type": "integer"
+          },
+          "homes_invited": {
+            "description": "Converted referrals",
+            "title": "Homes Invited",
+            "type": "integer"
+          },
+          "items_donated": {
+            "description": "Accepted pieces, plus kilograms counted as one item per kg",
+            "title": "Items Donated",
+            "type": "integer"
+          },
+          "kg_donated": {
+            "title": "Kg Donated",
+            "type": "number"
+          },
+          "meals_donated": {
+            "description": "Meals given with points",
+            "title": "Meals Donated",
+            "type": "integer"
+          },
+          "period": {
+            "const": "all",
+            "default": "all",
+            "title": "Period",
+            "type": "string"
+          },
+          "points_earned": {
+            "description": "All Kindness points ever credited (donations, referrals)",
+            "title": "Points Earned",
+            "type": "integer"
+          },
+          "scope": {
+            "const": "me",
+            "default": "me",
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items_donated",
+          "kg_donated",
+          "donations_verified",
+          "points_earned",
+          "meals_donated",
+          "homes_invited",
+          "donated"
+        ],
+        "title": "MyImpactOut",
         "type": "object"
       },
       "Names": {
@@ -14793,6 +15830,34 @@
         "title": "Page[AdminRecipe]",
         "type": "object"
       },
+      "Page_AdminSociety_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminSociety"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[AdminSociety]",
+        "type": "object"
+      },
       "Page_AdminUser_": {
         "properties": {
           "items": {
@@ -15213,6 +16278,34 @@
         "title": "Page[RefundRow]",
         "type": "object"
       },
+      "Page_SocietyRequestAdmin_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SocietyRequestAdmin"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[SocietyRequestAdmin]",
+        "type": "object"
+      },
       "Page_SocietySummary_": {
         "properties": {
           "items": {
@@ -15267,6 +16360,34 @@
           "next_cursor"
         ],
         "title": "Page[StaffDonationOut]",
+        "type": "object"
+      },
+      "Page_TiffinMenuReview_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TiffinMenuReview"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[TiffinMenuReview]",
         "type": "object"
       },
       "Page_WasteLogOut_": {
@@ -18922,6 +20043,139 @@
           "expires_at"
         ],
         "title": "ProposalOut",
+        "type": "object"
+      },
+      "PublicImpactOut": {
+        "properties": {
+          "items_donated": {
+            "title": "Items Donated",
+            "type": "integer"
+          },
+          "meals_donated": {
+            "title": "Meals Donated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items_donated",
+          "meals_donated"
+        ],
+        "title": "PublicImpactOut",
+        "type": "object"
+      },
+      "PublicSocietyOut": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "delivery_days": {
+            "description": "Live societies only",
+            "items": {
+              "enum": [
+                "mon",
+                "tue",
+                "wed",
+                "thu",
+                "fri",
+                "sat",
+                "sun"
+              ],
+              "type": "string"
+            },
+            "title": "Delivery Days",
+            "type": "array"
+          },
+          "homes_joined": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 households",
+            "title": "Homes Joined"
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicImpactOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until 5 households contributed"
+          },
+          "join_url": {
+            "title": "Join Url",
+            "type": "string"
+          },
+          "live_since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IST date",
+            "title": "Live Since"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "progress_bp": {
+            "description": "min(joined / target, 1) in basis points",
+            "title": "Progress Bp",
+            "type": "integer"
+          },
+          "slug": {
+            "examples": [
+              "sunrise-towers-kharghar"
+            ],
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "unlocking",
+              "live"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unlock_target": {
+            "title": "Unlock Target",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "area",
+          "status",
+          "homes_joined",
+          "unlock_target",
+          "progress_bp",
+          "live_since",
+          "delivery_days",
+          "impact",
+          "join_url"
+        ],
+        "title": "PublicSocietyOut",
         "type": "object"
       },
       "PublishIn": {
@@ -22804,6 +24058,22 @@
         "title": "SearchResults",
         "type": "object"
       },
+      "SendBackIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "SendBackIn",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "created_at": {
@@ -23706,6 +24976,111 @@
         "title": "SocietyBoxesOut",
         "type": "object"
       },
+      "SocietyImpactOut": {
+        "properties": {
+          "as_of": {
+            "description": "The time of the read: the numbers are computed live",
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "contributors": {
+            "enum": [
+              "5+",
+              "under_5"
+            ],
+            "title": "Contributors",
+            "type": "string"
+          },
+          "homes_joined": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null under 5 households",
+            "title": "Homes Joined"
+          },
+          "hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HubImpactOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for a society without a hub"
+          },
+          "items_donated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until 5 households contributed",
+            "title": "Items Donated"
+          },
+          "kg_donated": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kg Donated"
+          },
+          "meals_donated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meals Donated"
+          },
+          "period": {
+            "const": "all",
+            "default": "all",
+            "description": "Always `all`: all time only",
+            "title": "Period",
+            "type": "string"
+          },
+          "scope": {
+            "const": "society",
+            "default": "society",
+            "title": "Scope",
+            "type": "string"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "society_id",
+          "as_of",
+          "homes_joined",
+          "items_donated",
+          "kg_donated",
+          "meals_donated",
+          "contributors",
+          "hub"
+        ],
+        "title": "SocietyImpactOut",
+        "type": "object"
+      },
       "SocietyLoad": {
         "properties": {
           "bags": {
@@ -23847,6 +25222,175 @@
         "title": "SocietyOut",
         "type": "object"
       },
+      "SocietyRequestAcceptIn": {
+        "additionalProperties": false,
+        "properties": {
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: the caller's hub for a hub manager, none for an admin",
+            "title": "Hub Id"
+          }
+        },
+        "title": "SocietyRequestAcceptIn",
+        "type": "object"
+      },
+      "SocietyRequestAccepted": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/SocietyRequestAdmin"
+          },
+          "society": {
+            "$ref": "#/components/schemas/AdminSociety"
+          }
+        },
+        "required": [
+          "request",
+          "society"
+        ],
+        "title": "SocietyRequestAccepted",
+        "type": "object"
+      },
+      "SocietyRequestAdmin": {
+        "description": "A society request in the review queue: never the requester's id, name or phone.",
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The society it repeats (duplicate)",
+            "title": "Duplicate Of"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLngOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "society_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The society it became (accepted)",
+            "title": "Society Id"
+          },
+          "status": {
+            "enum": [
+              "received",
+              "accepted",
+              "duplicate",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "area",
+          "location",
+          "note",
+          "status",
+          "society_id",
+          "duplicate_of",
+          "created_at",
+          "reviewed_at"
+        ],
+        "title": "SocietyRequestAdmin",
+        "type": "object"
+      },
+      "SocietyRequestDuplicateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "society_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Any listed society; missing or unknown is 422",
+            "title": "Society Id"
+          }
+        },
+        "title": "SocietyRequestDuplicateIn",
+        "type": "object"
+      },
       "SocietyRequestIn": {
         "additionalProperties": false,
         "description": "Ask GharBasket to come to a society that isn't listed (US-8).",
@@ -23934,6 +25478,22 @@
           "created_at"
         ],
         "title": "SocietyRequestOut",
+        "type": "object"
+      },
+      "SocietyRequestUndoIn": {
+        "additionalProperties": false,
+        "description": "The undo of \"Duplicate\": `{ \"status\": \"received\" }` and nothing else.",
+        "properties": {
+          "status": {
+            "const": "received",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SocietyRequestUndoIn",
         "type": "object"
       },
       "SocietyRowOut": {
@@ -26297,6 +27857,143 @@
           "order_by"
         ],
         "title": "TiffinMenuOut",
+        "type": "object"
+      },
+      "TiffinMenuReview": {
+        "properties": {
+          "contains": {
+            "description": "The dishes' non-optional ingredients, in the language",
+            "items": {
+              "type": "string"
+            },
+            "title": "Contains",
+            "type": "array"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MenuReviewer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reviewer (staff)"
+          },
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/MenuDish"
+            },
+            "title": "Dishes",
+            "type": "array"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kitchen": {
+            "$ref": "#/components/schemas/MenuKitchen"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The send-back reason",
+            "title": "Note"
+          },
+          "order_by": {
+            "description": "The date's cut-off: 21:00 IST the day before",
+            "format": "date-time",
+            "title": "Order By",
+            "type": "string"
+          },
+          "price_paise": {
+            "description": "Per portion, the menu's own price",
+            "title": "Price Paise",
+            "type": "integer"
+          },
+          "product": {
+            "$ref": "#/components/schemas/MenuProduct"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/MenuRules"
+          },
+          "status": {
+            "enum": [
+              "submitted",
+              "approved",
+              "sent_back",
+              "withdrawn"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "date",
+          "meal",
+          "status",
+          "kitchen",
+          "product",
+          "dishes",
+          "price_paise",
+          "rules",
+          "contains",
+          "order_by",
+          "submitted_at",
+          "decided_at",
+          "decided_by",
+          "note",
+          "version"
+        ],
+        "title": "TiffinMenuReview",
         "type": "object"
       },
       "TiffinMenusOut": {
@@ -29223,6 +30920,35 @@
         "title": "CaptainOut",
         "type": "object"
       },
+      "gharbasket__modules__community__schemas__GeoPolygon": {
+        "description": "GeoJSON, WGS 84, `[lng, lat]` (M6 §3.1's shape).",
+        "properties": {
+          "coordinates": {
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "Polygon",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "GeoPolygon",
+        "type": "object"
+      },
       "gharbasket__modules__hub_ops__schemas__CompleteIn": {
         "additionalProperties": false,
         "properties": {
@@ -29267,6 +30993,61 @@
           }
         },
         "title": "CompleteIn",
+        "type": "object"
+      },
+      "gharbasket__modules__hub_ops__schemas__GeoPolygon": {
+        "description": "GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no\nholes, not self-intersecting.",
+        "properties": {
+          "coordinates": {
+            "examples": [
+              [
+                [
+                  [
+                    73.02,
+                    19.0
+                  ],
+                  [
+                    73.13,
+                    19.0
+                  ],
+                  [
+                    73.13,
+                    19.05
+                  ],
+                  [
+                    73.02,
+                    19.05
+                  ],
+                  [
+                    73.02,
+                    19.0
+                  ]
+                ]
+              ]
+            ],
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "Polygon",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "GeoPolygon",
         "type": "object"
       },
       "gharbasket__modules__hub_ops__schemas__StartIn": {
@@ -33020,6 +34801,98 @@
         ]
       }
     },
+    "/v1/admin/plans": {
+      "get": {
+        "operationId": "admin_plans_v1_admin_plans_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPlansOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Every plan, live or draft, with its subscriber count (admin)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
     "/v1/admin/point-rates/{code}": {
       "put": {
         "operationId": "put_point_rate_v1_admin_point_rates__code__put",
@@ -35338,6 +37211,187 @@
         ]
       }
     },
+    "/v1/admin/societies": {
+      "get": {
+        "operationId": "list_admin_societies_v1_admin_societies_get",
+        "parameters": [
+          {
+            "description": "Words of the name or area, as the public list",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words of the name or area, as the public list",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "One hub",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One hub",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "prospect",
+                    "unlocking",
+                    "live",
+                    "paused"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Add societies with no hub (admins only; ignored for hub staff)",
+            "in": "query",
+            "name": "with_unassigned",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Add societies with no hub (admins only; ignored for hub staff)",
+              "title": "With Unassigned",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AdminSociety_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub_id outside the caller's grants)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Every society for the console: live, unlocking, prospect, paused, then by name (hub manager: their hubs; admin: all, with hub-less ones)",
+        "tags": [
+          "community",
+          "community"
+        ]
+      }
+    },
     "/v1/admin/societies/{society_id}": {
       "patch": {
         "operationId": "update_society_unlock_v1_admin_societies__society_id__patch",
@@ -35571,6 +37625,554 @@
         "summary": "Set a society's delivery days (hub manager of its hub, or admin; audit-logged)",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/admin/society-requests": {
+      "get": {
+        "operationId": "list_society_requests_v1_admin_society_requests_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "received",
+                    "accepted",
+                    "duplicate",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SocietyRequestAdmin_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The society request queue, newest first (hub manager, admin)",
+        "tags": [
+          "community",
+          "community"
+        ]
+      }
+    },
+    "/v1/admin/society-requests/{request_id}": {
+      "patch": {
+        "operationId": "undo_duplicate_request_v1_admin_society_requests__request_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietyRequestUndoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyRequestAdmin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_closed (not a duplicate)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (any body other than {\"status\": \"received\"})"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Undo \"Duplicate\": the request goes back to received",
+        "tags": [
+          "community",
+          "community"
+        ]
+      }
+    },
+    "/v1/admin/society-requests/{request_id}/accept": {
+      "post": {
+        "operationId": "accept_society_request_v1_admin_society_requests__request_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SocietyRequestAcceptIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyRequestAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a hub outside the caller's grants)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (hub_id)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Accept a request: it becomes a prospect society (Idempotency-Key required)",
+        "tags": [
+          "community",
+          "community"
+        ]
+      }
+    },
+    "/v1/admin/society-requests/{request_id}/duplicate": {
+      "post": {
+        "operationId": "duplicate_society_request_v1_admin_society_requests__request_id__duplicate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietyRequestDuplicateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyRequestAdmin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.request_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (errors[].field: society_id)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Mark a request a duplicate of a listed society (Idempotency-Key required)",
+        "tags": [
+          "community",
+          "community"
         ]
       }
     },
@@ -36658,6 +39260,225 @@
         ],
         "summary": "The hub's today board: live counts, the day's steps and what needs attention (hub manager, franchise owner, admin)",
         "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/analytics/impact": {
+      "get": {
+        "operationId": "impact_report_v1_analytics_impact_get",
+        "parameters": [
+          {
+            "description": "platform (admin) | hub | ngo",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "description": "platform (admin) | hub | ngo",
+              "enum": [
+                "platform",
+                "hub",
+                "ngo"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Scope hub: the hub",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope hub: the hub",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "Scope ngo: the NGO",
+            "in": "query",
+            "name": "ngo_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Scope ngo: the NGO",
+              "title": "Ngo Id"
+            }
+          },
+          {
+            "description": "An IST month, this one by default, within the last 24",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST month, this one by default, within the last 24",
+              "examples": [
+                "2027-02"
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "description": "csv: an attachment",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "description": "csv: an attachment",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`synthetic` is for admins (demos)",
+            "in": "query",
+            "name": "data_source",
+            "required": false,
+            "schema": {
+              "default": "real",
+              "description": "`synthetic` is for admins (demos)",
+              "enum": [
+                "real",
+                "synthetic"
+              ],
+              "title": "Data Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactOut"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The report as JSON, or with `format=csv` one row per (month, hub, ngo)"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (a scope, hub, NGO or data source outside your grants; the hub or NGO left out by a non-admin)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.ngo_not_found (an admin's unknown NGO)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (hub_id or ngo_id left out by an admin) · analytics.range_invalid (a future month) · analytics.range_too_long (older than 24 months)"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per user; see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "analytics.timeout (a read over 3 s)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A month's impact for the platform, a hub or an NGO, as JSON or CSV (NGO coordinator for their NGO, hub manager and franchise owner for their hub, admin)",
+        "tags": [
+          "analytics",
           "analytics"
         ]
       }
@@ -42916,6 +45737,152 @@
         ]
       }
     },
+    "/v1/earnings/certificate": {
+      "get": {
+        "operationId": "my_certificate_v1_earnings_certificate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 7,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2026-05"
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 7,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2026-10"
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.partner_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.certificate_period_invalid (with max_months), request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.certificate_rate_limited (see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Your income certificate: a 5-minute link to a PDF of your earnings by month",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
     "/v1/festivals": {
       "get": {
         "operationId": "list_festivals_v1_festivals_get",
@@ -44647,6 +47614,91 @@
           }
         ],
         "summary": "The hub's next delivery dates, with the cut-off of each (hub staff, admin)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/delivery-days": {
+      "get": {
+        "operationId": "hub_delivery_days_v1_hubs__hub_id__delivery_days_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubDeliveryDaysOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Every society of the hub with its delivery days, whatever its status (hub staff)",
         "tags": [
           "subscriptions"
         ]
@@ -49432,6 +52484,200 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/tiffin-menus": {
+      "get": {
+        "operationId": "list_hub_menus_v1_hubs__hub_id__tiffin_menus_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "submitted",
+                    "approved",
+                    "sent_back",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Default: today (IST)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: today (IST)",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Default: today + 7 days",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: today + 7 days",
+              "title": "To"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TiffinMenuReview_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A hub's tiffin menus of every status for review: waiting ones first, oldest first, then by date and meal (default: today to 7 days on)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/vehicles": {
       "get": {
         "operationId": "list_vehicles_v1_hubs__hub_id__vehicles_get",
@@ -50426,6 +53672,149 @@
         "summary": "Kg wasted per 100 kg sold, by IST day: at most 31 days, default the last 7",
         "tags": [
           "hub_ops"
+        ]
+      }
+    },
+    "/v1/impact": {
+      "get": {
+        "operationId": "get_impact_v1_impact_get",
+        "parameters": [
+          {
+            "description": "Whose numbers",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "description": "Whose numbers",
+              "enum": [
+                "me",
+                "society"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "description": "For `society`",
+            "in": "query",
+            "name": "society_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "For `society`",
+              "title": "Society Id"
+            }
+          },
+          {
+            "description": "`society` only: `all`. A society's numbers are all time only; anything else is 422 `request.invalid`",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "`society` only: `all`. A society's numbers are all time only; anything else is 422 `request.invalid`",
+              "examples": [
+                "all"
+              ],
+              "maxLength": 20,
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MyImpactOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SocietyImpactOut"
+                    }
+                  ],
+                  "title": "Response Get Impact V1 Impact Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: `me` needs the customer role; `society` is for its residents, its captain, its hub's staff and admins"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.society_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid: `society_id` missing, or a `period` other than `all`"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "What a household (`me`) or a society (`society`) has given; small numbers are null",
+        "tags": [
+          "community"
         ]
       }
     },
@@ -57046,6 +60435,162 @@
         ]
       }
     },
+    "/v1/partners/{partner_id}/earnings/certificate": {
+      "get": {
+        "operationId": "partner_certificate_v1_partners__partner_id__earnings_certificate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partner_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Partner Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 7,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2026-05"
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 7,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2026-10"
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.partner_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.certificate_period_invalid (with max_months), request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.certificate_rate_limited (see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A partner's income certificate, issued by hub staff (audit-logged)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
     "/v1/partners/{partner_id}/pause": {
       "post": {
         "operationId": "pause_partner_v1_partners__partner_id__pause_post",
@@ -58813,6 +62358,74 @@
         "summary": "Ranked substitutes, with the price difference and why",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/public/societies/{slug}": {
+      "get": {
+        "operationId": "public_society_v1_public_societies__slug__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "examples": [
+                "sunrise-towers-kharghar"
+              ],
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSocietyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.society_not_found (unknown, prospect or paused)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.rate_limited (60 a minute per IP; see Retry-After)"
+          }
+        },
+        "summary": "A society's landing page: unlock progress and aggregates only (no sign-in)",
+        "tags": [
+          "analytics",
+          "analytics"
         ]
       }
     },
@@ -63629,6 +67242,395 @@
         "tags": [
           "orders",
           "orders"
+        ]
+      }
+    },
+    "/v1/tiffin-menus/{menu_id}/approve": {
+      "post": {
+        "operationId": "approve_menu_v1_tiffin_menus__menu_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menu_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Menu Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinMenuReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_submitted, catalog.menu_closed (past order_by)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_invalid (reasons: product_inactive, recipe_inactive, price_invalid)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Approve a submitted menu so customers can book it (an approved menu: 200, unchanged)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
+    "/v1/tiffin-menus/{menu_id}/reopen": {
+      "post": {
+        "operationId": "reopen_menu_v1_tiffin_menus__menu_id__reopen_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menu_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Menu Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinMenuReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_decided, catalog.menu_closed (past order_by)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Take an approved or sent-back menu back to review (the console's undo)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
+    "/v1/tiffin-menus/{menu_id}/send-back": {
+      "post": {
+        "operationId": "send_back_menu_v1_tiffin_menus__menu_id__send_back_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "menu_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Menu Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinMenuReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.menu_not_submitted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid (no note)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Send a submitted menu back to its kitchen with a reason",
+        "tags": [
+          "catalog",
+          "catalog"
         ]
       }
     },

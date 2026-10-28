@@ -7,13 +7,16 @@ Search (spec §3.1) uses one keyset-paginated query with three orders:
 - neither: alphabetical.
 """
 
+import re
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from geoalchemy2 import WKTElement
-from sqlalchemy import ColumnElement, Float, cast, func, null, select, tuple_
+from sqlalchemy import ColumnElement, Float, cast, func, null, or_, select, tuple_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
@@ -185,3 +188,55 @@ async def save_society(session: AsyncSession, data: SocietyData) -> tuple[Societ
     society.data_source = data.data_source
     await session.flush()
     return society, created
+
+
+def _base_slug(name: str) -> str:
+    """`Panvel Heights` -> `panvel-heights` (ASCII only; a name with none becomes `society`)."""
+    ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_name.lower()).strip("-")[:70].strip("-")
+    return slug or "society"
+
+
+async def create_society(
+    session: AsyncSession,
+    *,
+    name: str,
+    area: str | None,
+    hub_id: uuid.UUID | None,
+    data_source: str = "real",
+) -> Society:
+    """A new `prospect` society (spec §3.9): unlock threshold 20, no boundary, no towers, flats
+    unknown. The slug comes from the name, with `-2`, `-3`... when it is taken. `data_source`
+    follows what it was made from (a simulator's request makes a synthetic society)."""
+    base = _base_slug(name)
+    for _ in range(5):
+        taken = set(
+            (
+                await session.execute(
+                    select(Society.slug).where(
+                        or_(Society.slug == base, Society.slug.like(f"{base}-%"))
+                    )
+                )
+            ).scalars()
+        )
+        slug, n = base, 1
+        while slug in taken:
+            n += 1
+            slug = f"{base}-{n}"
+        society = Society(
+            slug=slug,
+            name=name,
+            area=area,
+            hub_id=hub_id,
+            status="prospect",
+            data_source=data_source,
+        )
+        try:
+            async with session.begin_nested():  # two accepts of the same name at once
+                session.add(society)
+                await session.flush()
+        except IntegrityError:
+            continue
+        await session.refresh(society)
+        return society
+    raise ProblemError(409, "community.slug_taken", "Try again in a moment.")

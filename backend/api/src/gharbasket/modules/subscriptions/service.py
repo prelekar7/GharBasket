@@ -94,6 +94,38 @@ async def list_plans(session: AsyncSession) -> list[Plan]:
     )
 
 
+async def admin_plans(session: AsyncSession) -> list[tuple[Plan, int]]:
+    """Every plan by code, live or not, with the subscriptions on it that are not ended."""
+    counts = (
+        select(Subscription.plan_id, func.count().label("n"))
+        .where(Subscription.status != "ended")
+        .group_by(Subscription.plan_id)
+        .subquery()
+    )
+    rows = await session.execute(
+        select(Plan, func.coalesce(counts.c.n, 0))
+        .outerjoin(counts, counts.c.plan_id == Plan.id)
+        .order_by(Plan.code)
+    )
+    return [(plan, int(n)) for plan, n in rows.all()]
+
+
+async def hub_delivery_days(
+    session: AsyncSession, society_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[SocietyDeliveryDay]]:
+    """The delivery days of several societies at once, by weekday."""
+    found: dict[uuid.UUID, list[SocietyDeliveryDay]] = {sid: [] for sid in society_ids}
+    if society_ids:
+        rows = await session.execute(
+            select(SocietyDeliveryDay)
+            .where(SocietyDeliveryDay.society_id.in_(society_ids))
+            .order_by(SocietyDeliveryDay.society_id, SocietyDeliveryDay.weekday)
+        )
+        for day in rows.scalars():
+            found[day.society_id].append(day)
+    return found
+
+
 async def subscription_of(session: AsyncSession, household_id: uuid.UUID) -> Subscription | None:
     return (
         await session.execute(select(Subscription).where(Subscription.household_id == household_id))

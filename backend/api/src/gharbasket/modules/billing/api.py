@@ -9,7 +9,8 @@ source (a referral, a donation).
 
 For M8 (spec §3.5): `accrue_earning` owes a partner for work on an order, once per (partner, basis,
 order); `partner_week` (with that week's `PayoutOut`s) and `partner_rolling_earnings` read the
-earnings back. `billing.payout_sent` tells M11 a weekly payout was paid or failed.
+earnings back. `billing.payout_sent` tells M11 a weekly payout was paid or failed. For M8's income
+certificate (§3.7): `partner_months` reads a partner's earned, paid-out and owed money per month.
 
 For M4's refunds list (spec §3.8): `order_refunds` reads the `refund` entries of a set of orders.
 
@@ -54,6 +55,7 @@ from gharbasket.modules.billing.models import (
     PointsLot,
     Posting,
 )
+from gharbasket.modules.billing.months import MonthTotal, PartnerMonths, partner_months
 from gharbasket.modules.billing.refunds import OrderRefund, order_refunds, wallet_closed
 from gharbasket.modules.billing.schemas import PayoutOut, RefundOut
 from gharbasket.modules.billing.wallet import (
@@ -77,7 +79,9 @@ __all__ = [
     "EarningFact",
     "InsufficientBalance",
     "KindnessFact",
+    "MonthTotal",
     "OrderRefund",
+    "PartnerMonths",
     "PartnerWeek",
     "PayoutOut",
     "RefundOut",
@@ -92,6 +96,7 @@ __all__ = [
     "export_for_user",
     "kindness_facts",
     "order_refunds",
+    "partner_months",
     "partner_rolling_earnings",
     "partner_week",
     "refund_to_wallet",

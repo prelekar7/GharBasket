@@ -89,3 +89,23 @@ async def test_hub_societies_give_name_status_and_unlock_progress_and_nothing_pe
         "data_source",
     }
     assert await api.hub_societies(db_session, hub_id=uuid.uuid4()) == []
+
+
+async def test_hub_society_cards_are_name_area_and_status_live_first_and_nothing_personal(
+    db_session: AsyncSession,
+) -> None:
+    cards = await api.hub_society_cards(db_session, SEED_HUB_ID)
+
+    # Live, unlocking and prospect, each by name; Sai Darshan has no hub.
+    assert [(c.name, c.status) for c in cards] == [
+        ("Krishna Kunj", "live"),
+        ("Sunrise Towers", "live"),
+        ("Green Valley Heights", "unlocking"),
+        ("Shree Ganesh CHS", "unlocking"),
+        ("Panchavati Residency", "prospect"),
+    ]
+    sunrise = next(c for c in cards if c.id == SEED_SOCIETY_ID)
+    assert sunrise.area == "Sector 20, Kharghar"
+    assert set(api.SocietyCard.__dataclass_fields__) == {"id", "name", "area", "status"}
+    assert {c.id for c in cards} == set(await api.hub_society_ids(db_session, SEED_HUB_ID))
+    assert await api.hub_society_cards(db_session, uuid.uuid4()) == []

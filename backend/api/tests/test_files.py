@@ -45,6 +45,8 @@ class FakeS3:
     def __init__(self) -> None:
         self.objects: dict[str, tuple[str, int]] = {}
         self.deletes: list[list[str]] = []
+        self.puts: list[dict[str, str]] = []
+        self.bodies: dict[str, bytes] = {}
         self.fail_head = False
 
     def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:
@@ -54,6 +56,12 @@ class FakeS3:
             raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
         content_type, size = self.objects[Key]
         return {"ContentType": content_type, "ContentLength": size}
+
+    def put_object(self, Bucket: str, Key: str, Body: bytes, **extra: str) -> dict[str, Any]:
+        self.objects[Key] = (extra["ContentType"], len(Body))
+        self.bodies[Key] = Body
+        self.puts.append({"Key": Key, **extra})
+        return {}
 
     def delete_objects(self, Bucket: str, Delete: dict[str, Any]) -> dict[str, Any]:
         keys = [item["Key"] for item in Delete["Objects"]]
@@ -171,6 +179,11 @@ async def test_presign_signs_a_put_for_each_purpose(
     [
         (_presign("selfie", "image/jpeg", 10), "platform.upload_purpose_invalid", {}),
         (_presign("data_export", "application/json", 10), "platform.upload_purpose_invalid", {}),
+        (
+            _presign("income_certificate", "application/pdf", 10),
+            "platform.upload_purpose_invalid",
+            {},
+        ),
         (
             _presign("kyc_document", "image/webp", 10),
             "platform.upload_type_not_allowed",
@@ -349,6 +362,26 @@ async def test_sweep_deletes_unclaimed_and_expired_uploads_once(
     in_db = (await db_session.execute(select(Upload.key))).scalars().all()
     assert {k.split("/")[2].removesuffix(".jpg") for k in in_db} == left
     assert len(s3.deletes) == 1
+
+
+async def test_a_server_written_object_keeps_its_download_name(
+    store: ObjectStore, s3: FakeS3
+) -> None:
+    disposition = 'attachment; filename="gharbasket-income-certificate-2026-05-to-2026-10.pdf"'
+
+    await store.put("income_certificate/u/1.pdf", b"%PDF", "application/pdf")
+    await store.put(
+        "income_certificate/u/2.pdf", b"%PDF", "application/pdf", content_disposition=disposition
+    )
+
+    assert s3.puts == [
+        {"Key": "income_certificate/u/1.pdf", "ContentType": "application/pdf"},
+        {
+            "Key": "income_certificate/u/2.pdf",
+            "ContentType": "application/pdf",
+            "ContentDisposition": disposition,
+        },
+    ]
 
 
 async def test_the_sweep_fails_visibly_without_storage(make_api: Factory) -> None:
