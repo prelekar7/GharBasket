@@ -200,8 +200,11 @@ async def receive(
             raise _invalid("accepted_over_received", "More was accepted than received.")
         if accepted < received and x.reject_reason is None:
             raise _invalid("reject_reason_missing", "Say why goods went back to the vendor.")
+        # A shelf life of more than a year (salt, sugar) is capped, or the default would be refused.
         shelf = (
-            NO_SHELF_LIFE if product.shelf_life_h is None else timedelta(hours=product.shelf_life_h)
+            NO_SHELF_LIFE
+            if product.shelf_life_h is None
+            else min(NO_SHELF_LIFE, timedelta(hours=product.shelf_life_h))
         )
         best_before = (x.best_before or received_at + shelf).astimezone(UTC)
         if not received_at < best_before <= received_at + NO_SHELF_LIFE:

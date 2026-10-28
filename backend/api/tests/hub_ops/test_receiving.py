@@ -257,6 +257,22 @@ async def test_ad_hoc_receipts_grades_and_lots(
 
 
 @time_machine.travel(RECEIVING, tick=False)
+async def test_a_shelf_life_over_a_year_is_capped_at_a_year_by_default(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """Salt keeps 720 days: receiving it without a best-before must not trip the one-year rule."""
+    api = clients()
+    packer = await as_user(api, google, KAVITA)
+    ids = await slugs(db_session, "salt")
+    vendor = (await vendor_ids(db_session))["kharghar"]
+
+    made = await receive(api, packer, line(ids["salt"], 5), vendor_id=vendor)
+
+    assert made.status_code == 201, made.text
+    assert made.json()["lines"][0]["best_before"] == "2027-10-12T22:45:00Z"  # 365 days
+
+
+@time_machine.travel(RECEIVING, tick=False)
 async def test_receipts_refuse_what_the_rules_do_not_allow(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
