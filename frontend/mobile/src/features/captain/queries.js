@@ -161,12 +161,3 @@ export function useEarnings() {
     },
   });
 }
-
-/** Downloads the income certificate PDF (GET /v1/earnings/certificate → a short-lived link). */
-export async function downloadCertificate() {
-  const { url, filename } = /** @type {{ url: string, filename: string }} */ (
-    await request("/v1/earnings/certificate")
-  );
-  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
-  a.click();
-}

@@ -7,7 +7,6 @@
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
 import { HUB_ID } from "./packer.js";
-import { mockPdfUrl } from "./pdf.js";
 
 const KEY = "gb-mock-kitchen-v2";
 const MAX_PORTIONS = 100;
@@ -454,17 +453,5 @@ export const kitchenHandlers = [
         generated_at: new Date().toISOString(),
       };
     }),
-  ),
-
-  // The income certificate (US-7) as a short-lived link; here a tiny PDF made on the spot. Its
-  // endpoint is not in M8 §3.7 (an outline) yet.
-  http.get(
-    "*/v1/earnings/certificate",
-    read(() => ({
-      url: mockPdfUrl(
-        "GharBasket income certificate (example) - Lata Shinde, kitchen partner, Kharghar hub",
-      ),
-      filename: "gharbasket-income-certificate.pdf",
-    })),
   ),
 ];
