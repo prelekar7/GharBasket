@@ -45,6 +45,7 @@ CYCLE_STATUSES = (
     "payment_failed",  # mirrored from the order: the cut-off found the wallet short (§3.3)
 )
 PLAN_SOURCES = ("ml", "fallback")
+QUOTE_SOURCES = ("ml", "fallback", "unpriced")
 LINE_SOURCES = ("ai", "rule", "customer")
 REASON_CODES = (
     "meal_plan",
@@ -139,6 +140,7 @@ class WeeklyCycle(Base):
         CheckConstraint(_one_of("status", CYCLE_STATUSES), name="status"),
         CheckConstraint(_one_of("plan_source", PLAN_SOURCES), name="plan_source"),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        CheckConstraint("slot_saving_paise >= 0", name="slot_saving_paise"),
         UniqueConstraint("household_id", "delivery_date"),
         Index("ix_weekly_cycles_hub_delivery", "hub_id", "delivery_date", "status"),
         {"schema": SCHEMA},
@@ -173,9 +175,37 @@ class WeeklyCycle(Base):
     order_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M4
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    # A green-slot move (§3.6): the quote it followed and the saving it honours until the cut-off.
+    slot_quote_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    slot_saving_paise: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class SlotQuote(Base):
+    """A green-slot quote for one cycle (§3.6, M10 §3.8): every active box slot that date with its
+    saving, valid for 15 minutes. `items` keeps each slot's route cost, which is never shown."""
+
+    __tablename__ = "slot_quotes"
+    __table_args__ = (
+        CheckConstraint(_one_of("source", QUOTE_SOURCES), name="source"),
+        Index("ix_slot_quotes_cycle_expires", "cycle_id", "expires_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    cycle_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.weekly_cycles.id", ondelete="CASCADE")
+    )
+    household_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    delivery_date: Mapped[date] = mapped_column(Date)
+    current_slot_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # the cycle's slot when quoted
+    items: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    source: Mapped[str] = mapped_column(String(10))
+    prediction_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # intel.predictions
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class BoxLine(Base):

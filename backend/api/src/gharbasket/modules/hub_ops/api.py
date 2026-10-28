@@ -70,6 +70,8 @@ class HubRef:
     lng: float
     timings: dict[str, str]  # receiving, packing, dispatch, surplus as IST "HH:MM"
     pre_live_box_fee_paise: int  # per box while the society is not live (M9 §3.6; M4 box_fee)
+    green_saving_share_pct: int = 50  # the green-slot saving's share and cap (M10 §3.8)
+    green_saving_max_paise: int = 1500
 
 
 async def get_hub(session: AsyncSession, hub_id: uuid.UUID) -> HubRef | None:
@@ -85,6 +87,8 @@ async def get_hub(session: AsyncSession, hub_id: uuid.UUID) -> HubRef | None:
         lng=hub.lng,
         timings=dict(hub.timings),
         pre_live_box_fee_paise=hub.pre_live_box_fee_paise,
+        green_saving_share_pct=hub.green_saving_share_pct,
+        green_saving_max_paise=hub.green_saving_max_paise,
     )
 
 
