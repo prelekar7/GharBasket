@@ -10960,6 +10960,11 @@ export interface components {
              * Format: date
              */
             delivery_date: string;
+            /**
+             * Discount Code
+             * @description What discount_paise is, e.g. a green-slot saving (M4 §3.9)
+             */
+            discount_code?: "green_slot" | null;
             /** Discount Paise */
             discount_paise: number;
             /** Fees Paise */
@@ -11069,6 +11074,11 @@ export interface components {
              * Format: date
              */
             delivery_date: string;
+            /**
+             * Discount Code
+             * @description What discount_paise is, e.g. a green-slot saving (M4 §3.9)
+             */
+            discount_code?: "green_slot" | null;
             /** Discount Paise */
             discount_paise: number;
             /** Fees Paise */

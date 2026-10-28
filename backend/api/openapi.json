@@ -14725,6 +14725,19 @@
             "title": "Delivery Date",
             "type": "string"
           },
+          "discount_code": {
+            "anyOf": [
+              {
+                "const": "green_slot",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What discount_paise is, e.g. a green-slot saving (M4 §3.9)",
+            "title": "Discount Code"
+          },
           "discount_paise": {
             "title": "Discount Paise",
             "type": "integer"
@@ -14970,6 +14983,19 @@
             "format": "date",
             "title": "Delivery Date",
             "type": "string"
+          },
+          "discount_code": {
+            "anyOf": [
+              {
+                "const": "green_slot",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What discount_paise is, e.g. a green-slot saving (M4 §3.9)",
+            "title": "Discount Code"
           },
           "discount_paise": {
             "title": "Discount Paise",

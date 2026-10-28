@@ -1,5 +1,5 @@
 """Green slots (M3 §3.6, M10 §3.8): the saving rule, the 15-minute quote, the kill switch, and a
-move at a quoted saving that stays on the box."""
+move at a quoted saving that rides to the M4 order under the slot's lock."""
 
 import json
 import uuid
@@ -12,6 +12,7 @@ import pytest
 import time_machine
 from hypothesis import given
 from hypothesis import strategies as st
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.orders import service as orders_service
@@ -22,7 +23,7 @@ from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from ..logistics.conftest import vehicle
 from .test_cycles import MEENA, NOW, PRIYA, as_user, subscribe
-from .test_edits import generate, key
+from .test_edits import events, generate, key
 
 pytestmark = [pytest.mark.anyio]
 
@@ -256,7 +257,7 @@ async def test_a_quote_lives_15_minutes_and_says_where_its_numbers_came_from(
 @pytest.mark.services
 @pytest.mark.usefixtures("delivery")
 @time_machine.travel(NOW, tick=False)
-async def test_a_move_at_a_quoted_saving_is_kept_on_the_box(
+async def test_a_move_at_a_quoted_saving_rides_to_the_order_under_the_slots_lock(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     (priya, meena), early, late = await week(clients, google, db_session, PRIYA, MEENA)
@@ -321,9 +322,56 @@ async def test_a_move_at_a_quoted_saving_is_kept_on_the_box(
         f"/v1/cycles/{box['id']}/approve", headers={**priya, **key(), "If-Match": '"2"'}
     )
     assert approved.status_code == 200, approved.text
-    assert approved.json()["discount_paise"] == 1500  # kept through approval
-    order = (await api.get(f"/v1/orders/{approved.json()['order_id']}", headers=priya)).json()
-    assert order["slot"]["id"] == str(late)
+    order_url = f"/v1/orders/{approved.json()['order_id']}"
+    order = (await api.get(order_url, headers=priya)).json()
+    assert (order["slot"]["id"], order["discount_paise"], order["discount_code"]) == (
+        str(late),
+        1500,
+        "green_slot",
+    )
+    assert order["total_paise"] == order["subtotal_paise"] + order["fees_paise"] - 1500
+    (handed,) = await events(db_session, "subscriptions.box_approved")
+    assert (handed["discount_paise"], handed["discount_code"]) == (1500, "green_slot")
+
+    # Meena takes the last place left at 07-09: moving back is refused and nothing changes.
+    taken = await api.post(
+        f"/v1/cycles/{theirs['id']}/approve", headers={**meena, **key(), "If-Match": '"1"'}
+    )
+    assert taken.status_code == 200, taken.text
+    await db_session.execute(
+        text("UPDATE orders.slots SET capacity = 1 WHERE id = :id"), {"id": early}
+    )
+    await db_session.commit()
+    back = (await api.post(f"/v1/cycles/{box['id']}/slot-quotes", headers=priya)).json()
+    full = await put(early, back["id"], 3)
+    assert (full.status_code, full.json()["code"]) == (409, "orders.slot_full")
+    db_session.expire_all()
+    kept = (await api.get(f"/v1/cycles/{box['id']}", headers=priya)).json()
+    assert (kept["version"], kept["slot"]["id"], kept["discount_paise"]) == (3, str(late), 1500)
+    order = (await api.get(order_url, headers=priya)).json()
+    assert (order["slot"]["id"], order["discount_paise"]) == (str(late), 1500)
+
+    # With room again, the box moves back at a saving of 0, which clears the discount.
+    await db_session.execute(
+        text("UPDATE orders.slots SET capacity = 10 WHERE id = :id"), {"id": early}
+    )
+    await db_session.commit()
+    home = await put(early, back["id"], 3)
+    assert home.status_code == 200, home.text
+    assert (home.json()["slot"]["id"], home.json()["discount_paise"]) == (str(early), 0)
+    assert home.json()["green_slot"]["saving_paise"] == 0
+    order = (await api.get(order_url, headers=priya)).json()
+    assert (order["slot"]["id"], order["discount_paise"], order["discount_code"]) == (
+        str(early),
+        0,
+        None,
+    )
+    assert order["total_paise"] == order["subtotal_paise"] + order["fees_paise"]
+    slots = {
+        s["id"]: s
+        for s in (await api.get("/v1/slots?date=2026-10-13", headers=priya)).json()["items"]
+    }
+    assert (slots[str(early)]["booked"], slots[str(late)]["booked"]) == (2, 0)
 
     with time_machine.travel(CUTOFF, tick=False):
         priya, _ = await as_user(api, google, PRIYA)

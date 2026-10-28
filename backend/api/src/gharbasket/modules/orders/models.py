@@ -130,6 +130,9 @@ class Order(Base):
         ),
         CheckConstraint("portions IS NULL OR portions BETWEEN 1 AND 12", name="portions"),
         CheckConstraint("kind = 'tiffin' OR kitchen_partner_id IS NULL", name="kitchen"),
+        CheckConstraint(
+            "discount_code IS NULL OR discount_code IN ('green_slot')", name="discount_code"
+        ),
         # One live order per weekly cycle: a skip cancels it, and an un-skipped week approved
         # again gets a new one (M4 §4, M3 §3.3).
         Index(
@@ -159,6 +162,7 @@ class Order(Base):
     subtotal_paise: Mapped[int] = mapped_column(BigInteger)
     fees_paise: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     discount_paise: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    discount_code: Mapped[str | None] = mapped_column(String(16))  # green_slot (M4 §3.9)
     total_paise: Mapped[int] = mapped_column(BigInteger)
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
