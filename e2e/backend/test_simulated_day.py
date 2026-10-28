@@ -875,6 +875,19 @@ def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop
     assert summary["refunded"] == summary["refused"] == 0, summary
 
 
+def test_the_0935_tiffin_solve_publishes_an_empty_lunch_plan(
+    app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 09:35: `solve_tiffin_routes` (M7 §3.7). The day books no tiffin, so each active
+    hub gets a solved lunch plan with no routes, published at once; a second run solves nothing."""
+    when = ist(day.t, 9, 35)
+    summary = step(loop, when, app.job("solve_tiffin_routes", when))
+    assert summary["plans"] >= 1 and summary["published"] == summary["plans"], summary
+    assert summary["failed"] == 0 and summary["delivery_date"] == day.t.isoformat(), summary
+    again = step(loop, when, app.job("solve_tiffin_routes", when))
+    assert again["plans"] == 0 and again["skipped"] == summary["plans"], again
+
+
 def test_the_1230_run_closes_the_days_buying_and_has_no_surplus_to_offer(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:
