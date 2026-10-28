@@ -63,6 +63,10 @@ class Config:
     sim_weeks: int
     sim_adoption: float
     first_monday: date
+    s3_url: str | None  # the private bucket's S3 endpoint (SeaweedFS); None: no object storage
+    s3_access_key: str
+    s3_secret_key: str
+    s3_bucket: str
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -81,6 +85,12 @@ class Config:
             sim_adoption=float(os.environ.get("E2E_SIM_ADOPTION", "0.03")),
             # The simulator's default start: the seed calendar and prices cover these weeks.
             first_monday=date.fromisoformat(os.environ.get("E2E_START", "2026-10-05")),
+            # Only the journeys that upload files need it: `just up-storage` is S3 on :8333, and the
+            # compose file's keys and bucket are the defaults here.
+            s3_url=os.environ.get("E2E_S3_URL") or None,
+            s3_access_key=os.environ.get("E2E_S3_ACCESS_KEY", "gharbasket"),
+            s3_secret_key=os.environ.get("E2E_S3_SECRET_KEY", "gharbasket-local-secret"),
+            s3_bucket=os.environ.get("E2E_S3_BUCKET", "gb-private"),
         )
 
     def check(self) -> None:
@@ -124,6 +134,10 @@ class Config:
             fcm_service_account=SecretStr(json.dumps(fcm_account)),
             ml_service_url=self.ml_url,
             ml_service_token=SecretStr(self.ml_token) if self.ml_token else None,
+            s3_endpoint_url=self.s3_url,
+            s3_access_key=self.s3_access_key if self.s3_url else None,
+            s3_secret_key=SecretStr(self.s3_secret_key) if self.s3_url else None,
+            s3_bucket_private=self.s3_bucket,
         )
 
 

@@ -184,9 +184,11 @@ jobs:
     env:
       # The suite drops and recreates this database (its name must contain "e2e") on the service
       # container only; Valkey db 14 is the harness default. The ML service is not started: the
-      # simulator plans with the rule-based fallback, as `just e2e-day` does. Object-storage jobs
-      # stay out of the day (NOT_IN_THE_DAY in the suite).
+      # simulator plans with the rule-based fallback, as `just e2e-day` does. SeaweedFS is the
+      # private bucket of the journeys that upload files (the partner's KYC); the day's own
+      # object-storage jobs stay out of it (NOT_IN_THE_DAY in the suite).
       GB_REQUIRE_SERVICES: "1"
+      E2E_S3_URL: http://localhost:8333
       E2E_DATABASE_URL: postgresql+asyncpg://gharbasket:gharbasket@localhost:5432/gharbasket_e2e
       E2E_VALKEY_URL: redis://localhost:6380/14
     steps:
@@ -197,6 +199,25 @@ jobs:
           docker run --detach --name valkey --publish 6380:6379 \
             --health-cmd "valkey-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20 \
             valkey/valkey:8.1-alpine
+
+      # Same image and version as infra/compose (`just up-storage`); the key and secret are the
+      # compose defaults that the harness uses, the bucket is the one the API signs for.
+      - name: Start SeaweedFS (S3 on :8333)
+        run: |
+          docker run --detach --name seaweedfs --publish 8333:8333 \
+            -e AWS_ACCESS_KEY_ID=gharbasket -e AWS_SECRET_ACCESS_KEY=gharbasket-local-secret \
+            chrislusf/seaweedfs:4.48 mini -dir=/data
+          for _ in $(seq 1 60); do
+            docker exec seaweedfs wget -qO- http://localhost:9333/cluster/status >/dev/null 2>&1 && break
+            sleep 2
+          done
+          for _ in $(seq 1 30); do
+            docker exec seaweedfs sh -c 'echo "s3.bucket.create -name gb-private" | weed shell -master=localhost:9333' >/dev/null 2>&1
+            docker exec seaweedfs sh -c 'echo "s3.bucket.list" | weed shell -master=localhost:9333' 2>&1 | grep -qw gb-private && exit 0
+            sleep 2
+          done
+          docker logs seaweedfs
+          exit 1
 
       # Same image as local development (PostGIS + pgvector on Postgres 18), built from infra/postgres.
       - name: Start Postgres
