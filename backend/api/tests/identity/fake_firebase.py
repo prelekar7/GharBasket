@@ -33,9 +33,21 @@ def _certificate(key: rsa.RSAPrivateKey) -> str:
     return certificate.public_bytes(serialization.Encoding.PEM).decode()
 
 
+_first_key: rsa.RSAPrivateKey | None = None
+
+
+def _first() -> rsa.RSAPrivateKey:
+    """The `kid-1` key, made once per process: generating an RSA key takes 50 ms or more, and
+    nearly every test makes a FakeGoogle. Keys a test adds with `add_key` are its own."""
+    global _first_key
+    if _first_key is None:
+        _first_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return _first_key
+
+
 class FakeGoogle:
     def __init__(self) -> None:
-        self.keys = {"kid-1": rsa.generate_private_key(public_exponent=65537, key_size=2048)}
+        self.keys = {"kid-1": _first()}
         self.published = {"kid-1"}
         self.max_age = 3600
         self.fetches = 0
