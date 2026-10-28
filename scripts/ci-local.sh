@@ -123,6 +123,7 @@ if [[ -f backend/api/pyproject.toml ]]; then
   [[ -d e2e/backend ]] && step python "simulated day" env \
     E2E_DATABASE_URL="postgresql+asyncpg://gharbasket:gharbasket@localhost:5432/${db}_e2e" \
     E2E_VALKEY_URL="redis://localhost:6380/$((valkey_db + 80))" \
+    E2E_S3_URL="${E2E_S3_URL:-http://localhost:8333}" \
     uv run --directory e2e/backend pytest -q -p no:cacheprovider
   finish python "passed; api ${coverage:-coverage n/a}"
 else
