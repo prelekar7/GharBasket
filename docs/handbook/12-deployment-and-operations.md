@@ -129,7 +129,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 3. Copy the API's deploy hook (Settings → Deploy Hook).
 4. Add the GitHub Actions secrets `DATABASE_URL_DIRECT` (Neon, direct), `RENDER_DEPLOY_HOOK_URL`, `JOBS_TOKEN` and `STAGING_API_URL` (done; the deploy workflow needs exactly these four).
 5. Add an UptimeRobot monitor on `/v1/health` every 10 minutes.
-6. Add a cron-job.org job (timezone Asia/Kolkata) for every `runner: cron-job.org` entry of `infra/jobs/schedule.yaml`, the one schedule of every job (a list of crons is one cron-job.org job each; the minute-level ones run only in two daily windows, to let Neon sleep). Each calls `POST <STAGING_API_URL>/v1/internal/jobs/<name>` with `Authorization: Bearer <JOBS_TOKEN>`; the `actions` entries run from `jobs-staging.yml`.
+6. Add a cron-job.org job (timezone Asia/Kolkata) for every `runner: cron-job.org` entry of `infra/jobs/schedule.yaml`, the one schedule of every job (a list of crons is one cron-job.org job each; the minute-level ones run only in short windows around the events that need them, to let Neon sleep; set the Neon compute to a fixed 0.25 CU). Each calls `POST <STAGING_API_URL>/v1/internal/jobs/<name>` with `Authorization: Bearer <JOBS_TOKEN>`; the `actions` entries run from `jobs-staging.yml`.
 
 ## 12.3 Database hosting and the latency note
 

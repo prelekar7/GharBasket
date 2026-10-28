@@ -110,34 +110,37 @@ def test_a_cron_has_one_spelling() -> None:
             assert cron == " ".join(str(int(p)) if p.isdigit() else p for p in cron.split())
 
 
-def awake_minutes_per_day() -> int:
-    """Minutes of Neon compute on the busiest weekday, if each call keeps it awake 1 + 5 minutes.
+def awake_hours_per_day() -> float:
+    """Average hours a day Neon computes, if each call keeps it awake 1 + 5 minutes (IST days).
 
     A rough model: it ignores people, deploys and cold starts. It exists to catch a cron that
-    quietly puts Neon back on all day.
+    quietly puts Neon back on during the day. Weekly jobs count on their weekday.
     """
-    awake = [False] * 24 * 60
+    awake = {weekday: [False] * 24 * 60 for weekday in range(7)}  # 0 = Sunday
     for entry in entries():
         for cron in crons_of(entry):
-            minutes, hours, *_ = parse(cron)
-            for hour in hours:
-                for minute in minutes:
-                    start = hour * 60 + minute
-                    if entry["runner"] == "actions":
-                        start = (start + IST_OFFSET) % (24 * 60)
-                    # Weekly jobs are counted too: the busiest day is what a budget needs.
-                    for tick in range(start, start + RUN_MINUTES + IDLE_MINUTES):
-                        awake[tick % (24 * 60)] = True
-    return sum(awake)
+            minutes, hours, _, _, weekdays = parse(cron)
+            for weekday in {d % 7 for d in weekdays}:
+                for hour in hours:
+                    for minute in minutes:
+                        start = hour * 60 + minute
+                        day = weekday
+                        if entry["runner"] == "actions":  # UTC to IST, which may be the next day
+                            start += IST_OFFSET
+                            day = (weekday + start // (24 * 60)) % 7
+                            start %= 24 * 60
+                        for tick in range(start, start + RUN_MINUTES + IDLE_MINUTES):
+                            awake[(day + tick // (24 * 60)) % 7][tick % (24 * 60)] = True
+    return sum(sum(day) for day in awake.values()) / 7 / 60
 
 
 def test_neon_stays_inside_its_free_compute_budget() -> None:
-    minutes = awake_minutes_per_day()
-    hours = minutes / 60
+    hours = awake_hours_per_day()
     print(f"\nNeon awake about {hours:.1f} h a day = {hours * 0.25 * 30:.0f} CU-h a month")
-    # Free tier: about 100 CU-hours a month at 0.25 CU, i.e. 13.3 awake hours a day. People and
-    # deploys come on top, so the schedule alone may not pass 13.
-    assert hours <= 13
+    # Free tier: 100 CU-hours a month, and the compute is suspended when they run out. At a fixed
+    # 0.25 CU that is 13.3 h a day; the schedule gets 8 h (60 CU-hours) so that people, deploys
+    # and the journey script have the rest.
+    assert hours <= 8
 
 
 @pytest.mark.parametrize(

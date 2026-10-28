@@ -24,7 +24,7 @@ on:
     - cron: "40 21 * * *" # 03:10 IST daily: expire_referrals
     - cron: "3 19 * * *" # 00:33 IST daily: expire_kindness_points
     - cron: "3 23 * * *" # 04:33 IST daily: purge_notifications
-    - cron: "17 0-18 * * *" # hourly 05:47-23:47 IST: reconcile_payments
+    - cron: "0 1-4,7,9,13,15,16 * * *" # 06:30-09:30, 12:30, 14:30, 18:30-21:30 IST: reconcile_payments
     - cron: "3 22 * * 0" # Monday 03:33 IST weekly: compute_vendor_scores (the past IST week)
     - cron: "13 22 * * *" # 03:43 IST daily: purge_gps_pings (pings older than 90 days, M7)
     - cron: "10 21 * * *" # 02:40 IST daily: refresh_analytics_nightly (M12 §3.2)
@@ -77,10 +77,14 @@ jobs:
             jobs="$INPUT_JOB"
           else
             # Every `actions` job of infra/jobs/schedule.yaml whose cron is the one that fired.
-            # yq (mikefarah, v4) is preinstalled on ubuntu-latest.
-            jobs=$(yq '.jobs[] | select(.runner == "actions" and .cron == strenv(SCHEDULE)) | .name' \
-              infra/jobs/schedule.yaml | tr '\n' ' ')
-            jobs="${jobs% }"
+            # yq (mikefarah, v4) is preinstalled on ubuntu-latest. The crons are compared here, not
+            # in yq: yq's `==` treats `*` in a string as a wildcard, so "3 22 * * *" would also
+            # match "3 22 * * 0".
+            jobs=""
+            while IFS='|' read -r name cron; do
+              if [ "$cron" = "$SCHEDULE" ]; then jobs="$jobs $name"; fi
+            done < <(yq '.jobs[] | select(.runner == "actions") | .name + "|" + .cron' infra/jobs/schedule.yaml)
+            jobs="${jobs# }"
             if [ -z "$jobs" ]; then
               echo "::error::No job in infra/jobs/schedule.yaml has the actions cron '$SCHEDULE'"
               exit 1
