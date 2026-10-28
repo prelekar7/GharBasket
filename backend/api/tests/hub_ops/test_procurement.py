@@ -22,12 +22,12 @@ from gharbasket.modules.orders import service as order_service
 from gharbasket.modules.orders.models import Order, OrderLine
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry, OutboxEvent
-from gharbasket.tools.seed import SEED_HUB_ID, seed, seed_hubs
+from gharbasket.tools.seed import SEED_HUB_ID
 
+from .. import seed_cache as cached
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from ..seed_cache import seed_catalog
 from .conftest import KAVITA, NEHA, PRIYA, SANJAY, VIKRAM, as_user, hub_body, key
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("world")]
@@ -46,9 +46,9 @@ BOX = {"tomato": 3, "palak": 10, "lemon": 2, "toor-dal": 1, "bhindi": (4, 1)}
 @pytest.fixture
 async def world(db_session: AsyncSession) -> None:
     """The seed people, catalog (with jaggery made a kit) and hub with its three vendors."""
-    await seed(db_session)
-    await seed_catalog(db_session)
-    await seed_hubs(db_session)
+    await cached.seed(db_session)
+    await cached.seed_catalog(db_session)
+    await cached.seed_hubs(db_session)
     await db_session.execute(update(Product).where(Product.slug == "jaggery").values(kind="kit"))
     await db_session.commit()
 

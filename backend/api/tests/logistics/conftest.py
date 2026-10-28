@@ -22,19 +22,14 @@ from gharbasket.platform.jobs import run_job
 from gharbasket.platform.outbox import relay
 from gharbasket.tools.seed import (
     SEED_HUB_ID,
-    seed,
-    seed_households,
-    seed_hubs,
-    seed_partners,
-    seed_societies,
 )
 
+from .. import seed_cache as cached
 from ..conftest import make_settings
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in, valkey  # noqa: F401
 from ..identity.fake_firebase import FakeGoogle
-from ..seed_cache import seed_catalog
 
 PRIYA = "+919800001001"  # Sunrise Towers
 SUNITA = "+919800001002"  # Green Valley Heights (no captain)
@@ -52,20 +47,20 @@ BOX = {"tomato": (2, 2_500), "bhindi": (2, 1_000), "onion": (2, 4_000)}
 @pytest.fixture
 async def people(db_session: AsyncSession) -> None:
     """The seed people and the seed hub, committed so failing requests do not undo them."""
-    await seed(db_session)
-    await seed_hubs(db_session)
+    await cached.seed(db_session)
+    await cached.seed_hubs(db_session)
     await db_session.commit()
 
 
 @pytest.fixture
 async def world(db_session: AsyncSession) -> None:
     """The seed world with its captains (Sunrise Towers: Meena, Krishna Kunj: Savita)."""
-    await seed(db_session)
-    await seed_societies(db_session)
-    await seed_households(db_session)
-    await seed_catalog(db_session)
-    await seed_hubs(db_session)
-    await seed_partners(db_session)
+    await cached.seed(db_session)
+    await cached.seed_societies(db_session)
+    await cached.seed_households(db_session)
+    await cached.seed_catalog(db_session)
+    await cached.seed_hubs(db_session)
+    await cached.seed_partners(db_session)
     while (await relay(db_session)).sent:
         pass
     await db_session.commit()

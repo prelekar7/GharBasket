@@ -18,16 +18,11 @@ from gharbasket.modules.partners.models import Assignment, AssignmentEvent
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.tools.seed import (
     SEED_HUB_ID,
-    seed,
-    seed_households,
-    seed_hubs,
-    seed_partners,
-    seed_societies,
 )
 
+from .. import seed_cache as cached
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from ..seed_cache import seed_catalog
 from .conftest import LATA, MEENA, PRIYA, SANJAY, VIKRAM, as_user
 from .tiffins import EVENING, T, kitchen, tag, tiffin_order, user_id
 
@@ -45,12 +40,12 @@ CHECKLIST = dict.fromkeys(
 
 @pytest.fixture
 async def tiffin_world(db_session: AsyncSession) -> None:
-    await seed(db_session)
-    await seed_societies(db_session)
-    await seed_households(db_session)
-    await seed_catalog(db_session)
-    await seed_hubs(db_session)
-    await seed_partners(db_session)
+    await cached.seed(db_session)
+    await cached.seed_societies(db_session)
+    await cached.seed_households(db_session)
+    await cached.seed_catalog(db_session)
+    await cached.seed_hubs(db_session)
+    await cached.seed_partners(db_session)
     await tag(db_session, "tomato", "veg")
 
 

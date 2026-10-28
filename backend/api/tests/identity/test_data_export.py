@@ -27,8 +27,8 @@ from gharbasket.modules.subscriptions.models import BoxLine, Plan, Subscription,
 from gharbasket.platform.files import ObjectStore, create_store
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry, OutboxEvent, Upload
-from gharbasket.tools.seed import seed_societies
 
+from .. import seed_cache as cached
 from ..conftest import make_settings
 from .conftest import ClientFactory, bearer
 from .fake_firebase import FakeGoogle
@@ -70,7 +70,7 @@ class FakeS3:
 
 @pytest.fixture(autouse=True)
 async def societies(db_session: AsyncSession) -> None:
-    await seed_societies(db_session)
+    await cached.seed_societies(db_session)
 
 
 @pytest.fixture

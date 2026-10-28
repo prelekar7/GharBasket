@@ -41,8 +41,9 @@ from gharbasket.platform import outbox
 from gharbasket.platform.files import ObjectStore, create_store
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry, IdempotencyKey, OutboxEvent, Upload
-from gharbasket.tools.seed import seed_hubs, seed_societies
+from gharbasket.tools.seed import seed_hubs
 
+from .. import seed_cache as cached
 from ..conftest import make_settings
 from .conftest import ANDROID, ClientFactory, bearer
 from .fake_firebase import FakeGoogle
@@ -64,7 +65,7 @@ KEPT = {("identity", "deletions"), ("platform", "audit_log")}
 
 @pytest.fixture(autouse=True)
 async def societies(db_session: AsyncSession) -> None:
-    await seed_societies(db_session)
+    await cached.seed_societies(db_session)
 
 
 @pytest.fixture

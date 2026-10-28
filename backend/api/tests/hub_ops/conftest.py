@@ -7,12 +7,11 @@ import httpx2
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.tools.seed import seed, seed_households, seed_hubs, seed_societies
+from .. import seed_cache as cached
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in  # noqa: F401
 from ..identity.fake_firebase import FakeGoogle
-from ..seed_cache import seed_catalog
 
 NEHA = "+919800001011"  # admin
 VIKRAM = "+919800001008"  # hub manager of the seed hub
@@ -24,8 +23,8 @@ PRIYA = "+919800001001"  # customer
 @pytest.fixture
 async def people(db_session: AsyncSession) -> None:
     """The seed people and the seed hub, committed so failing requests do not undo them."""
-    await seed(db_session)
-    await seed_hubs(db_session)
+    await cached.seed(db_session)
+    await cached.seed_hubs(db_session)
     await db_session.commit()
 
 
@@ -51,9 +50,9 @@ def key() -> dict[str, str]:
 @pytest.fixture
 async def floor(db_session: AsyncSession) -> None:
     """The seed world (people, societies, households, catalog with prices) and the seed hub."""
-    await seed(db_session)
-    await seed_societies(db_session)
-    await seed_households(db_session)
-    await seed_catalog(db_session)
-    await seed_hubs(db_session)
+    await cached.seed(db_session)
+    await cached.seed_societies(db_session)
+    await cached.seed_households(db_session)
+    await cached.seed_catalog(db_session)
+    await cached.seed_hubs(db_session)
     await db_session.commit()

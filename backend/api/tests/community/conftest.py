@@ -8,14 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity.models import User, UserRole
 from gharbasket.platform.outbox import relay
-from gharbasket.tools.seed import (
-    seed,
-    seed_delivery,
-    seed_households,
-    seed_hubs,
-    seed_partners,
-    seed_societies,
-)
+
+from .. import seed_cache as cached
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in, valkey  # noqa: F401
@@ -25,17 +19,17 @@ from ..identity.fake_firebase import FakeGoogle
 @pytest.fixture
 async def societies(db_session: AsyncSession) -> None:
     """The six seed societies, inside the test's rolled-back transaction."""
-    await seed_societies(db_session)
+    await cached.seed_societies(db_session)
 
 
 @pytest.fixture
 async def captain_world(db_session: AsyncSession) -> None:
     """People, societies, households and the seed captains, appointed by M9 (the events
     delivered), with M1's captain role."""
-    await seed(db_session)
-    await seed_societies(db_session)
-    await seed_households(db_session)
-    await seed_partners(db_session)
+    await cached.seed(db_session)
+    await cached.seed_societies(db_session)
+    await cached.seed_households(db_session)
+    await cached.seed_partners(db_session)
     await deliver(db_session)
 
 
@@ -70,13 +64,13 @@ async def rider_only(
 @pytest.fixture
 async def kindness_world(db_session: AsyncSession) -> None:
     """People, the seed hub, societies and households: the world of drives and donations."""
-    await seed(db_session)
-    await seed_hubs(db_session)
-    await seed_societies(db_session)
-    await seed_households(db_session)
+    await cached.seed(db_session)
+    await cached.seed_hubs(db_session)
+    await cached.seed_societies(db_session)
+    await cached.seed_households(db_session)
 
 
 @pytest.fixture
 async def donation_world(db_session: AsyncSession, kindness_world: None) -> None:
     """The kindness world with the seed hub's slot and Tuesday delivery for its societies."""
-    await seed_delivery(db_session)
+    await cached.seed_delivery(db_session)

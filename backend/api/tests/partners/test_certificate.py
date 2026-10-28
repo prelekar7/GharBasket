@@ -25,8 +25,9 @@ from gharbasket.modules.partners import service as partners_service
 from gharbasket.modules.partners.models import KycDocument, Partner
 from gharbasket.platform import rate_limit
 from gharbasket.platform.models import AuditEntry, Upload
-from gharbasket.tools.seed import SEED_HUB_ID, seed_hubs
+from gharbasket.tools.seed import SEED_HUB_ID
 
+from .. import seed_cache as cached
 from ..billing.test_partner_months import earn, settle
 from ..identity.conftest import ClientFactory, valkey  # noqa: F401
 from ..identity.fake_firebase import FakeGoogle
@@ -58,7 +59,7 @@ def worked(offset: int, day: int = 10) -> datetime:
 
 @pytest.fixture(autouse=True)
 async def hubs(db_session: AsyncSession) -> None:
-    await seed_hubs(db_session)
+    await cached.seed_hubs(db_session)
 
 
 @pytest.fixture

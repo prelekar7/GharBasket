@@ -24,8 +24,9 @@ from gharbasket.modules.analytics.models import (
     RefreshRun,
 )
 from gharbasket.platform.models import AuditEntry
-from gharbasket.tools.seed import SEED_HUB_ID, seed_hubs
+from gharbasket.tools.seed import SEED_HUB_ID
 
+from .. import seed_cache as cached
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from ..subscriptions.test_cycles import as_user
@@ -69,7 +70,7 @@ RANGE = {"from": "2026-10-26", "to": "2026-11-08"}
 
 @pytest.fixture
 async def hubs(db_session: AsyncSession) -> None:
-    await seed_hubs(db_session)
+    await cached.seed_hubs(db_session)
 
 
 @pytest.fixture(autouse=True)
