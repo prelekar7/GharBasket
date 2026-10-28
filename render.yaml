@@ -106,9 +106,10 @@ services:
     dockerfilePath: ./backend/ml/Dockerfile.render
     dockerContext: .
     healthCheckPath: /health
-    # Render deploys on its own once the commit's GitHub checks pass (no deploy-hook secret), and
-    # only when something this image is built from changed.
-    autoDeployTrigger: checksPass
+    # Render deploys on its own for each commit on main that changes something this image is built
+    # from (no deploy-hook secret). Not `checksPass`: the informational "JS editor hints" check
+    # fails on main, which would hold every ML deploy back.
+    autoDeployTrigger: commit
     buildFilter:
       paths:
         - backend/ml/**
