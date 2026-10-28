@@ -22,11 +22,12 @@ from gharbasket.modules.orders import service as order_service
 from gharbasket.modules.orders.models import Order, OrderLine
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry, OutboxEvent
-from gharbasket.tools.seed import SEED_HUB_ID, seed, seed_catalog, seed_hubs
+from gharbasket.tools.seed import SEED_HUB_ID, seed, seed_hubs
 
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
+from ..seed_cache import seed_catalog
 from .conftest import KAVITA, NEHA, PRIYA, SANJAY, VIKRAM, as_user, hub_body, key
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("world")]

@@ -7,11 +7,12 @@ import httpx2
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.tools.seed import seed, seed_catalog, seed_households, seed_hubs, seed_societies
+from gharbasket.tools.seed import seed, seed_households, seed_hubs, seed_societies
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in  # noqa: F401
 from ..identity.fake_firebase import FakeGoogle
+from ..seed_cache import seed_catalog
 
 NEHA = "+919800001011"  # admin
 VIKRAM = "+919800001008"  # hub manager of the seed hub

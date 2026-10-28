@@ -19,7 +19,6 @@ from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.tools.seed import (
     SEED_HUB_ID,
     seed,
-    seed_catalog,
     seed_households,
     seed_hubs,
     seed_partners,
@@ -28,6 +27,7 @@ from gharbasket.tools.seed import (
 
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
+from ..seed_cache import seed_catalog
 from .conftest import LATA, MEENA, PRIYA, SANJAY, VIKRAM, as_user
 from .tiffins import EVENING, T, kitchen, tag, tiffin_order, user_id
 

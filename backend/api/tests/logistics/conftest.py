@@ -23,7 +23,6 @@ from gharbasket.platform.outbox import relay
 from gharbasket.tools.seed import (
     SEED_HUB_ID,
     seed,
-    seed_catalog,
     seed_households,
     seed_hubs,
     seed_partners,
@@ -35,6 +34,7 @@ from ..conftest import make_settings
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in, valkey  # noqa: F401
 from ..identity.fake_firebase import FakeGoogle
+from ..seed_cache import seed_catalog
 
 PRIYA = "+919800001001"  # Sunrise Towers
 SUNITA = "+919800001002"  # Green Valley Heights (no captain)

@@ -3,10 +3,11 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.tools.seed import seed, seed_catalog, seed_households, seed_societies
+from gharbasket.tools.seed import seed, seed_households, seed_societies
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import clients, google  # noqa: F401
+from ..seed_cache import seed_catalog
 
 
 @pytest.fixture

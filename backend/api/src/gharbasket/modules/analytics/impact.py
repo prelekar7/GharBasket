@@ -506,14 +506,17 @@ def csv_rows(loaded: Report) -> list[list[object]]:
     target = loaded.target
     month = label(loaded.first)
     in_month = loaded.in_month()
-    hubs = sorted({r["hub_id"] for r in in_month}, key=lambda h: (h is None, str(h)))
+    by_hub: dict[object, list[Row]] = {}
+    for r in in_month:  # once, not a scan of every row per hub: a platform report has thousands
+        by_hub.setdefault(r["hub_id"], []).append(r)
+    hubs = sorted(by_hub, key=lambda h: (h is None, str(h)))
     out: list[list[object]] = []
 
     def line(hub: object, ngo: object, values: Mapping[str, object]) -> list[object]:
         return [month, hub or "", ngo or "", *(values.get(c) for c in CSV_COLUMNS[3:])]
 
     for hub in hubs:
-        mine = [r for r in in_month if r["hub_id"] == hub]
+        mine = by_hub[hub]
         if target.scope != "ngo":
             hub_values: dict[str, object] = dict(
                 donor_totals([r for r in mine if r["ngo_id"] is None])
