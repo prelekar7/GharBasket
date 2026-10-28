@@ -23,6 +23,7 @@ from gharbasket.modules.logistics import (
     pickups,
     plans,
     service,
+    tiffins,
     tracking,
     views,
 )
@@ -32,6 +33,8 @@ from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Veh
 from gharbasket.modules.logistics.schemas import (
     CaptainDay,
     CaptainStop,
+    CollectIn,
+    CollectOut,
     CompleteIn,
     DeliveriesPage,
     DeliveryCard,
@@ -427,9 +430,9 @@ ROUTE_404: dict[int | str, dict[str, Any]] = {404: _problem("logistics.route_not
 
 
 async def _detail(
-    session: AsyncSession, route: Route, response: Response | None = None
+    session: AsyncSession, route: Route, response: Response | None = None, *, staff: bool = False
 ) -> RouteDetail:
-    out = await views.route_detail(session, route)
+    out = await views.route_detail(session, route, staff=staff)
     if response is not None:
         set_etag(response, route.version)
         response.headers["Cache-Control"] = "no-store"
@@ -487,8 +490,8 @@ async def my_routes(
 async def get_route(
     route_id: uuid.UUID, permit: RouteReader, session: DbSession, response: Response
 ) -> RouteDetail:
-    route, _ = await route_ops.get_route(session, route_id, permit)
-    return await _detail(session, route, response)
+    route, who = await route_ops.get_route(session, route_id, permit)
+    return await _detail(session, route, response, staff=who.staff)
 
 
 @router.patch(
@@ -512,7 +515,7 @@ async def patch_route(
 ) -> RouteDetail:
     route, who = await route_ops.get_route(session, route_id, permit, for_update=True)
     await route_ops.edit(session, route, who, body, expected)
-    out = await _detail(session, route, response)
+    out = await _detail(session, route, response, staff=who.staff)
     await session.commit()
     return out
 
@@ -532,9 +535,9 @@ FIELD_MOVES: dict[int | str, dict[str, Any]] = {
 
 
 async def _stop_answer(
-    session: AsyncSession, idem: Idempotency, route: Route, stop: RouteStop
+    session: AsyncSession, idem: Idempotency, route: Route, stop: RouteStop, staff: bool
 ) -> StopOut:
-    [out] = await views.stop_views(session, route, [stop])
+    [out] = await views.stop_views(session, route, [stop], staff=staff)
     await idem.save(200, out)
     await session.commit()
     return out
@@ -545,14 +548,15 @@ async def _stop_answer(
     summary="Start a route: its packed orders are dispatched (Idempotency-Key required)",
     description="Today's published route of the caller (or a hub manager for its rider), with no "
     "other route of the rider in progress. Orders still locked or picking refuse the start "
-    "(logistics.bags_not_packed) unless leave_behind: they then stay off the route.",
+    "(logistics.bags_not_packed) unless leave_behind: they then stay off the route. A tiffin "
+    "route (§3.7) needs a rider and moves no order: collect does, at each kitchen.",
     responses={
         **FIELD_MOVES,
         **ROUTE_404,
         409: _problem(
             "logistics.route_not_today, logistics.rider_busy, logistics.bags_not_packed, "
             "logistics.route_not_published, logistics.routes_started, logistics.route_closed, "
-            "orders.illegal_transition"
+            "logistics.rider_required, orders.illegal_transition"
         ),
     },
 )
@@ -569,7 +573,7 @@ async def start_route(
     await execution.start(
         session, route, who, leave_behind=body.leave_behind, client_at=body.client_at
     )
-    out = await _detail(session, route, response)
+    out = await _detail(session, route, response, staff=who.staff)
     await idem.save(200, out)
     await session.commit()
     return out
@@ -599,9 +603,14 @@ async def complete_route(
     body = body or CompleteIn()
     route, who = await route_ops.get_route(session, route_id, permit, for_update=True, acting=True)
     await execution.complete(
-        session, route, who, empties_returned=body.empties_returned, client_at=body.client_at
+        session,
+        route,
+        who,
+        empties_returned=body.empties_returned,
+        client_at=body.client_at,
+        closer=tiffins.close if route.kind == "tiffin" else None,
     )
-    out = await _detail(session, route, response)
+    out = await _detail(session, route, response, staff=who.staff)
     await idem.save(200, out)
     await session.commit()
     await tracking.forget(valkey, route.id)  # the closed route's last position is not shown again
@@ -623,7 +632,7 @@ async def arrive_at_stop(
     body = body or FieldTap()
     stop, route, who = await execution.get_stop(session, stop_id, permit)
     await execution.arrive(session, route, stop, who, body.client_at)
-    return await _stop_answer(session, idem, route, stop)
+    return await _stop_answer(session, idem, route, stop, who.staff)
 
 
 @router.post(
@@ -638,7 +647,7 @@ async def skip_stop(
     await execution.skip(
         session, route, stop, who, reason=body.reason, note=body.note, client_at=body.client_at
     )
-    return await _stop_answer(session, idem, route, stop)
+    return await _stop_answer(session, idem, route, stop, who.staff)
 
 
 # --- return-leg pickups (§3.6) ------------------------------------------------------------------
@@ -682,7 +691,47 @@ async def report_pickups(
         }
         execution.tap(session, route, "pickup", who, body.client_at, stop=stop, payload=counts)
         await session.flush()
-    return await _stop_answer(session, idem, route, stop)
+    return await _stop_answer(session, idem, route, stop, who.staff)
+
+
+@router.post(
+    "/stops/{stop_id}/collect",
+    summary="Collect a kitchen's ready tiffins by its GB1A: code (Idempotency-Key)",
+    description="The route's rider at a kitchen stop of his route in progress (§3.7). Each ready "
+    "tiffin of the stop goes packed → dispatched as the rider and opens its delivery attempt on "
+    "its drop. Scan again later for what was not ready.",
+    responses={
+        **CREATES,
+        404: _problem("logistics.stop_not_found"),
+        403: _problem("auth.forbidden, logistics.not_your_route"),
+        409: _problem(
+            "logistics.route_not_started, logistics.route_closed, logistics.stop_skipped, "
+            "logistics.nothing_ready (not_ready), orders.illegal_transition"
+        ),
+        422: _problem(
+            "logistics.not_a_kitchen_stop, logistics.pickup_code_invalid, "
+            "logistics.pickup_wrong_kitchen, request.invalid, request.idempotency_mismatch"
+        ),
+    },
+)
+async def collect_at_kitchen(
+    stop_id: uuid.UUID, body: CollectIn, permit: CanDrive, session: DbSession, idem: Idempotent
+) -> CollectOut:
+    stop, route, who = await execution.get_stop(session, stop_id, permit)
+    collected, already, not_ready, not_on_route = await tiffins.collect(
+        session, route, stop, who, body
+    )
+    [view] = await views.stop_views(session, route, [stop], staff=who.staff)
+    out = CollectOut(
+        stop=view,
+        collected=collected,
+        already=already,
+        not_ready=not_ready,
+        not_on_route=not_on_route,
+    )
+    await idem.save(200, out)
+    await session.commit()
+    return out
 
 
 @router.get(
@@ -809,7 +858,7 @@ async def patch_stop(
     if not who.manager:
         raise execution.stop_not_found()
     await handover.set_rider_mode(session, route, stop, who, body.rider_mode, expected)
-    [out] = await views.stop_views(session, route, [stop])
+    [out] = await views.stop_views(session, route, [stop], staff=True)
     await session.commit()
     set_etag(response, route.version)
     return out
@@ -843,6 +892,8 @@ async def captain_today(
     labels = await community_api.society_labels(session, [society_id])
     stops = []
     for stop, route in await handover.society_stops(session, society_id, on):
+        if route.kind == "tiffin" and stop.rider_mode:  # the rider's doors, not hers (§3.7)
+            continue
         [view] = await views.stop_views(session, route, [stop])
         all_etas = views.eta_now(route, await views.stops_of(session, route.id))
         stops.append(
@@ -858,7 +909,12 @@ async def captain_today(
             )
         )
     hub_id = society.hub_id if society else None
-    flats = [] if hub_id is None else await handover.flats(session, hub_id, on, society_id)
+    mine = await handover.tiffins_of(session, society_id=society_id, day=on)
+    flats = (
+        []
+        if hub_id is None
+        else await handover.flats(session, hub_id, on, society_id, tiffins=mine)
+    )
     counts = FlatCounts()
     for flat in flats:
         setattr(counts, flat.status, getattr(counts, flat.status) + 1)
@@ -894,9 +950,19 @@ async def stop_deliveries(
     )
     if not (who.staff or riding):
         raise execution.stop_not_found()
-    items = await handover.flats(
-        session, route.hub_id, route.delivery_date, stop.society_id, stop.slot_id
-    )
+    if route.kind == "tiffin":  # the drop's tiffins, with their short codes (§3.7)
+        items = await handover.flats(
+            session,
+            route.hub_id,
+            route.delivery_date,
+            stop.society_id,
+            tiffins=await handover.tiffins_of(session, stop_id=stop.id),
+            boxes=False,
+        )
+    else:
+        items = await handover.flats(
+            session, route.hub_id, route.delivery_date, stop.society_id, stop.slot_id
+        )
     response.headers["Cache-Control"] = "no-store"
     return FlatsOut(items=items)
 
@@ -906,13 +972,15 @@ async def stop_deliveries(
     summary="Hand a stop's crates to its captain by count and code or photo (Idempotency-Key)",
     description="Matching counts move every dispatched order of the stop to at_society; otherwise "
     "only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five "
-    "wrong codes for a stop allow only a photo.",
+    "wrong codes for a stop allow only a photo. A tiffin drop (§3.7) is counted with crates 0 and "
+    "no scans: its tiffins become with_captain without an order move (count_mismatch names the "
+    "expected short_codes).",
     responses={
         **CREATES,
         **STOP_404,
         403: _problem("auth.forbidden, logistics.not_society_captain, logistics.not_your_route"),
         409: _problem(
-            "logistics.count_mismatch, logistics.already_handed_over, "
+            "logistics.count_mismatch (expected, short_codes), logistics.already_handed_over, "
             "logistics.route_not_started, logistics.route_closed, orders.illegal_transition"
         ),
         422: _problem(
@@ -943,8 +1011,15 @@ async def hand_over(
         await idem.save(422, {"status": 422, "code": wrong.code, "detail": wrong.detail})
         await session.commit()
         raise
-    made, moved, still = await handover.hand_over(session, valkey, route, stop, actor, body, proof)
-    [view] = await views.stop_views(session, route, [stop])
+    taken: list[uuid.UUID] = []
+    if route.kind == "tiffin":  # by count, no M4 move (§3.7)
+        made, taken = await tiffins.hand_over(session, valkey, route, stop, actor, body, proof)
+        moved, still = [], []
+    else:
+        made, moved, still = await handover.hand_over(
+            session, valkey, route, stop, actor, body, proof
+        )
+    [view] = await views.stop_views(session, route, [stop], staff=actor.kind == "hub")
     if actor.kind == "captain":  # the code is the rider's and hub staff's only
         view.handover_code = None
     out = HandoverOut(
@@ -952,6 +1027,7 @@ async def hand_over(
         stop=view,
         at_society=moved,
         still_dispatched=still,
+        with_captain=taken,
         mismatch=made.mismatch,
     )
     await idem.save(200, out)
@@ -986,8 +1062,10 @@ async def _door_answer(
 @router.post(
     "/deliveries/{order_id}/proof",
     summary="Deliver a bag at the door with its scan, the household's code or a photo",
-    description="The bag QR must be this order's. A captain may scan alone; a rider needs otp "
-    "or photo. Five wrong codes for an order allow only a photo. Idempotency-Key required.",
+    description="Exactly one of the bag QR and a tiffin's short code, which must be this "
+    "order's. A captain may scan a box alone; a rider, and anyone delivering a tiffin (§3.7), "
+    "needs otp or photo. Five wrong codes for an order allow only a photo. Idempotency-Key "
+    "required.",
     responses={
         **DOOR_MOVES,
         422: _problem(
@@ -1027,7 +1105,7 @@ async def prove_delivery(
     summary="Nobody home, refused, damaged…: hold, send back, refund or triage (Idempotency-Key)",
     description="A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. "
     "Damaged or missing is refunded in full at once; refused, wrong address and other go to the "
-    "hub's triage.",
+    "hub's triage. A tiffin (§3.7) is never held: any reason refunds it in full at once.",
     responses={**DOOR_MOVES, 422: _problem("logistics.photo_key_invalid, request.invalid")},
 )
 async def mark_undelivered(
@@ -1064,7 +1142,9 @@ async def mark_undelivered(
     responses={
         **CREATES,
         **DELIVERY_404,
-        409: _problem("logistics.not_undelivered, orders.illegal_transition"),
+        409: _problem(
+            "logistics.not_undelivered, logistics.no_redelivery, orders.illegal_transition"
+        ),
         422: _problem(
             "logistics.refund_invalid (max_paise), logistics.partial_refund_not_final "
             "(max_paise), billing.wallet_limit (room_paise), request.invalid"

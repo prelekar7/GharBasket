@@ -72,7 +72,18 @@ async def test_the_captain_sees_the_van_her_flats_and_their_counts(
         str(day.orders[MEENA]),
     }
     assert all(
-        set(f) == {"order_id", "flat_label", "kind", "bags", "redelivery", "status", "hold_until"}
+        set(f)
+        == {
+            "order_id",
+            "flat_label",
+            "kind",
+            "bags",
+            "redelivery",
+            "status",
+            "hold_until",
+            "short_code",
+        }
+        and f["short_code"] is None  # tiffins only
         for f in mine["flats"]
     )
     labels = [f["flat_label"] for f in mine["flats"]]

@@ -16,10 +16,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import pickups, plans, solver
-from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop, booked
+from gharbasket.modules.logistics.models import (
+    Delivery,
+    Route,
+    RoutePlan,
+    RouteStop,
+    StopOrder,
+    booked,
+)
 from gharbasket.modules.logistics.routing import clock
 from gharbasket.modules.logistics.schemas import (
     CaptainOut,
+    KitchenOut,
     LatLngOut,
     RiderRef,
     RouteDetail,
@@ -27,9 +35,11 @@ from gharbasket.modules.logistics.schemas import (
     StopOut,
     StopSlot,
     StopSociety,
+    TiffinItem,
     VehicleRef,
 )
 from gharbasket.modules.orders import api as orders_api
+from gharbasket.modules.partners import api as partners_api
 
 IST = ZoneInfo("Asia/Kolkata")
 MAPS = "https://www.google.com/maps/dir/?api=1&destination={lat:.5f},{lng:.5f}"
@@ -104,7 +114,11 @@ def eta_now(route: Route, stops: list[RouteStop]) -> dict[uuid.UUID, str | None]
     return out
 
 
-async def stop_views(session: AsyncSession, route: Route, stops: list[RouteStop]) -> list[StopOut]:
+async def stop_views(
+    session: AsyncSession, route: Route, stops: list[RouteStop], *, staff: bool = False
+) -> list[StopOut]:
+    """The stops as the route's rider sees them, or hub staff (`staff`: a kitchen's address
+    always, §3.7)."""
     societies = sorted({s.society_id for s in stops if s.society_id is not None})
     labels = await community_api.society_labels(session, societies)
     points = await community_api.society_points(session, societies)
@@ -116,9 +130,13 @@ async def stop_views(session: AsyncSession, route: Route, stops: list[RouteStop]
     back = await _redelivery_bags(session, [s.id for s in stops])
     etas = eta_now(route, stops)
     taken_back = await pickups.stop_pickups(session, route, stops)
+    kitchens, tiffins = await _tiffin_parts(session, route, stops, staff)
     out = []
     for stop in stops:
         society = slot = point = card = None
+        kitchen = kitchens.get(stop.id)
+        if kitchen is not None and kitchen.location is not None:
+            point = (kitchen.location.lat, kitchen.location.lng)
         if stop.society_id is not None:
             point = points.get(stop.society_id)
             label = labels.get(stop.society_id)
@@ -153,18 +171,126 @@ async def stop_views(session: AsyncSession, route: Route, stops: list[RouteStop]
                 navigate_url=None if point is None else MAPS.format(lat=point[0], lng=point[1]),
                 arrived_at=stop.arrived_at,
                 handed_over_at=stop.handed_over_at,
+                kitchen=kitchen,
+                portions=stop.portions,
+                tiffins=tiffins.get(stop.id),
             )
         )
     return out
 
 
-async def route_detail(session: AsyncSession, route: Route) -> RouteDetail:
+TIFFIN_STATUS = {
+    "on_route": "on_route",
+    "with_captain": "with_captain",
+    "delivered": "delivered",
+    "undelivered": "undelivered",
+    "refunded": "undelivered",
+    "triage": "undelivered",
+}
+
+
+async def _tiffin_parts(
+    session: AsyncSession, route: Route, stops: list[RouteStop], staff: bool
+) -> tuple[dict[uuid.UUID, KitchenOut], dict[uuid.UUID, list[TiffinItem]]]:
+    """A tiffin route's kitchens and each stop's tiffins (§3.7). The kitchen's address and point
+    go to the route's rider from the start until it is collected, and to hub staff; flat labels
+    only on rider-mode drops of a route in progress."""
+    if route.kind != "tiffin":
+        return {}, {}
+    places = await partners_api.kitchen_places(
+        session, sorted({s.partner_id for s in stops if s.partner_id is not None})
+    )
+    kitchens: dict[uuid.UUID, KitchenOut] = {}
+    for stop in stops:
+        place = None if stop.partner_id is None else places.get(stop.partner_id)
+        if place is None or stop.window_start is None:
+            continue
+        shown = staff or (route.status == "in_progress" and stop.status != "handed_over")
+        located = shown and place.lat is not None and place.lng is not None
+        kitchens[stop.id] = KitchenOut(
+            partner_id=place.partner_id,
+            display_name=place.display_name,
+            area=place.area,
+            ready_by=hhmm(stop.window_start),
+            address=place.address if shown else None,
+            location=LatLngOut(lat=place.lat, lng=place.lng) if located else None,  # pyright: ignore[reportArgumentType]
+        )
+    rows = list(
+        (
+            await session.execute(
+                select(StopOrder)
+                .where(StopOrder.stop_id.in_([s.id for s in stops]))
+                .order_by(StopOrder.short_code)
+            )
+        ).scalars()
+    )
+    tried: dict[uuid.UUID, Delivery] = {}
+    found = await session.execute(
+        select(Delivery)
+        .where(Delivery.order_id.in_({r.order_id for r in rows}))
+        .order_by(Delivery.attempt)
+    )
+    for attempt in found.scalars():
+        tried[attempt.order_id] = attempt
+    by_id = {s.id: s for s in stops}
+    labelled = {
+        r.order_id
+        for r in rows
+        if by_id[r.stop_id].rider_mode
+        and by_id[r.stop_id].kind == "drop"
+        and route.status == "in_progress"
+    }
+    labels = await _flat_labels(session, sorted(labelled))
+    tiffins: dict[uuid.UUID, list[TiffinItem]] = {s.id: [] for s in stops}
+    for row in rows:
+        attempt = tried.get(row.order_id)
+        status = (
+            "to_collect" if route.status in ("draft", "published", "in_progress") else "left_behind"
+        )
+        if attempt is not None:
+            status = (
+                "left_behind"
+                if attempt.reason == "left_behind"
+                else TIFFIN_STATUS.get(attempt.status, "undelivered")
+            )
+        tiffins[row.stop_id].append(
+            TiffinItem(
+                order_id=row.order_id,
+                short_code=row.short_code,
+                portions=row.portions,
+                status=status,  # pyright: ignore[reportArgumentType]
+                flat_label=labels.get(row.order_id),
+            )
+        )
+    return kitchens, tiffins
+
+
+async def _flat_labels(
+    session: AsyncSession, order_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, str | None]:
+    """Tower and flat of each order's household, as the captain's checklist shows them."""
+    orders = [await orders_api.get(session, order_id) for order_id in order_ids]
+    labels = await identity_api.delivery_labels(session, [o.household_id for o in orders])
+    towers = await community_api.society_labels(session, sorted({o.society_id for o in orders}))
+    out: dict[uuid.UUID, str | None] = {}
+    for order in orders:
+        label = labels.get(order.household_id)
+        society = towers.get(order.society_id)
+        if label is None:
+            out[order.id] = None
+            continue
+        tower = society.towers.get(label.tower_id, label.tower_id) if society else label.tower_id
+        out[order.id] = f"{tower}, {label.flat}"
+    return out
+
+
+async def route_detail(session: AsyncSession, route: Route, *, staff: bool = False) -> RouteDetail:
     [row] = await plans.route_rows(session, Route.id == route.id)
     [summary] = await summaries(session, [row])
     plan = await session.get(RoutePlan, route.plan_id)
     return RouteDetail(
         **summary.model_dump(),
-        stops=await stop_views(session, route, await stops_of(session, route.id)),
+        stops=await stop_views(session, route, await stops_of(session, route.id), staff=staff),
         source=None if plan is None else plan.source,  # pyright: ignore[reportArgumentType]
         left_behind=list(route.left_behind),
     )

@@ -934,7 +934,9 @@ def test_the_logistics_evening_closes_routes_and_expires_holds_with_nothing_to_d
     touches nothing and writes no delivery."""
     date = day.t.isoformat()
     closed = step(loop, ist(day.t, 16, 0), app.job("close_routes", ist(day.t, 16, 0)))
-    assert closed == {"date": date, "closed": 0, "returned_to_hub": 0}, closed
+    assert closed == {"date": date, "closed": 0, "returned_to_hub": 0, "tiffins_to_triage": 0}, (
+        closed
+    )
     expired = step(loop, ist(day.t, 20, 30), app.job("hold_expiry", ist(day.t, 20, 30)))
     assert expired == {
         "date": date,

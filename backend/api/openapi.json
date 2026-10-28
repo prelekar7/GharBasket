@@ -2977,6 +2977,21 @@
             "title": "Redelivery",
             "type": "boolean"
           },
+          "short_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A tiffin's label (§3.7); null otherwise",
+            "examples": [
+              "T-07"
+            ],
+            "title": "Short Code"
+          },
           "status": {
             "enum": [
               "on_the_way",
@@ -3534,6 +3549,120 @@
           "cohorts"
         ],
         "title": "CohortsOut",
+        "type": "object"
+      },
+      "CollectIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the tap happened on the phone (stored for audit)",
+            "title": "Client At"
+          },
+          "pickup_qr": {
+            "description": "Scanned on the kitchen's phone",
+            "examples": [
+              "GB1A:0199a0000000700080000000000000ab"
+            ],
+            "maxLength": 80,
+            "title": "Pickup Qr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pickup_qr"
+        ],
+        "title": "CollectIn",
+        "type": "object"
+      },
+      "CollectOut": {
+        "properties": {
+          "already": {
+            "description": "Collected by an earlier scan",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Already",
+            "type": "array"
+          },
+          "collected": {
+            "description": "Moved packed → dispatched by this scan",
+            "items": {
+              "$ref": "#/components/schemas/CollectedTiffin"
+            },
+            "title": "Collected",
+            "type": "array"
+          },
+          "not_on_route": {
+            "description": "Ready at this kitchen but on no drop of this route: left there",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Not On Route",
+            "type": "array"
+          },
+          "not_ready": {
+            "description": "On this stop, not ready yet: scan later",
+            "items": {
+              "$ref": "#/components/schemas/WaitingTiffin"
+            },
+            "title": "Not Ready",
+            "type": "array"
+          },
+          "stop": {
+            "$ref": "#/components/schemas/StopOut",
+            "description": "The kitchen stop, as it is now"
+          }
+        },
+        "required": [
+          "stop",
+          "collected",
+          "already",
+          "not_ready",
+          "not_on_route"
+        ],
+        "title": "CollectOut",
+        "type": "object"
+      },
+      "CollectedTiffin": {
+        "properties": {
+          "drop_seq": {
+            "description": "The stop it is delivered at",
+            "examples": [
+              4
+            ],
+            "title": "Drop Seq",
+            "type": "integer"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "short_code": {
+            "examples": [
+              "T-07"
+            ],
+            "title": "Short Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "short_code",
+          "drop_seq"
+        ],
+        "title": "CollectedTiffin",
         "type": "object"
       },
       "ConfirmIn": {
@@ -7715,6 +7844,15 @@
           },
           "stop": {
             "$ref": "#/components/schemas/StopOut"
+          },
+          "with_captain": {
+            "description": "A tiffin drop (§3.7): the tiffins she took; they stay dispatched",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "With Captain",
+            "type": "array"
           }
         },
         "required": [
@@ -11227,143 +11365,6 @@
           "portions_served"
         ],
         "title": "KitchenCardOut",
-        "type": "object"
-      },
-      "KitchenOut": {
-        "description": "A kitchen as she and hub staff see it: `address` and `location` are private.",
-        "properties": {
-          "address": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Private: the kitchen, hub staff, the rider",
-            "title": "Address"
-          },
-          "area": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Public (the card)",
-            "examples": [
-              "Sector 20, Kharghar"
-            ],
-            "title": "Area"
-          },
-          "default_portions": {
-            "$ref": "#/components/schemas/WeekPortions"
-          },
-          "display_name": {
-            "examples": [
-              "Lata tai"
-            ],
-            "title": "Display Name",
-            "type": "string"
-          },
-          "fssai_reg_no": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "examples": [
-              "11521999000123"
-            ],
-            "title": "Fssai Reg No"
-          },
-          "fssai_valid_until": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fssai Valid Until"
-          },
-          "hygiene": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/HygieneOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "location": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LatLng"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Private; null until set (no offers before)"
-          },
-          "partner_id": {
-            "format": "uuid",
-            "title": "Partner Id",
-            "type": "string"
-          },
-          "skills": {
-            "examples": [
-              [
-                "veg",
-                "jain"
-              ]
-            ],
-            "items": {
-              "type": "string"
-            },
-            "title": "Skills",
-            "type": "array"
-          },
-          "status": {
-            "enum": [
-              "active",
-              "paused",
-              "suspended",
-              "left"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "partner_id",
-          "display_name",
-          "status",
-          "area",
-          "address",
-          "location",
-          "fssai_reg_no",
-          "fssai_valid_until",
-          "skills",
-          "default_portions",
-          "hygiene",
-          "version"
-        ],
-        "title": "KitchenOut",
         "type": "object"
       },
       "KitchenPatchIn": {
@@ -19878,15 +19879,23 @@
       },
       "ProofIn": {
         "additionalProperties": false,
+        "description": "Exactly one of `bag_qr` and `short_code` (a tiffin's label, §3.7).",
         "properties": {
           "bag_qr": {
+            "anyOf": [
+              {
+                "pattern": "^GB1:[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "This order's",
             "examples": [
               "GB1:0199a0000000700080000000000000ab"
             ],
-            "pattern": "^GB1:[0-9a-f]{32}$",
-            "title": "Bag Qr",
-            "type": "string"
+            "title": "Bag Qr"
           },
           "client_at": {
             "anyOf": [
@@ -19928,7 +19937,7 @@
             "title": "Photo Key"
           },
           "proof": {
-            "description": "A captain may scan alone; a rider needs otp or photo",
+            "description": "A captain may scan a box alone; a rider, and anyone for a tiffin, needs otp or photo",
             "enum": [
               "scan",
               "otp",
@@ -19936,10 +19945,25 @@
             ],
             "title": "Proof",
             "type": "string"
+          },
+          "short_code": {
+            "anyOf": [
+              {
+                "pattern": "^T-\\d+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A tiffin's label",
+            "examples": [
+              "T-07"
+            ],
+            "title": "Short Code"
           }
         },
         "required": [
-          "bag_qr",
           "proof"
         ],
         "title": "ProofIn",
@@ -26792,6 +26816,17 @@
             "title": "Kind",
             "type": "string"
           },
+          "kitchen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/gharbasket__modules__logistics__schemas__KitchenOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Kitchen stops only (§3.7)"
+          },
           "late_min": {
             "description": "Planned minutes after the window's end",
             "examples": [
@@ -26824,6 +26859,15 @@
               }
             ],
             "description": "§3.6: what the van takes back here, from route start"
+          },
+          "portions": {
+            "default": 0,
+            "description": "The stop's tiffin portions",
+            "examples": [
+              12
+            ],
+            "title": "Portions",
+            "type": "integer"
           },
           "redelivery_bags": {
             "description": "Redelivery bags the van carries for this stop (§3.4)",
@@ -26874,6 +26918,21 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "tiffins": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TiffinItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tiffin routes (§3.7): what to collect at a kitchen, what to deliver at a drop",
+            "title": "Tiffins"
           }
         },
         "required": [
@@ -27909,6 +27968,66 @@
           "runs"
         ],
         "title": "TiffinBoardOut",
+        "type": "object"
+      },
+      "TiffinItem": {
+        "properties": {
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rider-mode drops of a route in progress only (§Privacy)",
+            "examples": [
+              "B wing, 402"
+            ],
+            "title": "Flat Label"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "portions": {
+            "examples": [
+              2
+            ],
+            "title": "Portions",
+            "type": "integer"
+          },
+          "short_code": {
+            "description": "The label on the tiffin",
+            "examples": [
+              "T-07"
+            ],
+            "title": "Short Code",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "to_collect",
+              "on_route",
+              "with_captain",
+              "delivered",
+              "undelivered",
+              "left_behind"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "short_code",
+          "portions",
+          "status",
+          "flat_label"
+        ],
+        "title": "TiffinItem",
         "type": "object"
       },
       "TiffinMenuOut": {
@@ -30065,6 +30184,28 @@
         "title": "VerifyIn",
         "type": "object"
       },
+      "WaitingTiffin": {
+        "properties": {
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "short_code": {
+            "examples": [
+              "T-08"
+            ],
+            "title": "Short Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "short_code"
+        ],
+        "title": "WaitingTiffin",
+        "type": "object"
+      },
       "WalletOut": {
         "properties": {
           "balance_paise": {
@@ -31376,6 +31517,80 @@
         "title": "DeliveryOut",
         "type": "object"
       },
+      "gharbasket__modules__logistics__schemas__KitchenOut": {
+        "description": "A tiffin route's kitchen stop (§3.7). The address and the point go to the route's rider\nfrom the route's start until the stop is collected, and to hub staff; null otherwise.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "B-1103, Sunrise Towers, Sector 20"
+            ],
+            "title": "Address"
+          },
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public",
+            "examples": [
+              "Sector 20, Kharghar"
+            ],
+            "title": "Area"
+          },
+          "display_name": {
+            "examples": [
+              "Lata tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLngOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "ready_by": {
+            "description": "IST HH:MM",
+            "examples": [
+              "11:30"
+            ],
+            "title": "Ready By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partner_id",
+          "display_name",
+          "area",
+          "ready_by",
+          "address",
+          "location"
+        ],
+        "title": "KitchenOut",
+        "type": "object"
+      },
       "gharbasket__modules__logistics__schemas__ResolveIn": {
         "additionalProperties": false,
         "properties": {
@@ -31807,6 +32022,143 @@
           "portions"
         ],
         "title": "DishOut",
+        "type": "object"
+      },
+      "gharbasket__modules__partners__schemas__KitchenOut": {
+        "description": "A kitchen as she and hub staff see it: `address` and `location` are private.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Private: the kitchen, hub staff, the rider",
+            "title": "Address"
+          },
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public (the card)",
+            "examples": [
+              "Sector 20, Kharghar"
+            ],
+            "title": "Area"
+          },
+          "default_portions": {
+            "$ref": "#/components/schemas/WeekPortions"
+          },
+          "display_name": {
+            "examples": [
+              "Lata tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "fssai_reg_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "11521999000123"
+            ],
+            "title": "Fssai Reg No"
+          },
+          "fssai_valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fssai Valid Until"
+          },
+          "hygiene": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HygieneOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLng"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Private; null until set (no offers before)"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "skills": {
+            "examples": [
+              [
+                "veg",
+                "jain"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "suspended",
+              "left"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "partner_id",
+          "display_name",
+          "status",
+          "area",
+          "address",
+          "location",
+          "fssai_reg_no",
+          "fssai_valid_until",
+          "skills",
+          "default_portions",
+          "hygiene",
+          "version"
+        ],
+        "title": "KitchenOut",
         "type": "object"
       },
       "gharbasket__modules__partners__schemas__SlotOut": {
@@ -44510,7 +44862,7 @@
     },
     "/v1/deliveries/{order_id}/proof": {
       "post": {
-        "description": "The bag QR must be this order's. A captain may scan alone; a rider needs otp or photo. Five wrong codes for an order allow only a photo. Idempotency-Key required.",
+        "description": "Exactly one of the bag QR and a tiffin's short code, which must be this order's. A captain may scan a box alone; a rider, and anyone delivering a tiffin (§3.7), needs otp or photo. Five wrong codes for an order allow only a photo. Idempotency-Key required.",
         "operationId": "prove_delivery_v1_deliveries__order_id__proof_post",
         "parameters": [
           {
@@ -44778,7 +45130,7 @@
                 }
               }
             },
-            "description": "logistics.not_undelivered, orders.illegal_transition"
+            "description": "logistics.not_undelivered, logistics.no_redelivery, orders.illegal_transition"
           },
           "422": {
             "content": {
@@ -44804,7 +45156,7 @@
     },
     "/v1/deliveries/{order_id}/undelivered": {
       "post": {
-        "description": "A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. Damaged or missing is refunded in full at once; refused, wrong address and other go to the hub's triage.",
+        "description": "A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. Damaged or missing is refunded in full at once; refused, wrong address and other go to the hub's triage. A tiffin (§3.7) is never held: any reason refunds it in full at once.",
         "operationId": "mark_undelivered_v1_deliveries__order_id__undelivered_post",
         "parameters": [
           {
@@ -55038,7 +55390,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KitchenOut"
+                  "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__KitchenOut"
                 }
               }
             },
@@ -55149,7 +55501,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KitchenOut"
+                  "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__KitchenOut"
                 }
               }
             },
@@ -55301,7 +55653,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KitchenOut"
+                  "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__KitchenOut"
                 }
               }
             },
@@ -64809,7 +65161,7 @@
     },
     "/v1/routes/{route_id}/start": {
       "post": {
-        "description": "Today's published route of the caller (or a hub manager for its rider), with no other route of the rider in progress. Orders still locked or picking refuse the start (logistics.bags_not_packed) unless leave_behind: they then stay off the route.",
+        "description": "Today's published route of the caller (or a hub manager for its rider), with no other route of the rider in progress. Orders still locked or picking refuse the start (logistics.bags_not_packed) unless leave_behind: they then stay off the route. A tiffin route (§3.7) needs a rider and moves no order: collect does, at each kitchen.",
         "operationId": "start_route_v1_routes__route_id__start_post",
         "parameters": [
           {
@@ -64932,7 +65284,7 @@
                 }
               }
             },
-            "description": "logistics.route_not_today, logistics.rider_busy, logistics.bags_not_packed, logistics.route_not_published, logistics.routes_started, logistics.route_closed, orders.illegal_transition"
+            "description": "logistics.route_not_today, logistics.rider_busy, logistics.bags_not_packed, logistics.route_not_published, logistics.routes_started, logistics.route_closed, logistics.rider_required, orders.illegal_transition"
           },
           "422": {
             "content": {
@@ -66322,6 +66674,148 @@
         ]
       }
     },
+    "/v1/stops/{stop_id}/collect": {
+      "post": {
+        "description": "The route's rider at a kitchen stop of his route in progress (§3.7). Each ready tiffin of the stop goes packed → dispatched as the rider and opens its delivery attempt on its drop. Scan again later for what was not ready.",
+        "operationId": "collect_at_kitchen_v1_stops__stop_id__collect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stop_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stop Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, logistics.not_your_route"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.stop_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.route_not_started, logistics.route_closed, logistics.stop_skipped, logistics.nothing_ready (not_ready), orders.illegal_transition"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.not_a_kitchen_stop, logistics.pickup_code_invalid, logistics.pickup_wrong_kitchen, request.invalid, request.idempotency_mismatch"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Collect a kitchen's ready tiffins by its GB1A: code (Idempotency-Key)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
     "/v1/stops/{stop_id}/deliveries": {
       "get": {
         "operationId": "stop_deliveries_v1_stops__stop_id__deliveries_get",
@@ -66419,7 +66913,7 @@
     },
     "/v1/stops/{stop_id}/handover": {
       "post": {
-        "description": "Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo.",
+        "description": "Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo. A tiffin drop (§3.7) is counted with crates 0 and no scans: its tiffins become with_captain without an order move (count_mismatch names the expected short_codes).",
         "operationId": "hand_over_v1_stops__stop_id__handover_post",
         "parameters": [
           {
@@ -66535,7 +67029,7 @@
                 }
               }
             },
-            "description": "logistics.count_mismatch, logistics.already_handed_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition"
+            "description": "logistics.count_mismatch (expected, short_codes), logistics.already_handed_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition"
           },
           "422": {
             "content": {

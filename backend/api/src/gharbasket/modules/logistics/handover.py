@@ -26,7 +26,7 @@ from gharbasket.modules.logistics.execution import (
     stop_not_found,
     tap,
 )
-from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop
+from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop, StopOrder
 from gharbasket.modules.logistics.routes import Caller, caller, conflict
 from gharbasket.modules.logistics.routing import DETOUR, metres
 from gharbasket.modules.logistics.schemas import CaptainFlat, FlatStatus, HandoverIn
@@ -261,6 +261,27 @@ async def hand_over(
     await attempts.set_status(
         session, moving, "with_captain", by_actor=actor.kind, user_id=actor.user_id
     )
+    handover = await record(
+        session, valkey, route, stop, actor, body, proof, (stop.crates, expected_bags), moving
+    )
+    return handover, moving, [o for o in dispatched if o not in moving]
+
+
+async def record(
+    session: AsyncSession,
+    valkey: Redis | None,
+    route: Route,
+    stop: RouteStop,
+    actor: Actor,
+    body: HandoverIn,
+    proof: str,
+    expected: tuple[int, int],
+    moved: list[uuid.UUID],
+) -> Handover:
+    """The handover row, the stop handed over, the field event and
+    `logistics.handover_completed` with the orders it moved; `expected` is (crates, bags)."""
+    assert stop.society_id is not None
+    mismatch = (body.crates, body.bags) != expected
     if proof == "photo" and body.photo_key is not None:
         await keep_photo(session, body.photo_key, actor.user_id, route.delivery_date)
     at = now()
@@ -270,9 +291,9 @@ async def hand_over(
         by_actor=actor.kind,
         user_id=actor.user_id,
         partner_id=actor.partner_id,
-        crates_expected=stop.crates,
+        crates_expected=expected[0],
         crates_counted=body.crates,
-        bags_expected=expected_bags,
+        bags_expected=expected[1],
         bags_counted=body.bags,
         mismatch=mismatch,
         proof=proof,
@@ -287,7 +308,6 @@ async def hand_over(
     who = Caller(actor.user_id, actor.kind == "hub", False, actor.kind == "rider")
     tap(session, route, "handover", who, body.client_at, stop=stop, payload={"mismatch": mismatch})
     await session.flush()
-    still = [o for o in dispatched if o not in moving]
     await publish(
         session,
         events.HANDOVER_COMPLETED,
@@ -302,11 +322,11 @@ async def hand_over(
             "partner_id": None if actor.partner_id is None else str(actor.partner_id),
             "crates": body.crates,
             "bags": body.bags,
-            "order_ids": [str(o) for o in moving],
+            "order_ids": [str(o) for o in moved],
             "mismatch": mismatch,
         },
     )
-    return handover, moving, still
+    return handover
 
 
 async def set_rider_mode(
@@ -336,20 +356,28 @@ async def flats(
     day: date,
     society_id: uuid.UUID,
     slot_id: uuid.UUID | None = None,
+    *,
+    tiffins: dict[uuid.UUID, str] | None = None,
+    boxes: bool = True,
 ) -> list[CaptainFlat]:
     """The society's box and add-on orders of the day (one stop's when `slot_id` is given), and
-    the redeliveries booked on the day (`redelivery: true`), by tower and flat, with tower and
-    flat labels only."""
-    found = await orders_api.orders_for_delivery(
-        session, hub_id, day, tuple(FLAT_STATUS), kinds=KINDS
-    )
-    orders = [
-        s.order
-        for s in found
-        if s.order.society_id == society_id and (slot_id is None or s.order.slot_id == slot_id)
-    ]
-    again = await attempts.redeliveries_on(session, society_id, day, slot_id)
-    orders += [await orders_api.get(session, a.order_id) for a in again]
+    the redeliveries booked on the day (`redelivery: true`), plus the given `tiffins` (order ->
+    short code, §3.7), by tower and flat, with tower and flat labels only."""
+    orders: list[orders_api.Order] = []
+    again: list[Delivery] = []
+    if boxes:
+        found = await orders_api.orders_for_delivery(
+            session, hub_id, day, tuple(FLAT_STATUS), kinds=KINDS
+        )
+        orders = [
+            s.order
+            for s in found
+            if s.order.society_id == society_id and (slot_id is None or s.order.slot_id == slot_id)
+        ]
+        again = await attempts.redeliveries_on(session, society_id, day, slot_id)
+        orders += [await orders_api.get(session, a.order_id) for a in again]
+    codes = tiffins or {}
+    orders += [await orders_api.get(session, order_id) for order_id in codes]
     redelivered = {a.order_id for a in again}
     labels = await identity_api.delivery_labels(session, [o.household_id for o in orders])
     tries = {o.id: await attempts.latest(session, o.id) for o in orders}
@@ -368,14 +396,53 @@ async def flats(
                     kind=order.kind,  # pyright: ignore[reportArgumentType]
                     bags=1,
                     redelivery=order.id in redelivered,
-                    status="on_the_way"
+                    status=_tiffin_status(tries[order.id])
+                    if order.id in codes
+                    else "on_the_way"
                     if order.status == "redelivery"
                     else _flat_status(order.status, tries[order.id]),
                     hold_until=_hold(tries[order.id]),
+                    short_code=codes.get(order.id),
                 ),
             )
         )
     return [flat for _, flat in sorted(rows, key=lambda r: (_natural(r[0][0]), _natural(r[0][1])))]
+
+
+def _tiffin_status(attempt: Delivery | None) -> FlatStatus:
+    """A tiffin is never held (§3.7): on the way until the captain has it."""
+    if attempt is None or attempt.status == "on_route":
+        return "on_the_way"
+    if attempt.status in ("with_captain", "delivered"):
+        return "with_you" if attempt.status == "with_captain" else "delivered"
+    return "undelivered"
+
+
+async def tiffins_of(
+    session: AsyncSession,
+    *,
+    stop_id: uuid.UUID | None = None,
+    society_id: uuid.UUID | None = None,
+    day: date | None = None,
+) -> dict[uuid.UUID, str]:
+    """Tiffins (order -> short code, §3.7) of one stop, or of a society's captain drops (not in
+    rider mode) on the day's published, started or completed tiffin routes."""
+    stmt = select(StopOrder.order_id, StopOrder.short_code).join(
+        RouteStop, RouteStop.id == StopOrder.stop_id
+    )
+    if stop_id is not None:
+        stmt = stmt.where(StopOrder.stop_id == stop_id)
+    else:
+        stmt = stmt.join(Route, Route.id == RouteStop.route_id).where(
+            RouteStop.society_id == society_id,
+            RouteStop.kind == "drop",
+            RouteStop.rider_mode.is_(False),
+            Route.kind == "tiffin",
+            Route.delivery_date == day,
+            Route.status.in_(("published", "in_progress", "completed")),
+        )
+    rows = await session.execute(stmt.order_by(StopOrder.short_code))
+    return {order_id: code for order_id, code in rows.all()}
 
 
 def _natural(value: str) -> tuple[object, ...]:

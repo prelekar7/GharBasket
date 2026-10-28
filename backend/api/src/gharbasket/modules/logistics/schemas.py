@@ -296,6 +296,34 @@ class PickupTotals(BaseModel):
     bags: PickupCount
 
 
+class KitchenOut(BaseModel):
+    """A tiffin route's kitchen stop (§3.7). The address and the point go to the route's rider
+    from the route's start until the stop is collected, and to hub staff; null otherwise."""
+
+    partner_id: uuid.UUID
+    display_name: str = Field(examples=["Lata tai"])
+    area: str | None = Field(examples=["Sector 20, Kharghar"], description="Public")
+    ready_by: str = Field(examples=["11:30"], description="IST HH:MM")
+    address: str | None = Field(examples=["B-1103, Sunrise Towers, Sector 20"])
+    location: LatLngOut | None
+
+
+TiffinStatus = Literal[
+    "to_collect", "on_route", "with_captain", "delivered", "undelivered", "left_behind"
+]
+
+
+class TiffinItem(BaseModel):
+    order_id: uuid.UUID
+    short_code: str = Field(examples=["T-07"], description="The label on the tiffin")
+    portions: int = Field(examples=[2])
+    status: TiffinStatus
+    flat_label: str | None = Field(
+        examples=["B wing, 402"],
+        description="Rider-mode drops of a route in progress only (§Privacy)",
+    )
+
+
 class StopOut(BaseModel):
     id: uuid.UUID
     seq: int = Field(examples=[1])
@@ -333,6 +361,12 @@ class StopOut(BaseModel):
     )
     arrived_at: datetime | None
     handed_over_at: datetime | None
+    kitchen: KitchenOut | None = Field(default=None, description="Kitchen stops only (§3.7)")
+    portions: int = Field(default=0, examples=[12], description="The stop's tiffin portions")
+    tiffins: list[TiffinItem] | None = Field(
+        default=None,
+        description="Tiffin routes (§3.7): what to collect at a kitchen, what to deliver at a drop",
+    )
 
 
 class RouteDetail(RouteSummary):
@@ -434,6 +468,9 @@ class CaptainFlat(BaseModel):
     redelivery: bool
     status: FlatStatus
     hold_until: str | None = Field(examples=["20:00"])
+    short_code: str | None = Field(
+        default=None, examples=["T-07"], description="A tiffin's label (§3.7); null otherwise"
+    )
 
 
 class FlatsOut(BaseModel):
@@ -494,6 +531,10 @@ class HandoverOut(BaseModel):
     stop: StopOut
     at_society: list[uuid.UUID]
     still_dispatched: list[uuid.UUID]
+    with_captain: list[uuid.UUID] = Field(
+        default_factory=list[uuid.UUID],
+        description="A tiffin drop (§3.7): the tiffins she took; they stay dispatched",
+    )
     mismatch: bool
 
 
@@ -514,16 +555,58 @@ Reason = Literal["not_home", "refused", "wrong_address", "damaged", "missing", "
 
 
 class ProofIn(FieldTap):
-    bag_qr: str = Field(
+    """Exactly one of `bag_qr` and `short_code` (a tiffin's label, §3.7)."""
+
+    bag_qr: str | None = Field(
+        default=None,
         pattern=BAG_QR,
         examples=["GB1:0199a0000000700080000000000000ab"],
         description="This order's",
     )
+    short_code: str | None = Field(
+        default=None, pattern=r"^T-\d+$", examples=["T-07"], description="A tiffin's label"
+    )
     proof: Literal["scan", "otp", "photo"] = Field(
-        description="A captain may scan alone; a rider needs otp or photo"
+        description="A captain may scan a box alone; a rider, and anyone for a tiffin, needs otp "
+        "or photo"
     )
     delivery_code: str | None = Field(default=None, pattern=r"^\d{4}$", description="With otp")
     photo_key: str | None = Field(default=None, max_length=200, description="With photo")
+
+    @model_validator(mode="after")
+    def _one_label(self) -> Self:
+        if (self.bag_qr is None) == (self.short_code is None):
+            raise ValueError("send exactly one of bag_qr and short_code")
+        return self
+
+
+class CollectIn(FieldTap):
+    pickup_qr: str = Field(
+        max_length=80,
+        examples=["GB1A:0199a0000000700080000000000000ab"],
+        description="Scanned on the kitchen's phone",
+    )
+
+
+class CollectedTiffin(BaseModel):
+    order_id: uuid.UUID
+    short_code: str = Field(examples=["T-07"])
+    drop_seq: int = Field(examples=[4], description="The stop it is delivered at")
+
+
+class WaitingTiffin(BaseModel):
+    order_id: uuid.UUID
+    short_code: str = Field(examples=["T-08"])
+
+
+class CollectOut(BaseModel):
+    stop: StopOut = Field(description="The kitchen stop, as it is now")
+    collected: list[CollectedTiffin] = Field(description="Moved packed → dispatched by this scan")
+    already: list[uuid.UUID] = Field(description="Collected by an earlier scan")
+    not_ready: list[WaitingTiffin] = Field(description="On this stop, not ready yet: scan later")
+    not_on_route: list[uuid.UUID] = Field(
+        description="Ready at this kitchen but on no drop of this route: left there"
+    )
 
 
 class UndeliveredIn(FieldTap):

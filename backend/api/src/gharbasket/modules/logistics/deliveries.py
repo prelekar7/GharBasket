@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from datetime import date, time, timedelta
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +27,14 @@ from gharbasket.modules.logistics.handover import (
     ensure_captain,
     keep_photo,
 )
-from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RoutePlan, RouteStop
+from gharbasket.modules.logistics.models import (
+    Delivery,
+    FieldEvent,
+    Route,
+    RoutePlan,
+    RouteStop,
+    StopOrder,
+)
 from gharbasket.modules.logistics.routes import caller, conflict
 from gharbasket.modules.logistics.schemas import ProofIn, ResolveIn, UndeliveredIn
 from gharbasket.modules.logistics.views import hhmm, now
@@ -66,7 +73,14 @@ async def door_actor(
     stop = None if delivery.stop_id is None else await session.get(RouteStop, delivery.stop_id)
     route = None if stop is None else await session.get(Route, stop.route_id)
     riding = stop is not None and route is not None and route.rider_user_id == user_id
-    if who.rider and riding and stop.rider_mode and route.status == "in_progress":  # pyright: ignore[reportOptionalMemberAccess]
+    # A tiffin still with the rider may be delivered by him at any drop of his route (§3.7).
+    tiffin_with_him = delivery.order_kind == "tiffin" and delivery.status == "on_route"
+    if (
+        who.rider
+        and riding
+        and (stop.rider_mode or tiffin_with_him)  # pyright: ignore[reportOptionalMemberAccess]
+        and route.status == "in_progress"  # pyright: ignore[reportOptionalMemberAccess]
+    ):
         return delivery, order, Actor("rider", user_id)
     if any(g.role == "captain" and g.scope_id == order.society_id for g in permit.grants):
         partner = await ensure_captain(session, user_id, order.society_id)
@@ -85,9 +99,16 @@ def check_proof(
     """The bag is this order's and the proof fits the deliverer; a wrong code is counted (the
     caller commits the count before answering)."""
     _ensure_open(delivery, order)
-    if body.bag_qr != f"GB1:{order.id.hex}":
+    if body.short_code is not None:
+        if delivery.short_code is None or body.short_code != delivery.short_code:
+            raise ProblemError(422, "logistics.bag_mismatch", "This label is not this order's.")
+    elif body.bag_qr != f"GB1:{order.id.hex}":
         raise ProblemError(422, "logistics.bag_mismatch", "This bag is not this order's.")
     if body.proof == "scan":
+        if order.kind == "tiffin":  # whoever delivers it (§3.7)
+            raise ProblemError(
+                422, "logistics.proof_required", "A tiffin needs the household's code or a photo."
+            )
         if actor.kind == "rider":
             raise ProblemError(
                 422, "logistics.proof_required", "A rider needs the household's code or a photo."
@@ -153,6 +174,44 @@ async def deliver(
     delivery.hold_until, delivery.at = None, now()
     await _tap(session, delivery, "proof", actor, {"proof": body.proof}, body.client_at)
     await session.flush()
+    if delivery.order_kind == "tiffin":
+        await _settle_tiffin_stop(session, delivery)
+
+
+async def _settle_tiffin_stop(session: AsyncSession, delivery: Delivery) -> None:
+    """A rider-mode tiffin drop is handed over once none of its tiffins is still out (§3.7):
+    there is no handover there."""
+    stop = None if delivery.stop_id is None else await session.get(RouteStop, delivery.stop_id)
+    if stop is None or not stop.rider_mode or stop.status in ("handed_over", "skipped"):
+        return
+    out = await session.scalar(
+        select(Delivery.id)
+        .where(Delivery.stop_id == stop.id, Delivery.status.in_(("on_route", "with_captain")))
+        .limit(1)
+    )
+    waiting = await session.scalar(  # a tiffin of the drop not collected yet
+        select(StopOrder.id)
+        .where(
+            StopOrder.stop_id == stop.id,
+            ~exists().where(Delivery.order_id == StopOrder.order_id),
+        )
+        .limit(1)
+    )
+    if out is None and waiting is None:
+        at = now()
+        stop.status, stop.handed_over_at = "handed_over", at
+        stop.arrived_at = stop.arrived_at or at
+        await session.flush()
+
+
+async def refund_in_full(
+    session: AsyncSession, delivery: Delivery, order_id: uuid.UUID, reason: str
+) -> None:
+    """A tiffin that did not reach its door is refunded in full at once (§3.7); the attempt goes
+    to triage when M5 refuses it (`billing.wallet_limit`)."""
+    amount = await orders_api.refundable_paise(session, order_id)
+    if not await try_refund(session, delivery, order_id, amount, reason):
+        delivery.status = "triage"
 
 
 async def refund(
@@ -205,9 +264,11 @@ async def fail(
     body: UndeliveredIn,
 ) -> None:
     """The table of §3.4: a captain holds a not-home bag until 20:00; otherwise the order is
-    undelivered, then refunded at once (damaged, missing) or left for triage."""
+    undelivered, then refunded at once (damaged, missing) or left for triage. A tiffin is never
+    held: whatever the reason it is refunded in full at once (§3.7)."""
     _ensure_open(delivery, order)
-    if body.reason == "not_home" and actor.kind == "captain":
+    tiffin = order.kind == "tiffin"
+    if body.reason == "not_home" and actor.kind == "captain" and not tiffin:
         # Only a bag in her hands today: not a replay after hold_expiry, not a triage attempt.
         if order.status != "at_society" or delivery.status not in ("with_captain", "held"):
             raise conflict(
@@ -245,14 +306,15 @@ async def fail(
     delivery.photo_key, delivery.client_at, delivery.at = body.photo_key, body.client_at, now()
     # A bag that ended at the society with the captain stays with her (a rider's rides back).
     delivery.kept_by_captain = at_society and not await _rider_holds(session, delivery)
-    if body.reason in REFUND_AT_ONCE:
-        amount = await orders_api.refundable_paise(session, order.id)
-        if not await try_refund(session, delivery, order.id, amount, body.reason):
-            delivery.status = "triage"  # the wallet is full: the hub refunds to the source
+    if tiffin or body.reason in REFUND_AT_ONCE:
+        # the wallet is full: triage, and the hub refunds to the source
+        await refund_in_full(session, delivery, order.id, body.reason)
     elif body.reason in TRIAGE:
         delivery.status = "triage"
     await _tap(session, delivery, "undelivered", actor, {"reason": body.reason}, body.client_at)
     await session.flush()
+    if tiffin:
+        await _settle_tiffin_stop(session, delivery)
 
 
 async def _rider_holds(session: AsyncSession, delivery: Delivery) -> bool:
@@ -365,6 +427,28 @@ async def rebook(
         await announce_redelivery(session, order, delivery.delivery_date)
 
 
+async def _tiffin_left_behind(
+    session: AsyncSession, delivery: Delivery, order: orders_api.Order, user_id: uuid.UUID
+) -> orders_api.Order:
+    """A tiffin never collected (`left_behind`, §3.7) has no way to `refunded` but through the
+    door: the hub's moves take it from where it is to `undelivered` (ADR-0026 §2), then the
+    caller refunds it. Any other tiffin is left as it is."""
+    path = ("locked", "picking", "packed", "dispatched", "undelivered")
+    if delivery.reason != "left_behind" or order.status not in path[:3]:
+        return order
+    for to in path[path.index(order.status) + 1 :]:
+        order = await orders_api.transition(
+            session,
+            order.id,
+            to,
+            actor="hub",
+            actor_user_id=user_id,
+            payload={"reason": "left_behind"} if to == "undelivered" else None,
+        )
+    delivery.status = "undelivered"
+    return order
+
+
 async def resolve(
     session: AsyncSession,
     delivery: Delivery,
@@ -377,7 +461,13 @@ async def resolve(
     a refund of up to what is left of the order's paid total (actor system on M4's move, naming
     the manager; also audited). A packed bag the day's route left behind can only ride again
     (`book_ride`). A redelivery no route picked up (an orphan) is booked again on the next
-    solvable day, or refunded in full (its order moves `redelivery → refunded`, ADR-0028)."""
+    solvable day, or refunded in full (its order moves `redelivery → refunded`, ADR-0028). A
+    tiffin is never redelivered; one never collected is moved by the hub to `undelivered` and
+    refunded (§3.7)."""
+    if order.kind == "tiffin":
+        if body.outcome == "redeliver":
+            raise conflict("logistics.no_redelivery", "A tiffin is refunded, never redelivered.")
+        order = await _tiffin_left_behind(session, delivery, order, user_id)
     left_behind = (
         delivery.status == "triage"
         and delivery.reason == "left_behind"

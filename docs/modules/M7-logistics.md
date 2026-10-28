@@ -1,6 +1,6 @@
 # M7 — Logistics
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md) and its amendments in [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (vehicles), §3.2 (route plans: solve, fallback, publish), §3.3 (rider execution, GPS and live tracking), §3.4 (handover, door proof, undelivered, hold and redelivery) and §3.5 (the customer's delivery view) are frozen for S5 when this spec is approved; §3.6 (return-leg pickups) was refined on 2026-10-25, is frozen on approval and is built; §3.7 (tiffin routes) was refined on 2026-10-28 and is frozen on approval.
+**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md) and its amendments in [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (vehicles), §3.2 (route plans: solve, fallback, publish), §3.3 (rider execution, GPS and live tracking), §3.4 (handover, door proof, undelivered, hold and redelivery) and §3.5 (the customer's delivery view) are frozen for S5 when this spec is approved; §3.6 (return-leg pickups) was refined on 2026-10-25, is frozen on approval and is built; §3.7 (tiffin routes) was refined on 2026-10-28, is frozen on approval and is built (lunch; "As built" notes in §3.7).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S5
 **Postgres schema:** `logistics` · **Python package:** `gharbasket.modules.logistics`
@@ -592,6 +592,16 @@ POST /v1/stops/{id}/collect       the route's rider; Idempotency-Key
 - **A trip's start** is the later of the vehicle being free and the first kitchen's `ready_by` minus the travel from the hub; the hub's `timings.dispatch` does not apply to tiffins. Problems name a trip as for boxes ("TW-1 trip 1: 34 portions on board", "… back after 14:30").
 - **`PATCH /v1/routes/{id}`** also refuses (422 `logistics.vehicle_too_small`) a two-wheeler whose `capacity_tiffins` is below the portions the route's kitchen stops collect.
 - **`route_for_order` is not built yet.** The facade above lists it, but no module calls it and `logistics.api` has never had it; when M12 needs it, a tiffin's stop is its drop through `logistics.stop_orders`, as written.
+
+**As built, part 2** (the day: `tiffins.py`, collect, the tiffin handover and doors, the route's end):
+- **The handover answer** of a tiffin drop gains `with_captain` (the order ids she took; they stay `dispatched`); `at_society` and `still_dispatched` are empty. A rider (rider-mode drop) or a kitchen stop is refused with 422 `request.invalid`, as are `scanned_bags`.
+- **Collect** answers `already` for every tiffin of the stop that is `dispatched` with its attempt on this route, whether or not M8 still lists it as ready, and `not_ready` only for tiffins still `locked`, `picking` or `packed` (a released or refunded one is in no list). `logistics.nothing_ready` also carries `not_ready`. `bags` of the kitchen stop counts what is collected so far.
+- **A rider-mode tiffin drop** becomes `handed_over` when none of its tiffins is still with the rider or uncollected; a drop whose kitchen never readied is skipped by the rider.
+- **`close_routes`** completes a tiffin route without moving any order; its sweep then sends every tiffin of the day (or earlier) still `on_route` or `with_captain` to triage (`not_confirmed`). The job's summary gains `tiffins_to_triage`.
+- **A `left_behind` tiffin** gets attempt 1 with its drop as `stop_id` and its short code, so the hub's board and the customer's card find it.
+- **Kitchen visibility** follows who asks: the route's reads, field answers and the collect answer pass `staff` for hub staff (address and point always); the route's rider sees them from the start until the stop is collected. `navigate_url` of a kitchen stop points at the kitchen when its point is shown.
+- **The customer's stream of a tiffin** is opened by the household of a tiffin `on_route` on that route, on its drop; it ends with `handed_over` once the tiffin is no longer `on_route`.
+- **E2E:** the journey's stand-ins are gone (pickup and delivery go over HTTP), but the timeline rows of the dispatch and the delivery still take the step's time (the database stamps them with its own clock), so in that step the after-commit relay waits for the sweep.
 
 **Deferred**
 - Dinner tiffins (question 6).

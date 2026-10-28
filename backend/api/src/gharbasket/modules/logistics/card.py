@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.logistics.attempts import latest, orphaned
-from gharbasket.modules.logistics.models import Delivery, Route, RouteStop, booked
+from gharbasket.modules.logistics.models import Delivery, Route, RouteStop, StopOrder, booked
 from gharbasket.modules.logistics.schemas import (
     CaptainOut,
     DeliveryCard,
@@ -35,6 +35,20 @@ async def _stop(
         route = None if stop is None else await session.get(Route, stop.route_id)
         return None if stop is None or route is None else (stop, route)
     day = order.delivery_date if attempt is None else attempt.delivery_date
+    if order.kind == "tiffin":  # its drop on the published tiffin plan (§3.7)
+        found = await session.execute(
+            select(RouteStop, Route)
+            .join(Route, Route.id == RouteStop.route_id)
+            .join(StopOrder, StopOrder.stop_id == RouteStop.id)
+            .where(
+                StopOrder.order_id == order.id,
+                RouteStop.kind == "drop",
+                Route.status.in_(("published", "in_progress")),
+            )
+            .limit(1)
+        )
+        row = found.first()
+        return None if row is None else (row[0], row[1])
     found = await session.execute(
         select(RouteStop, Route)
         .join(Route, Route.id == RouteStop.route_id)
@@ -62,13 +76,18 @@ async def delivery_card(
     window = None if slot is None else Window(start=hhmm(slot.start), end=hhmm(slot.end))
     eta = tracking = None
     placed = await _stop(session, order, attempt)
+    tiffin = order.kind == "tiffin"
     if placed is not None:
         stop, route = placed
         live = eta_now(route, await stops_of(session, route.id))[stop.id]
         eta = live or (hhmm(stop.eta) if stop.status in ("pending", "arrived") else None)
-        if order.status == "dispatched" and route.status == "in_progress":
+        # A tiffin is tracked from collect while the rider still has it (§3.7).
+        riding = attempt is not None and attempt.status == "on_route" if tiffin else True
+        if order.status == "dispatched" and route.status == "in_progress" and riding:
             tracking = {"route_id": route.id}
     card = await community_api.captain_card(session, order.society_id)
+    if tiffin and (placed is None or placed[0].rider_mode):  # the rider's door, not hers
+        card = None
     proof = None
     if attempt is not None and attempt.proof is not None:
         url = None

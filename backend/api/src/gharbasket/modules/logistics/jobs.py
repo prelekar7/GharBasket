@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.logistics import deliveries, execution, plans, tracking
+from gharbasket.modules.logistics import deliveries, execution, plans, tiffins, tracking
 from gharbasket.modules.logistics.models import Route, RoutePlan
 from gharbasket.platform import outbox
 from gharbasket.platform.errors import ProblemError
@@ -159,11 +159,20 @@ async def close_routes(ctx: JobContext) -> dict[str, Any]:
     ).scalars()
     closed = back = 0
     for route in list(routes):
-        back += await execution.close(ctx.session, route, "system", None)
+        if route.kind == "tiffin":  # tiffins still out go to triage, none moves (§3.7)
+            await tiffins.close(ctx.session, route, "system", None)
+        else:
+            back += await execution.close(ctx.session, route, "system", None)
         route.version += 1
         await tracking.forget(ctx.valkey, route.id)
         closed += 1
-    return {"date": day.isoformat(), "closed": closed, "returned_to_hub": back}
+    triage = await tiffins.sweep(ctx.session, day)
+    return {
+        "date": day.isoformat(),
+        "closed": closed,
+        "returned_to_hub": back,
+        "tiffins_to_triage": triage,
+    }
 
 
 @job("purge_gps_pings", "Delete GPS pings older than 90 days (daily 03:43 IST)")
