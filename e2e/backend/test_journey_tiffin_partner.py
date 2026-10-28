@@ -38,8 +38,8 @@ from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
 # Open product bugs this journey found, by the invariant that shows them (as in the day).
 BUGS: dict[str, str] = {}
-KITCHEN = "+919800030001"  # the neighbour who applies
-CUSTOMERS = {"+919800030002": 2, "+919800030003": 1}  # phone -> portions booked
+KITCHEN = "+919800004001"  # the neighbour who applies
+CUSTOMERS = {"+919800004002": 2, "+919800004003": 1}  # phone -> portions booked
 HUB = f"/v1/hubs/{SEED_HUB_ID}"
 PRICE_PAISE = 12_000  # a portion on the menu
 TRAININGS = json.loads((REPO / "data/seeds/trainings/modules.json").read_text())["modules"]

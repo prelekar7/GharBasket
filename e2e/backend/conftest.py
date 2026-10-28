@@ -48,11 +48,6 @@ def app(config: Config, loop: asyncio.Runner, fresh_db: str) -> Iterator[App]:
     loop.run(started.stop())
 
 
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    """The simulated day first: it migrates, seeds and simulates the weeks the journeys build on."""
-    items.sort(key=lambda item: item.path.name != "test_simulated_day.py")
-
-
 def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
     """The day's job runs, in order, so a run's log says what the day did."""
     if not _APP:
