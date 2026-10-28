@@ -116,19 +116,172 @@ test("GET /v1/societies is SocietySummary, A to Z; the detail has towers with la
   assert.deepEqual(keys(unlock.body), ["joined", "society_id", "status", "threshold"]);
 });
 
-test("the admin society list (a proposal) keeps the boundary and the hub filters", async () => {
-  const all = await call(
-    "GET",
-    `/v1/admin/societies?hub_id=${KHARGHAR_HUB_ID}&with_unassigned=true`,
-  );
+const ADMIN_SOCIETY_KEYS = [
+  "area",
+  "boundary",
+  "created_at",
+  "flats",
+  "households",
+  "hub",
+  "id",
+  "live_at",
+  "name",
+  "slug",
+  "status",
+  "threshold_source",
+  "towers",
+  "unlock_threshold",
+  "unlock_threshold_pinned",
+  "updated_at",
+];
+const RANK = /** @type {Record<string, number>} */ ({
+  live: 0,
+  unlocking: 1,
+  prospect: 2,
+  paused: 3,
+});
+const TALOJA_HUB_ID = "0199a000-0000-7000-8000-00000000a002";
+const create = (/** @type {unknown} */ body, role = "admin") =>
+  call("POST", "/v1/admin/societies", { body, role, key: crypto.randomUUID() });
+/** @param {{ body: any }} r */
+const fieldsOf = (r) => r.body.errors.map((/** @type {{ loc: string[] }} */ e) => e.loc.at(-1));
+/** @param {{ hub: { id: string } | null }[]} items */
+const hubless = (items) => items.some((s) => s.hub === null);
+
+test("GET /v1/admin/societies is Page[AdminSociety]: hub, households, threshold source, no captain or point", async () => {
+  const all = await call("GET", "/v1/admin/societies");
+  assert.deepEqual(keys(all.body), ["items", "next_cursor"]);
+  assert.deepEqual(keys(all.body.items[0]), ADMIN_SOCIETY_KEYS);
   const sunrise = all.body.items.find(
     (/** @type {{ id: string }} */ s) => s.id === SOCIETY_ID["sunrise-towers"],
   );
+  assert.deepEqual(sunrise.hub, { id: KHARGHAR_HUB_ID, name: "Kharghar hub" });
+  assert.equal(sunrise.households, 46);
   assert.ok(sunrise.boundary);
   assert.equal(sunrise.towers[0].label, "Wing A");
+  // live, unlocking, prospect, paused, then by name; an admin sees the hub-less one too
+  const order = all.body.items.map((/** @type {{ status: string }} */ s) => RANK[s.status]);
+  assert.deepEqual(
+    order,
+    [...order].sort((a, b) => a - b),
+  );
+  assert.equal(hubless(all.body.items), true);
+  assert.equal((await call("GET", "/v1/admin/societies", { role: "franchise_owner" })).status, 403);
+});
+
+test("the list is scoped by hub: a hub manager never sees a hub-less society, and another hub is 403", async () => {
+  const mine = await call("GET", "/v1/admin/societies", { role: "hub_manager" });
   assert.equal(
-    all.body.items.some((/** @type {{ hub_id: null }} */ s) => s.hub_id === null),
+    mine.body.items.every(
+      (/** @type {{ hub: { id: string } | null }} */ s) => s.hub?.id === KHARGHAR_HUB_ID,
+    ),
     true,
   );
-  assert.equal((await call("GET", "/v1/admin/societies", { role: "franchise_owner" })).status, 403);
+  const other = await call("GET", `/v1/admin/societies?hub_id=${TALOJA_HUB_ID}`, {
+    role: "hub_manager",
+  });
+  assert.equal(other.status, 403);
+  assert.equal(other.body.code, "auth.forbidden");
+  const hubOnly = `/v1/admin/societies?hub_id=${KHARGHAR_HUB_ID}`;
+  assert.equal(hubless((await call("GET", hubOnly)).body.items), false);
+  // with_unassigned adds the hub-less ones for an admin and is ignored for hub staff
+  assert.equal(hubless((await call("GET", `${hubOnly}&with_unassigned=true`)).body.items), true);
+  const staff = await call("GET", `${hubOnly}&with_unassigned=true`, { role: "hub_manager" });
+  assert.equal(hubless(staff.body.items), false);
+});
+
+test("POST /v1/admin/societies takes no status: a new society is a prospect; towers get a, b, c", async () => {
+  const noKey = await call("POST", "/v1/admin/societies", { body: { name: "Palm Court" } });
+  assert.equal(noKey.body.code, "request.idempotency_key_required");
+  const withStatus = await create({ name: "Palm Court", status: "prospect" });
+  assert.equal(withStatus.status, 422);
+  assert.deepEqual(fieldsOf(withStatus), ["status"]);
+  assert.deepEqual(fieldsOf(await create({ name: "P" })), ["name"]);
+
+  const made = await create({
+    name: "Palm Court",
+    area: "Sector 9, Kamothe",
+    unlock_threshold: 30,
+    flats: 120,
+    towers: [{ label: "A wing" }, { id: "b", label: "B wing" }, { label: "C wing" }],
+  });
+  assert.equal(made.status, 201);
+  assert.deepEqual(keys(made.body), ADMIN_SOCIETY_KEYS);
+  assert.equal(made.body.status, "prospect");
+  assert.equal(made.body.hub, null); // an admin who names no hub
+  assert.equal(made.body.threshold_source, "hub");
+  assert.equal(made.body.unlock_threshold, 30);
+  assert.deepEqual(
+    made.body.towers.map((/** @type {{ id: string }} */ t) => t.id),
+    ["a", "b", "c"],
+  );
+  const again = await create({ name: "Palm Court" });
+  assert.equal(again.body.slug, "palm-court-2");
+  assert.equal(again.body.threshold_source, "default");
+  assert.equal(again.body.unlock_threshold, 20);
+  // a hub manager's society goes on their hub; naming another hub is 403, and an unknown one 422
+  assert.equal((await create({ name: "Lotus Park" }, "hub_manager")).body.hub.id, KHARGHAR_HUB_ID);
+  const elsewhere = await create({ name: "Lotus Park", hub_id: TALOJA_HUB_ID }, "hub_manager");
+  assert.equal(elsewhere.status, 403);
+  const unknown = await create({
+    name: "Lotus Park",
+    hub_id: "0199a000-0000-7000-8000-0000000000ff",
+  });
+  assert.deepEqual(fieldsOf(unknown), ["hub_id"]);
+});
+
+test("PATCH /v1/admin/societies/{id} takes boundary and towers, answers the unlock view, and refuses hub_id, flats and prospect", async () => {
+  const id = SOCIETY_ID["panchavati-residency"];
+  const patch = (/** @type {unknown} */ body, role = "admin", sid = id) =>
+    call("PATCH", `/v1/admin/societies/${sid}`, { body, role });
+  const find = async () =>
+    (await call("GET", "/v1/admin/societies")).body.items.find(
+      (/** @type {{ id: string }} */ s) => s.id === id,
+    );
+  for (const bad of [{ hub_id: KHARGHAR_HUB_ID }, { flats: 10 }, { name: "X Y" }, { slug: "x" }]) {
+    const r = await patch(bad);
+    assert.equal(r.status, 422, JSON.stringify(bad));
+    assert.equal(r.body.code, "request.invalid");
+  }
+  assert.deepEqual(fieldsOf(await patch({ status: "prospect" })), ["status"]);
+  assert.deepEqual(fieldsOf(await patch({ towers: null })), ["towers"]);
+  assert.deepEqual(fieldsOf(await patch({ unlock_threshold: 0 })), ["unlock_threshold"]);
+  const open = { type: "Polygon", coordinates: [[[73, 19]]] };
+  assert.equal((await patch({ boundary: open })).body.code, "community.boundary_invalid");
+
+  const ring = [
+    [73.09, 19.01],
+    [73.1, 19.01],
+    [73.1, 19.02],
+    [73.09, 19.01],
+  ];
+  const ok = await patch({
+    boundary: { type: "Polygon", coordinates: [ring] },
+    towers: [{ label: "Tower 1" }],
+    unlock_threshold: 25,
+    status: "unlocking",
+  });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(keys(ok.body), [
+    "box_fee_paise",
+    "joined",
+    "live_at",
+    "society_id",
+    "status",
+    "threshold",
+    "threshold_source",
+    "unlock_threshold_pinned",
+  ]);
+  assert.equal(ok.body.threshold_source, "hub");
+  const listed = await find();
+  assert.deepEqual(listed.towers, [{ id: "a", label: "Tower 1" }]);
+  assert.deepEqual(listed.boundary.coordinates[0], ring);
+  // a null boundary clears it; a missing one leaves the rest alone
+  assert.equal((await patch({ boundary: null })).status, 200);
+  const cleared = await find();
+  assert.equal(cleared.boundary, null);
+  assert.equal(cleared.towers.length, 1);
+  // the hub-less society is only an admin's: 404 for a hub manager
+  const loose = SOCIETY_ID["sai-darshan-apartments"];
+  assert.equal((await patch({ unlock_threshold: 10 }, "hub_manager", loose)).status, 404);
 });

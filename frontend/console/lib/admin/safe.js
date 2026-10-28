@@ -13,8 +13,9 @@ import { isNotShipped, NOT_SHIPPED_MESSAGE } from "../proposal.js";
 /** Plain-words messages for the problem codes the admin pages can meet. */
 const MESSAGES = /** @type {Record<string, string>} */ ({
   "auth.forbidden": "You don't have permission to do this.",
-  "community.boundary_required":
-    "Draw and save the boundary first, so addresses here can be checked.",
+  "community.boundary_invalid":
+    "The boundary must be one closed shape of 4 to 500 corners inside India that does not cross itself.",
+  "community.slug_taken": "That name is busy right now. Try again in a moment.",
   "community.society_not_found": "That society is no longer on the list. Reload the page.",
   "community.request_not_found": "That request is no longer on the list. Reload the page.",
   "community.request_closed": "Someone has already handled this request. Reload the page.",
