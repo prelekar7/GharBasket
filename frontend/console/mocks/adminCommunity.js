@@ -24,10 +24,12 @@ import { fieldError, idempotent, mockStore, mockUuid, problem, roleOf } from "./
  *   flats: number | null, towers: Tower[],
  *   boundary: { type: "Polygon", coordinates: number[][][] } | null,
  *   created_at: string, updated_at: string }} Society
+ * SocietyRequestAdmin (M9 §3.9): a request in the review queue. Never the requester's id, name or phone.
+ * `society_id` is the society it became (accepted), `duplicate_of` the one it repeats (duplicate).
  * @typedef {{
- *   id: string, name: string, area: string, status: "received" | "accepted" | "duplicate",
+ *   id: string, name: string, area: string | null, status: "received" | "accepted" | "duplicate" | "rejected",
  *   location: { lng: number, lat: number } | null, note: string | null, created_at: string,
- *   society_id: string | null, duplicate_of: string | null }} SocietyRequest
+ *   society_id: string | null, duplicate_of: string | null, reviewed_at: string | null }} SocietyRequest
  */
 
 /** @param {string | null} id @returns {HubRef | null} */
@@ -137,7 +139,7 @@ const seedSocieties = () => [
 /** @type {() => SocietyRequest[]} */
 const seedRequests = () => [
   {
-    id: "req-panvel-heights",
+    id: mockUuid("b710", 1),
     name: "Panvel Heights",
     area: "New Panvel",
     status: "received",
@@ -146,9 +148,10 @@ const seedRequests = () => [
     created_at: istDay(0, 10, 42),
     society_id: null,
     duplicate_of: null,
+    reviewed_at: null,
   },
   {
-    id: "req-orchid-enclave",
+    id: mockUuid("b710", 2),
     name: "Orchid Enclave",
     area: "Sector 21, Kharghar",
     status: "received",
@@ -157,9 +160,10 @@ const seedRequests = () => [
     created_at: istDay(-1, 18, 5),
     society_id: null,
     duplicate_of: null,
+    reviewed_at: null,
   },
   {
-    id: "req-shree-ganesh",
+    id: mockUuid("b710", 3),
     name: "Shri Ganesh Society",
     area: "Sector 12, Kharghar",
     status: "received",
@@ -168,9 +172,10 @@ const seedRequests = () => [
     created_at: istDay(-4, 9, 30),
     society_id: null,
     duplicate_of: null,
+    reviewed_at: null,
   },
   {
-    id: "req-green-valley",
+    id: mockUuid("b710", 4),
     name: "Green Valley",
     area: "Sector 35, Kharghar",
     status: "duplicate",
@@ -179,9 +184,10 @@ const seedRequests = () => [
     created_at: istDay(-6, 12, 0),
     society_id: null,
     duplicate_of: SOCIETY_ID["green-valley-heights"],
+    reviewed_at: istDay(-5, 9, 0),
   },
   {
-    id: "req-sai-darshan",
+    id: mockUuid("b710", 5),
     name: "Sai Darshan Apartments",
     area: "Old Panvel",
     status: "accepted",
@@ -190,6 +196,7 @@ const seedRequests = () => [
     created_at: istDay(-7, 16, 20),
     society_id: SOCIETY_ID["sai-darshan-apartments"],
     duplicate_of: null,
+    reviewed_at: istDay(-6, 11, 0),
   },
 ];
 
@@ -496,30 +503,62 @@ export const communityHandlers = [
     });
   }),
 
+  // GET /v1/admin/society-requests?status=&cursor=&limit= (M9 §3.9, hub manager, admin) → Page[SocietyRequestAdmin],
+  // newest first. Requests carry no hub, so any hub manager sees the whole queue.
   http.get("*/v1/admin/society-requests", ({ request }) => {
     const refused = deny(request, STAFF);
     if (refused) return refused;
-    const items = [...requests()].sort((a, b) => b.created_at.localeCompare(a.created_at));
-    return HttpResponse.json({ items, next_cursor: null });
+    const url = new URL(request.url);
+    const status = url.searchParams.get("status");
+    const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
+    const offset = Number(url.searchParams.get("cursor")) || 0;
+    const all = requests()
+      .filter((r) => !status || r.status === status)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return HttpResponse.json({
+      items: all.slice(offset, offset + limit),
+      next_cursor: offset + limit < all.length ? String(offset + limit) : null,
+    });
   }),
 
-  // "Add as prospect": creates a prospect society (no hub until its boundary falls in a service area).
+  // POST /v1/admin/society-requests/{id}/accept (M9 §3.9; Idempotency-Key; hub manager, admin) → 201
+  // { request, society }: the request becomes a prospect society. The body is empty or { hub_id }: a hub
+  // manager's society goes on their hub (naming another is 403), an admin's on the hub named, else none
+  // (an unknown hub is 422). Order of refusals: the hub, 404, 409.
   http.post(
     "*/v1/admin/society-requests/:id/accept",
     ({ request, params }) =>
       deny(request, STAFF) ??
-      idempotent(request, () => {
+      idempotent(request, (body) => {
+        const admin = roleOf(request) === "admin";
+        const extra = unknownFields(body ?? {}, ["hub_id"]);
+        if (extra.length)
+          return problem(422, "request.invalid", "Check the fields", { errors: extra });
+        const named = body?.hub_id ?? null;
+        if (!admin && named && named !== OWN_HUB)
+          return problem(403, "auth.forbidden", "That hub is not one of yours");
+        if (named && !HUBS.some((h) => h.id === named))
+          return problem(422, "request.invalid", "No such hub", {
+            errors: [fieldError("hub_id", "No such hub")],
+          });
         const r = requests().find((x) => x.id === params.id);
         if (!r) return problem(404, "community.request_not_found", "No such request");
         if (r.status !== "received")
           return problem(409, "community.request_closed", "Already handled");
-        const s = newSociety({ name: r.name, area: r.area, hub: null });
+        const s = newSociety({
+          name: r.name,
+          area: r.area,
+          hub: named ?? (admin ? null : OWN_HUB),
+        });
         r.status = "accepted";
         r.society_id = s.id;
+        r.reviewed_at = new Date().toISOString();
         return HttpResponse.json({ request: r, society: s }, { status: 201 });
       }),
   ),
 
+  // POST /v1/admin/society-requests/{id}/duplicate (M9 §3.9; Idempotency-Key) → 200 SocietyRequestAdmin
+  // (duplicate, duplicate_of set). Order of refusals: 404, 409, then 422 for a missing or unknown society_id.
   http.post(
     "*/v1/admin/society-requests/:id/duplicate",
     ({ request, params }) =>
@@ -530,26 +569,34 @@ export const communityHandlers = [
         if (r.status !== "received")
           return problem(409, "community.request_closed", "Already handled");
         if (!societies().some((s) => s.id === body?.society_id))
-          return problem(422, "request.invalid", "Pick the society it repeats", {
-            errors: [{ field: "society_id", message: "Pick the society it repeats" }],
+          return problem(422, "request.invalid", "Name a listed society this request repeats", {
+            errors: [fieldError("society_id", "A listed society is required.")],
           });
         r.status = "duplicate";
         r.duplicate_of = body.society_id;
+        r.reviewed_at = new Date().toISOString();
         return HttpResponse.json(r);
       }),
   ),
 
-  // Undo of "Duplicate": a duplicate goes back to New. (An added request cannot be reopened.)
+  // PATCH /v1/admin/society-requests/{id} (M9 §3.9) { status: "received" }, nothing else: the undo of
+  // "Duplicate" → 200 SocietyRequestAdmin (received, duplicate_of null). 404, then 409 unless it is a duplicate.
   http.patch("*/v1/admin/society-requests/:id", async ({ request, params }) => {
     const refused = deny(request, STAFF);
     if (refused) return refused;
+    const body = /** @type {Record<string, any>} */ (
+      (await request.json().catch(() => null)) ?? {}
+    );
+    const bad = unknownFields(body, ["status"]);
+    if (body.status !== "received") bad.push(fieldError("status", "Only “received” is allowed"));
+    if (bad.length) return problem(422, "request.invalid", "Check the fields", { errors: bad });
     const r = requests().find((x) => x.id === params.id);
     if (!r) return problem(404, "community.request_not_found", "No such request");
-    const body = /** @type {any} */ (await request.json());
-    if (body.status !== "received" || r.status !== "duplicate")
+    if (r.status !== "duplicate")
       return problem(409, "community.request_closed", "Already handled");
     r.status = "received";
     r.duplicate_of = null;
+    r.reviewed_at = null;
     return HttpResponse.json(r);
   }),
 ];

@@ -285,3 +285,106 @@ test("PATCH /v1/admin/societies/{id} takes boundary and towers, answers the unlo
   const loose = SOCIETY_ID["sai-darshan-apartments"];
   assert.equal((await patch({ unlock_threshold: 10 }, "hub_manager", loose)).status, 404);
 });
+
+const REQUEST_KEYS = [
+  "area",
+  "created_at",
+  "duplicate_of",
+  "id",
+  "location",
+  "name",
+  "note",
+  "reviewed_at",
+  "society_id",
+  "status",
+];
+const requests = async (/** @type {string} */ query = "") =>
+  (await call("GET", `/v1/admin/society-requests${query}`)).body.items;
+const review = (
+  /** @type {string} */ id,
+  /** @type {string} */ action,
+  body = {},
+  role = "admin",
+) =>
+  call("POST", `/v1/admin/society-requests/${id}/${action}`, {
+    body,
+    role,
+    key: crypto.randomUUID(),
+  });
+
+test("GET /v1/admin/society-requests is Page[SocietyRequestAdmin]: newest first, uuid ids, a status filter, staff only", async () => {
+  const all = await call("GET", "/v1/admin/society-requests");
+  assert.deepEqual(keys(all.body), ["items", "next_cursor"]);
+  assert.deepEqual(keys(all.body.items[0]), REQUEST_KEYS);
+  const dates = all.body.items.map((/** @type {{ created_at: string }} */ r) => r.created_at);
+  assert.deepEqual(dates, [...dates].sort().reverse());
+  assert.equal(
+    all.body.items.every((/** @type {{ id: string }} */ r) => /^[0-9a-f-]{36}$/.test(r.id)),
+    true,
+  );
+  const fresh = await requests("?status=received");
+  assert.equal(
+    fresh.every((/** @type {{ status: string }} */ r) => r.status === "received"),
+    true,
+  );
+  assert.equal(
+    (await call("GET", "/v1/admin/society-requests", { role: "franchise_owner" })).status,
+    403,
+  );
+});
+
+test("accepting a request makes a prospect society and closes the request (201 { request, society })", async () => {
+  const [req] = await requests("?status=received");
+  assert.equal((await review(req.id, "accept", { status: "live" })).status, 422);
+  const foreign = await review(req.id, "accept", { hub_id: TALOJA_HUB_ID }, "hub_manager");
+  assert.equal(foreign.status, 403);
+  const done = await review(req.id, "accept");
+  assert.equal(done.status, 201);
+  assert.deepEqual(keys(done.body), ["request", "society"]);
+  assert.equal(done.body.request.status, "accepted");
+  assert.equal(done.body.request.society_id, done.body.society.id);
+  assert.ok(done.body.request.reviewed_at);
+  assert.deepEqual(keys(done.body.society), ADMIN_SOCIETY_KEYS);
+  assert.equal(done.body.society.status, "prospect");
+  assert.equal(done.body.society.hub, null); // an admin who names no hub
+  assert.equal(done.body.society.name, req.name);
+  assert.equal((await review(req.id, "accept")).body.code, "community.request_closed");
+  assert.equal((await review(req.id, "duplicate", {})).body.code, "community.request_closed");
+  const gone = await review("0199b710-0000-7000-8000-0000000000ff", "accept");
+  assert.equal(gone.body.code, "community.request_not_found");
+});
+
+test("a hub manager's accepted society goes on their hub", async () => {
+  const [req] = await requests("?status=received");
+  const done = await review(req.id, "accept", {}, "hub_manager");
+  assert.equal(done.body.society.hub.id, KHARGHAR_HUB_ID);
+});
+
+test("duplicate needs a listed society (422 on society_id) and PATCH { status: received } undoes it", async () => {
+  const [req] = await requests("?status=received");
+  const missing = await review(req.id, "duplicate", {});
+  assert.equal(missing.status, 422);
+  assert.deepEqual(fieldsOf(missing), ["society_id"]);
+  const unlisted = await review(req.id, "duplicate", {
+    society_id: "0199a000-0000-7000-8000-0000000000ff",
+  });
+  assert.equal(unlisted.status, 422);
+
+  const marked = await review(req.id, "duplicate", { society_id: SOCIETY_ID["krishna-kunj"] });
+  assert.equal(marked.status, 200);
+  assert.deepEqual(keys(marked.body), REQUEST_KEYS);
+  assert.equal(marked.body.status, "duplicate");
+  assert.equal(marked.body.duplicate_of, SOCIETY_ID["krishna-kunj"]);
+
+  const undo = (/** @type {unknown} */ body) =>
+    call("PATCH", `/v1/admin/society-requests/${req.id}`, { body });
+  assert.equal((await undo({ status: "accepted" })).status, 422);
+  assert.equal((await undo({ status: "received", name: "x" })).status, 422);
+  const back = await undo({ status: "received" });
+  assert.equal(back.status, 200);
+  assert.equal(back.body.status, "received");
+  assert.equal(back.body.duplicate_of, null);
+  assert.equal(back.body.reviewed_at, null);
+  // only a duplicate can be undone
+  assert.equal((await undo({ status: "received" })).body.code, "community.request_closed");
+});
