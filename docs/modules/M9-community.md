@@ -104,6 +104,8 @@ POST /v1/society-requests     (customer; Idempotency-Key required)
 | 429 | `community.request_rate_limited` | More than 5 society requests per user per day |
 | 400 / 422 | `request.idempotency_key_required`, `request.idempotency_mismatch`, `request.invalid` | As in M0 |
 
+**As built (`POST /v1/admin/societies`).** The body is `{ name (2 to 120), area?, hub_id?, unlock_threshold? (1 to 500; given, `threshold_source` is `hub`, else 20 and `default`), flats? (1 to 5000), towers? [{ id?, label }] }`, nothing else (`status`, `slug` and `boundary` are 422). The society is always a `prospect`; the boundary is drawn after, by the map editor. A tower without an `id` gets the next free `a`, `b`, `c`...; given ids must be unique. Hub managers (their own hub, `societies:write`) and admins; the hub follows the accept's rules (§3.9: a named hub must be the caller's, else 403; unknown 422; a hub manager of one hub gets it by default; an admin may leave it out). `201 AdminSociety` (§3.9), Idempotency-Key required, no `Location` header (no endpoint of the API sets one). It runs `service.create_society`, the path accepting a request uses; the slug is the name's, with `-2`, `-3`... when taken, so a name never fails for its slug (a lost race five times over is 409 `community.slug_taken`). Audit: `community.society_created`.
+
 **Facade for M1** (`gharbasket.modules.community.api`). These are the only things M1 calls:
 - `get_society(id)` returns `{id, hub_id, status, tower_ids}` or None.
 - `contains(society_id, lat, lng)` returns true when the society has no boundary yet.
@@ -742,7 +744,7 @@ PATCH /v1/admin/society-requests/{id}          { "status": "received" }: undo of
 - **Permissions:** `societies:read` and `society_requests:review` are new (§7).
 
 **As built (§3.9).**
-- **`service.create_society`** did not exist (`POST /v1/admin/societies` is still to build, §3), so it is written here: `create_society(session, *, name, area, hub_id)` makes the `prospect` society the accept needs and `POST /v1/admin/societies` can reuse it. It takes the request's `data_source`, so a simulator's request makes a synthetic society. The slug is the name in ASCII with `-` between words (`society` when a name has no ASCII letters); a taken slug gets `-2`, `-3`, and so on.
+- **`service.create_society`** did not exist (`POST /v1/admin/societies` had not been built, §3), so it is written here: `create_society(session, *, name, area, hub_id, ...)` makes the `prospect` society the accept needs, and `POST /v1/admin/societies` (§3.1) reuses it. It takes the request's `data_source`, so a simulator's request makes a synthetic society. The slug is the name in ASCII with `-` between words (`society` when a name has no ASCII letters); a taken slug gets `-2`, `-3`, and so on.
 - **Households.** The page reads `identity.api.households_in_societies` (M12 added it, one query for a list), so `households_per_society` is not added.
 - **`boundary`** is GeoJSON from `ST_AsGeoJSON`, in the shape of M6's `GeoPolygon` (`[lng, lat]`, one closed ring). `hub.name` is null if the hub cannot be read.
 - **Hub scope.** A hub manager's list covers the hubs of their grants (a `hub_id` outside them is 403). An admin's covers all, hub-less ones included; `with_unassigned` matters only with a `hub_id`, where it adds the hub-less ones. The list is paged by a cursor on (status rank, name, id); `q` matches name and area as the public search does.

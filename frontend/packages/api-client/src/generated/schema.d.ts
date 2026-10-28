@@ -565,7 +565,8 @@ export interface paths {
         /** Every society for the console: live, unlocking, prospect, paused, then by name (hub manager: their hubs; admin: all, with hub-less ones) */
         get: operations["list_admin_societies_v1_admin_societies_get"];
         put?: never;
-        post?: never;
+        /** Add a prospect society (hub manager for their hub, admin; Idempotency-Key required) */
+        post: operations["create_society_v1_admin_societies_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -15318,6 +15319,37 @@ export interface components {
              */
             society_id: string;
         };
+        /**
+         * SocietyCreateIn
+         * @description A new society by hand (§3.1, §3.9): always a `prospect`; the boundary is drawn after, by
+         *     the map editor.
+         */
+        SocietyCreateIn: {
+            /**
+             * Area
+             * @example New Panvel
+             */
+            area?: string | null;
+            /** Flats */
+            flats?: number | null;
+            /**
+             * Hub Id
+             * @description Default: the caller's hub for a hub manager, none for an admin
+             */
+            hub_id?: string | null;
+            /**
+             * Name
+             * @example Panvel Heights
+             */
+            name: string;
+            /** Towers */
+            towers?: components["schemas"]["TowerIn"][];
+            /**
+             * Unlock Threshold
+             * @description Default 20; given, its source is `hub`
+             */
+            unlock_threshold?: number | null;
+        };
         /** SocietyImpactOut */
         SocietyImpactOut: {
             /**
@@ -16928,6 +16960,20 @@ export interface components {
              * @example a
              */
             id: string;
+            /**
+             * Label
+             * @example A wing
+             */
+            label: string;
+        };
+        /** TowerIn */
+        TowerIn: {
+            /**
+             * Id
+             * @description Unique in the society; left out, the next free `a`, `b`, `c`... is used
+             * @example a
+             */
+            id?: string | null;
             /**
              * Label
              * @example A wing
@@ -21120,6 +21166,78 @@ export interface operations {
                 };
             };
             /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_society_v1_admin_societies_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocietyCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSociety"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside the caller's grants) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.slug_taken (a rare race on the slug; try again) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid (hub_id, towers, ...) */
             422: {
                 headers: {
                     [name: string]: unknown;

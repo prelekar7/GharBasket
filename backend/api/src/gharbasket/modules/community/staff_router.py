@@ -14,6 +14,7 @@ from gharbasket.modules.community import permissions as _permissions  # noqa: F4
 from gharbasket.modules.community import staff
 from gharbasket.modules.community.schemas import (
     AdminSociety,
+    SocietyCreateIn,
     SocietyRequestAccepted,
     SocietyRequestAcceptIn,
     SocietyRequestAdmin,
@@ -90,6 +91,28 @@ async def list_admin_societies(
     return Page(items=items, next_cursor=next_cursor)
 
 
+@router.post(
+    "/admin/societies",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a prospect society (hub manager for their hub, admin; Idempotency-Key required)",
+    responses={
+        400: _problem("request.idempotency_key_required"),
+        403: _problem("auth.forbidden (a hub outside the caller's grants)"),
+        409: _problem("community.slug_taken (a rare race on the slug; try again)"),
+        422: _problem("request.idempotency_mismatch, request.invalid (hub_id, towers, ...)"),
+    },
+)
+async def create_society(
+    body: SocietyCreateIn, permit: CanWrite, session: DbSession, idem: Idempotent
+) -> AdminSociety:
+    hub_id = await _society_hub(session, permit, body.hub_id)
+    society = await staff.create(session, body, hub_id, permit.principal.user_id)
+    out = await staff.society_out(session, society)
+    await idem.save(201, out)
+    await session.commit()
+    return out
+
+
 @router.get(
     REQUESTS,
     summary="The society request queue, newest first (hub manager, admin)",
@@ -112,11 +135,11 @@ async def list_society_requests(
     return Page(items=items, next_cursor=next_cursor)
 
 
-async def _accept_hub(
+async def _society_hub(
     session: DbSession, permit: Permit, requested: uuid.UUID | None
 ) -> uuid.UUID | None:
-    """The hub the new society gets: the one named (a hub manager's own), else the caller's hub
-    (a hub manager), else none (an admin)."""
+    """The hub the new society gets (by hand or by accepting a request): the one named (a hub
+    manager's own), else the caller's hub (a hub manager), else none (an admin)."""
     if requested is not None:
         permit.ensure(requested)
         if await hub_ops_api.get_hub(session, requested) is None:
@@ -159,7 +182,7 @@ async def accept_society_request(
     idem: Idempotent,
     body: SocietyRequestAcceptIn | None = None,
 ) -> SocietyRequestAccepted:
-    hub_id = await _accept_hub(session, writer, body.hub_id if body else None)
+    hub_id = await _society_hub(session, writer, body.hub_id if body else None)
     request, society = await staff.accept(session, request_id, hub_id, permit.principal.user_id)
     out = SocietyRequestAccepted(
         request=await staff.request_view(session, request.id),
