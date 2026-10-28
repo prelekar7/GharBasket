@@ -55,6 +55,16 @@ services:
         sync: false
       - key: ML_SERVICE_TOKEN
         sync: false
+      # Green slots (M10 §3.8, M3 §3.6): on in staging for the MS-D demo; the kill switch is this value.
+      - key: GREEN_SLOTS_ENABLED
+        value: "true"
+      # The pantry twin (M10 §3.3) stays off until the eval shows its target holds (MAE ≤ 15 %).
+      - key: PANTRY_TWIN_ENABLED
+        value: "false"
+      # Push (M11): the Firebase service account key file's JSON as one value, from Infisical.
+      # Unset: pushes are skipped and the in-app inbox still gets every message.
+      - key: FCM_SERVICE_ACCOUNT
+        sync: false
       # Private uploads (M0 §3.1) on Cloudflare R2: from Infisical `staging`. Without them,
       # POST /v1/files/presign answers 503 and sweep_uploads fails.
       - key: S3_ENDPOINT_URL
