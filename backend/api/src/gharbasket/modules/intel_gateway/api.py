@@ -9,7 +9,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 import httpx2
 import structlog
@@ -33,6 +33,12 @@ from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     RankResponse,
     RoutePlan,
     RouteRequest,
+    SlotCandidate,
+    SlotDay,
+    SlotPriceRequest,
+    SlotPrices,
+    SlotTrip,
+    SlotWindow,
     WeekPlan,
 )
 from gharbasket.modules.intel_gateway.service import (
@@ -46,6 +52,7 @@ from gharbasket.platform.settings import Settings
 log = structlog.get_logger("gharbasket.intel_gateway")
 
 ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a cold start
+STOP_COST_BATCH = 50  # /slots/price takes at most 50 candidates
 
 __all__ = [
     "AssignRequest",
@@ -66,6 +73,11 @@ __all__ = [
     "RankedOut",
     "RoutePlan",
     "RouteRequest",
+    "SlotCandidate",
+    "SlotDay",
+    "SlotPrices",
+    "SlotTrip",
+    "SlotWindow",
     "WeekPlan",
     "assign_kitchens",
     "delete_for_user",
@@ -76,12 +88,15 @@ __all__ = [
     "pantry_priors",
     "pantry_quantities",
     "plan_week",
+    "price_slots",
     "price_spikes",
     "rank_basket",
     "record_metrics",
     "reject_assignment_plan",
     "route_timeout_s",
     "rule_breaks",
+    "slot_timeout_s",
+    "society_stop_costs",
     "solve_routes",
 ]
 
@@ -433,6 +448,126 @@ async def solve_routes(
     return plan
 
 
+def slot_timeout_s(settings: Settings) -> float:
+    """A customer's quote waits `ml_slot_timeout_s`, never more than `ml_timeout_s`."""
+    return min(settings.ml_slot_timeout_s, settings.ml_timeout_s)
+
+
+def _slot_body(day: SlotDay, candidates: list[SlotCandidate]) -> dict[str, Any] | None:
+    """The /slots/price body, or None (logged) for a day the ML service would refuse: over 400
+    stops, no slot, more than 50 candidates."""
+    try:
+        request = SlotPriceRequest.model_validate(
+            day.model_dump(exclude={"hub_id", "day", "routes_source"})
+            | {"candidates": [c.model_dump() for c in candidates]}
+        )
+    except ValueError as exc:
+        log.warning("slot_request_invalid", hub_id=str(day.hub_id), error=str(exc)[:200])
+        return None
+    return request.model_dump(mode="json")
+
+
+def _slot_prices(body: dict[str, Any]) -> SlotPrices:
+    body = dict(body)  # the ML body's `source` says which distances it used
+    return SlotPrices.model_validate(body | {"source": "ml", "distance_source": body.get("source")})
+
+
+async def price_slots(
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    day: SlotDay,
+    candidates: list[SlotCandidate],
+    *,
+    session: AsyncSession | None = None,
+    subject_type: Literal["household", "society"] | None = None,
+    subject_id: uuid.UUID | None = None,
+) -> SlotPrices:
+    """The candidates' marginal route cost per slot of `day` (M10 §3.8) from the ML service
+    within `slot_timeout_s`, else the rule fallback (`source: fallback`); never None. With
+    `session` and a subject the answer is kept in `intel.predictions` (kind `slot_price`,
+    `for_date` the day); the caller commits."""
+    body = _slot_body(day, candidates)
+    prices = None
+    if body is not None:
+        prices = await _post(
+            http,
+            settings,
+            "/slots/price",
+            body,
+            timeout_s=slot_timeout_s(settings),
+            parse=_slot_prices,
+            call="price_slots",
+        )
+    prices = prices or fallback.price_slots(day, candidates)
+    if session is not None and subject_type is not None and subject_id is not None:
+        await service.record_prediction(
+            session,
+            kind="slot_price",
+            subject_type=subject_type,
+            subject_id=subject_id,
+            for_date=day.day,
+            source=prices.source,
+            payload=prices.model_dump(mode="json", exclude={"source", "model"}),
+            model_name=prices.model,
+        )
+    return prices
+
+
+async def society_stop_costs(
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    days: list[SlotDay],
+    candidates: list[SlotCandidate],
+    *,
+    session: AsyncSession | None = None,
+    for_date: date | None = None,
+) -> dict[uuid.UUID, int | None]:
+    """Per society, the least feasible marginal cost in paise over every day and slot (M9's stop
+    cost, M10 §3.8), from the ML service alone within `ml_timeout_s` a call: a rule estimate never
+    moves a threshold. None when no day was answered or no slot was feasible. Candidates go 50
+    to a call. With `session` and `for_date`, each society the service answered is kept as a
+    `slot_price` prediction (subject `society`, payload `{cost_paise, by_day}`)."""
+    by_day: dict[uuid.UUID, dict[str, int | None]] = {c.id: {} for c in candidates}
+    model = None
+    for day in days:
+        for first in range(0, len(candidates), STOP_COST_BATCH):
+            body = _slot_body(day, candidates[first : first + STOP_COST_BATCH])
+            if body is None:
+                continue
+            answer = await _post(
+                http,
+                settings,
+                "/slots/price",
+                body,
+                timeout_s=settings.ml_timeout_s,
+                parse=_slot_prices,
+                call="society_stop_costs",
+            )
+            if answer is None:
+                continue
+            model = answer.model
+            for priced in answer.candidates:
+                feasible = [s.marginal_cost_paise for s in priced.slots if s.feasible]
+                costs = [c for c in feasible if c is not None]
+                if priced.id in by_day:
+                    by_day[priced.id][day.day.isoformat()] = min(costs, default=None)
+    out: dict[uuid.UUID, int | None] = {}
+    for society_id, answered in by_day.items():
+        out[society_id] = min((c for c in answered.values() if c is not None), default=None)
+        if session is not None and for_date is not None and answered and model is not None:
+            await service.record_prediction(
+                session,
+                kind="slot_price",
+                subject_type="society",
+                subject_id=society_id,
+                for_date=for_date,
+                source="ml",
+                payload={"cost_paise": out[society_id], "by_day": answered},
+                model_name=model,
+            )
+    return out
+
+
 async def _call[T](
     http: httpx2.AsyncClient,
     settings: Settings,
@@ -445,8 +580,26 @@ async def _call[T](
 ) -> T:
     """POST `body` to the ML service at `path` within `ml_timeout_s` and `parse` the answer; on
     no service, a timeout, an HTTP error or a malformed body, `fallback_to()` answers instead."""
+    answer = await _post(
+        http, settings, path, body, timeout_s=settings.ml_timeout_s, parse=parse, call=call
+    )
+    return fallback_to() if answer is None else answer
+
+
+async def _post[T](
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    path: str,
+    body: dict[str, Any],
+    *,
+    timeout_s: float,
+    parse: Callable[[dict[str, Any]], T],
+    call: str,
+) -> T | None:
+    """POST `body` to the ML service at `path` within `timeout_s` and `parse` the answer; None on
+    no service, a timeout, an HTTP error or a malformed body (logged as `ml_fallback`)."""
     if not settings.ml_service_url:
-        return fallback_to()
+        return None
     headers = {}
     if settings.ml_service_token is not None:
         headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
@@ -458,13 +611,13 @@ async def _call[T](
             f"{settings.ml_service_url.rstrip('/')}{path}",
             json=body,
             headers=headers,
-            timeout=settings.ml_timeout_s,
+            timeout=timeout_s,
         )
         response.raise_for_status()
         return parse(response.json())
     except (httpx2.HTTPError, ValueError, TypeError) as exc:  # pydantic errors are ValueErrors
         log.warning("ml_fallback", call=call, reason=type(exc).__name__)
-        return fallback_to()
+        return None
 
 
 # The solver gets at most this share of the HTTP timeout; the rest covers the network, the

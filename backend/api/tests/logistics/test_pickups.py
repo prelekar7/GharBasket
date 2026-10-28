@@ -453,7 +453,7 @@ async def test_open_empties_are_handover_crates_less_collected_and_go_to_the_nex
 
         # The next solve carries them on Sunrise's stop.
         await locked_order(db_session, PRIYA, await slot(db_session, time(8)), date(2026, 10, 14))
-        stops, _, _ = await solver._stops(db_session, SEED_HUB_ID, date(2026, 10, 14))  # pyright: ignore[reportPrivateUsage]
+        stops, _, _ = await solver.order_stops(db_session, SEED_HUB_ID, date(2026, 10, 14))
         assert [s.empties for s in stops.values() if s.society_id == SEED_SOCIETY_ID] == [crates]
 
         # Taking one back leaves the rest open.

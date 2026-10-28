@@ -21,6 +21,12 @@ from gharbasket.modules.intel_gateway.schemas import (
     Reason,
     Rule,
     Slot,
+    SlotCandidate,
+    SlotCandidatePrices,
+    SlotDay,
+    SlotPrice,
+    SlotPrices,
+    SlotReason,
     WeekPlan,
 )
 
@@ -226,3 +232,72 @@ def pantry_quantities(req: PantryRequest) -> PantryQuantities:
             )
         )
     return PantryQuantities(source="fallback", model="pantry-rules-v0", items=items)
+
+
+# --- slot pricing (M10 §3.8): an upper bound from the nearest stop, no trips --------------------
+
+SLOT_MODEL = "slot-nearest-v0"
+DETOUR = 1.3  # road over straight line, as the ML service's haversine fallback
+SPEED_MPS = 6.0
+NEAR_M = 1000  # the request's default `near_m`
+
+
+def _metres(a: tuple[float, float], b: tuple[float, float]) -> int:
+    lat1, lng1, lat2, lng2 = map(math.radians, (*a, *b))
+    h = (
+        math.sin((lat2 - lat1) / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin((lng2 - lng1) / 2) ** 2
+    )
+    return round(2 * 6_371_000 * math.asin(math.sqrt(h)) * DETOUR)
+
+
+def price_slots(day: SlotDay, candidates: list[SlotCandidate]) -> SlotPrices:
+    """Per candidate and slot: its own society's stop in the slot costs only the crates' service;
+    otherwise the detour is twice the distance `d` to the nearest stop of that slot (the
+    triangle inequality's bound on an insertion next to it), or to the hub when the slot has no
+    stop (a new trip). Never infeasible: it checks no capacity."""
+    hub, start = (day.hub.lat, day.hub.lng), {s.id: s.window_start_s for s in day.slots}
+    out = []
+    for c in candidates:
+        here, own = (c.lat, c.lng), f"{c.id}/"
+        stops = [s for s in day.stops if c.own_stops == "join" or not s.id.startswith(own)]
+        priced = []
+        for slot in day.slots:
+            in_slot = [s for s in stops if s.id.endswith(f"/{slot.id}")]
+            near = min((_metres(here, (s.lat, s.lng)) for s in in_slot), default=None)
+            joins = c.own_stops == "join" and any(s.id == f"{own}{slot.id}" for s in in_slot)
+            reason: SlotReason
+            if joins:
+                reason, d, near = "SAME_SOCIETY", 0, 0
+            elif near is None:
+                reason, d = "NEW_TRIP", _metres(here, hub)
+            else:
+                reason, d = ("NEIGHBOUR_STOP" if near <= NEAR_M else "NEW_STOP"), near
+            seconds = round(2 * d / SPEED_MPS * day.vans.traffic_factor)
+            seconds += (0 if joins else day.service.drop_s) + day.service.per_crate_s * c.crates
+            cost = round(2 * d * day.cost.paise_per_km / 1000) + seconds * day.cost.wage_paise_per_s
+            priced.append(
+                SlotPrice(
+                    id=slot.id,
+                    rank=0,
+                    feasible=True,
+                    marginal_cost_paise=cost,
+                    marginal_m=2 * d,
+                    marginal_s=seconds,
+                    nearest_stop_m=near,
+                    reason=reason,
+                    position=None,
+                )
+            )
+        ranked = sorted(priced, key=lambda p: (p.marginal_cost_paise or 0, start[p.id], p.id))
+        for rank, p in enumerate(ranked, start=1):
+            p.rank = rank
+        out.append(SlotCandidatePrices(id=c.id, slots=priced))
+    return SlotPrices(
+        source="fallback",
+        distance_source="haversine",
+        base=None,
+        candidates=out,
+        seconds=0.0,
+        model=SLOT_MODEL,
+    )
