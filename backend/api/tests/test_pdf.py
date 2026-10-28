@@ -107,7 +107,8 @@ def test_metadata_is_set_and_nothing_active_is_embedded() -> None:
 
 def test_a_year_of_four_kinds_builds_well_under_the_budget() -> None:
     build(rows=12)  # the first build also loads and parses the fonts, once per process
-    started = time.perf_counter()
+    # CPU time of this process, not wall time: on a 2-core CI runner the other xdist workers
+    # share the CPUs, which made a wall-clock budget fail at random (1.1 s, then 3.2 s).
+    started = time.process_time()
     build(rows=12)
-    # The spec aims at 300 ms; a shared CI runner can be several times slower than a laptop.
-    assert time.perf_counter() - started < 2.0
+    assert time.process_time() - started < 2.0  # the spec aims at 300 ms on a laptop
