@@ -14,3 +14,4 @@
 !backend/api/src/**
 **/__pycache__
 **/*.pyc
+!backend/ml/src/**

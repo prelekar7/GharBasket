@@ -48,7 +48,7 @@ local.properties
 mlruns/
 data/sim_truth/
 *.parquet
-# The ML image's pinned dependencies, exported from uv.lock (`just ml-lock`, deploy-ml.yml)
+# The OSRM ML image's pinned dependencies, exported from uv.lock (`just ml-lock`)
 backend/ml/requirements.lock
 # OSRM road network (built by `just osrm-prepare`, about 1 GB)
 infra/osrm/data/
