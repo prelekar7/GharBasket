@@ -330,6 +330,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every plan, live or draft, with its subscriber count (admin) */
+        get: operations["admin_plans_v1_admin_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/point-rates/{code}": {
         parameters: {
             query?: never;
@@ -538,6 +555,23 @@ export interface paths {
         patch: operations["patch_slot_v1_admin_slots__slot_id__patch"];
         trace?: never;
     };
+    "/v1/admin/societies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every society for the console: live, unlocking, prospect, paused, then by name (hub manager: their hubs; admin: all, with hub-less ones) */
+        get: operations["list_admin_societies_v1_admin_societies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/societies/{society_id}": {
         parameters: {
             query?: never;
@@ -566,6 +600,74 @@ export interface paths {
         /** Set a society's delivery days (hub manager of its hub, or admin; audit-logged) */
         put: operations["put_delivery_days_v1_admin_societies__society_id__delivery_days_put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/society-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The society request queue, newest first (hub manager, admin) */
+        get: operations["list_society_requests_v1_admin_society_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/society-requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Undo "Duplicate": the request goes back to received */
+        patch: operations["undo_duplicate_request_v1_admin_society_requests__request_id__patch"];
+        trace?: never;
+    };
+    "/v1/admin/society-requests/{request_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept a request: it becomes a prospect society (Idempotency-Key required) */
+        post: operations["accept_society_request_v1_admin_society_requests__request_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/society-requests/{request_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a request a duplicate of a listed society (Idempotency-Key required) */
+        post: operations["duplicate_society_request_v1_admin_society_requests__request_id__duplicate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -687,6 +789,23 @@ export interface paths {
         };
         /** The hub's today board: live counts, the day's steps and what needs attention (hub manager, franchise owner, admin) */
         get: operations["hub_today_v1_analytics_hubs__hub_id__today_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A month's impact for the platform, a hub or an NGO, as JSON or CSV (NGO coordinator for their NGO, hub manager and franchise owner for their hub, admin) */
+        get: operations["impact_report_v1_analytics_impact_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1467,6 +1586,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/earnings/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your income certificate: a 5-minute link to a PDF of your earnings by month */
+        get: operations["my_certificate_v1_earnings_certificate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/festivals": {
         parameters: {
             query?: never;
@@ -1702,6 +1838,23 @@ export interface paths {
         };
         /** The hub's next delivery dates, with the cut-off of each (hub staff, admin) */
         get: operations["hub_delivery_dates_v1_hubs__hub_id__delivery_dates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/delivery-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every society of the hub with its delivery days, whatever its status (hub staff) */
+        get: operations["hub_delivery_days_v1_hubs__hub_id__delivery_days_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2199,6 +2352,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/tiffin-menus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's tiffin menus of every status for review: waiting ones first, oldest first, then by date and meal (default: today to 7 days on) */
+        get: operations["list_hub_menus_v1_hubs__hub_id__tiffin_menus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/vehicles": {
         parameters: {
             query?: never;
@@ -2262,6 +2432,23 @@ export interface paths {
         };
         /** Kg wasted per 100 kg sold, by IST day: at most 31 days, default the last 7 */
         get: operations["get_waste_summary_v1_hubs__hub_id__waste_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a household (`me`) or a society (`society`) has given; small numbers are null */
+        get: operations["get_impact_v1_impact_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3212,6 +3399,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/partners/{partner_id}/earnings/certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A partner's income certificate, issued by hub staff (audit-logged) */
+        get: operations["partner_certificate_v1_partners__partner_id__earnings_certificate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/partners/{partner_id}/pause": {
         parameters: {
             query?: never;
@@ -3459,6 +3663,23 @@ export interface paths {
         };
         /** Ranked substitutes, with the price difference and why */
         get: operations["substitutes_v1_products__product_id__substitutes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/societies/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A society's landing page: unlock progress and aggregates only (no sign-in) */
+        get: operations["public_society_v1_public_societies__slug__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4094,6 +4315,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/tiffin-menus/{menu_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a submitted menu so customers can book it (an approved menu: 200, unchanged) */
+        post: operations["approve_menu_v1_tiffin_menus__menu_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tiffin-menus/{menu_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take an approved or sent-back menu back to review (the console's undo) */
+        post: operations["reopen_menu_v1_tiffin_menus__menu_id__reopen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tiffin-menus/{menu_id}/send-back": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a submitted menu back to its kitchen with a reason */
+        post: operations["send_back_menu_v1_tiffin_menus__menu_id__send_back_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trainings": {
         parameters: {
             query?: never;
@@ -4473,6 +4745,39 @@ export interface components {
              */
             week: string;
         };
+        /** AdminPlanOut */
+        AdminPlanOut: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "autopilot" | "tiffin" | "salad";
+            /** Features */
+            features: string[];
+            /** Fee Paise */
+            fee_paise: number;
+            /** Name */
+            name: string;
+            /**
+             * State
+             * @description live: the plan's active flag; GET /v1/plans lists live plans only
+             * @enum {string}
+             */
+            state: "live" | "draft";
+            /**
+             * Subscriber Count
+             * @description Subscriptions on the plan that are not ended; 0, never null
+             */
+            subscriber_count: number;
+        };
+        /** AdminPlansOut */
+        AdminPlansOut: {
+            /**
+             * Items
+             * @description Every plan, by code
+             */
+            items: components["schemas"]["AdminPlanOut"][];
+        };
         /** AdminProduct */
         AdminProduct: {
             /** Active */
@@ -4586,6 +4891,61 @@ export interface components {
             updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
             /** Version */
             version: number;
+        };
+        /**
+         * AdminSociety
+         * @description A society as hub staff and admins see it: never a captain or a requester.
+         */
+        AdminSociety: {
+            /** Area */
+            area: string | null;
+            boundary: components["schemas"]["gharbasket__modules__community__schemas__GeoPolygon"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Flats */
+            flats: number | null;
+            /**
+             * Households
+             * @description Households whose address is in it (the unlock count)
+             */
+            households: number;
+            /** @description null: no hub yet (admins only) */
+            hub: components["schemas"]["HubRef"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Live At */
+            live_at: string | null;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prospect" | "unlocking" | "live" | "paused";
+            /**
+             * Threshold Source
+             * @enum {string}
+             */
+            threshold_source: "model" | "hub" | "default";
+            /** Towers */
+            towers: components["schemas"]["Tower"][];
+            /** Unlock Threshold */
+            unlock_threshold: number;
+            /** Unlock Threshold Pinned */
+            unlock_threshold_pinned: boolean;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** AdminUser */
         AdminUser: {
@@ -5670,6 +6030,43 @@ export interface components {
              */
             slug: string;
         };
+        /** CertificateLinkOut */
+        CertificateLinkOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             * @description When the link stops working
+             */
+            expires_at: string;
+            /**
+             * Filename
+             * @example gharbasket-income-certificate-2026-05-to-2026-10.pdf
+             */
+            filename: string;
+            /**
+             * From
+             * @description First month, IST
+             * @example 2026-05
+             */
+            from: string;
+            /**
+             * Reference
+             * @description Printed on the PDF; support finds the issue by it in the audit log
+             * @example GBIC-7K3M-QX9P-2TAB-H4WE
+             */
+            reference: string;
+            /**
+             * To
+             * @description Last month, IST; the current one is to date
+             * @example 2026-10
+             */
+            to: string;
+            /**
+             * Url
+             * @description A 5-minute signed GET of the PDF
+             */
+            url: string;
+        };
         /** ChangeOut */
         ChangeOut: {
             /**
@@ -6251,6 +6648,24 @@ export interface components {
              * @enum {string}
              */
             status: "missing" | "submitted" | "accepted" | "rejected";
+        };
+        /** DonatedLineOut */
+        DonatedLineOut: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Qty
+             * @description Accepted (counted) total
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
         };
         /** DonationLine */
         DonationLine: {
@@ -7270,7 +7685,7 @@ export interface components {
          * @description GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
          *     holes, not self-intersecting.
          */
-        GeoPolygon: {
+        "GeoPolygon-Input": {
             /**
              * Coordinates
              * @example [
@@ -7863,6 +8278,19 @@ export interface components {
              */
             to: string;
         };
+        /** HubDeliveryDaysOut */
+        HubDeliveryDaysOut: {
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Items
+             * @description Every society of the hub: live, unlocking, prospect, paused, then by name
+             */
+            items: components["schemas"]["HubSocietyDaysOut"][];
+        };
         /** HubDriftOut */
         HubDriftOut: {
             /**
@@ -7897,6 +8325,29 @@ export interface components {
              */
             wape: number | null;
         };
+        /** HubImpactOut */
+        HubImpactOut: {
+            /**
+             * Food Saved Kg
+             * @description Surplus the society's hub handed to NGOs
+             */
+            food_saved_kg: number;
+            /**
+             * Meals Served
+             * @description Donated meals NGOs served from the hub
+             */
+            meals_served: number;
+            /**
+             * Partners
+             * @enum {string}
+             */
+            partners: "5+" | "under_5";
+            /**
+             * Partners Earned Paise
+             * @description The hub's partners this month (the asked one; this month for `all`); null under 5 paid partners
+             */
+            partners_earned_paise: number | null;
+        };
         /** HubIn */
         HubIn: {
             /** Address */
@@ -7927,7 +8378,7 @@ export interface components {
              * @default 10
              */
             procurement_buffer_pct: number;
-            service_area?: components["schemas"]["GeoPolygon"] | null;
+            service_area?: components["schemas"]["GeoPolygon-Input"] | null;
             /**
              * Slug
              * @description Never changes
@@ -7981,7 +8432,7 @@ export interface components {
              */
             procurement_buffer_pct: number;
             /** @description null until an admin draws it */
-            service_area: components["schemas"]["GeoPolygon"] | null;
+            service_area: components["schemas"]["gharbasket__modules__hub_ops__schemas__GeoPolygon"] | null;
             /**
              * Slug
              * @example kharghar
@@ -8019,7 +8470,7 @@ export interface components {
             pre_live_box_fee_paise?: number | null;
             /** Procurement Buffer Pct */
             procurement_buffer_pct?: number | null;
-            service_area?: components["schemas"]["GeoPolygon"] | null;
+            service_area?: components["schemas"]["GeoPolygon-Input"] | null;
             /** Status */
             status?: ("active" | "paused") | null;
             timings?: components["schemas"]["TimingsPatch"] | null;
@@ -8068,6 +8519,41 @@ export interface components {
              */
             items: components["schemas"]["HubPickupStop"][];
             totals: components["schemas"]["PickupTotals"];
+        };
+        /** HubRef */
+        HubRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string | null;
+        };
+        /** HubSocietyDaysOut */
+        HubSocietyDaysOut: {
+            /** Area */
+            area: string | null;
+            /**
+             * Items
+             * @description Empty for a society with no delivery days
+             */
+            items: components["schemas"]["DeliveryDayOut"][];
+            /** Name */
+            name: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prospect" | "unlocking" | "live" | "paused";
         };
         /** HubStaff */
         HubStaff: {
@@ -8164,6 +8650,159 @@ export interface components {
              * Format: date
              */
             inspected_on: string;
+        };
+        /** ImpactNgoOut */
+        ImpactNgoOut: {
+            /** Handoffs */
+            handoffs: number;
+            /** Items */
+            items: number;
+            /** Kg */
+            kg: number;
+            /** Meals */
+            meals: number;
+            /** Name */
+            name: string;
+            /**
+             * Ngo Id
+             * Format: uuid
+             */
+            ngo_id: string;
+            /** People Reached */
+            people_reached: number | null;
+        };
+        /** ImpactOut */
+        ImpactOut: {
+            /** As Of */
+            as_of: string | null;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /** Hub Id */
+            hub_id: string | null;
+            /**
+             * Month
+             * @example 2027-02
+             */
+            month: string;
+            /** Ngo Id */
+            ngo_id: string | null;
+            /** Ngos */
+            ngos: components["schemas"]["ImpactNgoOut"][];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "platform" | "hub" | "ngo";
+            /**
+             * Societies
+             * @description Scope hub only; no earnings. Null for platform and ngo
+             */
+            societies: components["schemas"]["ImpactSocietyOut"][] | null;
+            /** Stale */
+            stale: boolean;
+            totals: components["schemas"]["ImpactTotalsOut"];
+            trend: components["schemas"]["ImpactTrendOut"];
+        };
+        /** ImpactSocietyOut */
+        ImpactSocietyOut: {
+            /** Households Joined */
+            households_joined: number;
+            /** Items Donated */
+            items_donated: number;
+            /** Kg Donated */
+            kg_donated: number;
+            /**
+             * Meals Donated
+             * @description Null: a donated meal belongs to a hub, not a society, in the facts
+             */
+            meals_donated: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+        };
+        /**
+         * ImpactTotalsOut
+         * @description The month's numbers. A field that does not apply to the scope, or that the facts cannot
+         *     give, is null: an NGO coordinator's report carries only what the NGO received.
+         */
+        ImpactTotalsOut: {
+            /** Donations Verified */
+            donations_verified: number | null;
+            /**
+             * Food Saved Kg
+             * @description Surplus food handed to NGOs (kind food)
+             */
+            food_saved_kg: number;
+            /**
+             * Households Donating
+             * @description Null under 5
+             */
+            households_donating: number | null;
+            /**
+             * Items Donated
+             * @description Items of verified donations; for an NGO, items it received
+             */
+            items_donated: number;
+            /**
+             * Kg Donated
+             * @description Kilograms of those items
+             */
+            kg_donated: number;
+            /**
+             * Meals Donated
+             * @description Meals pledged with Kindness points
+             */
+            meals_donated: number | null;
+            /**
+             * Meals Served
+             * @description Donated meals NGOs served
+             */
+            meals_served: number;
+            /**
+             * Partners Earned Paise
+             * @description Null under 5 paid partners; never for scope ngo
+             */
+            partners_earned_paise: number | null;
+            /**
+             * Partners Paid
+             * @description Null under 5 paid partners; never for ngo
+             */
+            partners_paid: number | null;
+            /**
+             * People Reached
+             * @description As NGOs report it; null if none reported
+             */
+            people_reached: number | null;
+            /** Referrals Converted */
+            referrals_converted: number | null;
+            /** Societies Live */
+            societies_live: number | null;
+            /**
+             * Waste G Per 100Kg
+             * @description Hub and platform only; bin grams per 100 kg
+             */
+            waste_g_per_100kg: number | null;
+        };
+        /** ImpactTrendOut */
+        ImpactTrendOut: {
+            /** Food Saved Kg */
+            food_saved_kg: number[];
+            /** Items Donated */
+            items_donated: number[];
+            /** Meals Served */
+            meals_served: number[];
+            /**
+             * Months
+             * @description The 6 months up to `month`, oldest first (YYYY-MM)
+             */
+            months: string[];
         };
         /** InboxOut */
         InboxOut: {
@@ -8990,7 +9629,7 @@ export interface components {
             periods: string[];
             /**
              * Series
-             * @description One value per period for every KPI key; null when undefined
+             * @description One value per period for every KPI key; null when undefined. `partner_earnings_paise` is null under 5 paid partners (never an individual's pay)
              */
             series: {
                 [key: string]: (number | null)[];
@@ -9709,6 +10348,29 @@ export interface components {
             /** Sex */
             sex?: ("f" | "m" | "other") | null;
         };
+        /** MenuDish */
+        MenuDish: {
+            /** Name */
+            name: string;
+            /**
+             * Recipe Id
+             * Format: uuid
+             */
+            recipe_id: string;
+        };
+        /** MenuKitchen */
+        MenuKitchen: {
+            /**
+             * Display Name
+             * @description The kitchen's name; null if the partner is gone
+             */
+            display_name: string | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+        };
         /** MenuKitchenOut */
         MenuKitchenOut: {
             /**
@@ -9726,6 +10388,44 @@ export interface components {
              * @description Null for now (M8 §3.5)
              */
             photo_url: string | null;
+        };
+        /** MenuProduct */
+        MenuProduct: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Tags */
+            tags: string[];
+        };
+        /** MenuReviewer */
+        MenuReviewer: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * MenuRules
+         * @description True only when every dish's recipe has the rule (§3.2); false for a menu without dishes.
+         */
+        MenuRules: {
+            /** Diabetic Ok */
+            diabetic_ok: boolean;
+            /** Fasting Ok */
+            fasting_ok: boolean;
+            /** Jain Ok */
+            jain_ok: boolean;
+            /** No Onion Garlic */
+            no_onion_garlic: boolean;
         };
         /** MessageIn */
         MessageIn: {
@@ -9842,6 +10542,50 @@ export interface components {
         ModelMetricsOut: {
             /** Accepted */
             accepted: number;
+        };
+        /** MyImpactOut */
+        MyImpactOut: {
+            /**
+             * Donated
+             * @description Accepted totals per code
+             */
+            donated: components["schemas"]["DonatedLineOut"][];
+            /** Donations Verified */
+            donations_verified: number;
+            /**
+             * Homes Invited
+             * @description Converted referrals
+             */
+            homes_invited: number;
+            /**
+             * Items Donated
+             * @description Accepted pieces, plus kilograms counted as one item per kg
+             */
+            items_donated: number;
+            /** Kg Donated */
+            kg_donated: number;
+            /**
+             * Meals Donated
+             * @description Meals given with points
+             */
+            meals_donated: number;
+            /**
+             * Period
+             * @default all
+             * @constant
+             */
+            period: "all";
+            /**
+             * Points Earned
+             * @description All Kindness points ever credited (donations, referrals)
+             */
+            points_earned: number;
+            /**
+             * Scope
+             * @default me
+             * @constant
+             */
+            scope: "me";
         };
         /** Names */
         Names: {
@@ -10687,6 +11431,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[AdminSociety] */
+        Page_AdminSociety_: {
+            /** Items */
+            items: components["schemas"]["AdminSociety"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[AdminUser] */
         Page_AdminUser_: {
             /** Items */
@@ -10792,6 +11543,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[SocietyRequestAdmin] */
+        Page_SocietyRequestAdmin_: {
+            /** Items */
+            items: components["schemas"]["SocietyRequestAdmin"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[SocietySummary] */
         Page_SocietySummary_: {
             /** Items */
@@ -10803,6 +11561,13 @@ export interface components {
         Page_StaffDonationOut_: {
             /** Items */
             items: components["schemas"]["StaffDonationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[TiffinMenuReview] */
+        Page_TiffinMenuReview_: {
+            /** Items */
+            items: components["schemas"]["TiffinMenuReview"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -12437,6 +13202,56 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /** PublicImpactOut */
+        PublicImpactOut: {
+            /** Items Donated */
+            items_donated: number;
+            /** Meals Donated */
+            meals_donated: number;
+        };
+        /** PublicSocietyOut */
+        PublicSocietyOut: {
+            /** Area */
+            area: string | null;
+            /**
+             * Delivery Days
+             * @description Live societies only
+             */
+            delivery_days: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
+            /**
+             * Homes Joined
+             * @description Null under 5 households
+             */
+            homes_joined: number | null;
+            /** @description Null until 5 households contributed */
+            impact: components["schemas"]["PublicImpactOut"] | null;
+            /** Join Url */
+            join_url: string;
+            /**
+             * Live Since
+             * @description IST date
+             */
+            live_since: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Progress Bp
+             * @description min(joined / target, 1) in basis points
+             */
+            progress_bp: number;
+            /**
+             * Slug
+             * @example sunrise-towers-kharghar
+             */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unlocking" | "live";
+            /** Unlock Target */
+            unlock_target: number;
+        };
         /** PublishIn */
         PublishIn: {
             /**
@@ -14055,6 +14870,11 @@ export interface components {
             /** Items */
             items: components["schemas"]["SearchItem"][];
         };
+        /** SendBackIn */
+        SendBackIn: {
+            /** Note */
+            note: string;
+        };
         /** SessionOut */
         SessionOut: {
             /**
@@ -14488,6 +15308,54 @@ export interface components {
              */
             society_id: string;
         };
+        /** SocietyImpactOut */
+        SocietyImpactOut: {
+            /**
+             * As Of
+             * Format: date-time
+             * @description The time of the read: the numbers are computed live
+             */
+            as_of: string;
+            /**
+             * Contributors
+             * @enum {string}
+             */
+            contributors: "5+" | "under_5";
+            /**
+             * Homes Joined
+             * @description Null under 5 households
+             */
+            homes_joined: number | null;
+            /** @description Null for a society without a hub */
+            hub: components["schemas"]["HubImpactOut"] | null;
+            /**
+             * Items Donated
+             * @description Null until 5 households contributed
+             */
+            items_donated: number | null;
+            /** Kg Donated */
+            kg_donated: number | null;
+            /** Meals Donated */
+            meals_donated: number | null;
+            /**
+             * Period
+             * @description Always `all`: all time only
+             * @default all
+             * @constant
+             */
+            period: "all";
+            /**
+             * Scope
+             * @default society
+             * @constant
+             */
+            scope: "society";
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+        };
         /** SocietyLoad */
         SocietyLoad: {
             /** Bags */
@@ -14547,6 +15415,67 @@ export interface components {
             /** Towers */
             towers: components["schemas"]["Tower"][];
         };
+        /** SocietyRequestAcceptIn */
+        SocietyRequestAcceptIn: {
+            /**
+             * Hub Id
+             * @description Default: the caller's hub for a hub manager, none for an admin
+             */
+            hub_id?: string | null;
+        };
+        /** SocietyRequestAccepted */
+        SocietyRequestAccepted: {
+            request: components["schemas"]["SocietyRequestAdmin"];
+            society: components["schemas"]["AdminSociety"];
+        };
+        /**
+         * SocietyRequestAdmin
+         * @description A society request in the review queue: never the requester's id, name or phone.
+         */
+        SocietyRequestAdmin: {
+            /** Area */
+            area: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Duplicate Of
+             * @description The society it repeats (duplicate)
+             */
+            duplicate_of: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            location: components["schemas"]["LatLngOut"] | null;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /**
+             * Society Id
+             * @description The society it became (accepted)
+             */
+            society_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "received" | "accepted" | "duplicate" | "rejected";
+        };
+        /** SocietyRequestDuplicateIn */
+        SocietyRequestDuplicateIn: {
+            /**
+             * Society Id
+             * @description Any listed society; missing or unknown is 422
+             */
+            society_id?: string | null;
+        };
         /**
          * SocietyRequestIn
          * @description Ask GharBasket to come to a society that isn't listed (US-8).
@@ -14584,6 +15513,17 @@ export interface components {
              * @enum {string}
              */
             status: "received" | "accepted" | "rejected" | "duplicate";
+        };
+        /**
+         * SocietyRequestUndoIn
+         * @description The undo of "Duplicate": `{ "status": "received" }` and nothing else.
+         */
+        SocietyRequestUndoIn: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "received";
         };
         /** SocietyRowOut */
         SocietyRowOut: {
@@ -15652,6 +16592,71 @@ export interface components {
              * @example 11000
              */
             price_paise: number;
+        };
+        /** TiffinMenuReview */
+        TiffinMenuReview: {
+            /**
+             * Contains
+             * @description The dishes' non-optional ingredients, in the language
+             */
+            contains: string[];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** @description The reviewer (staff) */
+            decided_by: components["schemas"]["MenuReviewer"] | null;
+            /** Dishes */
+            dishes: components["schemas"]["MenuDish"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kitchen: components["schemas"]["MenuKitchen"];
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /**
+             * Note
+             * @description The send-back reason
+             */
+            note: string | null;
+            /**
+             * Order By
+             * Format: date-time
+             * @description The date's cut-off: 21:00 IST the day before
+             */
+            order_by: string;
+            /**
+             * Price Paise
+             * @description Per portion, the menu's own price
+             */
+            price_paise: number;
+            product: components["schemas"]["MenuProduct"];
+            rules: components["schemas"]["MenuRules"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "submitted" | "approved" | "sent_back" | "withdrawn";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Version */
+            version: number;
         };
         /** TiffinMenusOut */
         TiffinMenusOut: {
@@ -16952,6 +17957,19 @@ export interface components {
              */
             user_id: string;
         };
+        /**
+         * GeoPolygon
+         * @description GeoJSON, WGS 84, `[lng, lat]` (M6 §3.1's shape).
+         */
+        gharbasket__modules__community__schemas__GeoPolygon: {
+            /** Coordinates */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
+        };
         /** CompleteIn */
         gharbasket__modules__hub_ops__schemas__CompleteIn: {
             /** Bags */
@@ -16963,6 +17981,46 @@ export interface components {
             client_at?: string | null;
             /** Crate No */
             crate_no?: number | null;
+        };
+        /**
+         * GeoPolygon
+         * @description GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
+         *     holes, not self-intersecting.
+         */
+        gharbasket__modules__hub_ops__schemas__GeoPolygon: {
+            /**
+             * Coordinates
+             * @example [
+             *       [
+             *         [
+             *           73.02,
+             *           19
+             *         ],
+             *         [
+             *           73.13,
+             *           19
+             *         ],
+             *         [
+             *           73.13,
+             *           19.05
+             *         ],
+             *         [
+             *           73.02,
+             *           19.05
+             *         ],
+             *         [
+             *           73.02,
+             *           19
+             *         ]
+             *       ]
+             *     ]
+             */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
         };
         /** StartIn */
         gharbasket__modules__hub_ops__schemas__StartIn: {
@@ -18828,6 +19886,56 @@ export interface operations {
             };
         };
     };
+    admin_plans_v1_admin_plans_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPlansOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     put_point_rate_v1_admin_point_rates__code__put: {
         parameters: {
             query?: never;
@@ -19951,6 +21059,67 @@ export interface operations {
             };
         };
     };
+    list_admin_societies_v1_admin_societies_get: {
+        parameters: {
+            query?: {
+                /** @description Words of the name or area, as the public list */
+                q?: string | null;
+                /** @description One hub */
+                hub_id?: string | null;
+                status?: ("prospect" | "unlocking" | "live" | "paused") | null;
+                /** @description Add societies with no hub (admins only; ignored for hub staff) */
+                with_unassigned?: boolean;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdminSociety_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub_id outside the caller's grants) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     update_society_unlock_v1_admin_societies__society_id__patch: {
         parameters: {
             query?: never;
@@ -20079,6 +21248,309 @@ export interface operations {
                 };
             };
             /** @description subscriptions.delivery_days_invalid, subscriptions.society_unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_society_requests_v1_admin_society_requests_get: {
+        parameters: {
+            query?: {
+                status?: ("received" | "accepted" | "duplicate" | "rejected") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SocietyRequestAdmin_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    undo_duplicate_request_v1_admin_society_requests__request_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocietyRequestUndoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyRequestAdmin"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_closed (not a duplicate) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (any body other than {"status": "received"}) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    accept_society_request_v1_admin_society_requests__request_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SocietyRequestAcceptIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyRequestAccepted"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside the caller's grants) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (hub_id) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    duplicate_society_request_v1_admin_society_requests__request_id__duplicate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocietyRequestDuplicateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyRequestAdmin"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.request_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (errors[].field: society_id) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -20659,6 +22131,96 @@ export interface operations {
                 };
             };
             /** @description analytics.range_invalid (a date before today - 7 or after today + 1) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    impact_report_v1_analytics_impact_get: {
+        parameters: {
+            query: {
+                /** @description platform (admin) | hub | ngo */
+                scope: "platform" | "hub" | "ngo";
+                /** @description Scope hub: the hub */
+                hub_id?: string | null;
+                /** @description Scope ngo: the NGO */
+                ngo_id?: string | null;
+                /** @description An IST month, this one by default, within the last 24 */
+                month?: string | null;
+                /** @description csv: an attachment */
+                format?: "json" | "csv";
+                /** @description `synthetic` is for admins (demos) */
+                data_source?: "real" | "synthetic";
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report as JSON, or with `format=csv` one row per (month, hub, ngo) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImpactOut"];
+                    "text/csv": string;
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a scope, hub, NGO or data source outside your grants; the hub or NGO left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.ngo_not_found (an admin's unknown NGO) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (hub_id or ngo_id left out by an admin) · analytics.range_invalid (a future month) · analytics.range_too_long (older than 24 months) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -24131,6 +25693,85 @@ export interface operations {
             };
         };
     };
+    my_certificate_v1_earnings_certificate_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CertificateLinkOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_period_invalid (with max_months), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_rate_limited (see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_festivals_v1_festivals_get: {
         parameters: {
             query?: {
@@ -25084,6 +26725,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HubDeliveryDatesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_delivery_days_v1_hubs__hub_id__delivery_days_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubDeliveryDaysOut"];
                 };
             };
             /** @description auth.invalid_token */
@@ -27477,6 +29169,67 @@ export interface operations {
             };
         };
     };
+    list_hub_menus_v1_hubs__hub_id__tiffin_menus_get: {
+        parameters: {
+            query?: {
+                status?: ("submitted" | "approved" | "sent_back" | "withdrawn") | null;
+                /** @description Default: today (IST) */
+                from?: string | null;
+                /** @description Default: today + 7 days */
+                to?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TiffinMenuReview_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_vehicles_v1_hubs__hub_id__vehicles_get: {
         parameters: {
             query?: {
@@ -27962,6 +29715,71 @@ export interface operations {
                 };
             };
             /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_impact_v1_impact_get: {
+        parameters: {
+            query: {
+                /** @description Whose numbers */
+                scope: "me" | "society";
+                /** @description For `society` */
+                society_id?: string | null;
+                /** @description `society` only: `all`. A society's numbers are all time only; anything else is 422 `request.invalid` */
+                period?: string;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyImpactOut"] | components["schemas"]["SocietyImpactOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: `me` needs the customer role; `society` is for its residents, its captain, its hub's staff and admins */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid: `society_id` missing, or a `period` other than `all` */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -31920,6 +33738,87 @@ export interface operations {
             };
         };
     };
+    partner_certificate_v1_partners__partner_id__earnings_certificate_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CertificateLinkOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_period_invalid (with max_months), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.certificate_rate_limited (see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     pause_partner_v1_partners__partner_id__pause_post: {
         parameters: {
             query?: never;
@@ -32872,6 +34771,55 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_society_v1_public_societies__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSocietyOut"];
+                };
+            };
+            /** @description community.society_not_found (unknown, prospect or paused) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per IP; see Retry-After) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -35588,6 +37536,229 @@ export interface operations {
                 };
             };
             /** @description orders.hub_required, orders.date_out_of_range, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    approve_menu_v1_tiffin_menus__menu_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                menu_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinMenuReview"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_submitted, catalog.menu_closed (past order_by) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_invalid (reasons: product_inactive, recipe_inactive, price_invalid) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reopen_menu_v1_tiffin_menus__menu_id__reopen_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                menu_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinMenuReview"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_decided, catalog.menu_closed (past order_by) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    send_back_menu_v1_tiffin_menus__menu_id__send_back_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                menu_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendBackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinMenuReview"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.menu_not_submitted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid (no note) */
             422: {
                 headers: {
                     [name: string]: unknown;

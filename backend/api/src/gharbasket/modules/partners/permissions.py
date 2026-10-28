@@ -28,3 +28,6 @@ PERMISSIONS.allow("admin", "partner_rates:write")
 PERMISSIONS.allow("customer", "ratings:write")
 for role in ("kitchen_partner", "captain", "rider", "packer"):
     PERMISSIONS.allow(role, "earnings:read")
+# Hub staff issue a partner's income certificate for her (§3.7); every issue is audit-logged.
+for role in ("hub_manager", "admin"):
+    PERMISSIONS.allow(role, "earnings:certify")

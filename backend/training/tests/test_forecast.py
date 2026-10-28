@@ -133,6 +133,23 @@ def test_origins_are_capped_and_a_baseline_can_be_champion() -> None:
     )
 
 
+def test_waste_and_stock_out_at_q_tau_are_the_pinball_loss_split_in_two() -> None:
+    """Per point, pinball_tau = tau (y - q)+ + (1 - tau) (q - y)+; summed over the evaluated
+    points (the same for every model) and divided by the demand, they are the newsvendor's
+    stock-out and waste. So pinball / (tau stock-out + (1 - tau) waste) is the mean demand per
+    point, the same for every model."""
+    series = forecast.weekly_series(lines(weeks=16), forecast.last_complete_week(TODAY))
+    tau = forecast.Costs().tau
+    test = forecast.backtest(series, "hub-1", tau)
+    assert set(test.waste) == set(test.stockout) == set(test.pinball_qtau) and test.waste
+    ratios = []
+    for m in test.waste:
+        assert test.waste[m] >= 0 and test.stockout[m] >= 0
+        split = tau * test.stockout[m] + (1 - tau) * test.waste[m]
+        ratios.append(test.pinball_qtau[m] / split)
+    assert max(ratios) == pytest.approx(min(ratios), rel=0.02)
+
+
 def test_forecast_lines_are_per_delivery_day_with_the_newsvendor_quantity() -> None:
     frame = lines()
     series = forecast.weekly_series(frame, forecast.last_complete_week(TODAY))

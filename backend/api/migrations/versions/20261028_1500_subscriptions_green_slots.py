@@ -6,7 +6,7 @@ cycle has a saving (0, no quote), and every hub gets the proposed defaults (50 %
 saving, at most 1,500 paise).
 
 Revision ID: 9c2f7a41d6e3
-Revises: 3e9a4c71b5d8
+Revises: c4d81e6b2f95
 Create Date: 2026-10-28 15:00:00.000000+00:00
 """
 
@@ -17,7 +17,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "9c2f7a41d6e3"
-down_revision: str | Sequence[str] | None = "3e9a4c71b5d8"
+down_revision: str | Sequence[str] | None = "c4d81e6b2f95"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

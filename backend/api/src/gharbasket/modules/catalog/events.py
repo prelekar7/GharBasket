@@ -5,3 +5,6 @@ PRICES_PUBLISHED = "catalog.prices_published"
 PRODUCT_CHANGED = "catalog.product_changed"
 # { recipe_id, changed: [fields], active }; M10's planner catalog cache drops the recipe.
 RECIPE_CHANGED = "catalog.recipe_changed"
+# { menu_id, partner_id, hub_id, date, meal, status } on approve, send-back and reopen (§3.4);
+# M11 can tell the kitchen later (no template in v1).
+TIFFIN_MENU_DECIDED = "catalog.tiffin_menu_decided"

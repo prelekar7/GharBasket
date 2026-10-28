@@ -40,7 +40,9 @@ def _bounds(date_from: date, date_to: date) -> tuple[datetime, datetime]:
     return datetime.combine(date_from, time.min, IST), datetime.combine(date_to, time.max, IST)
 
 
-def _counted(donation: Donation) -> tuple[int, int]:
+def counted(donation: Donation) -> tuple[int, int]:
+    """A verified donation's items (pieces, and kilograms as one item per kg, half up) and its
+    counted kilograms in tenths."""
     pieces = sum(Decimal(str(line.get("counted") or 0)) for line in donation.items)
     kg = sum(
         Decimal(str(line.get("counted") or 0)) for line in donation.items if line["unit"] == "kg"
@@ -69,7 +71,7 @@ async def impact_facts(
         societies = societies.where(Society.hub_id.in_(hub_ids))
     facts: list[ImpactFact] = []
     for donation in (await session.execute(donations.order_by(Donation.id))).scalars():
-        items, kg_tenths = _counted(donation)
+        items, kg_tenths = counted(donation)
         assert donation.verified_at is not None  # verified or handed over
         facts.append(
             ImpactFact(

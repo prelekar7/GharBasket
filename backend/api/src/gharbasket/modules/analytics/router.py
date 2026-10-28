@@ -1,6 +1,6 @@
 """HTTP endpoints of M12 Console & Analytics: the AI health table, the hub's today board, KPIs,
-the societies table, cohorts, partner earnings, unit economics, the P&L and the hub's assumptions
-(impact follows)."""
+the societies table, cohorts, partner earnings, unit economics, the P&L and the hub's assumptions,
+and the impact report with the public society page (impact_router.py)."""
 
 import uuid
 from datetime import date
@@ -28,6 +28,7 @@ from gharbasket.modules.analytics.economics_schemas import (
     PnlOut,
     UnitEconomicsOut,
 )
+from gharbasket.modules.analytics.impact_router import router as impact_router
 from gharbasket.modules.analytics.schemas import (
     AiHealthOut,
     CohortsOut,
@@ -50,6 +51,7 @@ from gharbasket.platform.permissions import Permit, require
 from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["analytics"])
+router.include_router(impact_router)
 
 CanRead = Annotated[Permit, require("analytics:read")]
 CanSeeCohorts = Annotated[Permit, require("analytics:cohorts")]

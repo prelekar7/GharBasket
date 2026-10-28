@@ -43,6 +43,7 @@ __all__ = [
     "daily_use_history",
     "delete_for_user",
     "delivery_dates",
+    "delivery_days",
     "edit_cycle_lines",
     "export_for_user",
     "mark_locked",
@@ -255,6 +256,12 @@ async def mark_locked(session: AsyncSession, cycle_id: uuid.UUID, order_id: uuid
     cycle = await session.get(WeeklyCycle, cycle_id)
     if cycle is not None:
         await service.mark_locked(session, cycle, order_id)
+
+
+async def delivery_days(session: AsyncSession, society_id: uuid.UUID) -> list[int]:
+    """The weekdays the society is served (0 Monday ... 6 Sunday), in order; [] without delivery
+    days (M12's public society page, M12 §3.7)."""
+    return sorted({day.weekday for day in await service.delivery_days(session, society_id)})
 
 
 async def delivery_dates(

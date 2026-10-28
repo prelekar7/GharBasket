@@ -15,7 +15,7 @@ from sqlalchemy import BigInteger, Date, Integer, String, Uuid, column, func, se
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.analytics import freshness
-from gharbasket.modules.analytics.kpis import MIN_PARTNERS, gini_bp
+from gharbasket.modules.analytics.kpis import MIN_PAID_PARTNERS, gini_bp
 from gharbasket.modules.analytics.models import FactPartnerWeek
 from gharbasket.modules.analytics.reads import monday, read_limit
 from gharbasket.modules.analytics.schemas import (
@@ -54,7 +54,7 @@ def percentile_paise(ascending: list[int], p: Fraction) -> int:
 def private(row: PartnerEarningsWeekOut) -> PartnerEarningsWeekOut:
     """Under 5 paid partners only the count leaves M12, for every caller: with one partner the
     total is that person's earnings, and with a few it is close to it."""
-    if row.partners >= MIN_PARTNERS:
+    if row.partners >= MIN_PAID_PARTNERS:
         return row
     return row.model_copy(
         update={
@@ -70,7 +70,7 @@ def private(row: PartnerEarningsWeekOut) -> PartnerEarningsWeekOut:
 def week_row(week: date, paid: list[int]) -> PartnerEarningsWeekOut:
     """One week's distribution over what each paid partner earned."""
     ranked = sorted(paid)
-    enough = len(ranked) >= MIN_PARTNERS
+    enough = len(ranked) >= MIN_PAID_PARTNERS
     return private(
         PartnerEarningsWeekOut(
             week=week,

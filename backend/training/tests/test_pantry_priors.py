@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx2
+import numpy as np
 import pytest
 from gharbasket_training import pantry_priors
 from gharbasket_training.jobs import promote
@@ -60,6 +61,32 @@ def quick(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(pantry_priors, "SAMPLES", 150)
 
 
+def test_the_learned_priors_beat_the_rule_table_out_of_sample(quick: None) -> None:
+    """Where priors matter: new households, two weeks before the scored one. With five weeks
+    of history (`synthetic()`) the household's own weeks outweigh any prior and even the true
+    one ties the rule table on 12 scored weeks; here the learned priors win on every data seed
+    tried (1 to 10, by 0.04 to 0.08 of MAE, macOS and amd64 alike)."""
+    metrics = pantry_priors.evaluate(synthetic(weeks=3, households=24))
+
+    assert metrics["learned_priors"]["households_weeks"] == 72
+    assert metrics["learned_priors"]["mae_pct"] < metrics["rule_table"]["mae_pct"] - 0.02
+    assert pantry_priors.beats_rule_table(metrics)[0]
+
+
+def test_a_stuck_chain_keeps_the_rule_table(quick: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A chain whose step size collapsed returns its starting point for every draw; that is
+    never published as a prior."""
+    frozen = {"mu": np.ones((5, 3)), "w": np.full((5, 3), 2.0)}
+    assert pantry_priors._stuck(frozen, np.zeros(5)) == "sampler stuck (mean acceptance 0.00)"
+    assert pantry_priors._stuck(frozen, np.full(5, 0.9)) == "sampler stuck (mu never moved)"
+    moving = {"mu": np.arange(15.0).reshape(5, 3), "w": np.arange(15.0).reshape(5, 3)}
+    assert pantry_priors._stuck(moving, np.full(5, 0.9)) is None
+
+    monkeypatch.setattr(pantry_priors, "_stuck", lambda draws, accept: "sampler stuck (test)")
+    fitted = pantry_priors.fit(synthetic(), "test")
+    assert fitted.priors == [] and fitted.skipped == {"milk": "sampler stuck (test)"}
+
+
 def test_cohorts_and_fractional_tap_corrected_counts() -> None:
     assert [pantry_priors.cohort_of(x) for x in (1.0, 1.99, 2.0, 3.49, 3.5, 6)] == [
         "small",
@@ -74,9 +101,7 @@ def test_cohorts_and_fractional_tap_corrected_counts() -> None:
     assert ran_out.use == pytest.approx(1430) and ran_out.cohort == "small"
 
 
-def test_numpyro_recovers_the_per_equivalent_use_and_beats_the_rule_out_of_sample(
-    quick: None,
-) -> None:
+def test_numpyro_recovers_the_per_equivalent_use(quick: None) -> None:
     observed = synthetic()
 
     fitted = pantry_priors.fit(observed, "test")
@@ -97,8 +122,6 @@ def test_numpyro_recovers_the_per_equivalent_use_and_beats_the_rule_out_of_sampl
 
     assert metrics["learned_priors"]["households_weeks"] == 12
     assert metrics["rule_table"]["households_weeks"] == 12
-    assert metrics["learned_priors"]["mae_pct"] < metrics["rule_table"]["mae_pct"]
-    assert pantry_priors.beats_rule_table(metrics)[0]
 
     document = pantry_priors.as_document(fitted, metrics, "synthetic")
     assert document["model"] == "pantry_priors" and len(document["items"]) == 3
