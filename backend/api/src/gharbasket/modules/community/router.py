@@ -161,12 +161,15 @@ async def _unlock_view(session: DbSession, society: Society) -> UnlockOut:
 
 @router.patch(
     "/admin/societies/{society_id}",
-    summary="Pin or set a society's unlock threshold, or set its status (hub manager, admin)",
+    summary=(
+        "Pin or set a society's unlock threshold, set its status, set or clear its boundary, "
+        "replace its towers (hub manager, admin)"
+    ),
     responses={
         401: _problem("auth.invalid_token"),
         403: _problem("auth.forbidden, auth.role_not_granted"),
         404: _problem("community.society_not_found"),
-        422: _problem("request.invalid"),
+        422: _problem("request.invalid, community.boundary_invalid"),
     },
 )
 async def update_society_unlock(
@@ -178,9 +181,12 @@ async def update_society_unlock(
     society = await session.get(Society, society_id, with_for_update=True)
     if society is None or not covers(permit, society.hub_id):
         raise ProblemError(404, "community.society_not_found", "No such society.")
-    await unlock.update(
-        session, society, body.model_dump(exclude_none=True), permit.principal.user_id
-    )
+    changes = body.model_dump(exclude_none=True, exclude={"boundary", "towers"})
+    if "boundary" in body.model_fields_set:  # null is a change here: it clears the boundary
+        changes["boundary"] = body.boundary
+    if body.towers is not None:
+        changes["towers"] = [{"id": t.id, "label": t.label} for t in body.towers]
+    await unlock.update(session, society, changes, permit.principal.user_id)
     view = SocietyUnlockAdminOut(
         **(await _unlock_view(session, society)).model_dump(),
         unlock_threshold_pinned=society.unlock_threshold_pinned,

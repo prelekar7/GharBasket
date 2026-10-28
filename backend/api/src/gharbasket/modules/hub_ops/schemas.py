@@ -12,7 +12,7 @@ from typing import Annotated, ClassVar, Literal, Self
 import phonenumbers
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from gharbasket.platform.geo import LatLng
+from gharbasket.platform.geo import GeoPolygon, LatLng
 
 HubStatus = Literal["active", "paused"]
 VendorKind = Literal["apmc_trader", "fpo", "farmer", "wholesaler"]
@@ -24,16 +24,6 @@ def _tidy(value: object) -> object:
     if not isinstance(value, str):
         return value
     return " ".join(value.split()) or None
-
-
-class GeoPolygon(BaseModel):
-    """GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
-    holes, not self-intersecting."""
-
-    type: Literal["Polygon"]
-    coordinates: list[list[list[float]]] = Field(
-        examples=[[[[73.02, 19.0], [73.13, 19.0], [73.13, 19.05], [73.02, 19.05], [73.02, 19.0]]]]
-    )
 
 
 class _Patch(BaseModel):

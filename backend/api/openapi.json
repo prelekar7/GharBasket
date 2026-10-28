@@ -789,7 +789,7 @@
           "boundary": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/gharbasket__modules__community__schemas__GeoPolygon"
+                "$ref": "#/components/schemas/GeoPolygon"
               },
               {
                 "type": "null"
@@ -7083,7 +7083,7 @@
         "title": "GeneratedPurchaseOrders",
         "type": "object"
       },
-      "GeoPolygon-Input": {
+      "GeoPolygon": {
         "description": "GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no\nholes, not self-intersecting.",
         "properties": {
           "coordinates": {
@@ -8659,7 +8659,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GeoPolygon-Input"
+                "$ref": "#/components/schemas/GeoPolygon"
               },
               {
                 "type": "null"
@@ -8756,7 +8756,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/gharbasket__modules__hub_ops__schemas__GeoPolygon"
+                "$ref": "#/components/schemas/GeoPolygon"
               },
               {
                 "type": "null"
@@ -8907,7 +8907,7 @@
           "service_area": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/GeoPolygon-Input"
+                "$ref": "#/components/schemas/GeoPolygon"
               },
               {
                 "type": "null"
@@ -25812,8 +25812,19 @@
       },
       "SocietyUnlockIn": {
         "additionalProperties": false,
-        "description": "The hub's unlock settings (§3.6); every field optional.",
+        "description": "The hub's PATCH (§3.6, §3.9): unlock settings, boundary and towers; every field optional.\n`boundary: null` clears the boundary; `towers` replaces the whole list.",
         "properties": {
+          "boundary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeoPolygon"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The drawn boundary; null clears it. Checked like a hub's service area"
+          },
           "status": {
             "anyOf": [
               {
@@ -25830,6 +25841,22 @@
             ],
             "description": "A hub decision, audit-logged",
             "title": "Status"
+          },
+          "towers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TowerIn"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Replaces the whole list; ids left out get the next free letter",
+            "title": "Towers"
           },
           "unlock_threshold": {
             "anyOf": [
@@ -31038,35 +31065,6 @@
         "title": "CaptainOut",
         "type": "object"
       },
-      "gharbasket__modules__community__schemas__GeoPolygon": {
-        "description": "GeoJSON, WGS 84, `[lng, lat]` (M6 §3.1's shape).",
-        "properties": {
-          "coordinates": {
-            "items": {
-              "items": {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "title": "Coordinates",
-            "type": "array"
-          },
-          "type": {
-            "const": "Polygon",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "coordinates"
-        ],
-        "title": "GeoPolygon",
-        "type": "object"
-      },
       "gharbasket__modules__hub_ops__schemas__CompleteIn": {
         "additionalProperties": false,
         "properties": {
@@ -31111,61 +31109,6 @@
           }
         },
         "title": "CompleteIn",
-        "type": "object"
-      },
-      "gharbasket__modules__hub_ops__schemas__GeoPolygon": {
-        "description": "GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no\nholes, not self-intersecting.",
-        "properties": {
-          "coordinates": {
-            "examples": [
-              [
-                [
-                  [
-                    73.02,
-                    19.0
-                  ],
-                  [
-                    73.13,
-                    19.0
-                  ],
-                  [
-                    73.13,
-                    19.05
-                  ],
-                  [
-                    73.02,
-                    19.05
-                  ],
-                  [
-                    73.02,
-                    19.0
-                  ]
-                ]
-              ]
-            ],
-            "items": {
-              "items": {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "title": "Coordinates",
-            "type": "array"
-          },
-          "type": {
-            "const": "Polygon",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "coordinates"
-        ],
-        "title": "GeoPolygon",
         "type": "object"
       },
       "gharbasket__modules__hub_ops__schemas__StartIn": {
@@ -37731,7 +37674,7 @@
                 }
               }
             },
-            "description": "request.invalid"
+            "description": "request.invalid, community.boundary_invalid"
           }
         },
         "security": [
@@ -37739,7 +37682,7 @@
             "AccessToken": []
           }
         ],
-        "summary": "Pin or set a society's unlock threshold, or set its status (hub manager, admin)",
+        "summary": "Pin or set a society's unlock threshold, set its status, set or clear its boundary, replace its towers (hub manager, admin)",
         "tags": [
           "community"
         ]

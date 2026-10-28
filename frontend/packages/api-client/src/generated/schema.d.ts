@@ -586,7 +586,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Pin or set a society's unlock threshold, or set its status (hub manager, admin) */
+        /** Pin or set a society's unlock threshold, set its status, set or clear its boundary, replace its towers (hub manager, admin) */
         patch: operations["update_society_unlock_v1_admin_societies__society_id__patch"];
         trace?: never;
     };
@@ -4900,7 +4900,7 @@ export interface components {
         AdminSociety: {
             /** Area */
             area: string | null;
-            boundary: components["schemas"]["gharbasket__modules__community__schemas__GeoPolygon"] | null;
+            boundary: components["schemas"]["GeoPolygon"] | null;
             /**
              * Created At
              * Format: date-time
@@ -7686,7 +7686,7 @@ export interface components {
          * @description GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
          *     holes, not self-intersecting.
          */
-        "GeoPolygon-Input": {
+        GeoPolygon: {
             /**
              * Coordinates
              * @example [
@@ -8379,7 +8379,7 @@ export interface components {
              * @default 10
              */
             procurement_buffer_pct: number;
-            service_area?: components["schemas"]["GeoPolygon-Input"] | null;
+            service_area?: components["schemas"]["GeoPolygon"] | null;
             /**
              * Slug
              * @description Never changes
@@ -8433,7 +8433,7 @@ export interface components {
              */
             procurement_buffer_pct: number;
             /** @description null until an admin draws it */
-            service_area: components["schemas"]["gharbasket__modules__hub_ops__schemas__GeoPolygon"] | null;
+            service_area: components["schemas"]["GeoPolygon"] | null;
             /**
              * Slug
              * @example kharghar
@@ -8471,7 +8471,7 @@ export interface components {
             pre_live_box_fee_paise?: number | null;
             /** Procurement Buffer Pct */
             procurement_buffer_pct?: number | null;
-            service_area?: components["schemas"]["GeoPolygon-Input"] | null;
+            service_area?: components["schemas"]["GeoPolygon"] | null;
             /** Status */
             status?: ("active" | "paused") | null;
             timings?: components["schemas"]["TimingsPatch"] | null;
@@ -15689,14 +15689,22 @@ export interface components {
         };
         /**
          * SocietyUnlockIn
-         * @description The hub's unlock settings (§3.6); every field optional.
+         * @description The hub's PATCH (§3.6, §3.9): unlock settings, boundary and towers; every field optional.
+         *     `boundary: null` clears the boundary; `towers` replaces the whole list.
          */
         SocietyUnlockIn: {
+            /** @description The drawn boundary; null clears it. Checked like a hub's service area */
+            boundary?: components["schemas"]["GeoPolygon"] | null;
             /**
              * Status
              * @description A hub decision, audit-logged
              */
             status?: ("unlocking" | "paused" | "live") | null;
+            /**
+             * Towers
+             * @description Replaces the whole list; ids left out get the next free letter
+             */
+            towers?: components["schemas"]["TowerIn"][] | null;
             /**
              * Unlock Threshold
              * @example 25
@@ -18013,19 +18021,6 @@ export interface components {
              */
             user_id: string;
         };
-        /**
-         * GeoPolygon
-         * @description GeoJSON, WGS 84, `[lng, lat]` (M6 §3.1's shape).
-         */
-        gharbasket__modules__community__schemas__GeoPolygon: {
-            /** Coordinates */
-            coordinates: number[][][];
-            /**
-             * Type
-             * @constant
-             */
-            type: "Polygon";
-        };
         /** CompleteIn */
         gharbasket__modules__hub_ops__schemas__CompleteIn: {
             /** Bags */
@@ -18037,46 +18032,6 @@ export interface components {
             client_at?: string | null;
             /** Crate No */
             crate_no?: number | null;
-        };
-        /**
-         * GeoPolygon
-         * @description GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
-         *     holes, not self-intersecting.
-         */
-        gharbasket__modules__hub_ops__schemas__GeoPolygon: {
-            /**
-             * Coordinates
-             * @example [
-             *       [
-             *         [
-             *           73.02,
-             *           19
-             *         ],
-             *         [
-             *           73.13,
-             *           19
-             *         ],
-             *         [
-             *           73.13,
-             *           19.05
-             *         ],
-             *         [
-             *           73.02,
-             *           19.05
-             *         ],
-             *         [
-             *           73.02,
-             *           19
-             *         ]
-             *       ]
-             *     ]
-             */
-            coordinates: number[][][];
-            /**
-             * Type
-             * @constant
-             */
-            type: "Polygon";
         };
         /** StartIn */
         gharbasket__modules__hub_ops__schemas__StartIn: {
@@ -21310,7 +21265,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description request.invalid */
+            /** @description request.invalid, community.boundary_invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
