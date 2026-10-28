@@ -1346,6 +1346,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/cycles/{cycle_id}/slot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Move this week's box to a quoted slot on the same date, at the quote's saving (If-Match) */
+        put: operations["move_slot_v1_cycles__cycle_id__slot_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}/slot-quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Green-slot quote: every box slot that date with its saving, valid 15 minutes
+         * @description 201 with a new quote (one ML call); 200 with the cycle's quote that has not expired. Moves no money, so no Idempotency-Key (M3 §3.6, M10 §3.8).
+         */
+        post: operations["quote_slots_v1_cycles__cycle_id__slot_quotes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/cycles/{cycle_id}/unskip": {
         parameters: {
             query?: never;
@@ -6275,8 +6312,20 @@ export interface components {
              * Format: date
              */
             delivery_date: string;
+            /**
+             * Discount Paise
+             * @description green_slot.saving_paise (at most the lines), else 0
+             */
+            discount_paise: number;
+            /**
+             * Fees Paise
+             * @description The box's delivery fee: the pre-live fee (M9 §3.6), or 0
+             */
+            fees_paise: number;
             /** Generated At */
             generated_at: string | null;
+            /** @description A slot move at a quoted saving (§3.6) */
+            green_slot: components["schemas"]["GreenSlotOut"] | null;
             /** Highlights */
             highlights: components["schemas"]["HighlightOut"][];
             /**
@@ -6294,6 +6343,11 @@ export interface components {
             meal_plan: components["schemas"]["MealPlanOut"];
             /** Order Id */
             order_id: string | null;
+            /**
+             * Payable Paise
+             * @description total_paise + fees_paise - discount_paise; total_paise stays the lines' sum, which the Budget Lock checks
+             */
+            payable_paise: number;
             /** @description Only while the week is payment_failed */
             payment_due: components["schemas"]["PaymentDueOut"] | null;
             slot: components["schemas"]["SlotRefOut"];
@@ -7704,6 +7758,25 @@ export interface components {
             /** Items */
             items: components["schemas"]["GoodsReceiptOut"][];
         };
+        /** GreenSlotOut */
+        GreenSlotOut: {
+            /**
+             * Quote Id
+             * Format: uuid
+             */
+            quote_id: string;
+            /**
+             * Reason Code
+             * @enum {string}
+             */
+            reason_code: "same_society" | "neighbour_stop" | "new_stop" | "new_trip" | "unpriced";
+            /**
+             * Saving Paise
+             * @description Honoured until the cut-off
+             * @example 1500
+             */
+            saving_paise: number;
+        };
         /** HandoffIn */
         HandoffIn: {
             /** Donation Ids */
@@ -8279,6 +8352,16 @@ export interface components {
         HubIn: {
             /** Address */
             address: string;
+            /**
+             * Green Saving Max Paise
+             * @default 1500
+             */
+            green_saving_max_paise: number;
+            /**
+             * Green Saving Share Pct
+             * @default 50
+             */
+            green_saving_share_pct: number;
             location: components["schemas"]["LatLng"];
             /**
              * Name
@@ -8314,6 +8397,18 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Green Saving Max Paise
+             * @description The most a green-slot move saves on a box (M10 §3.8)
+             * @example 1500
+             */
+            green_saving_max_paise: number;
+            /**
+             * Green Saving Share Pct
+             * @description Share of a green-slot move's route saving passed on (M10 §3.8)
+             * @example 50
+             */
+            green_saving_share_pct: number;
             /**
              * Id
              * Format: uuid
@@ -8364,6 +8459,10 @@ export interface components {
         HubPatch: {
             /** Address */
             address?: string | null;
+            /** Green Saving Max Paise */
+            green_saving_max_paise?: number | null;
+            /** Green Saving Share Pct */
+            green_saving_share_pct?: number | null;
             location?: components["schemas"]["LatLng"] | null;
             /** Name */
             name?: string | null;
@@ -15037,12 +15136,106 @@ export interface components {
              */
             start: string;
         };
+        /** SlotMoveIn */
+        SlotMoveIn: {
+            /**
+             * Quote Id
+             * Format: uuid
+             */
+            quote_id: string;
+            /**
+             * Slot Id
+             * Format: uuid
+             */
+            slot_id: string;
+        };
+        /** SlotOptionOut */
+        SlotOptionOut: {
+            /**
+             * Available
+             * @description Room left in the slot that date (M4)
+             * @example 83
+             */
+            available: number;
+            /**
+             * Current
+             * @description The cycle's slot now
+             */
+            current: boolean;
+            /**
+             * Green
+             * @description Its society or a neighbour is already on a route then
+             */
+            green: boolean;
+            /**
+             * Rank
+             * @description 1 = cheapest for the route; null when unpriced
+             */
+            rank: number | null;
+            /**
+             * Reason Code
+             * @enum {string}
+             */
+            reason_code: "same_society" | "neighbour_stop" | "new_stop" | "new_trip" | "unpriced";
+            /**
+             * Reason Params
+             * @description Rounded to 100 m; never a society's name
+             * @example {
+             *       "metres": 400
+             *     }
+             */
+            reason_params: {
+                [key: string]: number;
+            } | null;
+            /**
+             * Saving Paise
+             * @description Off this box if it moves here
+             * @example 1500
+             */
+            saving_paise: number;
+            slot: components["schemas"]["SlotRefOut"];
+        };
         /** SlotPatch */
         SlotPatch: {
             /** Active */
             active?: boolean | null;
             /** Capacity */
             capacity?: number | null;
+        };
+        /** SlotQuoteOut */
+        SlotQuoteOut: {
+            /**
+             * Cycle Id
+             * Format: uuid
+             */
+            cycle_id: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Expires At
+             * Format: date-time
+             * @description 15 minutes after it was made
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Items
+             * @description Every active box slot that date, by start
+             */
+            items: components["schemas"]["SlotOptionOut"][];
+            /**
+             * Source
+             * @description unpriced: no tentative routes, every item unpriced with no saving
+             * @enum {string}
+             */
+            source: "ml" | "fallback" | "unpriced";
         };
         /** SlotRef */
         SlotRef: {
@@ -24382,6 +24575,186 @@ export interface operations {
                 };
             };
             /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.cutoff_passed, subscriptions.not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    move_slot_v1_cycles__cycle_id__slot_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotMoveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle, subscriptions.green_slots_off */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.cutoff_passed, subscriptions.not_editable, subscriptions.quote_expired, orders.slot_full */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.quote_invalid: not this week's quote, or not its slot */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    quote_slots_v1_cycles__cycle_id__slot_quotes_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The quote that has not expired yet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotQuoteOut"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotQuoteOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle, subscriptions.green_slots_off */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -113,6 +113,7 @@ __all__ = [
     "create_from_cycle",
     "cutoff_for",
     "export_for_user",
+    "fees_of",
     "first_delivery_date",
     "get",
     "get_order_ref",
@@ -244,6 +245,12 @@ class OrderRef:
     kind: str
     status: str
     delivered_at: datetime | None  # when it reached `delivered`
+
+
+async def fees_of(session: AsyncSession, order_id: uuid.UUID) -> int | None:
+    """An order's delivery fee as frozen at approval (M3 shows it on the cycle); None if unknown."""
+    order = await session.get(Order, order_id)
+    return None if order is None else order.fees_paise
 
 
 async def get_order_ref(session: AsyncSession, order_id: uuid.UUID) -> OrderRef | None:
