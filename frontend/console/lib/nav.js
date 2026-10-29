@@ -28,6 +28,9 @@ const ADMIN_AND_HUB = ["admin", "hub_manager"];
  */
 const PRICE_READERS = [...ADMIN_AND_HUB, "catalog_editor"];
 
+/** @type {ConsoleRole[]} */
+const RECIPE_READERS = ["admin", "hub_manager", "catalog_editor"];
+
 /** @type {NavGroup[]} */
 export const NAV = [
   {
@@ -37,6 +40,8 @@ export const NAV = [
     items: [
       { href: "/catalog", label: "Catalog", ready: true, key: "c" },
       { href: "/catalog/[id]", label: "Product", hidden: true, ready: true },
+      { href: "/recipes", label: "Recipes", ready: true, roles: RECIPE_READERS },
+      { href: "/recipes/[id]", label: "Recipe", hidden: true, ready: true, roles: RECIPE_READERS },
       { href: "/prices", label: "Prices", ready: true, key: "p", roles: PRICE_READERS },
       {
         href: "/prices/publish",
