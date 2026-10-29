@@ -586,6 +586,13 @@ POST /v1/stops/{id}/collect       the route's rider; Idempotency-Key
 - **`persist_gps_pings`** gains `"30 12,14 * * *"`. During the lunch run the pings wait in the Valkey stream and are moved at the 12:30 and 14:30 wakes, which already exist; no minute-level window is added (the 8-hour Neon budget). Live tracking reads Valkey, so it is not affected.
 - **`close_routes`** (T 16:00) also takes tiffin routes and tiffins, as above.
 
+**As built, part 1** (the plan: migration `2a9bfe1bd02f`, the M8 facade additions, `tiffin_plans.py` and `solve_tiffin_routes`):
+- **One more M8 facade function.** The stop view needs the kitchen's public `area`, which `PickupRef` does not carry, and a kitchen stop is shown long after the 09:35 snapshot. So `partners.api.kitchen_places(session, partner_ids) -> {partner_id: KitchenPlace { partner_id, display_name, area, address, lat, lng }}` was added; M7 decides who sees the address and the point (Privacy above).
+- **`unserved` of a tiffin plan holds order ids**, not stop ids, so `plan_incomplete` names them in `order_ids`. A tiffin whose society has no location (or whose slot is unknown) is left out like a kitchen without a location: named in `problems` ("tiffin T-07: the society has no location") and unserved.
+- **A trip's start** is the later of the vehicle being free and the first kitchen's `ready_by` minus the travel from the hub; the hub's `timings.dispatch` does not apply to tiffins. Problems name a trip as for boxes ("TW-1 trip 1: 34 portions on board", "… back after 14:30").
+- **`PATCH /v1/routes/{id}`** also refuses (422 `logistics.vehicle_too_small`) a two-wheeler whose `capacity_tiffins` is below the portions the route's kitchen stops collect.
+- **`route_for_order` is not built yet.** The facade above lists it, but no module calls it and `logistics.api` has never had it; when M12 needs it, a tiffin's stop is its drop through `logistics.stop_orders`, as written.
+
 **Deferred**
 - Dinner tiffins (question 6).
 - Empties and donations on tiffin routes.

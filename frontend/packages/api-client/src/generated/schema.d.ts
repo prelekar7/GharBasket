@@ -14542,7 +14542,7 @@ export interface components {
             /** @description Null until a rider is set */
             rider: components["schemas"]["RiderRef"] | null;
             /** Source */
-            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest" | "nearest") | null;
             /** Started At */
             started_at: string | null;
             /**
@@ -14643,9 +14643,9 @@ export interface components {
             seconds: number | null;
             /**
              * Source
-             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer; nearest: a tiffin plan, kitchens then societies by nearest neighbour in M7 (§3.7)
              */
-            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest" | "nearest") | null;
             /**
              * Status
              * @enum {string}
@@ -14710,9 +14710,9 @@ export interface components {
             seconds: number | null;
             /**
              * Source
-             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer; nearest: a tiffin plan, kitchens then societies by nearest neighbour in M7 (§3.7)
              */
-            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest" | "nearest") | null;
             /**
              * Status
              * @enum {string}
@@ -15727,11 +15727,11 @@ export interface components {
             date: string;
             /**
              * Kind
-             * @description tiffin plans come with M8 (§3.7)
+             * @description tiffin: the lunch tiffins of M8's assignments (§3.7)
              * @default box
-             * @constant
+             * @enum {string}
              */
-            kind: "box";
+            kind: "box" | "tiffin";
         };
         /** SourcesOut */
         SourcesOut: {

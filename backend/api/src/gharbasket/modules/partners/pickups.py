@@ -22,6 +22,13 @@ COLLECTABLE = ("accepted", "preparing", "ready")
 
 
 @dataclass(frozen=True)
+class PickupOrder:
+    order_id: uuid.UUID
+    short_code: str  # "T-07", the label on the tiffin
+    portions: int
+
+
+@dataclass(frozen=True)
 class PickupRef:
     assignment_id: uuid.UUID
     partner_id: uuid.UUID
@@ -32,6 +39,21 @@ class PickupRef:
     ready_by: time | None
     status: str  # the assignment's
     order_ids: tuple[uuid.UUID, ...]  # what is there to collect
+    slot_id: uuid.UUID  # the assignment's (its earliest order's) slot
+    orders: tuple[PickupOrder, ...]  # the same orders, with their labels and portions
+
+
+@dataclass(frozen=True)
+class KitchenPlace:
+    """Where a kitchen is, for M7's kitchen stops: `area` is public, the address and the point
+    are for the route's rider at pickup and for hub staff (M7 decides who sees them)."""
+
+    partner_id: uuid.UUID
+    display_name: str
+    area: str | None
+    address: str | None
+    lat: float | None
+    lng: float | None
 
 
 def pickup_qr(assignment_id: uuid.UUID) -> str:
@@ -52,13 +74,14 @@ async def _refs(
         if partner is None or kitchen is None:
             continue
         rows = await session.execute(
-            select(AssignmentOrder.order_id)
+            select(AssignmentOrder)
             .where(
                 AssignmentOrder.assignment_id == assignment.id,
                 AssignmentOrder.status.in_(order_status),
             )
             .order_by(AssignmentOrder.short_code)
         )
+        held = [PickupOrder(r.order_id, r.short_code, r.portions) for r in rows.scalars()]
         slot = await orders_api.slot_ref(session, assignment.slot_id)
         refs.append(
             PickupRef(
@@ -70,10 +93,36 @@ async def _refs(
                 lng=kitchen.lng,
                 ready_by=assignments.ready_by(slot.start) if slot else None,
                 status=assignment.status,
-                order_ids=tuple(rows.scalars()),
+                order_ids=tuple(o.order_id for o in held),
+                slot_id=assignment.slot_id,
+                orders=tuple(held),
             )
         )
     return refs
+
+
+async def kitchen_places(
+    session: AsyncSession, partner_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, KitchenPlace]:
+    """The kitchens of these partners; unknown ids and partners without a kitchen are left out."""
+    if not partner_ids:
+        return {}
+    rows = await session.execute(
+        select(Partner, Kitchen)
+        .join(Kitchen, Kitchen.partner_id == Partner.id)
+        .where(Partner.id.in_(set(partner_ids)))
+    )
+    return {
+        partner.id: KitchenPlace(
+            partner.id,
+            partner.display_name,
+            kitchen.area,
+            kitchen.address,
+            kitchen.lat,
+            kitchen.lng,
+        )
+        for partner, kitchen in rows.all()
+    }
 
 
 async def tiffin_pickups(

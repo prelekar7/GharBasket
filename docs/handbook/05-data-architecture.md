@@ -527,11 +527,21 @@ erDiagram
         text kind
         uuid society_id
         uuid slot_id
+        uuid assignment_id
+        uuid partner_id
         time eta
         text status
         boolean rider_mode
         int crates
         int bags
+        int portions
+    }
+    STOP_ORDERS {
+        uuid id PK
+        uuid stop_id FK
+        uuid order_id
+        text short_code
+        int portions
     }
     HANDOVERS {
         uuid id PK
@@ -564,11 +574,12 @@ erDiagram
     ROUTE_PLANS ||--o{ ROUTES : holds
     VEHICLES ||--o{ ROUTES : runs
     ROUTES ||--o{ ROUTE_STOPS : visits
+    ROUTE_STOPS ||--o{ STOP_ORDERS : carries
     ROUTES ||--o{ HANDOVERS : "hands over"
     ROUTES ||--o{ REVERSE_PICKUPS : collects
 ```
 
-A route plan is one solve for a hub, a delivery date and a kind; at most one per (hub, date, kind) is queued or solving and one is published (partial unique indexes). Hub, society, slot and user ids are plain UUIDs (ADR-0026 §5). `gps_pings` is partitioned by month (`PARTITION BY RANGE (at)`) with a BRIN index on `at`.
+A route plan is one solve for a hub, a delivery date and a kind; at most one per (hub, date, kind) is queued or solving and one is published (partial unique indexes). Hub, society, slot and user ids are plain UUIDs (ADR-0026 §5). A tiffin route (M7 §3.7) has kitchen stops (`assignment_id` and `partner_id` of M8's assignment, no society) and drops; `stop_orders` puts each tiffin on two rows of one route, its kitchen stop and its drop, with its short code and portions (no personal data). `gps_pings` is partitioned by month (`PARTITION BY RANGE (at)`) with a BRIN index on `at`.
 
 ### 5.5.8 partners
 

@@ -18,13 +18,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
-from gharbasket.modules.logistics import events, solver
+from gharbasket.modules.logistics import events, solver, tiffin_plans
 from gharbasket.modules.logistics.models import (
     IN_FLIGHT,
     STARTED,
     Route,
     RoutePlan,
     RouteStop,
+    StopOrder,
     Vehicle,
 )
 from gharbasket.platform import audit
@@ -132,7 +133,10 @@ async def run(
     await session.flush()
     try:
         async with session.begin_nested():
-            await solver.solve(session, plan, http=http, settings=settings)
+            if plan.kind == "tiffin":  # in M7, without the ML service (§3.7)
+                await tiffin_plans.solve(session, plan)
+            else:
+                await solver.solve(session, plan, http=http, settings=settings)
     except solver.SolveFailed as exc:
         error = str(exc)
     except Exception as exc:  # a bug must not leave the plan in flight
@@ -225,6 +229,8 @@ async def route_published(
                     "eta": s.eta.strftime("%H:%M"),
                     "bags": s.bags,
                     "captain_user_id": None if s.society_id is None else captains[s.society_id],
+                    # The kitchen of a tiffin route's kitchen stop (§3.7), else null
+                    "partner_id": None if s.partner_id is None else str(s.partner_id),
                 }
                 for s in stops
             ],
@@ -243,6 +249,31 @@ async def _stops_on_two_routes(session: AsyncSession, plan_id: uuid.UUID) -> lis
         .having(func.count() > 1)
     )
     return sorted(f"{society}/{slot}" for society, slot in rows.all())
+
+
+async def _tiffins_on_two_drops(session: AsyncSession, plan_id: uuid.UUID) -> list[str]:
+    """A tiffin plan's orders on more than one drop (§3.7): a society may have a drop on two
+    tiffin routes, so the (society, slot) rule does not apply."""
+    rows = await session.execute(
+        select(StopOrder.order_id)
+        .join(RouteStop, RouteStop.id == StopOrder.stop_id)
+        .join(Route, Route.id == RouteStop.route_id)
+        .where(Route.plan_id == plan_id, RouteStop.kind == "drop")
+        .group_by(StopOrder.order_id)
+        .having(func.count() > 1)
+    )
+    return sorted(str(order_id) for order_id in rows.scalars())
+
+
+def _incomplete(plan: RoutePlan, ids: list[str], why: str) -> ProblemError:
+    """`plan_incomplete` naming stops (box plans) or tiffins (tiffin plans, §3.7)."""
+    tiffin = plan.kind == "tiffin"
+    return ProblemError(
+        409,
+        "logistics.plan_incomplete",
+        f"{'Tiffins' if tiffin else 'Stops with orders'} {why}",
+        extra={"order_ids" if tiffin else "stop_ids": ids},
+    )
 
 
 async def publish(
@@ -266,20 +297,15 @@ async def publish(
             f"Only a solved plan is published ({plan.status}).",
         )
     if plan.unserved:
-        raise ProblemError(
-            409,
-            "logistics.plan_incomplete",
-            "Stops with orders are on no route; solve again once they can be served.",
-            extra={"stop_ids": plan.unserved},
+        raise _incomplete(
+            plan, plan.unserved, "are on no route; solve again once they can be served."
         )
-    twice = await _stops_on_two_routes(session, plan.id)
+    if plan.kind == "tiffin":
+        twice = await _tiffins_on_two_drops(session, plan.id)
+    else:
+        twice = await _stops_on_two_routes(session, plan.id)
     if twice:
-        raise ProblemError(
-            409,
-            "logistics.plan_incomplete",
-            "Stops are on more than one route; solve again.",
-            extra={"stop_ids": twice},
-        )
+        raise _incomplete(plan, twice, "are on more than one route; solve again.")
     problems = (plan.summary or {}).get("problems", [])
     if problems and not accept_problems:
         raise ProblemError(

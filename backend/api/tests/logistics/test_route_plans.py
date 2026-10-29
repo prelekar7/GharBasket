@@ -264,6 +264,7 @@ async def test_the_job_sends_the_day_to_the_solver_and_publishes_its_clean_plan(
                 "eta": "07:00",
                 "bags": 3,
                 "captain_user_id": str(meena),
+                "partner_id": None,
             }
         ],
     }
@@ -594,10 +595,10 @@ async def test_plans_belong_to_the_hubs_managers_and_owners_only(
         assert (late.status_code, late.json()["code"]) == (422, "logistics.date_out_of_range")
     old = await api.get(PLANS, params={"date": "2026-10-04"}, headers=manager)
     assert old.json()["code"] == "logistics.date_out_of_range"
-    tiffin = await api.post(
-        PLANS, json={"date": DAY.isoformat(), "kind": "tiffin"}, headers={**manager, **key()}
+    dinner = await api.post(
+        PLANS, json={"date": DAY.isoformat(), "kind": "dinner"}, headers={**manager, **key()}
     )
-    assert tiffin.status_code == 422
+    assert dinner.status_code == 422
 
 
 # --- review fixes -------------------------------------------------------------------------------

@@ -1,8 +1,10 @@
-"""Jobs of M7 Logistics (spec §6, ADR-0021): `solve_routes` at T-1 23:15 IST; `persist_gps_pings`
-every minute, `close_routes` at T 16:00, `hold_expiry` at T 20:30, `schedule_redeliveries` at
-T 20:45 and `purge_gps_pings` daily (90 days).
+"""Jobs of M7 Logistics (spec §6, ADR-0021): `solve_routes` at T-1 23:15 IST and
+`solve_tiffin_routes` at T 09:35 (§3.7); `persist_gps_pings` every minute, `close_routes` at
+T 16:00, `hold_expiry` at T 20:30, `schedule_redeliveries` at T 20:45 and `purge_gps_pings`
+daily (90 days).
 
-`scheduled_for` decides the delivery date (the day after its IST calendar day), never the clock.
+`scheduled_for` decides the delivery date (for boxes the day after its IST calendar day, for
+tiffins that day), never the clock.
 A manual solve (`POST /v1/hubs/{id}/route-plans`) runs in the background right after its request.
 If that solve is lost (a restart), the plan is marked failed ("abandoned") once it has been
 queued or solving for 10 minutes, so the manager can ask again; it is not solved again. The job
@@ -12,7 +14,7 @@ so one hub's error never undoes another hub's published plan.
 
 import asyncio
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -37,6 +39,19 @@ RETENTION = timedelta(days=90)  # GPS trails (handbook 13 §13.5)
 @job("solve_routes", "Solve tomorrow's box routes at every active hub (T-1 23:15 IST)")
 async def solve_routes(ctx: JobContext) -> dict[str, Any]:
     day = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=1)
+    return await _solve_hubs(ctx, day, "box")
+
+
+@job("solve_tiffin_routes", "Solve today's lunch tiffin routes at every active hub (T 09:35 IST)")
+async def solve_tiffin_routes(ctx: JobContext) -> dict[str, Any]:
+    """§3.7: right after M8's manual assignment closes and `refund_unassigned_tiffins` runs at
+    09:30, so no tiffin is added after the solve."""
+    return await _solve_hubs(ctx, ctx.scheduled_for.astimezone(IST).date(), "tiffin")
+
+
+async def _solve_hubs(ctx: JobContext, day: date, kind: str) -> dict[str, Any]:
+    """A job plan of `kind` for `day` at every active hub without one, and every manual plan
+    still queued; each solved in its own savepoint."""
     abandoned = await plans.fail_stale(ctx.session)
     queued = list(
         (
@@ -50,11 +65,11 @@ async def solve_routes(ctx: JobContext) -> dict[str, Any]:
     )
     skipped = 0
     for hub_id in await hub_ops_api.active_hub_ids(ctx.session):
-        if await plans.has_job_plan(ctx.session, hub_id, day, "box"):
+        if await plans.has_job_plan(ctx.session, hub_id, day, kind):
             skipped += 1
             continue
         try:
-            plan = await plans.request_solve(ctx.session, hub_id, day, "box", trigger="job")
+            plan = await plans.request_solve(ctx.session, hub_id, day, kind, trigger="job")
         except ProblemError:  # a manual solve in flight, or the day's routes have started
             skipped += 1
             continue

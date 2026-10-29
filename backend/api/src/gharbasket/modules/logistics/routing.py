@@ -8,8 +8,9 @@ fallback plan's ETAs are comparable with the ML service's haversine answers.
 
 import math
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Protocol
 
 DETOUR = 1.3  # road distance over the straight line in a dense suburb (M10's)
 SPEED_MPS = 6.0  # about 22 km/h door to door
@@ -22,6 +23,20 @@ MAX_TRIPS = 2
 FIXED_PAISE_PER_VAN, PAISE_PER_KM, WAGE_PAISE_PER_S = 25_000, 60, 3
 
 Point = tuple[float, float]
+
+
+class Placed(Protocol):
+    """What ordering and replaying need of a stop: a box drop (`Stop`) or a tiffin route's kitchen
+    or drop (`tiffin_plans.Place`, §3.7)."""
+
+    @property
+    def id(self) -> str: ...
+    @property
+    def point(self) -> Point: ...
+    @property
+    def window(self) -> tuple[int, int]: ...
+    @property
+    def crates(self) -> int: ...
 
 
 @dataclass(frozen=True)
@@ -67,7 +82,7 @@ def travel_s(a: Point, b: Point) -> int:
     return round(round(metres(a, b) / SPEED_MPS) * TRAFFIC)
 
 
-def replay(trip: Trip, hub: Point, stops: dict[str, Stop]) -> Trip:
+def replay(trip: Trip, hub: Point, stops: Mapping[str, Placed]) -> Trip:
     """Fill in the trip's ETAs (waiting when early), its end back at the hub and its metres."""
     t, here, distance, etas = trip.start_s, hub, 0, []
     for stop_id in trip.stops:
@@ -83,8 +98,9 @@ def replay(trip: Trip, hub: Point, stops: dict[str, Stop]) -> Trip:
     return trip
 
 
-def _nearest_chain(group: list[Stop], start: Point) -> list[Stop]:
-    chain, here, todo = [], start, list(group)
+def _nearest_chain[S: Placed](group: list[S], start: Point) -> list[S]:
+    chain: list[S] = []
+    here, todo = start, list(group)
     while todo:
         nearest = min(todo, key=lambda s: (metres(here, s.point), s.id))
         todo.remove(nearest)
@@ -93,9 +109,9 @@ def _nearest_chain(group: list[Stop], start: Point) -> list[Stop]:
     return chain
 
 
-def order_nearest(stops: Sequence[Stop], hub: Point) -> list[Stop]:
+def order_nearest[S: Placed](stops: Sequence[S], hub: Point) -> list[S]:
     """`fallback_nearest`: early-window stops first, each window's stops by nearest neighbour
-    from the hub."""
+    from the hub (a tiffin trip's drops: from its last kitchen, §3.7)."""
     windows = sorted({s.window[0] for s in stops})
     return [s for w in windows for s in _nearest_chain([x for x in stops if x.window[0] == w], hub)]
 
@@ -201,7 +217,7 @@ def numbered(trips: Sequence[Trip]) -> list[tuple[int, int, Trip]]:
     return out
 
 
-def summary(trips: Sequence[Trip], stops: dict[str, Stop]) -> dict[str, float | int]:
+def summary(trips: Sequence[Trip], stops: Mapping[str, Placed]) -> dict[str, float | int]:
     """km, cost, on-time share and lateness of a fallback plan, as the ML service reports them."""
     late = on_time = drops = 0
     cost = 0.0

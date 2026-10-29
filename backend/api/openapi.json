@@ -23224,7 +23224,8 @@
                   "ml",
                   "ml_fallback",
                   "fallback_previous",
-                  "fallback_nearest"
+                  "fallback_nearest",
+                  "nearest"
                 ],
                 "type": "string"
               },
@@ -23478,7 +23479,8 @@
                   "ml",
                   "ml_fallback",
                   "fallback_previous",
-                  "fallback_nearest"
+                  "fallback_nearest",
+                  "nearest"
                 ],
                 "type": "string"
               },
@@ -23486,7 +23488,7 @@
                 "type": "null"
               }
             ],
-            "description": "Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer",
+            "description": "Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer; nearest: a tiffin plan, kitchens then societies by nearest neighbour in M7 (§3.7)",
             "title": "Source"
           },
           "status": {
@@ -23656,7 +23658,8 @@
                   "ml",
                   "ml_fallback",
                   "fallback_previous",
-                  "fallback_nearest"
+                  "fallback_nearest",
+                  "nearest"
                 ],
                 "type": "string"
               },
@@ -23664,7 +23667,7 @@
                 "type": "null"
               }
             ],
-            "description": "Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer",
+            "description": "Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer; nearest: a tiffin plan, kitchens then societies by nearest neighbour in M7 (§3.7)",
             "title": "Source"
           },
           "status": {
@@ -25903,9 +25906,12 @@
             "type": "string"
           },
           "kind": {
-            "const": "box",
             "default": "box",
-            "description": "tiffin plans come with M8 (§3.7)",
+            "description": "tiffin: the lunch tiffins of M8's assignments (§3.7)",
+            "enum": [
+              "box",
+              "tiffin"
+            ],
             "title": "Kind",
             "type": "string"
           }
