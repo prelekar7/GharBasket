@@ -177,7 +177,9 @@ def check_proof(
     """The handover's proof, or 422/429 (409 on a closed route or stop). A wrong code is counted
     on the stop (the caller commits the count before answering)."""
     ensure_running(route)
-    if stop.status == "handed_over":
+    # A tiffin drop is counted again for tiffins collected later; `tiffins.hand_over` refuses it
+    # when nothing is riding.
+    if stop.status == "handed_over" and route.kind != "tiffin":
         raise conflict("logistics.already_handed_over", "This stop was handed over.")
     if actor.kind == "rider":
         return "rider_mode"
@@ -277,36 +279,55 @@ async def record(
     proof: str,
     expected: tuple[int, int],
     moved: list[uuid.UUID],
+    *,
+    again: Handover | None = None,
 ) -> Handover:
     """The handover row, the stop handed over, the field event and
-    `logistics.handover_completed` with the orders it moved; `expected` is (crates, bags)."""
+    `logistics.handover_completed` with the orders it moved; `expected` is (crates, bags).
+    `again` is the stop's row when a tiffin drop is counted a second time (§3.7: tiffins
+    collected after the first count): its counts add up and its first proof stays."""
     assert stop.society_id is not None
     mismatch = (body.crates, body.bags) != expected
-    if proof == "photo" and body.photo_key is not None:
-        await keep_photo(session, body.photo_key, actor.user_id, route.delivery_date)
+    photo = body.photo_key if proof == "photo" else None
+    if photo is not None:
+        await keep_photo(session, photo, actor.user_id, route.delivery_date)
     at = now()
-    handover = Handover(
-        stop_id=stop.id,
-        society_id=stop.society_id,
-        by_actor=actor.kind,
-        user_id=actor.user_id,
-        partner_id=actor.partner_id,
-        crates_expected=expected[0],
-        crates_counted=body.crates,
-        bags_expected=expected[1],
-        bags_counted=body.bags,
-        mismatch=mismatch,
-        proof=proof,
-        photo_key=body.photo_key if proof == "photo" else None,
-        distance_m=await _distance_m(session, valkey, route, stop),
-        note=body.note,
-        client_at=body.client_at,
-    )
-    session.add(handover)
-    stop.status, stop.handed_over_at = "handed_over", at
+    payload: dict[str, object] = {"mismatch": mismatch}
+    if again is None:
+        handover = Handover(
+            stop_id=stop.id,
+            society_id=stop.society_id,
+            by_actor=actor.kind,
+            user_id=actor.user_id,
+            partner_id=actor.partner_id,
+            crates_expected=expected[0],
+            crates_counted=body.crates,
+            bags_expected=expected[1],
+            bags_counted=body.bags,
+            mismatch=mismatch,
+            proof=proof,
+            photo_key=photo,
+            distance_m=await _distance_m(session, valkey, route, stop),
+            note=body.note,
+            client_at=body.client_at,
+        )
+        session.add(handover)
+        stop.status, stop.handed_over_at = "handed_over", at
+    else:
+        handover = again
+        handover.crates_expected += expected[0]
+        handover.crates_counted += body.crates
+        handover.bags_expected += expected[1]
+        handover.bags_counted += body.bags
+        handover.mismatch = handover.mismatch or mismatch
+        handover.note = body.note or handover.note
+        handover.photo_key = handover.photo_key or photo
+        payload |= {"again": True, "proof": proof}
+        if photo is not None:
+            payload["photo_key"] = photo
     stop.arrived_at = stop.arrived_at or at
     who = Caller(actor.user_id, actor.kind == "hub", False, actor.kind == "rider")
-    tap(session, route, "handover", who, body.client_at, stop=stop, payload={"mismatch": mismatch})
+    tap(session, route, "handover", who, body.client_at, stop=stop, payload=payload)
     await session.flush()
     await publish(
         session,

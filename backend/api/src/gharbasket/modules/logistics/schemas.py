@@ -298,7 +298,8 @@ class PickupTotals(BaseModel):
 
 class KitchenOut(BaseModel):
     """A tiffin route's kitchen stop (§3.7). The address and the point go to the route's rider
-    from the route's start until the stop is collected, and to hub staff; null otherwise."""
+    from the route's start until every tiffin of the route at the kitchen is collected, and to hub
+    managers and admins; null otherwise."""
 
     partner_id: uuid.UUID
     display_name: str = Field(examples=["Lata tai"])

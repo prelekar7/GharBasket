@@ -430,9 +430,9 @@ ROUTE_404: dict[int | str, dict[str, Any]] = {404: _problem("logistics.route_not
 
 
 async def _detail(
-    session: AsyncSession, route: Route, response: Response | None = None, *, staff: bool = False
+    session: AsyncSession, route: Route, response: Response | None = None, *, kitchens: bool = False
 ) -> RouteDetail:
-    out = await views.route_detail(session, route, staff=staff)
+    out = await views.route_detail(session, route, kitchens=kitchens)
     if response is not None:
         set_etag(response, route.version)
         response.headers["Cache-Control"] = "no-store"
@@ -491,7 +491,7 @@ async def get_route(
     route_id: uuid.UUID, permit: RouteReader, session: DbSession, response: Response
 ) -> RouteDetail:
     route, who = await route_ops.get_route(session, route_id, permit)
-    return await _detail(session, route, response, staff=who.staff)
+    return await _detail(session, route, response, kitchens=who.kitchens)
 
 
 @router.patch(
@@ -515,7 +515,7 @@ async def patch_route(
 ) -> RouteDetail:
     route, who = await route_ops.get_route(session, route_id, permit, for_update=True)
     await route_ops.edit(session, route, who, body, expected)
-    out = await _detail(session, route, response, staff=who.staff)
+    out = await _detail(session, route, response, kitchens=who.kitchens)
     await session.commit()
     return out
 
@@ -535,9 +535,9 @@ FIELD_MOVES: dict[int | str, dict[str, Any]] = {
 
 
 async def _stop_answer(
-    session: AsyncSession, idem: Idempotency, route: Route, stop: RouteStop, staff: bool
+    session: AsyncSession, idem: Idempotency, route: Route, stop: RouteStop, kitchens: bool
 ) -> StopOut:
-    [out] = await views.stop_views(session, route, [stop], staff=staff)
+    [out] = await views.stop_views(session, route, [stop], kitchens=kitchens)
     await idem.save(200, out)
     await session.commit()
     return out
@@ -573,7 +573,7 @@ async def start_route(
     await execution.start(
         session, route, who, leave_behind=body.leave_behind, client_at=body.client_at
     )
-    out = await _detail(session, route, response, staff=who.staff)
+    out = await _detail(session, route, response, kitchens=who.kitchens)
     await idem.save(200, out)
     await session.commit()
     return out
@@ -610,7 +610,7 @@ async def complete_route(
         client_at=body.client_at,
         closer=tiffins.close if route.kind == "tiffin" else None,
     )
-    out = await _detail(session, route, response, staff=who.staff)
+    out = await _detail(session, route, response, kitchens=who.kitchens)
     await idem.save(200, out)
     await session.commit()
     await tracking.forget(valkey, route.id)  # the closed route's last position is not shown again
@@ -632,7 +632,7 @@ async def arrive_at_stop(
     body = body or FieldTap()
     stop, route, who = await execution.get_stop(session, stop_id, permit)
     await execution.arrive(session, route, stop, who, body.client_at)
-    return await _stop_answer(session, idem, route, stop, who.staff)
+    return await _stop_answer(session, idem, route, stop, who.kitchens)
 
 
 @router.post(
@@ -647,7 +647,7 @@ async def skip_stop(
     await execution.skip(
         session, route, stop, who, reason=body.reason, note=body.note, client_at=body.client_at
     )
-    return await _stop_answer(session, idem, route, stop, who.staff)
+    return await _stop_answer(session, idem, route, stop, who.kitchens)
 
 
 # --- return-leg pickups (§3.6) ------------------------------------------------------------------
@@ -691,7 +691,7 @@ async def report_pickups(
         }
         execution.tap(session, route, "pickup", who, body.client_at, stop=stop, payload=counts)
         await session.flush()
-    return await _stop_answer(session, idem, route, stop, who.staff)
+    return await _stop_answer(session, idem, route, stop, who.kitchens)
 
 
 @router.post(
@@ -721,7 +721,7 @@ async def collect_at_kitchen(
     collected, already, not_ready, not_on_route = await tiffins.collect(
         session, route, stop, who, body
     )
-    [view] = await views.stop_views(session, route, [stop], staff=who.staff)
+    [view] = await views.stop_views(session, route, [stop], kitchens=who.kitchens)
     out = CollectOut(
         stop=view,
         collected=collected,
@@ -858,7 +858,7 @@ async def patch_stop(
     if not who.manager:
         raise execution.stop_not_found()
     await handover.set_rider_mode(session, route, stop, who, body.rider_mode, expected)
-    [out] = await views.stop_views(session, route, [stop], staff=True)
+    [out] = await views.stop_views(session, route, [stop], kitchens=True)
     await session.commit()
     set_etag(response, route.version)
     return out
@@ -974,14 +974,16 @@ async def stop_deliveries(
     "only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five "
     "wrong codes for a stop allow only a photo. A tiffin drop (§3.7) is counted with crates 0 and "
     "no scans: its tiffins become with_captain without an order move (count_mismatch names the "
-    "expected short_codes).",
+    "expected short_codes). Count again for tiffins collected later; nothing riding is "
+    "nothing_to_hand_over.",
     responses={
         **CREATES,
         **STOP_404,
         403: _problem("auth.forbidden, logistics.not_society_captain, logistics.not_your_route"),
         409: _problem(
             "logistics.count_mismatch (expected, short_codes), logistics.already_handed_over, "
-            "logistics.route_not_started, logistics.route_closed, orders.illegal_transition"
+            "logistics.nothing_to_hand_over, logistics.route_not_started, logistics.route_closed, "
+            "orders.illegal_transition"
         ),
         422: _problem(
             "logistics.code_invalid, logistics.photo_key_invalid, request.invalid, "
@@ -1019,7 +1021,7 @@ async def hand_over(
         made, moved, still = await handover.hand_over(
             session, valkey, route, stop, actor, body, proof
         )
-    [view] = await views.stop_views(session, route, [stop], staff=actor.kind == "hub")
+    [view] = await views.stop_views(session, route, [stop], kitchens=actor.kind == "hub")
     if actor.kind == "captain":  # the code is the rider's and hub staff's only
         view.handover_code = None
     out = HandoverOut(

@@ -4,8 +4,10 @@ society's tiffins by count, and the doors are proved with the short code and the
 a tiffin that does not reach its door is refunded at once, one never collected waits for the hub,
 and at 16:00 whatever is still out goes to triage."""
 
+import json
 import uuid
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -13,8 +15,9 @@ import time_machine
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.logistics import live
-from gharbasket.modules.logistics.models import Delivery, Route, RouteStop, StopOrder
+from gharbasket.modules.logistics import live, tracking
+from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop, StopOrder
+from gharbasket.modules.logistics.schemas import PingIn
 from gharbasket.modules.orders.models import Order, OrderEvent
 from gharbasket.modules.partners.models import AssignmentOrder
 from gharbasket.platform.jobs import run_job
@@ -25,7 +28,21 @@ from gharbasket.tools.seed import SEED_SOCIETY_ID
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from .conftest import ARJUN, MEENA, PRIYA, RAMESH, SUNITA, VIKRAM, as_user, key, user_id, vehicle
+from .conftest import (
+    ARJUN,
+    KAVITA,
+    MEENA,
+    NEHA,
+    PRIYA,
+    RAMESH,
+    SANJAY,
+    SUNITA,
+    VIKRAM,
+    as_user,
+    key,
+    user_id,
+    vehicle,
+)
 from .tiffin_day import (
     ASHA,
     CLOSE_AT,
@@ -154,6 +171,19 @@ async def test_start_moves_nothing_needs_a_rider_and_shows_the_kitchen_at_pickup
     assert shown["portions"] == 3
     staff = kitchen_view((await api.get(path, headers=manager)).json(), lata_stop)
     assert staff["kitchen"]["location"] is not None
+    admin = kitchen_view(
+        (await api.get(path, headers=await as_user(api, google, NEHA))).json(), lata_stop
+    )
+    assert admin["kitchen"]["location"] is not None
+    for phone in (
+        KAVITA,
+        SANJAY,
+    ):  # the packer and the franchise owner read the route, not the kitchen
+        seen = await api.get(path, headers=await as_user(api, google, phone))
+        assert seen.status_code == 200, seen.text
+        there = kitchen_view(seen.json(), lata_stop)
+        assert (there["kitchen"]["address"], there["kitchen"]["location"]) == (None, None)
+        assert there["navigate_url"] is None
 
     await db_session.execute(
         update(Route).where(Route.id == lunch.route_id).values(rider_user_id=None)
@@ -228,7 +258,8 @@ async def test_collect_by_the_kitchens_code_dispatches_its_ready_tiffins_as_the_
     assert [w["order_id"] for w in out["not_ready"]] == [str(lunch.orders[SUNITA])]
     assert (out["already"], out["not_on_route"]) == ([], [])
     assert (out["stop"]["status"], out["stop"]["bags"]) == ("handed_over", 1)
-    assert out["stop"]["kitchen"]["address"] is None  # collected: hidden from the rider again
+    # Sunita's tiffin is still to collect here: the rider keeps the kitchen until it is.
+    assert out["stop"]["kitchen"]["location"] is not None
     assert await statuses(db_session, lunch.orders[PRIYA]) == ["dispatched"]
     dispatched = await db_session.scalar(
         select(OrderEvent).where(
@@ -260,7 +291,10 @@ async def test_collect_by_the_kitchens_code_dispatches_its_ready_tiffins_as_the_
     assert [c["order_id"] for c in second["collected"]] == [str(lunch.orders[SUNITA])]
     assert second["already"] == [str(lunch.orders[PRIYA])]
     assert second["not_on_route"] == [str(late)]
+    assert second["stop"]["kitchen"]["location"] is None  # everything of this route is collected
     assert await statuses(db_session, late) == ["packed"]  # left at the kitchen
+    route = await db_session.get(Route, lunch.route_id, populate_existing=True)
+    assert route is not None and route.left_behind == [late]  # the hub's board lists it
 
 
 @time_machine.travel(START_AT, tick=False)
@@ -511,3 +545,300 @@ async def test_close_routes_sends_tiffins_still_out_to_triage_and_moves_none(
     route = await db_session.get(Route, lunch.route_id, populate_existing=True)
     assert route is not None and route.status == "completed"
     assert await db_session.scalar(select(StopOrder.id).limit(1)) is not None
+
+
+async def late_tiffin(db: AsyncSession, lunch: Lunch) -> uuid.UUID:
+    """A tiffin added to Lata's assignment after the solve: on no stop of the route."""
+    slot = await db.scalar(select(Order.slot_id).where(Order.id == lunch.orders[PRIYA]))
+    assert slot is not None
+    late = await tiffin(db, PRIYA, slot, 1)
+    db.add(AssignmentOrder(assignment_id=lunch.lata, order_id=late, portions=1, short_code="T-99"))
+    await db.commit()
+    return late
+
+
+async def hand_over(api: Any, who: dict[str, str], stop_id: uuid.UUID, code: str, bags: int) -> Any:
+    return await api.post(
+        f"/v1/stops/{stop_id}/handover",
+        json={"crates": 0, "bags": bags, "handover_code": code},
+        headers={**who, **key()},
+    )
+
+
+async def close_day(db: AsyncSession) -> dict[str, Any]:
+    run = await run_job(db, "close_routes", settings=make_settings(), scheduled_for=CLOSE_AT)
+    assert run.summary is not None, run
+    return run.summary
+
+
+@time_machine.travel(START_AT, tick=False)
+async def test_a_tiffin_ready_at_the_kitchen_but_on_no_drop_waits_for_the_hub_as_left_behind(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    lunch = await lunch_route(db_session)
+    api = clients()
+    rider, manager = await as_user(api, google, ARJUN), await as_user(api, google, VIKRAM)
+    late = await late_tiffin(db_session, lunch)
+    await start(api, rider, lunch)
+    await ready(db_session, lunch.lata, LATA)
+
+    scanned = (await collect(api, rider, lunch.kitchens[lunch.lata], qr(lunch.lata))).json()
+
+    assert scanned["not_on_route"] == [str(late)]
+    detail = (await api.get(f"/v1/routes/{lunch.route_id}", headers=manager)).json()
+    assert detail["left_behind"] == [str(late)]  # recorded at the scan
+    assert await db_session.scalar(select(Delivery.id).where(Delivery.order_id == late)) is None
+    before = await api.post(
+        f"/v1/deliveries/{late}/resolve",
+        json={"outcome": "refund", "note": "no attempt yet"},
+        headers={**manager, **key()},
+    )
+    assert (before.status_code, before.json()["code"]) == (404, "logistics.delivery_not_found")
+
+    summary = await close_day(db_session)
+
+    assert summary["tiffins_to_triage"] == 2  # Priya's and Sunita's, still with the rider
+    left = await attempt(db_session, late)
+    assert (left.status, left.reason, left.by_actor, left.attempt) == (
+        "triage",
+        "left_behind",
+        "system",
+        1,
+    )
+    assert (left.short_code, left.stop_id) == ("T-99", None)
+    assert await statuses(db_session, late) == ["packed"]
+    refunded = await api.post(
+        f"/v1/deliveries/{late}/resolve",
+        json={"outcome": "refund", "note": "kitchen readied it late"},
+        headers={**manager, **key()},
+    )
+    assert refunded.status_code == 200, refunded.text
+    assert await statuses(db_session, late) == ["refunded"]
+    await close_day(db_session)  # a second run changes nothing
+    assert (
+        len((await db_session.execute(select(Delivery).where(Delivery.order_id == late))).all())
+        == 1
+    )
+
+
+@time_machine.travel(START_AT, tick=False)
+async def test_a_captain_cannot_settle_a_tiffin_still_with_the_rider(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    lunch = await lunch_route(db_session)
+    api = clients()
+    rider, captain = await as_user(api, google, ARJUN), await as_user(api, google, MEENA)
+    await start(api, rider, lunch)
+    await ready(db_session, lunch.lata, LATA)
+    assert (await collect(api, rider, lunch.kitchens[lunch.lata], qr(lunch.lata))).is_success
+    priya = await attempt(db_session, lunch.orders[PRIYA])
+    otp = {"short_code": priya.short_code, "proof": "otp", "delivery_code": priya.delivery_code}
+    door = f"/v1/deliveries/{lunch.orders[PRIYA]}"
+
+    async def refused() -> None:
+        proof = await api.post(f"{door}/proof", json=otp, headers={**captain, **key()})
+        missed = await api.post(
+            f"{door}/undelivered", json={"reason": "not_home"}, headers={**captain, **key()}
+        )
+        for answer in (proof, missed):
+            assert (answer.status_code, answer.json()["code"]) == (
+                404,
+                "logistics.delivery_not_found",
+            )
+        assert await statuses(db_session, lunch.orders[PRIYA]) == ["dispatched"]
+        assert (await attempt(db_session, lunch.orders[PRIYA])).status == "on_route"
+
+    await refused()  # on_route, a drop with a captain
+    await db_session.execute(
+        update(RouteStop)
+        .where(RouteStop.id == lunch.drops[SEED_SOCIETY_ID])
+        .values(rider_mode=True)
+    )
+    await db_session.commit()
+    await refused()  # on_route, a rider-mode drop
+    done = await api.post(f"{door}/proof", json=otp, headers={**rider, **key()})
+    assert (done.status_code, done.json()["by"]) == (200, "rider")
+
+
+@time_machine.travel(START_AT, tick=False)
+async def test_after_the_sweep_a_captain_settles_only_the_tiffins_she_took(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    lunch = await lunch_route(db_session)
+    api = clients()
+    rider, captain = await as_user(api, google, ARJUN), await as_user(api, google, MEENA)
+    await start(api, rider, lunch)
+    await ready(db_session, lunch.lata, LATA)
+    assert (await collect(api, rider, lunch.kitchens[lunch.lata], qr(lunch.lata))).is_success
+    drop = lunch.drops[SEED_SOCIETY_ID]
+    code = (await stop(db_session, drop)).handover_code or ""
+    taken = await hand_over(api, captain, drop, code, 1)
+    assert taken.status_code == 200, taken.text  # Priya's, with the captain
+    await ready(db_session, lunch.asha, ASHA)
+    assert (await collect(api, rider, lunch.kitchens[lunch.asha], qr(lunch.asha))).is_success
+    assert (await attempt_of(db_session, lunch.orders[MEENA])).status == "on_route"
+
+    await close_day(db_session)  # 16:00: both go to triage
+
+    priya, meena = (
+        await attempt_of(db_session, lunch.orders[PRIYA]),
+        await attempt_of(db_session, lunch.orders[MEENA]),
+    )
+    priya_proof = {
+        "short_code": priya.short_code,
+        "proof": "otp",
+        "delivery_code": priya.delivery_code,
+    }
+    meena_proof = {
+        "short_code": meena.short_code,
+        "proof": "otp",
+        "delivery_code": meena.delivery_code,
+    }
+    assert (priya.status, priya.reason, priya.kept_by_captain) == ("triage", "not_confirmed", True)
+    assert (meena.status, meena.reason, meena.kept_by_captain) == ("triage", "not_confirmed", False)
+    for outcome in ("proof", "undelivered"):  # Meena's tiffin never reached the captain
+        body = meena_proof if outcome == "proof" else {"reason": "not_home"}
+        answer = await api.post(
+            f"/v1/deliveries/{lunch.orders[MEENA]}/{outcome}",
+            json=body,
+            headers={**captain, **key()},
+        )
+        assert (answer.status_code, answer.json()["code"]) == (404, "logistics.delivery_not_found")
+    done = await api.post(
+        f"/v1/deliveries/{lunch.orders[PRIYA]}/proof",
+        json=priya_proof,
+        headers={**captain, **key()},
+    )
+    assert done.status_code == 200, done.text
+    assert (done.json()["status"], done.json()["by"]) == ("delivered", "captain")
+    assert await statuses(db_session, lunch.orders[PRIYA]) == ["delivered"]
+
+
+async def attempt_of(db: AsyncSession, order_id: uuid.UUID) -> Delivery:
+    found = await db.scalar(
+        select(Delivery)
+        .where(Delivery.order_id == order_id)
+        .order_by(Delivery.attempt.desc())
+        .execution_options(populate_existing=True)
+    )
+    assert found is not None
+    return found
+
+
+@time_machine.travel(START_AT, tick=False)
+async def test_a_drop_is_never_handed_over_empty_and_is_counted_again_for_later_tiffins(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    lunch = await lunch_route(db_session)
+    api = clients()
+    rider, captain = await as_user(api, google, ARJUN), await as_user(api, google, MEENA)
+    await start(api, rider, lunch)
+    drop = lunch.drops[SEED_SOCIETY_ID]
+    code = (await stop(db_session, drop)).handover_code or ""
+
+    empty = await hand_over(api, captain, drop, code, 0)
+
+    assert (empty.status_code, empty.json()["code"]) == (409, "logistics.nothing_to_hand_over")
+    assert (await stop(db_session, drop)).status == "pending"
+    await ready(db_session, lunch.lata, LATA)
+    assert (await collect(api, rider, lunch.kitchens[lunch.lata], qr(lunch.lata))).is_success
+    first = await hand_over(api, captain, drop, code, 1)
+    assert first.status_code == 200, first.text
+    assert first.json()["with_captain"] == [str(lunch.orders[PRIYA])]
+    again = await hand_over(api, captain, drop, code, 1)  # nothing rides now
+    assert (again.status_code, again.json()["code"]) == (409, "logistics.already_handed_over")
+
+    await ready(db_session, lunch.asha, ASHA)  # the other kitchen was late
+    assert (await collect(api, rider, lunch.kitchens[lunch.asha], qr(lunch.asha))).is_success
+    wrong = await hand_over(api, captain, drop, code, 2)
+    second = await hand_over(api, captain, drop, code, 1)
+
+    assert (wrong.status_code, wrong.json()["code"]) == (409, "logistics.count_mismatch")
+    assert second.status_code == 200, second.text
+    assert second.json()["with_captain"] == [str(lunch.orders[MEENA])]
+    rows = list((await db_session.execute(select(Handover))).scalars())
+    assert [(h.bags_expected, h.bags_counted, h.mismatch) for h in rows] == [(2, 2, False)]
+    for phone in (PRIYA, MEENA):
+        assert (await attempt_of(db_session, lunch.orders[phone])).status == "with_captain"
+    third = await hand_over(api, captain, drop, code, 1)
+    assert (third.status_code, third.json()["code"]) == (409, "logistics.already_handed_over")
+
+
+def first_frame(chunk: bytes) -> dict[str, Any]:
+    [data] = [line for line in chunk.decode().splitlines() if line.startswith("data: ")]
+    return json.loads(data.removeprefix("data: "))
+
+
+@time_machine.travel(START_AT, tick=False)
+async def test_no_rider_position_reaches_a_captain_or_a_customer_while_he_is_bound_for_a_kitchen(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    lunch = await lunch_route(db_session)
+    api = clients()
+    rider = await as_user(api, google, ARJUN)
+    await start(api, rider, lunch)
+    seen = PingIn(at=START_AT - timedelta(seconds=30), lat=19.05, lng=73.01, accuracy_m=5)
+    await tracking.insert_pings(
+        db_session,
+        [tracking._row(await user_id(db_session, ARJUN), lunch.route_id, seen)],  # pyright: ignore[reportPrivateUsage]
+    )
+    await db_session.commit()
+    sunrise = lunch.drops[SEED_SOCIETY_ID]
+
+    async def position(who: live.Audience) -> Any:
+        body = live.stream(db_session, None, lunch.route_id, who, clock=lambda: 0.0)
+        snapshot = first_frame(await anext(body))
+        await body.aclose()  # pyright: ignore[reportAttributeAccessIssue]
+        return snapshot["position"]
+
+    staff = live.Audience(None)  # the rider's and hub staff's stream
+    captain = live.Audience(sunrise)
+    assert await position(staff) is not None
+    assert await position(captain) is None  # bound for a kitchen
+
+    await ready(db_session, lunch.lata, LATA)
+    assert (await collect(api, rider, lunch.kitchens[lunch.lata], qr(lunch.lata))).is_success
+    priya = live.Audience(sunrise, customer=True, tiffin_id=lunch.orders[PRIYA])
+    assert await position(staff) is not None
+    assert await position(captain) is None  # Asha's kitchen is next
+    assert await position(priya) is None
+
+    await ready(db_session, lunch.asha, ASHA)
+    assert (await collect(api, rider, lunch.kitchens[lunch.asha], qr(lunch.asha))).is_success
+    assert (await position(captain))["lat"] == 19.05
+    assert (await position(priya))["lat"] == 19.05
+
+
+@time_machine.travel(START_AT, tick=False)
+async def test_close_routes_gives_up_a_tiffin_route_nobody_started_and_the_hub_settles_it(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    lunch = await lunch_route(db_session)
+    api = clients()
+    rider, manager = await as_user(api, google, ARJUN), await as_user(api, google, VIKRAM)
+
+    summary = await close_day(db_session)
+
+    assert (summary["closed"], summary["unstarted_routes"], summary["tiffins_left_behind"]) == (
+        0,
+        1,
+        4,
+    )
+    route = await db_session.get(Route, lunch.route_id, populate_existing=True)
+    assert route is not None and route.status == "cancelled"
+    for order_id in lunch.orders.values():
+        left = await attempt(db_session, order_id)
+        assert (left.status, left.reason, left.by_actor) == ("triage", "left_behind", "system")
+        assert left.short_code is not None and left.stop_id is not None
+        assert await statuses(db_session, order_id) == ["locked"]
+    started = await api.post(f"/v1/routes/{lunch.route_id}/start", headers={**rider, **key()})
+    assert (started.status_code, started.json()["code"]) == (409, "logistics.route_closed")
+    refunded = await api.post(
+        f"/v1/deliveries/{lunch.orders[PRIYA]}/resolve",
+        json={"outcome": "refund", "note": "no rider came"},
+        headers={**manager, **key()},
+    )
+    assert refunded.status_code == 200, refunded.text
+    assert await statuses(db_session, lunch.orders[PRIYA]) == ["refunded"]
+    again = await close_day(db_session)
+    assert (again["unstarted_routes"], again["tiffins_left_behind"]) == (0, 0)

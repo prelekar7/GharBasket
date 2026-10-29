@@ -185,6 +185,8 @@ async def test_close_routes_sends_the_days_open_routes_bags_back_and_purge_drops
         "closed": 1,
         "returned_to_hub": 4,
         "tiffins_to_triage": 0,
+        "unstarted_routes": 0,
+        "tiffins_left_behind": 0,
     }
     rerun = await run_job(
         db_session, "close_routes", settings=make_settings(), scheduled_for=evening, valkey=valkey
@@ -194,6 +196,8 @@ async def test_close_routes_sends_the_days_open_routes_bags_back_and_purge_drops
         "closed": 0,
         "returned_to_hub": 0,
         "tiffins_to_triage": 0,
+        "unstarted_routes": 0,
+        "tiffins_left_behind": 0,
     }
     route = await db_session.get(Route, day.route_id, populate_existing=True)
     assert route is not None and route.status == "completed"

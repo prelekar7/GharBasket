@@ -130,6 +130,14 @@ class _View:
     position: tracking.Position | None
 
 
+def _next_is_kitchen(stops: list[RouteStop]) -> bool:
+    """The first stop still open (`pending` or `arrived`) is a kitchen stop."""
+    for stop in sorted(stops, key=lambda s: s.seq):
+        if stop.status in ("pending", "arrived"):
+            return stop.kind == "kitchen"
+    return False
+
+
 async def _read(
     session: AsyncSession, valkey: Redis | None, route_id: uuid.UUID, who: Audience
 ) -> _View:
@@ -148,8 +156,11 @@ async def _read(
         if attempt is None or attempt.status != "on_route":
             own = "handed_over"
     position = None
-    # The viewer's stop is done: no more positions for a captain or a customer.
-    if route.status == "in_progress" and own not in ("handed_over", "skipped"):
+    # The viewer's stop is done: no more positions for a captain or a customer. On a tiffin route
+    # neither sees the rider while his next open stop is a kitchen: his position would show where
+    # it is (§3.7, Privacy); hub staff and the rider's own stream (`stop_id` None) are unaffected.
+    at_kitchen = who.stop_id is not None and _next_is_kitchen(stops)
+    if route.status == "in_progress" and own not in ("handed_over", "skipped") and not at_kitchen:
         position = await tracking.latest(session, valkey, route_id)
     await session.commit()  # read-only; gives the connection back between reads
     return _View(route.status, live, before, own, position)

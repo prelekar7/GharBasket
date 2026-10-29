@@ -59,7 +59,8 @@ async def door_actor(
     session: AsyncSession, permit: Permit, order_id: uuid.UUID
 ) -> tuple[Delivery, orders_api.Order, Actor]:
     """The order's current attempt and who acts at its door: a hub manager of its hub, the rider
-    of its rider-mode stop while the route runs, or its society's active captain."""
+    of its rider-mode stop while the route runs, or its society's active captain (a tiffin only
+    once she has taken it, §3.7)."""
     if await latest(session, order_id) is None:
         raise delivery_not_found()
     # One lock order everywhere: the order, then its attempt.
@@ -83,9 +84,20 @@ async def door_actor(
     ):
         return delivery, order, Actor("rider", user_id)
     if any(g.role == "captain" and g.scope_id == order.society_id for g in permit.grants):
+        if delivery.order_kind == "tiffin" and not _in_her_hands(delivery):
+            raise delivery_not_found()  # M4 lets her move any dispatched tiffin; M7 is the guard
         partner = await ensure_captain(session, user_id, order.society_id)
         return delivery, order, Actor("captain", user_id, partner)
     raise delivery_not_found()
+
+
+def _in_her_hands(delivery: Delivery) -> bool:
+    """A tiffin her society's captain may settle (§3.7): one she took by count (`with_captain`),
+    or one she took that the 16:00 sweep moved to triage (it keeps `kept_by_captain`). Never one
+    still with the rider (`on_route`, a rider-mode drop included) or one she never received."""
+    return delivery.status == "with_captain" or (
+        delivery.status == "triage" and delivery.kept_by_captain
+    )
 
 
 def _ensure_open(delivery: Delivery, order: orders_api.Order) -> None:
@@ -541,9 +553,7 @@ async def _due(
     return list(rows.scalars())
 
 
-async def _locked(
-    session: AsyncSession, attempt_id: uuid.UUID
-) -> tuple[orders_api.Order, Delivery]:
+async def locked(session: AsyncSession, attempt_id: uuid.UUID) -> tuple[orders_api.Order, Delivery]:
     """The order, then the attempt, locked in the one order every path uses; a tap in flight is
     waited for, never skipped."""
     found = await session.get(Delivery, attempt_id)
@@ -585,7 +595,7 @@ async def expire_holds(session: AsyncSession, day: date) -> dict[str, int]:
     to triage too (`left_behind`)."""
 
     async def expire(attempt_id: uuid.UUID) -> str | None:
-        order, attempt = await _locked(session, attempt_id)
+        order, attempt = await locked(session, attempt_id)
         if order.status != "at_society" or attempt.status not in ("with_captain", "held"):
             return None
         reason = "not_home" if attempt.status == "held" else "not_confirmed"
@@ -677,7 +687,7 @@ async def schedule_day(session: AsyncSession, day: date) -> dict[str, int]:
     recorded), or goes to triage when the wallet cannot take it."""
 
     async def settle(attempt_id: uuid.UUID) -> str | None:
-        order, attempt = await _locked(session, attempt_id)
+        order, attempt = await locked(session, attempt_id)
         missed = attempt.status == "undelivered" and attempt.reason in MISSED
         if (
             not missed
