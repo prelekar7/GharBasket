@@ -171,17 +171,25 @@ describe("tiffin orders", () => {
   const menu = (/** @type {string} */ date) => tiffinMenuId(date);
   const body = { kind: "tiffin", menu_id: menu("2026-10-08"), portions: 2 };
 
-  it("names the cook and dish under its own proposed endpoint", async () => {
+  it("carries its dishes and kitchen on the order, and not in the list", async () => {
     const list = (await (await get("/v1/orders?from=2026-10-07&to=2026-10-07")).json()).items;
     expect(list).toHaveLength(1);
     expect(Object.keys(list[0]).sort()).toEqual([...SUMMARY].sort());
-    const info = await (await get(`/v1/orders/${list[0].id}/tiffin`)).json();
-    expect(info).toMatchObject({
-      cook: { name: "Lata tai" },
-      dish: { name: "Rajma chawal" },
-      meal: "lunch",
+    const o = await (await get(`/v1/orders/${list[0].id}`)).json();
+    expect(o).toMatchObject({
+      kitchen: { partner_id: "kit-lata" },
+      tiffin: { meal: "lunch", menu_id: menu("2026-10-07") },
     });
-    expect((await get(`/v1/orders/${TODAY_BOX_ID}/tiffin`)).status).toBe(404);
+    expect(o.tiffin.dishes.map((/** @type {{ name: string }} */ d) => d.name)).toEqual([
+      "Chapati",
+      "Bhaji",
+      "Dal",
+      "Rice",
+    ]);
+    const card = await (await get(`/v1/partners/${o.kitchen.partner_id}/card`)).json();
+    expect(card.display_name).toBe("Lata tai");
+    const box = await (await get(`/v1/orders/${TODAY_BOX_ID}`)).json();
+    expect([box.tiffin, box.kitchen]).toEqual([undefined, undefined]);
   });
 
   it("comes with the box: cooked while the van drives, delivered with it", async () => {
@@ -234,23 +242,46 @@ describe("tiffin orders", () => {
   });
 });
 
-describe("rating a delivered day (HcRate, our proposal)", () => {
-  const rating = { score: 5, tags: ["fresh", "on_time"], comment: "Methi was fresh" };
+describe("rating a delivered tiffin (HcRate, M8 §3.5)", () => {
+  const rating = { score: 5, comment: "Hot and on time" };
+  const tiffinBody = { kind: "tiffin", menu_id: tiffinMenuId("2026-10-06"), portions: 1 };
 
-  it("rates once a delivery arrives, once per order, and reads it back", async () => {
+  /** A tiffin for the box's day, which is delivered with the box. */
+  async function bookedTiffin() {
+    return (await (await post("/v1/orders", tiffinBody, "rate-tiffin")).json()).id;
+  }
+
+  it("rates once a tiffin arrives, once per order, and reads it back", async () => {
+    const id = await bookedTiffin();
     atTripTime(0); // the van has just left
-    const early = await post(`/v1/orders/${TODAY_BOX_ID}/rating`, rating, "rate-1");
-    expect((await early.json()).code).toBe("orders.not_delivered");
+    const early = await post("/v1/ratings", { order_id: id, ...rating }, "rate-1");
+    expect([early.status, (await early.json()).code]).toEqual([
+      409,
+      "partners.rating_window_closed",
+    ]);
     atTripTime(TRIP_MS + DOOR_MS);
-    expect((await get(`/v1/orders/${TODAY_BOX_ID}/rating`)).status).toBe(404);
-    expect((await post(`/v1/orders/${TODAY_BOX_ID}/rating`, rating, "rate-2")).status).toBe(201);
-    expect((await post(`/v1/orders/${TODAY_BOX_ID}/rating`, rating, "rate-2")).status).toBe(201);
-    const again = await post(`/v1/orders/${TODAY_BOX_ID}/rating`, rating, "rate-3");
-    expect((await again.json()).code).toBe("orders.already_rated");
-    expect(await (await get(`/v1/orders/${TODAY_BOX_ID}/rating`)).json()).toMatchObject({
-      order_id: TODAY_BOX_ID,
+    expect((await get(`/v1/ratings?order_id=${id}`)).status).toBe(404);
+    const first = await post("/v1/ratings", { order_id: id, ...rating }, "rate-2");
+    expect(first.status).toBe(201);
+    expect((await post("/v1/ratings", { order_id: id, ...rating }, "rate-2")).status).toBe(201);
+    const again = await post("/v1/ratings", { order_id: id, ...rating }, "rate-3");
+    expect((await again.json()).code).toBe("partners.rating_exists");
+    expect(await (await get(`/v1/ratings?order_id=${id}`)).json()).toMatchObject({
+      order_id: id,
+      partner_id: "kit-lata",
       score: 5,
-      tags: ["fresh", "on_time"],
+      comment: "Hot and on time",
+      created_at: expect.any(String),
     });
+  });
+
+  it("refuses what the API refuses: a box, a bad score, a missing key", async () => {
+    atTripTime(TRIP_MS + DOOR_MS);
+    const id = await bookedTiffin();
+    const box = await post("/v1/ratings", { order_id: TODAY_BOX_ID, score: 4 }, "rate-4");
+    expect([box.status, (await box.json()).code]).toEqual([404, "partners.rating_not_found"]);
+    expect((await get(`/v1/ratings?order_id=${TODAY_BOX_ID}`)).status).toBe(404);
+    expect((await post("/v1/ratings", { order_id: id, score: 6 }, "rate-5")).status).toBe(422);
+    expect((await call("POST", "/v1/ratings", { order_id: id, score: 4 })).status).toBe(400);
   });
 });
