@@ -2,6 +2,7 @@
 assignments in M7, kitchens first and then the societies, on two-wheelers filled by portions
 without splitting a kitchen; a clean plan is published, any other waits for review."""
 
+import dataclasses
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -312,6 +313,28 @@ async def test_a_kitchen_without_a_location_leaves_its_tiffins_unserved_and_neve
     assert refused.status_code == 409, refused.text
     assert refused.json()["code"] == "logistics.plan_incomplete"
     assert refused.json()["order_ids"] == [str(priya)]
+
+
+@time_machine.travel(SOLVE_AT, tick=False)
+async def test_an_empty_kitchen_is_skipped_and_a_missing_ready_by_is_its_own_problem(
+    db_session: AsyncSession,
+) -> None:
+    lunch = await lunch_slot(db_session)
+    lata = await kitchen(db_session, LATA, "Lata tai", at=SUNRISE)
+    priya = await tiffin(db_session, PRIYA, lunch, 2)
+    held = await assign(db_session, lata, lunch, {priya: 2})
+    [ref] = await partners_api.tiffin_pickups(db_session, SEED_HUB_ID, T, "lunch")
+
+    # No orders left: no location needed, nothing to report, nothing unserved.
+    empty = dataclasses.replace(ref, orders=(), order_ids=(), lat=None, lng=None, ready_by=None)
+    kitchens, _, _, problems, unserved = await tiffin_plans._kitchens(db_session, [empty])
+    assert (kitchens, problems, unserved) == ([], [], [])
+
+    # A kitchen with orders: "no location" and "no ready-by time" are told apart.
+    for change, text in (({"lat": None}, "no location"), ({"ready_by": None}, "no ready-by time")):
+        broken = dataclasses.replace(ref, **change)
+        kitchens, _, _, problems, unserved = await tiffin_plans._kitchens(db_session, [broken])
+        assert (kitchens, problems, unserved) == ([], [f"kitchen {held}: {text}"], [str(priya)])
 
 
 @time_machine.travel(SOLVE_AT, tick=False)
