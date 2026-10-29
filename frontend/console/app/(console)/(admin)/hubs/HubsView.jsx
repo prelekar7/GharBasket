@@ -34,7 +34,7 @@ const listOf = (names) =>
  * The admin list of hubs and of societies are @proposals (not in the contract yet). Without the hub list
  * (`limited`) only each hub's name is known, so the page is read-only; without the society list
  * (`societies` null) it cannot say which societies a hub serves.
- * @param {{ hubs: AdminHub[], societies: Society[] | null, currentId: string, limited: boolean }} props
+ * @param {{ hubs: AdminHub[], societies: (Society & { hub_id: string | null })[] | null, currentId: string, limited: boolean }} props
  */
 export function HubsView({ hubs, societies, currentId, limited }) {
   const [param, setParam] = useQueryState("hub", parseAsString.withOptions({ history: "replace" }));

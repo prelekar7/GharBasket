@@ -38,10 +38,12 @@ export default async function Page() {
     return (
       <HubsView
         hubs={items}
-        societies={societies.items.map((/** @type {{ hub: { id: string } | null }} */ s) => ({
-          ...s,
-          hub_id: s.hub?.id ?? null, // the page groups by hub_id
-        }))}
+        societies={societies.items.map(
+          (/** @type {import("@/lib/admin/types.js").Society} */ s) => ({
+            ...s,
+            hub_id: s.hub?.id ?? null, // the page groups by hub_id
+          }),
+        )}
         currentId={current.id}
         limited={!hubs}
       />

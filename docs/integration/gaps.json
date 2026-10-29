@@ -131,18 +131,6 @@
       "owner": "yash",
       "note": "Dropped (M1 §3.6, owner 2026-10-25): staff roles through POST /v1/admin/user-roles (admin; a new number gets a pending grant), riders and packers through M8's POST /v1/hubs/{id}/partner-applications (hub manager); kitchens and captains apply in the app. Remove the Invite sheet from the franchise Staff page."
     },
-    "POST /v1/admin/plans": {
-      "app": "console",
-      "class": "drop",
-      "owner": "yash",
-      "note": "Dropped (M3 §3.5, owner 2026-10-25): plans are seeded and a fee is a price. Keep the Plans page read-only even when GET /v1/admin/plans answers."
-    },
-    "PATCH /v1/admin/plans/{}": {
-      "app": "console",
-      "class": "drop",
-      "owner": "yash",
-      "note": "As POST /v1/admin/plans (M3 §3.5)."
-    },
     "POST /v1/admin/refunds/{}/{}": {
       "app": "console",
       "class": "drop",

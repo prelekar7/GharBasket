@@ -300,7 +300,10 @@ function SocietyForm({ society, hubs, hubId, draft, onCreated }) {
         onCreated(result.data.id);
       } else {
         const changes = changesOf(society, { status, unlock_threshold: t, towers: named });
-        if (Object.keys(changes).length === 0) return toast("Nothing has changed.");
+        if (Object.keys(changes).length === 0) {
+          toast("Nothing has changed.");
+          return;
+        }
         const result = await updateSociety(society.id, changes);
         if (!result.ok) {
           setFields(result.fields);
