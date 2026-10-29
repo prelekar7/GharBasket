@@ -808,6 +808,19 @@ async def test_no_rider_position_reaches_a_captain_or_a_customer_while_he_is_bou
     assert (await position(captain))["lat"] == 19.05
     assert (await position(priya))["lat"] == 19.05
 
+    # Still at Asha's door (waiting for a late tiffin, say): nobody but staff sees him there.
+    waiting = PingIn(
+        at=START_AT - timedelta(seconds=10), lat=KRISHNA[0], lng=KRISHNA[1] + 0.003, accuracy_m=5
+    )
+    await tracking.insert_pings(
+        db_session,
+        [tracking._row(await user_id(db_session, ARJUN), lunch.route_id, waiting)],  # pyright: ignore[reportPrivateUsage]
+    )
+    await db_session.commit()
+    assert await position(staff) is not None
+    assert await position(captain) is None
+    assert await position(priya) is None
+
 
 @time_machine.travel(START_AT, tick=False)
 async def test_close_routes_gives_up_a_tiffin_route_nobody_started_and_the_hub_settles_it(
