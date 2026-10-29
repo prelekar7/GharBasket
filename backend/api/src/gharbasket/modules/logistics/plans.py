@@ -77,8 +77,12 @@ async def published_plan(
 
 
 async def _started(session: AsyncSession, plan_id: uuid.UUID) -> bool:
+    """A route of the plan started, or was given up at 16:00 (`tiffins.abandon` cancels the routes
+    of a still-published plan; a superseded plan's routes are cancelled with it): either way the
+    day's tiffins already have attempts, so the date is not solved again."""
+    gone = (*STARTED, "cancelled")
     found = await session.scalar(
-        select(Route.id).where(Route.plan_id == plan_id, Route.status.in_(STARTED)).limit(1)
+        select(Route.id).where(Route.plan_id == plan_id, Route.status.in_(gone)).limit(1)
     )
     return found is not None
 

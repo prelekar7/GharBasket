@@ -115,10 +115,16 @@ def eta_now(route: Route, stops: list[RouteStop]) -> dict[uuid.UUID, str | None]
 
 
 async def stop_views(
-    session: AsyncSession, route: Route, stops: list[RouteStop], *, kitchens: bool = False
+    session: AsyncSession,
+    route: Route,
+    stops: list[RouteStop],
+    *,
+    kitchens: bool = False,
+    viewer: uuid.UUID | None = None,
 ) -> list[StopOut]:
     """The stops as the route's rider sees them, or hub staff (`kitchens`: a hub manager or an
-    admin, who see a kitchen's address and point always, §3.7)."""
+    admin, who see a kitchen's address and point always, §3.7). `viewer` is who reads: only the
+    route's own rider gets a kitchen's address and point while he collects."""
     societies = sorted({s.society_id for s in stops if s.society_id is not None})
     labels = await community_api.society_labels(session, societies)
     points = await community_api.society_points(session, societies)
@@ -130,7 +136,8 @@ async def stop_views(
     back = await _redelivery_bags(session, [s.id for s in stops])
     etas = eta_now(route, stops)
     taken_back = await pickups.stop_pickups(session, route, stops)
-    places, tiffins = await _tiffin_parts(session, route, stops, kitchens)
+    rider = viewer is not None and viewer == route.rider_user_id
+    places, tiffins = await _tiffin_parts(session, route, stops, kitchens, rider)
     out = []
     for stop in stops:
         society = slot = point = card = None
@@ -190,7 +197,7 @@ TIFFIN_STATUS = {
 
 
 async def _tiffin_parts(
-    session: AsyncSession, route: Route, stops: list[RouteStop], staff: bool
+    session: AsyncSession, route: Route, stops: list[RouteStop], staff: bool, rider: bool
 ) -> tuple[dict[uuid.UUID, KitchenOut], dict[uuid.UUID, list[TiffinItem]]]:
     """A tiffin route's kitchens and each stop's tiffins (§3.7). The kitchen's address and point
     go to the route's rider from the start until every tiffin of his route at that kitchen is
@@ -225,7 +232,9 @@ async def _tiffin_parts(
         if place is None or stop.window_start is None:
             continue
         shown = staff or (
-            route.status == "in_progress" and (stop.status != "handed_over" or stop.id in waiting)
+            rider
+            and route.status == "in_progress"
+            and (stop.status != "handed_over" or stop.id in waiting)
         )
         located = shown and place.lat is not None and place.lng is not None
         kitchens[stop.id] = KitchenOut(
@@ -289,7 +298,7 @@ async def _flat_labels(
 
 
 async def route_detail(
-    session: AsyncSession, route: Route, *, kitchens: bool = False
+    session: AsyncSession, route: Route, *, kitchens: bool = False, viewer: uuid.UUID | None = None
 ) -> RouteDetail:
     [row] = await plans.route_rows(session, Route.id == route.id)
     [summary] = await summaries(session, [row])
@@ -297,7 +306,7 @@ async def route_detail(
     return RouteDetail(
         **summary.model_dump(),
         stops=await stop_views(
-            session, route, await stops_of(session, route.id), kitchens=kitchens
+            session, route, await stops_of(session, route.id), kitchens=kitchens, viewer=viewer
         ),
         source=None if plan is None else plan.source,  # pyright: ignore[reportArgumentType]
         left_behind=list(route.left_behind),

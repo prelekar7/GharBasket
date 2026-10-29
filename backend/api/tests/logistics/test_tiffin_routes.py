@@ -204,6 +204,12 @@ async def test_start_moves_nothing_needs_a_rider_and_shows_the_kitchen_at_pickup
     assert await statuses(db_session, *lunch.orders.values()) == ["locked"] * 4
     at_lata = kitchen_view(started, lata_stop)
     assert at_lata["kitchen"]["location"] is not None and at_lata["navigate_url"]
+    for phone in (KAVITA, SANJAY):  # the route runs: still only its rider (and managers) see it
+        there = kitchen_view(
+            (await api.get(path, headers=await as_user(api, google, phone))).json(), lata_stop
+        )
+        assert (there["kitchen"]["address"], there["kitchen"]["location"]) == (None, None)
+        assert there["navigate_url"] is None
     drops = {s["society"]["id"]: s for s in started["stops"] if s["kind"] == "drop"}
     assert drops[str(SEED_SOCIETY_ID)]["handover_code"] is not None
     assert (
@@ -839,6 +845,7 @@ async def test_close_routes_gives_up_a_tiffin_route_nobody_started_and_the_hub_s
     )
     route = await db_session.get(Route, lunch.route_id, populate_existing=True)
     assert route is not None and route.status == "cancelled"
+    hub_id, day = route.hub_id, route.delivery_date
     for order_id in lunch.orders.values():
         left = await attempt(db_session, order_id)
         assert (left.status, left.reason, left.by_actor) == ("triage", "left_behind", "system")
@@ -855,3 +862,10 @@ async def test_close_routes_gives_up_a_tiffin_route_nobody_started_and_the_hub_s
     assert await statuses(db_session, lunch.orders[PRIYA]) == ["refunded"]
     again = await close_day(db_session)
     assert (again["unstarted_routes"], again["tiffins_left_behind"]) == (0, 0)
+    # The given-up tiffins have attempts: the date is not solved again (no second attempt 1).
+    resolved = await api.post(
+        f"/v1/hubs/{hub_id}/route-plans",
+        json={"date": day.isoformat(), "kind": "tiffin"},
+        headers={**manager, **key()},
+    )
+    assert (resolved.status_code, resolved.json()["code"]) == (409, "logistics.routes_started")

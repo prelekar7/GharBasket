@@ -5,7 +5,7 @@ flats, codes or coordinates in any payload."""
 # previous_rider_user_id, depart, stops: [{seq, kind, society_id, slot_id, eta, bags,
 # captain_user_id}] — M6's packing sequence, M11 (the rider, each captain)
 ROUTE_PUBLISHED = "logistics.route_published"
-# route_id, plan_id, hub_id, delivery_date, rider_user_id, reason: "superseded"
+# route_id, plan_id, hub_id, delivery_date, rider_user_id, reason: "superseded" | "never_started"
 ROUTE_CANCELLED = "logistics.route_cancelled"
 # plan_id, hub_id, delivery_date, kind, problems — M11 tells the hub's managers
 PLAN_NEEDS_REVIEW = "logistics.plan_needs_review"
