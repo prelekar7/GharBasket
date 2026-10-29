@@ -1115,6 +1115,38 @@ describe("notifications inbox and preferences (M11)", () => {
     );
   });
 
+  it("marks the whole inbox read, and needs a signed-in person", async () => {
+    expect((await call("POST", "/v1/notifications/read-all")).status).toBe(401);
+    await signIn();
+    expect((await call("POST", "/v1/notifications/read-all")).status).toBe(204);
+    const after = await (await call("GET", "/v1/notifications")).json();
+    expect(after.unread).toBe(0);
+    expect(after.items.every((/** @type {{ read_at: string | null }} */ m) => m.read_at)).toBe(
+      true,
+    );
+    // Repeating it changes nothing.
+    expect((await call("POST", "/v1/notifications/read-all")).status).toBe(204);
+  });
+
+  it("sets and clears this device's push token, and refuses bad bodies", async () => {
+    expect((await call("PUT", "/v1/me/push-token", { push_token: "t" })).status).toBe(401);
+    await signIn();
+    expect((await call("PUT", "/v1/me/push-token", { push_token: "fcm-abc" })).status).toBe(204);
+    expect(localStorage.getItem("gb-mock-push-token")).toBe("fcm-abc");
+    expect((await call("PUT", "/v1/me/push-token", { push_token: null })).status).toBe(204);
+    expect(localStorage.getItem("gb-mock-push-token")).toBeNull();
+    for (const body of [
+      {},
+      { push_token: "" },
+      { push_token: "x".repeat(4097) },
+      { push_token: 5 },
+    ]) {
+      const res = await call("PUT", "/v1/me/push-token", body);
+      expect(res.status).toBe(422);
+      expect((await res.json()).code).toBe("request.invalid");
+    }
+  });
+
   it("saves channel choices but keeps quiet hours, and refuses unknown categories", async () => {
     await signIn();
     const prefs = await (await call("GET", "/v1/notifications/preferences")).json();

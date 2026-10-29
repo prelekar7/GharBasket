@@ -4,7 +4,13 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { useInbox, useMarkRead, usePrefs, useSavePrefs } from "@/features/notifications/queries.js";
+import {
+  useInbox,
+  useMarkAllRead,
+  useMarkRead,
+  usePrefs,
+  useSavePrefs,
+} from "@/features/notifications/queries.js";
 import { clockTime, istClock, shortDate } from "@/features/subscriptions/format.js";
 
 /** Notifications: the in-app inbox and what you want to hear about, where (M11 screens). */
@@ -20,6 +26,7 @@ function Notifications() {
   const navigate = useNavigate();
   const inbox = useInbox(lang);
   const markRead = useMarkRead();
+  const markAll = useMarkAllRead();
   const [settings, setSettings] = useState(false);
 
   return (
@@ -48,36 +55,50 @@ function Notifications() {
       ) : inbox.data.items.length === 0 ? (
         <EmptyState title={t("notif.emptyTitle")} body={t("notif.emptyBody")} />
       ) : (
-        <ul>
-          {inbox.data.items.map((m) => (
-            <li key={m.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!m.read_at) markRead.mutate(m.id);
-                  navigate({ to: m.link });
-                }}
-                className="flex w-full gap-3 border-b border-line py-3 text-left outline-none focus-visible:shadow-focus"
+        <>
+          {inbox.data.unread > 0 && (
+            <div className="-mb-2 flex justify-end">
+              <Button
+                variant="quiet"
+                onPress={() =>
+                  markAll.mutate(undefined, { onError: () => toast(t("notif.markAllFailed")) })
+                }
               >
-                <span
-                  aria-hidden
-                  className={`mt-2 size-2 shrink-0 rounded-full ${m.read_at ? "bg-transparent" : "bg-primary"}`}
-                />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className={m.read_at ? "" : "font-semibold"}>
-                    {m.title}
-                    {!m.read_at && <span className="sr-only"> · {t("notif.unread")}</span>}
+                {t("notif.markAll")}
+              </Button>
+            </div>
+          )}
+          <ul>
+            {inbox.data.items.map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!m.read_at) markRead.mutate(m.id);
+                    navigate({ to: m.link });
+                  }}
+                  className="flex w-full gap-3 border-b border-line py-3 text-left outline-none focus-visible:shadow-focus"
+                >
+                  <span
+                    aria-hidden
+                    className={`mt-2 size-2 shrink-0 rounded-full ${m.read_at ? "bg-transparent" : "bg-primary"}`}
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className={m.read_at ? "" : "font-semibold"}>
+                      {m.title}
+                      {!m.read_at && <span className="sr-only"> · {t("notif.unread")}</span>}
+                    </span>
+                    <span className="text-sm leading-5 text-fg-secondary">{m.body}</span>
+                    <span className="text-xs leading-[18px] text-fg-secondary">
+                      {shortDate(m.created_at.slice(0, 10), lang)} ·{" "}
+                      {clockTime(istClock(m.created_at), lang)}
+                    </span>
                   </span>
-                  <span className="text-sm leading-5 text-fg-secondary">{m.body}</span>
-                  <span className="text-xs leading-[18px] text-fg-secondary">
-                    {shortDate(m.created_at.slice(0, 10), lang)} ·{" "}
-                    {clockTime(istClock(m.created_at), lang)}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       <PrefsSheet open={settings} onClose={() => setSettings(false)} />
     </div>
