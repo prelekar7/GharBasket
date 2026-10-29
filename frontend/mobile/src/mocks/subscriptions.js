@@ -7,6 +7,7 @@ import { HttpResponse, http } from "msw";
 import { chargeBox } from "./billing.js";
 import { PRODUCTS } from "./catalog.js";
 import { bookedTiffins, TIFFIN_OFFER } from "./orders.js";
+import { slotRef } from "./slotData.js";
 
 const STATE_KEY = "gb-mock-cycle"; // status and version survive reloads, like a server's
 const NO_CYCLE_KEY = "gb-mock-no-cycle"; // "1": a new household, before the first generation
@@ -159,7 +160,7 @@ const DEFAULT_SUBS = /** @type {typeof SUBSTITUTES[string]} */ ([
   ["seasonal-mix", "Seasonal sabzi", "मौसमी सब्ज़ी", 500, "g", 3500, "in_season", {}],
 ]);
 
-/** @typedef {{ status: "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "payment_failed", version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]>, qty?: Record<string, number>, removed?: string[], added?: Record<string, number> }} CycleState */
+/** @typedef {{ status: "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "payment_failed", version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]>, qty?: Record<string, number>, removed?: string[], added?: Record<string, number>, slot_id?: string, green?: { quote_id: string, saving_paise: number, reason_code: string } | null }} CycleState */
 const FRESH = /** @type {CycleState} */ ({ status: "awaiting_approval", version: 1, swaps: {} });
 const loadState = () => {
   try {
@@ -282,6 +283,8 @@ function cycle(
     qty = {},
     removed = [],
     added = {},
+    slot_id,
+    green = null,
   } = preview ? FRESH : at;
   const base = LINES.filter(([slug]) => !removed.includes(slug)).map(
     ([slug, en, hi, sq, unit, price, start, code, params]) => {
@@ -343,12 +346,7 @@ function cycle(
     household_id: uid("household-priya"),
     week_start: "2026-10-05",
     delivery_date: "2026-10-06",
-    slot: {
-      id: uid("slot-morning"),
-      label: lang === "hi" ? "सुबह 8-10" : "Morning 8-10",
-      start: "08:00:00",
-      end: "10:00:00",
-    },
+    slot: slotRef(slot_id, lang),
     cutoff_at: "2026-10-05T15:30:00Z",
     // awaiting_approval → approved | skipped; at the cut-off approved → locked (mirrored from the
     // order, which is payment_failed when the wallet is short). Edits stay open until the cut-off.
@@ -383,6 +381,11 @@ function cycle(
     },
     lines,
     total_paise: total,
+    // A slot move at a quoted saving (M3 §3.6); at most the lines, so the payable never goes below 0.
+    green_slot: green,
+    discount_paise: Math.min(green?.saving_paise ?? 0, total),
+    fees_paise: 0,
+    payable_paise: total - Math.min(green?.saving_paise ?? 0, total),
     highlights: [
       { code: "in_season", params: { item: lang === "hi" ? "मेथी" : "Methi" } },
       {
@@ -771,3 +774,5 @@ export const subscriptionHandlers = [
     return HttpResponse.json({ ...order, status: "cancelled" });
   }),
 ];
+
+export { cycle, langOf, loadState, problem, saveState, versionOf };

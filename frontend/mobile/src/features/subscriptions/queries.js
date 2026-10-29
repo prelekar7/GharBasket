@@ -28,6 +28,10 @@ import { istDate } from "./format.js";
  * @property {Highlight[]} highlights
  * @property {{ month: string, budget_paise: number, spent_paise: number, remaining_paise: number } | null} budget_lock
  * @property {{ name: string, flat: string } | null} captain null until M9 captains
+ * @property {{ quote_id: string, saving_paise: number, reason_code: string } | null} [green_slot] a slot move at a quoted saving (M3 §3.6)
+ * @property {number} [discount_paise] the green-slot saving, else 0
+ * @property {number} [fees_paise]
+ * @property {number} [payable_paise] total_paise + fees_paise - discount_paise
  * @property {string | null} order_id after approval
  * @property {string | null} generated_at
  * @property {string | null} approved_at

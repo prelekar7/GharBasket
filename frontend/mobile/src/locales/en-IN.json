@@ -506,6 +506,36 @@
     "failed": "That didn’t go through. Please try again.",
     "payingStill": "The payment is still being processed. This week will update as soon as it clears."
   },
+  "slots": {
+    "change": "Change time",
+    "title": "Pick a delivery time",
+    "lead": "Same day, {day}. Moving your box can save you money when the van is already coming nearby.",
+    "loading": "Looking at the delivery times...",
+    "current": "Current",
+    "green": "Green",
+    "save": "Save {amount}",
+    "full": "This time is full",
+    "savedLine": "Green slot saving",
+    "confirm": "Move my box here",
+    "stay": "Keep my current time",
+    "moved": "Done. Your box now comes {window}.",
+    "unpriced": "We can't show savings right now. You can still pick any time that has room.",
+    "reason": {
+      "same_society": "Your society's delivery time",
+      "neighbour_stop": "Neighbours already get delivery {window}",
+      "neighbour_stop_save": "Neighbours already get delivery {window}, save {amount}",
+      "new_stop": "The van would add a new stop for you here",
+      "new_trip": "The van would need a separate trip for this time"
+    },
+    "err": {
+      "closed": "Delivery times can't be changed any more for this week.",
+      "full": "That time just filled up. Pick another one.",
+      "expired": "Those prices ran out after 15 minutes. Here are fresh ones; check and confirm again.",
+      "changed": "Your box changed. Check the times again.",
+      "off": "Choosing a delivery time isn't available right now.",
+      "failed": "We couldn't load or change the times. Try again."
+    }
+  },
   "reasons": {
     "in_season": "{item} is in season",
     "tiffin_day": "{weekday}: tiffin by {cook}",

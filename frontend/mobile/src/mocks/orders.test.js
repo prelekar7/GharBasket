@@ -27,6 +27,7 @@ const SUMMARY = [
   "created_at",
   "cycle_id",
   "delivery_date",
+  "discount_code",
   "discount_paise",
   "fees_paise",
   "household_id",

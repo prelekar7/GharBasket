@@ -8,10 +8,10 @@ The classes come from `docs/integration/gaps.json`, which is edited by hand.
 
 | App | Call sites | Found | Wrong method | Missing | Unresolved | Wrapped (not shipped / @proposal) |
 |---|--:|--:|--:|--:|--:|--:|
-| mobile | 113 | 102 | 1 | 7 | 3 | 8 |
+| mobile | 115 | 104 | 1 | 7 | 3 | 8 |
 | console | 185 | 166 | 2 | 17 | 0 | 19 |
 
-Distinct endpoints called: mobile 96, console 147. A call site is one `request(`/`apiGet(` … in the source.
+Distinct endpoints called: mobile 98, console 147. A call site is one `request(`/`apiGet(` … in the source.
 
 ## Gaps by class
 
@@ -41,9 +41,9 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `GET /v1/orders/{}/tiffin` (guarded) | mobile | `mobile/src/features/orders/queries.js:96` | Read OrderOut.tiffin and OrderOut.kitchen (on main, #319), then GET /v1/partners/{kitchen.partner_id}/card for the cook. M8 §3.4 table 'Mock today'. | yash |  |
 | `GET /v1/public/cooks/{}` | console | `console/lib/public-api.js:75` | Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public. M12 §3.7: public cook profiles are M8's card. | yash |  |
 | `GET /v1/public/societies` | console | `console/lib/public-api.js:50` | Drop the public society list from the landing page; a society page is GET /v1/public/societies/{slug}. M12 §3.7: 'Not in v1'. | yash |  |
-| `GET /v1/tiffin-offers` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:95` | Call GET /v1/tiffin-menus?date=&meal= and map the menus to offers (M4 §3.5 table 'Mock today'). Built on main (#317). The cycle does not carry offers. | yash |  |
+| `GET /v1/tiffin-offers` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:99` | Call GET /v1/tiffin-menus?date=&meal= and map the menus to offers (M4 §3.5 table 'Mock today'). Built on main (#317). The cycle does not carry offers. | yash |  |
 | `PATCH /v1/admin/festivals/{}` | console | `console/app/(console)/(admin)/festivals/actions.js:35` | F3: PATCH (and DELETE) /v1/admin/festivals/{day}/{code}/{region}, not a single id; the run's days become one call each. M2 §3.3. | yash |  |
-| `PATCH /v1/cycles/{}/meals` | mobile | `mobile/src/features/subscriptions/queries.js:186` | F1: useSwapMeal sends PATCH; send PUT (same body { date, slot }); change the mock handler too. M3 §3.2 renamed it to PUT; blocks the MS-A meal-swap flow. The spec has PUT /v1/cycles/{cycle_id}/meals. | yash |  |
+| `PATCH /v1/cycles/{}/meals` | mobile | `mobile/src/features/subscriptions/queries.js:190` | F1: useSwapMeal sends PATCH; send PUT (same body { date, slot }); change the mock handler too. M3 §3.2 renamed it to PUT; blocks the MS-A meal-swap flow. The spec has PUT /v1/cycles/{cycle_id}/meals. | yash |  |
 | `PATCH /v1/hubs/{}/settings` | console | `console/app/(console)/(franchise)/settings/actions.js:16` | PATCH /v1/admin/hubs/{hub_id} with If-Match (the version from the GET) and any of { name, address, location, service_area, status, timings, procurement_buffer_pct, pre_live_box_fee_paise }; 412 request.version_mismatch → reload. No switches, languages or quiet hours; the change history is the audit log, not shown. M6 §3.1 (admin; audit-logged). | yash |  |
 | `POST /v1/admin/reconciliation/{}/credit` | console | `console/app/(console)/(admin)/reconciliation/actions.js:41` | F4: POST /v1/admin/reconciliation/{id}/resolve with { note } (moves no money; the wallet credit is not an action). M5 §3.4. Built on main. | yash |  |
 | `POST /v1/admin/reconciliation/{}/investigate` | console | `console/app/(console)/(admin)/reconciliation/actions.js:46` | F4: same resolve call; the spec has no 'investigating' state. M5 §3.4. | yash |  |
@@ -89,6 +89,6 @@ The static scan could not tell the method or path. They are not counted as found
 | File | Call | Why |
 |---|---|---|
 | `mobile/src/features/captain/queries.js:89` | `request(` | path is action.path |
-| `mobile/src/features/subscriptions/queries.js:116` | `request(` | a variable stands where the spec has a fixed word: /v1/cycles/{}/{} (could be POST /v1/cycles/{cycle_id}/approve, POST /v1/cycles/{cycle_id}/feedback, PATCH /v1/cycles/{cycle_id}/lines, PUT /v1/cycles/{cycle_id}/meals, POST /v1/cycles/{cycle_id}/skip, PUT /v1/cycles/{cycle_id}/slot, POST /v1/cycles/{cycle_id}/slot-quotes, POST /v1/cycles/{cycle_id}/unskip) |
+| `mobile/src/features/subscriptions/queries.js:120` | `request(` | a variable stands where the spec has a fixed word: /v1/cycles/{}/{} (could be POST /v1/cycles/{cycle_id}/approve, POST /v1/cycles/{cycle_id}/feedback, PATCH /v1/cycles/{cycle_id}/lines, PUT /v1/cycles/{cycle_id}/meals, POST /v1/cycles/{cycle_id}/skip, PUT /v1/cycles/{cycle_id}/slot, POST /v1/cycles/{cycle_id}/slot-quotes, POST /v1/cycles/{cycle_id}/unskip) |
 | `mobile/src/lib/outbox.js:74` | `request(` | method is item.method |
 

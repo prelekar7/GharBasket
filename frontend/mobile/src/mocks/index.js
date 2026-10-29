@@ -14,6 +14,7 @@ import { orderHandlers } from "./orders.js";
 import { packerHandlers } from "./packer.js";
 import { partnerHandlers } from "./partners.js";
 import { profileHandlers } from "./profile.js";
+import { slotHandlers } from "./slots.js";
 import { subscriptionHandlers } from "./subscriptions.js";
 import { trackingHandlers } from "./tracking.js";
 import { trainingHandlers } from "./trainings.js";
@@ -23,6 +24,7 @@ const all = [
   ...communityHandlers,
   ...identityHandlers,
   ...subscriptionHandlers,
+  ...slotHandlers,
   ...billingHandlers,
   // Before the role mocks: GET /v1/earnings?week= is answered for every partner kind here.
   ...partnerHandlers,

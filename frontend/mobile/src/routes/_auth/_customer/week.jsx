@@ -38,6 +38,8 @@ import {
   useCycleAction,
   useFailedBoxOrder,
 } from "@/features/subscriptions/queries.js";
+import { SlotSheet } from "@/features/subscriptions/SlotSheet.jsx";
+import { GREEN_SLOTS } from "@/lib/features.js";
 import { markFirstBoxApproved } from "@/lib/install.js";
 
 /**
@@ -58,6 +60,7 @@ function Week() {
   const unskip = useCycleAction("unskip");
   const [confirmSkip, setConfirmSkip] = useState(false);
   const [openDay, setOpenDay] = useState(/** @type {number | null} */ (null));
+  const [pickingSlot, setPickingSlot] = useState(false);
   const client = useQueryClient();
   // A box the cut-off couldn't charge: from its order and the wallet, not from the cycle (M4).
   // After a top-up the order is re-read until the debit has gone through.
@@ -214,6 +217,11 @@ function Week() {
               {c.captain &&
                 ` · ${t("week.brings", { name: c.captain.name, flat: c.captain.flat })}`}
             </p>
+            {GREEN_SLOTS && !!c.discount_paise && (
+              <p className="text-sm leading-[22px] font-semibold text-primary">
+                {`${t("slots.savedLine")}: ${formatPaise(c.discount_paise)}`}
+              </p>
+            )}
             {c.status === "approved" && (
               <div className="mt-2">
                 <OrderTimeline
@@ -260,10 +268,15 @@ function Week() {
                 />
               </div>
             )}
-            <div>
+            <div className="flex flex-wrap">
               <Button variant="quiet" className="-ml-4" onPress={() => navigate({ to: "/box" })}>
                 {t("week.open")}
               </Button>
+              {GREEN_SLOTS && editable && c.id && (
+                <Button variant="quiet" onPress={() => setPickingSlot(true)}>
+                  {t("slots.change")}
+                </Button>
+              )}
             </div>
           </section>
           {c.budget_lock && (
@@ -313,6 +326,9 @@ function Week() {
       >
         {t("week.skipBody", { amount: formatPaise(c.total_paise) })}
       </Dialog>
+      {GREEN_SLOTS && c.id && (
+        <SlotSheet cycle={c} open={pickingSlot} onClose={() => setPickingSlot(false)} />
+      )}
       <DaySheet
         cycle={c}
         index={openDay}

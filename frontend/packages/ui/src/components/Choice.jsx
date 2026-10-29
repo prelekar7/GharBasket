@@ -112,13 +112,13 @@ export function SegmentedControl({ label, options, value, onChange }) {
 }
 
 const card = tv({
-  base: `flex min-h-16 w-full cursor-default items-start gap-3 rounded-sm border border-line-strong bg-surface px-4 py-3 text-left text-fg ${focus}`,
+  base: `flex min-h-16 w-full cursor-default items-start gap-3 rounded-sm border border-line-strong bg-surface px-4 py-3 text-left text-fg data-disabled:opacity-50 ${focus}`,
   variants: { isSelected: { true: "border-2 border-primary bg-primary-soft px-[15px] py-[11px]" } },
 });
 
 /**
  * Choices that need a sentence each (plan size, payment method). One is always selected.
- * @param {{ label: string, value: string, onChange: (value: string) => void, options: { value: string, title: string, description?: string, meta?: import("react").ReactNode, badge?: string }[] }} props
+ * @param {{ label: string, value: string, onChange: (value: string) => void, options: { value: string, title: string, description?: string, meta?: import("react").ReactNode, badge?: string, disabled?: boolean }[] }} props
  */
 export function RadioCards({ label, value, onChange, options }) {
   return (
@@ -129,7 +129,12 @@ export function RadioCards({ label, value, onChange, options }) {
       className="flex w-full max-w-[380px] flex-col gap-2"
     >
       {options.map((o) => (
-        <Radio key={o.value} value={o.value} className={({ isSelected }) => card({ isSelected })}>
+        <Radio
+          key={o.value}
+          value={o.value}
+          isDisabled={o.disabled}
+          className={({ isSelected }) => card({ isSelected })}
+        >
           {({ isSelected }) => (
             <>
               <span
