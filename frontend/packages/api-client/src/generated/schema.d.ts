@@ -4221,7 +4221,7 @@ export interface paths {
         put?: never;
         /**
          * Hand a stop's crates to its captain by count and code or photo (Idempotency-Key)
-         * @description Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo. A tiffin drop (§3.7) is counted with crates 0 and no scans: its tiffins become with_captain without an order move (count_mismatch names the expected short_codes).
+         * @description Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo. A tiffin drop (§3.7) is counted with crates 0 and no scans: its tiffins become with_captain without an order move (count_mismatch names the expected short_codes). Count again for tiffins collected later; nothing riding is nothing_to_hand_over.
          */
         post: operations["hand_over_v1_stops__stop_id__handover_post"];
         delete?: never;
@@ -18225,7 +18225,8 @@ export interface components {
         /**
          * KitchenOut
          * @description A tiffin route's kitchen stop (§3.7). The address and the point go to the route's rider
-         *     from the route's start until the stop is collected, and to hub staff; null otherwise.
+         *     from the route's start until every tiffin of the route at the kitchen is collected, and to hub
+         *     managers and admins; null otherwise.
          */
         gharbasket__modules__logistics__schemas__KitchenOut: {
             /**
@@ -37370,7 +37371,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.count_mismatch (expected, short_codes), logistics.already_handed_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition */
+            /** @description logistics.count_mismatch (expected, short_codes), logistics.already_handed_over, logistics.nothing_to_hand_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition */
             409: {
                 headers: {
                     [name: string]: unknown;

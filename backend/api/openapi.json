@@ -31518,7 +31518,7 @@
         "type": "object"
       },
       "gharbasket__modules__logistics__schemas__KitchenOut": {
-        "description": "A tiffin route's kitchen stop (§3.7). The address and the point go to the route's rider\nfrom the route's start until the stop is collected, and to hub staff; null otherwise.",
+        "description": "A tiffin route's kitchen stop (§3.7). The address and the point go to the route's rider\nfrom the route's start until every tiffin of the route at the kitchen is collected, and to hub\nmanagers and admins; null otherwise.",
         "properties": {
           "address": {
             "anyOf": [
@@ -66913,7 +66913,7 @@
     },
     "/v1/stops/{stop_id}/handover": {
       "post": {
-        "description": "Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo. A tiffin drop (§3.7) is counted with crates 0 and no scans: its tiffins become with_captain without an order move (count_mismatch names the expected short_codes).",
+        "description": "Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo. A tiffin drop (§3.7) is counted with crates 0 and no scans: its tiffins become with_captain without an order move (count_mismatch names the expected short_codes). Count again for tiffins collected later; nothing riding is nothing_to_hand_over.",
         "operationId": "hand_over_v1_stops__stop_id__handover_post",
         "parameters": [
           {
@@ -67029,7 +67029,7 @@
                 }
               }
             },
-            "description": "logistics.count_mismatch (expected, short_codes), logistics.already_handed_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition"
+            "description": "logistics.count_mismatch (expected, short_codes), logistics.already_handed_over, logistics.nothing_to_hand_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition"
           },
           "422": {
             "content": {
