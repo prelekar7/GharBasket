@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { safely } from "@/lib/admin/safe.js";
-import { apiPatch, apiPost } from "@/lib/api.js";
+import { apiGet, apiPatch, apiPost } from "@/lib/api.js";
 
 /**
  * Adds a hub. It starts as "planned", with no service area, until the area is drawn and the
@@ -19,13 +19,19 @@ export async function createHub(idempotencyKey, input) {
 }
 
 /**
- * Saves (or clears, with null) a hub's service area.
+ * Saves (or clears, with null) a hub's service area. The change needs `If-Match` (M6 §3.1), so the
+ * hub's current version is read first.
  * @param {string} id
  * @param {import("@/lib/admin/geo.js").GeoPolygon | null} serviceArea
  */
 export async function saveServiceArea(id, serviceArea) {
   return safely(async () => {
-    await apiPatch(`/v1/admin/hubs/${encodeURIComponent(id)}`, { service_area: serviceArea });
+    const { version } = await apiGet(`/v1/hubs/${encodeURIComponent(id)}`);
+    await apiPatch(
+      `/v1/admin/hubs/${encodeURIComponent(id)}`,
+      { service_area: serviceArea },
+      { headers: { "if-match": `"${version}"` } },
+    );
     revalidatePath("/hubs");
     return { id };
   });

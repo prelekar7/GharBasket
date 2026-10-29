@@ -2,7 +2,7 @@
 // proposal until the hubs endpoints land. Ids are uuids like the real API's (the seed hub's id is the
 // backend's SEED_HUB_ID); the readable name is `slug`.
 import { HttpResponse, http } from "msw";
-import { problem, roleOf } from "./util.js";
+import { roleOf } from "./util.js";
 
 /** The backend seed's hub, Kharghar (tools/seed.py `SEED_HUB_ID`). */
 export const KHARGHAR_HUB_ID = "0199a000-0000-7000-8000-00000000a001";
@@ -44,9 +44,5 @@ export const hubsHandlers = [
   http.get("*/v1/hubs", ({ request }) =>
     HttpResponse.json({ items: visibleHubs(request), next_cursor: null }),
   ),
-
-  http.get("*/v1/hubs/:id", ({ request, params }) => {
-    const hub = visibleHubs(request).find((h) => h.id === params.id);
-    return hub ? HttpResponse.json(hub) : problem(404, "hubs.not_found", "No such hub");
-  }),
+  // GET /v1/hubs/{id} (the hub with its timings and ETag) is in hubadmin.js, beside the hub's PATCH.
 ];
