@@ -221,7 +221,6 @@ const cycleWith = (st) => cycle("en", false, st);
 const MONTH = "2026-10";
 const NEXT_MONTH = "2026-11";
 const BUDGET_KEY = "gb-mock-budget-lock"; // month → limit in paise, null when switched off
-const WHEN_OVER_KEY = "gb-mock-budget-when-over";
 const EARLIER_SPEND = 118000; // what October's earlier boxes spent (the designs' ₹1,180)
 const budgets = () =>
   /** @type {Record<string, number | null>} */ (
@@ -744,19 +743,6 @@ export const subscriptionHandlers = [
     const state = loadState();
     const spent = EARLIER_SPEND + (state.status === "skipped" ? 0 : cycle("en").total_paise);
     return HttpResponse.json(budgetLock(month, spent));
-  }),
-
-  // @proposal (not in the contract yet) GET/PUT /v1/budget-lock/preferences: what Autopilot does
-  // when a week would go over the limit ("swap" is the only behaviour in M3 today).
-  http.get("*/v1/budget-lock/preferences", () =>
-    HttpResponse.json({ when_over: localStorage.getItem(WHEN_OVER_KEY) ?? "swap" }),
-  ),
-  http.put("*/v1/budget-lock/preferences", async ({ request }) => {
-    const { when_over: mode } = /** @type {{ when_over?: string }} */ (await request.json());
-    if (!mode || !["swap", "trim", "ask"].includes(mode))
-      return problem(422, "request.invalid", "Pick swap, trim or ask");
-    localStorage.setItem(WHEN_OVER_KEY, mode);
-    return HttpResponse.json({ when_over: mode });
   }),
 
   transition("approve"),

@@ -1040,16 +1040,6 @@ describe("Budget Lock (M3)", () => {
     expect((await gone.json()).code).toBe("subscriptions.no_budget_lock");
   });
 
-  it("keeps what Autopilot does when a week goes over as a proposal of its own", async () => {
-    await signedIn();
-    expect(await (await call("GET", "/v1/budget-lock/preferences")).json()).toEqual({
-      when_over: "swap",
-    });
-    const put = await call("PUT", "/v1/budget-lock/preferences", { when_over: "ask" });
-    expect(await put.json()).toEqual({ when_over: "ask" });
-    expect((await call("PUT", "/v1/budget-lock/preferences", { when_over: "x" })).status).toBe(422);
-  });
-
   it("sets up UPI Autopay once per key, then cancels it", async () => {
     await signedIn();
     expect((await call("GET", "/v1/mandates/current")).status).toBe(404);
