@@ -3,6 +3,7 @@
 // lowercase (handbook §6.2); times are UTC. What §3.1 does not have lives under its own proposed
 // endpoint: a tiffin's cook and dish, ratings, issues (mocks/tracking.js has the van).
 import { HttpResponse, http } from "msw";
+import { addonBox } from "./addons.js";
 import { caller, isNewUser } from "./handlers.js";
 import { deliveryStage, TODAY_BOX_ID } from "./tracking.js";
 
@@ -157,6 +158,9 @@ const full = (o) => ({
   timeline: o.timeline,
 });
 
+/** `full`, for the add-ons mock (mocks/addons.js). */
+export const fullOrder = (/** @type {Parameters<typeof full>[0]} */ o) => full(o);
+
 /**
  * The designs' Tuesday: the box is on the way (it reaches the captain, then the door, as the demo
  * day runs: mocks/tracking.js), a tiffin tomorrow, and last week's box delivered. The week still
@@ -202,6 +206,7 @@ function orders(/** @type {"en" | "hi"} */ lang) {
       timeline: timelineOf("2026-09-29", "delivered"),
       created_at: utc("2026-09-24", "19:30"),
     }),
+    addonBox(BOX_SLOT, lang),
   ];
 }
 
