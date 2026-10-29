@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.logistics import deliveries, execution, plans, tracking
+from gharbasket.modules.logistics import deliveries, execution, plans, tiffins, tracking
 from gharbasket.modules.logistics.models import Route, RoutePlan
 from gharbasket.platform import outbox
 from gharbasket.platform.errors import ProblemError
@@ -146,7 +146,10 @@ async def persist_gps_pings(ctx: JobContext) -> dict[str, Any]:
     return {"read": read, "inserted": inserted}
 
 
-@job("close_routes", "Complete the routes still in progress; their bags ride back (T 16:00 IST)")
+@job(
+    "close_routes",
+    "Complete the routes in progress and give up unstarted tiffin routes (T 16:00 IST)",
+)
 async def close_routes(ctx: JobContext) -> dict[str, Any]:
     day = ctx.scheduled_for.astimezone(IST).date()
     routes = (
@@ -159,11 +162,35 @@ async def close_routes(ctx: JobContext) -> dict[str, Any]:
     ).scalars()
     closed = back = 0
     for route in list(routes):
-        back += await execution.close(ctx.session, route, "system", None)
+        if route.kind == "tiffin":  # tiffins still out go to triage, none moves (§3.7)
+            await tiffins.close(ctx.session, route, "system", None)
+        else:
+            back += await execution.close(ctx.session, route, "system", None)
         route.version += 1
         await tracking.forget(ctx.valkey, route.id)
         closed += 1
-    return {"date": day.isoformat(), "closed": closed, "returned_to_hub": back}
+    # A tiffin route nobody started: its tiffins wait at the kitchens, so the hub settles them.
+    unstarted = (
+        await ctx.session.execute(
+            select(Route)
+            .where(Route.kind == "tiffin", Route.status == "published", Route.delivery_date <= day)
+            .order_by(Route.id)
+            .with_for_update(skip_locked=True)
+        )
+    ).scalars()
+    abandoned = left = 0
+    for route in list(unstarted):
+        left += await tiffins.abandon(ctx.session, route)
+        abandoned += 1
+    triage = await tiffins.sweep(ctx.session, day)
+    return {
+        "date": day.isoformat(),
+        "closed": closed,
+        "returned_to_hub": back,
+        "tiffins_to_triage": triage,
+        "unstarted_routes": abandoned,
+        "tiffins_left_behind": left,
+    }
 
 
 @job("purge_gps_pings", "Delete GPS pings older than 90 days (daily 03:43 IST)")

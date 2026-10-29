@@ -41,6 +41,7 @@ class Caller:
     manager: bool  # a hub manager of the route's hub
     staff: bool  # hub staff who may read the hub's routes
     rider: bool  # holds rider:<the route's hub>
+    kitchens: bool = False  # a hub manager or an admin: a tiffin kitchen's address and point (§3.7)
 
 
 def caller(permit: Permit, hub_id: uuid.UUID) -> Caller:
@@ -50,6 +51,7 @@ def caller(permit: Permit, hub_id: uuid.UUID) -> Caller:
         manager="hub_manager" in roles,
         staff=bool(roles & set(STAFF)),
         rider="rider" in roles,
+        kitchens=bool(roles & {"hub_manager", "admin"}),
     )
 
 

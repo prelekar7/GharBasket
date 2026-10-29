@@ -27,8 +27,9 @@ Each society has fixed delivery days (for example, Sunrise Towers: Tuesday, Frid
 | T 04:00 | Buying at APMC Vashi / FPO, goods receipt, QC | ops | W4 |
 | T 05:00 | `build_packing_tasks` → packing | ops | W4 |
 | T 08:00–10:00 | Society handover to captain → doorstep delivery | logistics | W5 |
+| T 09:35 | `solve_tiffin_routes` per hub (lunch; kitchens first, then societies, in M7 without ML) → plan published when its check is clean | logistics ← partners | W6 |
 | T 10:00–12:00 | Return leg: crates + Kindness pickups | logistics, community | W5, W8 |
-| T 11:30–13:30 | Tiffin ready, picked up, delivered | partners, logistics | W6 |
+| T 11:30–13:30 | Tiffin ready, collected by the rider's scan, handed to the captain, delivered | partners, logistics | W6 |
 | T 12:30 | `surplus_cascade` | ops | W9 |
 
 Scheduled jobs run without a broker (D21): each one is an internal endpoint, `POST /v1/internal/jobs/<name>`, called by a GitHub Actions schedule. Jobs are idempotent, take a PostgreSQL advisory lock and use the *scheduled* time, so a schedule that starts a few minutes late changes nothing. Events between modules go through the Postgres outbox, which the API relays after each commit.
@@ -449,10 +450,11 @@ sequenceDiagram
 
 1. Kitchens publish weekly menus; the hub manager approves them.
 2. Cut-off at **T-1 21:00**, then `assign_kitchens` at 21:30 runs the fairness-aware CP-SAT assignment. Kitchens accept their counts.
-3. Kitchens cook in the morning and mark READY by 11:30.
-4. A 2-wheeler route collects tiffins and delivers between 12:30 and 13:30.
-5. A rating prompt goes out at 14:30.
-6. Leftover portions are listed in the evening "Bachat Box".
+3. At **T 09:35** `solve_tiffin_routes` plans each hub's lunch run (M7 §3.7): kitchens first, then the societies, on two-wheelers filled by portions.
+4. Kitchens cook in the morning and mark READY by 11:30.
+5. The rider scans each kitchen's `GB1A:` code (`POST /v1/stops/{id}/collect`): its ready tiffins go `packed → dispatched`. At a society with a captain she takes them by count and the handover code and proves each door with the tiffin's short code and the household's code (or a photo); where there is no captain the rider does the doors. A tiffin that does not reach its door is refunded in full at once; one never collected (or on a route nobody started) waits for the hub's triage at 16:00. The captain settles only the tiffins she took, and neither she nor the customer sees the rider's position while he is bound for a kitchen or near one. Delivery between 12:30 and 13:30.
+6. A rating prompt goes out at 14:30.
+7. Leftover portions are listed in the evening "Bachat Box".
 
 *Figure 7.12 — Sequence: tiffin fair assignment and kitchen flow*
 
@@ -481,10 +483,13 @@ sequenceDiagram
         PTN->>ML: Re-solve remaining portions
     end
     K->>PTN: Preparing, then READY by 11:30 (hygiene checklist)
-    R->>PTN: Scan pickup at kitchen
-    R->>C: Deliver 12:30 to 13:30
-    R->>PTN: Delivery proof
-    PTN->>DB: Kitchen earning accrues in ledger
+    participant LOG as api - logistics
+    R->>LOG: Collect - scan the kitchen's GB1A code
+    LOG->>PTN: pickup(code) - the ready tiffins
+    LOG->>DB: packed to dispatched (actor rider), attempts open
+    R->>C: Captain by count and code, or the rider at the door, 12:30 to 13:30
+    C->>LOG: Short code and delivery code - delivered
+    PTN->>DB: Kitchen earning accrues in ledger on orders.delivered
     DB-->>C: Rating prompt at 14:30
 ```
 

@@ -1435,7 +1435,7 @@ export interface paths {
         put?: never;
         /**
          * Deliver a bag at the door with its scan, the household's code or a photo
-         * @description The bag QR must be this order's. A captain may scan alone; a rider needs otp or photo. Five wrong codes for an order allow only a photo. Idempotency-Key required.
+         * @description Exactly one of the bag QR and a tiffin's short code, which must be this order's. A captain may scan a box alone; a rider, and anyone delivering a tiffin (§3.7), needs otp or photo. Five wrong codes for an order allow only a photo. Idempotency-Key required.
          */
         post: operations["prove_delivery_v1_deliveries__order_id__proof_post"];
         delete?: never;
@@ -1475,7 +1475,7 @@ export interface paths {
         put?: never;
         /**
          * Nobody home, refused, damaged…: hold, send back, refund or triage (Idempotency-Key)
-         * @description A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. Damaged or missing is refunded in full at once; refused, wrong address and other go to the hub's triage.
+         * @description A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. Damaged or missing is refunded in full at once; refused, wrong address and other go to the hub's triage. A tiffin (§3.7) is never held: any reason refunds it in full at once.
          */
         post: operations["mark_undelivered_v1_deliveries__order_id__undelivered_post"];
         delete?: never;
@@ -3973,7 +3973,7 @@ export interface paths {
         put?: never;
         /**
          * Start a route: its packed orders are dispatched (Idempotency-Key required)
-         * @description Today's published route of the caller (or a hub manager for its rider), with no other route of the rider in progress. Orders still locked or picking refuse the start (logistics.bags_not_packed) unless leave_behind: they then stay off the route.
+         * @description Today's published route of the caller (or a hub manager for its rider), with no other route of the rider in progress. Orders still locked or picking refuse the start (logistics.bags_not_packed) unless leave_behind: they then stay off the route. A tiffin route (§3.7) needs a rider and moves no order: collect does, at each kitchen.
          */
         post: operations["start_route_v1_routes__route_id__start_post"];
         delete?: never;
@@ -4173,6 +4173,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stops/{stop_id}/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect a kitchen's ready tiffins by its GB1A: code (Idempotency-Key)
+         * @description The route's rider at a kitchen stop of his route in progress (§3.7). Each ready tiffin of the stop goes packed → dispatched as the rider and opens its delivery attempt on its drop. Scan again later for what was not ready.
+         */
+        post: operations["collect_at_kitchen_v1_stops__stop_id__collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stops/{stop_id}/deliveries": {
         parameters: {
             query?: never;
@@ -4201,7 +4221,7 @@ export interface paths {
         put?: never;
         /**
          * Hand a stop's crates to its captain by count and code or photo (Idempotency-Key)
-         * @description Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo.
+         * @description Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo. A tiffin drop (§3.7) is counted with crates 0 and no scans: its tiffins become with_captain without an order move (count_mismatch names the expected short_codes). Count again for tiffins collected later; nothing riding is nothing_to_hand_over.
          */
         post: operations["hand_over_v1_stops__stop_id__handover_post"];
         delete?: never;
@@ -5882,6 +5902,12 @@ export interface components {
             /** Redelivery */
             redelivery: boolean;
             /**
+             * Short Code
+             * @description A tiffin's label (§3.7); null otherwise
+             * @example T-07
+             */
+            short_code?: string | null;
+            /**
              * Status
              * @enum {string}
              */
@@ -6144,6 +6170,64 @@ export interface components {
             stale: boolean;
             /** Weeks */
             weeks: number;
+        };
+        /** CollectIn */
+        CollectIn: {
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /**
+             * Pickup Qr
+             * @description Scanned on the kitchen's phone
+             * @example GB1A:0199a0000000700080000000000000ab
+             */
+            pickup_qr: string;
+        };
+        /** CollectOut */
+        CollectOut: {
+            /**
+             * Already
+             * @description Collected by an earlier scan
+             */
+            already: string[];
+            /**
+             * Collected
+             * @description Moved packed → dispatched by this scan
+             */
+            collected: components["schemas"]["CollectedTiffin"][];
+            /**
+             * Not On Route
+             * @description Ready at this kitchen but on no drop of this route: left there
+             */
+            not_on_route: string[];
+            /**
+             * Not Ready
+             * @description On this stop, not ready yet: scan later
+             */
+            not_ready: components["schemas"]["WaitingTiffin"][];
+            /** @description The kitchen stop, as it is now */
+            stop: components["schemas"]["StopOut"];
+        };
+        /** CollectedTiffin */
+        CollectedTiffin: {
+            /**
+             * Drop Seq
+             * @description The stop it is delivered at
+             * @example 4
+             */
+            drop_seq: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Short Code
+             * @example T-07
+             */
+            short_code: string;
         };
         /** ConfirmIn */
         ConfirmIn: {
@@ -7969,6 +8053,11 @@ export interface components {
             /** Still Dispatched */
             still_dispatched: string[];
             stop: components["schemas"]["StopOut"];
+            /**
+             * With Captain
+             * @description A tiffin drop (§3.7): the tiffins she took; they stay dispatched
+             */
+            with_captain?: string[];
         };
         /** Health */
         Health: {
@@ -9503,59 +9592,6 @@ export interface components {
             since: string;
             /** Skills */
             skills: string[];
-        };
-        /**
-         * KitchenOut
-         * @description A kitchen as she and hub staff see it: `address` and `location` are private.
-         */
-        KitchenOut: {
-            /**
-             * Address
-             * @description Private: the kitchen, hub staff, the rider
-             */
-            address: string | null;
-            /**
-             * Area
-             * @description Public (the card)
-             * @example Sector 20, Kharghar
-             */
-            area: string | null;
-            default_portions: components["schemas"]["WeekPortions"];
-            /**
-             * Display Name
-             * @example Lata tai
-             */
-            display_name: string;
-            /**
-             * Fssai Reg No
-             * @example 11521999000123
-             */
-            fssai_reg_no: string | null;
-            /** Fssai Valid Until */
-            fssai_valid_until: string | null;
-            hygiene: components["schemas"]["HygieneOut"] | null;
-            /** @description Private; null until set (no offers before) */
-            location: components["schemas"]["LatLng"] | null;
-            /**
-             * Partner Id
-             * Format: uuid
-             */
-            partner_id: string;
-            /**
-             * Skills
-             * @example [
-             *       "veg",
-             *       "jain"
-             *     ]
-             */
-            skills: string[];
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "active" | "paused" | "suspended" | "left";
-            /** Version */
-            version: number;
         };
         /** KitchenPatchIn */
         KitchenPatchIn: {
@@ -13132,14 +13168,17 @@ export interface components {
             /** Version */
             version: number;
         };
-        /** ProofIn */
+        /**
+         * ProofIn
+         * @description Exactly one of `bag_qr` and `short_code` (a tiffin's label, §3.7).
+         */
         ProofIn: {
             /**
              * Bag Qr
              * @description This order's
              * @example GB1:0199a0000000700080000000000000ab
              */
-            bag_qr: string;
+            bag_qr?: string | null;
             /**
              * Client At
              * @description When the tap happened on the phone (stored for audit)
@@ -13157,10 +13196,16 @@ export interface components {
             photo_key?: string | null;
             /**
              * Proof
-             * @description A captain may scan alone; a rider needs otp or photo
+             * @description A captain may scan a box alone; a rider, and anyone for a tiffin, needs otp or photo
              * @enum {string}
              */
             proof: "scan" | "otp" | "photo";
+            /**
+             * Short Code
+             * @description A tiffin's label
+             * @example T-07
+             */
+            short_code?: string | null;
         };
         /** ProofView */
         ProofView: {
@@ -16102,6 +16147,8 @@ export interface components {
              * @enum {string}
              */
             kind: "drop" | "bank" | "kitchen";
+            /** @description Kitchen stops only (§3.7) */
+            kitchen?: components["schemas"]["gharbasket__modules__logistics__schemas__KitchenOut"] | null;
             /**
              * Late Min
              * @description Planned minutes after the window's end
@@ -16115,6 +16162,13 @@ export interface components {
             navigate_url: string | null;
             /** @description §3.6: what the van takes back here, from route start */
             pickups?: components["schemas"]["StopPickups"] | null;
+            /**
+             * Portions
+             * @description The stop's tiffin portions
+             * @default 0
+             * @example 12
+             */
+            portions: number;
             /**
              * Redelivery Bags
              * @description Redelivery bags the van carries for this stop (§3.4)
@@ -16138,6 +16192,11 @@ export interface components {
              * @enum {string}
              */
             status: "pending" | "arrived" | "handed_over" | "skipped";
+            /**
+             * Tiffins
+             * @description Tiffin routes (§3.7): what to collect at a kitchen, what to deliver at a drop
+             */
+            tiffins?: components["schemas"]["TiffinItem"][] | null;
         };
         /** StopPatch */
         StopPatch: {
@@ -16603,6 +16662,36 @@ export interface components {
             meals: components["schemas"]["BoardMealOut"][];
             /** Runs */
             runs: components["schemas"]["BoardRunOut"][];
+        };
+        /** TiffinItem */
+        TiffinItem: {
+            /**
+             * Flat Label
+             * @description Rider-mode drops of a route in progress only (§Privacy)
+             * @example B wing, 402
+             */
+            flat_label: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Portions
+             * @example 2
+             */
+            portions: number;
+            /**
+             * Short Code
+             * @description The label on the tiffin
+             * @example T-07
+             */
+            short_code: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "to_collect" | "on_route" | "with_captain" | "delivered" | "undelivered" | "left_behind";
         };
         /** TiffinMenuOut */
         TiffinMenuOut: {
@@ -17564,6 +17653,19 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /** WaitingTiffin */
+        WaitingTiffin: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Short Code
+             * @example T-08
+             */
+            short_code: string;
+        };
         /** WalletOut */
         WalletOut: {
             /**
@@ -18120,6 +18222,42 @@ export interface components {
              */
             status: "scheduled" | "on_route" | "with_captain" | "held" | "delivered" | "undelivered" | "redelivery" | "refunded" | "triage";
         };
+        /**
+         * KitchenOut
+         * @description A tiffin route's kitchen stop (§3.7). The address and the point go to the route's rider
+         *     from the route's start until every tiffin of the route at the kitchen is collected, and to hub
+         *     managers and admins; null otherwise.
+         */
+        gharbasket__modules__logistics__schemas__KitchenOut: {
+            /**
+             * Address
+             * @example B-1103, Sunrise Towers, Sector 20
+             */
+            address: string | null;
+            /**
+             * Area
+             * @description Public
+             * @example Sector 20, Kharghar
+             */
+            area: string | null;
+            /**
+             * Display Name
+             * @example Lata tai
+             */
+            display_name: string;
+            location: components["schemas"]["LatLngOut"] | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Ready By
+             * @description IST HH:MM
+             * @example 11:30
+             */
+            ready_by: string;
+        };
         /** ResolveIn */
         gharbasket__modules__logistics__schemas__ResolveIn: {
             /**
@@ -18314,6 +18452,59 @@ export interface components {
              * Format: uuid
              */
             product_id: string;
+        };
+        /**
+         * KitchenOut
+         * @description A kitchen as she and hub staff see it: `address` and `location` are private.
+         */
+        gharbasket__modules__partners__schemas__KitchenOut: {
+            /**
+             * Address
+             * @description Private: the kitchen, hub staff, the rider
+             */
+            address: string | null;
+            /**
+             * Area
+             * @description Public (the card)
+             * @example Sector 20, Kharghar
+             */
+            area: string | null;
+            default_portions: components["schemas"]["WeekPortions"];
+            /**
+             * Display Name
+             * @example Lata tai
+             */
+            display_name: string;
+            /**
+             * Fssai Reg No
+             * @example 11521999000123
+             */
+            fssai_reg_no: string | null;
+            /** Fssai Valid Until */
+            fssai_valid_until: string | null;
+            hygiene: components["schemas"]["HygieneOut"] | null;
+            /** @description Private; null until set (no offers before) */
+            location: components["schemas"]["LatLng"] | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Skills
+             * @example [
+             *       "veg",
+             *       "jain"
+             *     ]
+             */
+            skills: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "suspended" | "left";
+            /** Version */
+            version: number;
         };
         /** SlotOut */
         gharbasket__modules__partners__schemas__SlotOut: {
@@ -25180,7 +25371,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.not_undelivered, orders.illegal_transition */
+            /** @description logistics.not_undelivered, logistics.no_redelivery, orders.illegal_transition */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -30561,7 +30752,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["KitchenOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__partners__schemas__KitchenOut"];
                 };
             };
             /** @description auth.invalid_token */
@@ -30624,7 +30815,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["KitchenOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__partners__schemas__KitchenOut"];
                 };
             };
             /** @description http.400: the body cannot be read */
@@ -30716,7 +30907,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["KitchenOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__partners__schemas__KitchenOut"];
                 };
             };
             /** @description request.idempotency_key_required */
@@ -36204,7 +36395,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.route_not_today, logistics.rider_busy, logistics.bags_not_packed, logistics.route_not_published, logistics.routes_started, logistics.route_closed, orders.illegal_transition */
+            /** @description logistics.route_not_today, logistics.rider_busy, logistics.bags_not_packed, logistics.route_not_published, logistics.routes_started, logistics.route_closed, logistics.rider_required, orders.illegal_transition */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -36974,6 +37165,89 @@ export interface operations {
             };
         };
     };
+    collect_at_kitchen_v1_stops__stop_id__collect_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                stop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_your_route */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stop_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_started, logistics.route_closed, logistics.stop_skipped, logistics.nothing_ready (not_ready), orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.not_a_kitchen_stop, logistics.pickup_code_invalid, logistics.pickup_wrong_kitchen, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     stop_deliveries_v1_stops__stop_id__deliveries_get: {
         parameters: {
             query?: never;
@@ -37097,7 +37371,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.count_mismatch, logistics.already_handed_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition */
+            /** @description logistics.count_mismatch (expected, short_codes), logistics.already_handed_over, logistics.nothing_to_hand_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition */
             409: {
                 headers: {
                     [name: string]: unknown;

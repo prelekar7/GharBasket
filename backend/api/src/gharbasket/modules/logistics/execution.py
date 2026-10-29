@@ -9,6 +9,7 @@ route or one of its stops bumps the route's version (its ETag). Field taps are w
 import math
 import secrets
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
@@ -28,6 +29,8 @@ from gharbasket.platform.permissions import Permit
 
 ROUTE_KINDS = {"box": ("box", "addon")}  # order kinds a route of each kind carries
 BAGS_PER_CRATE = 3  # M6
+# Completes a started route's orders: (session, route, actor, actor user) -> orders moved
+Closer = Callable[[AsyncSession, Route, str, uuid.UUID | None], Awaitable[int]]
 
 
 def stop_not_found() -> ProblemError:
@@ -207,7 +210,12 @@ async def start(
             "A route starts on its own date.",
             delivery_date=route.delivery_date.isoformat(),
         )
+    if route.kind == "tiffin" and route.rider_user_id is None:
+        raise conflict("logistics.rider_required", "Set the route's rider first (PATCH the route).")
     await _ensure_free(session, route)
+    if route.kind == "tiffin":
+        await _start_tiffins(session, route, who, client_at)
+        return
     per_stop = await route_orders(session, route, ("locked", "picking", "packed"))
     unpacked = sorted(o.id for orders in per_stop.values() for o in orders if o.status != "packed")
     if unpacked and not leave_behind:
@@ -248,6 +256,27 @@ async def start(
     await pickups.expect(session, route, stops)  # empties, donations and bags to take back (§3.6)
     route.status, route.started_at, route.left_behind = "in_progress", now(), unpacked
     tap(session, route, "start", who, client_at, payload={"left_behind": len(unpacked)})
+    await session.flush()
+
+
+async def _start_tiffins(
+    session: AsyncSession, route: Route, who: Caller, client_at: datetime | None
+) -> None:
+    """A tiffin route's start (§3.7) moves no order (the tiffins are still at the kitchens; collect
+    moves them), reads no loads, expects no pickups and leaves nothing behind. It refreshes each
+    drop's rider mode and gives the captain drops their handover codes."""
+    for stop in await stops_of(session, route.id):
+        if stop.kind != "drop" or stop.society_id is None:
+            continue
+        if not stop.rider_mode:
+            stop.rider_mode = (
+                await community_api.captain_for_society(session, stop.society_id) is None
+            )
+        if not stop.rider_mode:
+            stop.handover_code = f"{secrets.randbelow(10_000):04d}"
+            stop.code_attempts = 0
+    route.status, route.started_at = "in_progress", now()
+    tap(session, route, "start", who, client_at, payload={"left_behind": 0})
     await session.flush()
 
 
@@ -314,9 +343,11 @@ async def complete(
     *,
     empties_returned: int | None,
     client_at: datetime | None,
+    closer: Closer | None = None,
 ) -> None:
     """Every stop handed over or skipped; orders still dispatched ride back (`undelivered`,
-    reason `returned_to_hub`, then §3.4's redelivery)."""
+    reason `returned_to_hub`, then §3.4's redelivery). A tiffin route passes its own `closer`
+    (`tiffins.close`, §3.7)."""
     ensure_driver(route, who)
     ensure_running(route)
     stops = await stops_of(session, route.id)
@@ -327,7 +358,7 @@ async def complete(
             "Hand over or skip every stop first.",
             stop_ids=[str(s.id) for s in open_stops],
         )
-    await close(session, route, *order_actor(route, who))
+    await (closer or close)(session, route, *order_actor(route, who))
     route.empties_returned = empties_returned
     tap(session, route, "complete", who, client_at, payload={"empties_returned": empties_returned})
     await session.flush()
@@ -357,6 +388,12 @@ async def close(
         by_actor=actor,
         user_id=actor_user,
     )
+    await finish(session, route)
+    return len(back)
+
+
+async def finish(session: AsyncSession, route: Route) -> None:
+    """The route completed: unreported pickups closed, `logistics.route_completed` published."""
     await pickups.close_open(session, route)
     stops = await stops_of(session, route.id)
     done_at = now()
@@ -377,4 +414,3 @@ async def close(
             "completed_at": done_at.isoformat(),
         },
     )
-    return len(back)

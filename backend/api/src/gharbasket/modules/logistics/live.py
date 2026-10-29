@@ -23,14 +23,16 @@ import anyio
 import structlog
 from fastapi.sse import format_sse_event
 from redis.asyncio import Redis
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import attempts, tracking
-from gharbasket.modules.logistics.models import Route, RouteStop
+from gharbasket.modules.logistics import attempts, routing, tracking
+from gharbasket.modules.logistics.models import Delivery, Route, RouteStop
 from gharbasket.modules.logistics.views import eta_now, stops_of
 from gharbasket.modules.orders import api as orders_api
+from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.permissions import Permit, forbidden
 
@@ -42,6 +44,7 @@ CUSTOMER_EVERY_S = 15.0
 PING_S = 20.0
 MAX_S = 30 * 60.0
 MAX_STREAMS = 3
+NEAR_KITCHEN_M = 500  # by routing.metres: no captain or customer sees the rider this near one
 ON_ROUTE = ("packed", "dispatched", "at_society", "delivered", "undelivered")
 
 
@@ -49,6 +52,7 @@ ON_ROUTE = ("packed", "dispatched", "at_society", "delivered", "undelivered")
 class Audience:
     stop_id: uuid.UUID | None  # None: the whole route (its rider, a hub manager)
     customer: bool = False
+    tiffin_id: uuid.UUID | None = None  # a customer's tiffin: watched while the rider has it
 
 
 async def audience(session: AsyncSession, permit: Permit, route: Route) -> Audience:
@@ -68,7 +72,13 @@ async def audience(session: AsyncSession, permit: Permit, route: Route) -> Audie
             return Audience(mine[0].id)
     if any(g.role == "customer" for g in permit.grants):
         household = await identity_api.household_for_user(session, user_id)
-        if household is not None:
+        if household is not None and route.kind == "tiffin":
+            # §3.7: "my tiffin is collected and on this route"
+            for attempt in await _tiffins_riding(session, [s.id for s in stops]):
+                order = await orders_api.get(session, attempt.order_id)
+                if order.household_id == household.id:
+                    return Audience(attempt.stop_id, customer=True, tiffin_id=order.id)
+        elif household is not None:
             pairs = {(s.society_id, s.slot_id): s.id for s in stops}
             orders = await orders_api.orders_for_delivery(
                 session, route.hub_id, route.delivery_date, ON_ROUTE
@@ -85,6 +95,17 @@ async def audience(session: AsyncSession, permit: Permit, route: Route) -> Audie
                 if order.household_id == household.id and order.status in ON_ROUTE:
                     return Audience(again.stop_id, customer=True)
     raise forbidden()
+
+
+async def _tiffins_riding(session: AsyncSession, stop_ids: list[uuid.UUID]) -> list[Delivery]:
+    found = await session.execute(
+        select(Delivery).where(
+            Delivery.stop_id.in_(stop_ids),
+            Delivery.order_kind == "tiffin",
+            Delivery.status == "on_route",
+        )
+    )
+    return list(found.scalars())
 
 
 def _sse(event: str, data: object) -> bytes:
@@ -111,6 +132,30 @@ class _View:
     position: tracking.Position | None
 
 
+def _next_is_kitchen(stops: list[RouteStop]) -> bool:
+    """The first stop still open (`pending` or `arrived`) is a kitchen stop."""
+    for stop in sorted(stops, key=lambda s: s.seq):
+        if stop.status in ("pending", "arrived"):
+            return stop.kind == "kitchen"
+    return False
+
+
+async def _near_kitchen(
+    session: AsyncSession, stops: list[RouteStop], position: tracking.Position
+) -> bool:
+    """The rider is within NEAR_KITCHEN_M of one of the route's kitchens, collected or not: a
+    rider waiting at a half-collected kitchen for a late tiffin would otherwise show where it is."""
+    partners = sorted({s.partner_id for s in stops if s.kind == "kitchen" and s.partner_id})
+    places = await partners_api.kitchen_places(session, partners) if partners else {}
+    here = (position.lat, position.lng)
+    return any(
+        place.lat is not None
+        and place.lng is not None
+        and routing.metres(here, (place.lat, place.lng)) <= NEAR_KITCHEN_M
+        for place in places.values()
+    )
+
+
 async def _read(
     session: AsyncSession, valkey: Redis | None, route_id: uuid.UUID, who: Audience
 ) -> _View:
@@ -124,10 +169,25 @@ async def _read(
         [mine] = [s for s in stops if s.id == who.stop_id]
         before = sum(s.seq < mine.seq and s.status in ("pending", "arrived") for s in stops)
         live, own = {mine.seq: live[mine.seq]}, mine.status
+    if who.tiffin_id is not None:  # handed to the captain, delivered or undelivered: it ends
+        attempt = await attempts.latest(session, who.tiffin_id)
+        if attempt is None or attempt.status != "on_route":
+            own = "handed_over"
     position = None
-    # The viewer's stop is done: no more positions for a captain or a customer.
-    if route.status == "in_progress" and own not in ("handed_over", "skipped"):
+    # The viewer's stop is done: no more positions for a captain or a customer. On a tiffin route
+    # neither sees the rider while his next open stop is a kitchen or while he is near one: his
+    # position would show where it is (§3.7, Privacy); hub staff and the rider's own stream
+    # (`stop_id` None) are unaffected.
+    at_kitchen = who.stop_id is not None and _next_is_kitchen(stops)
+    if route.status == "in_progress" and own not in ("handed_over", "skipped") and not at_kitchen:
         position = await tracking.latest(session, valkey, route_id)
+        if (
+            position is not None
+            and who.stop_id is not None
+            and route.kind == "tiffin"
+            and await _near_kitchen(session, stops, position)
+        ):
+            position = None
     await session.commit()  # read-only; gives the connection back between reads
     return _View(route.status, live, before, own, position)
 

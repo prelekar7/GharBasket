@@ -6,15 +6,16 @@ day left behind (it runs first, see `conftest.py`):
    the hub manager reviews and approves her.
 2. That kitchen cooks a tiffin day (M8 §3.4, §3.5, M4 §3.5, M5 §3.5): her menu is approved and she
    sets her capacity, two households book it, the 21:30 round assigns them (the greedy fallback,
-   no ML), she accepts, cooks and readies, the tiffins are picked up and delivered, the customers
-   rate her, and `weekly_payouts` pays her, because she is KYC'd.
+   no ML), she accepts, cooks and readies, M7's 09:35 solve routes her lunch (M7 §3.7), the rider
+   collects by her pickup QR, the captain takes the tiffins by count and delivers them door by
+   door, the customers rate her, and `weekly_payouts` pays her, because she is KYC'd.
 
 It lives on its own dates (two weeks after the day) and its own phones, so it asserts only on its
-own people and orders. Two things are not reachable over HTTP on main, and are done as the stand-in
-the specs name: a kitchen's own menu write (M2 §3.4: "nobody but the seed") is a row in
-`catalog.tiffin_menus` that the hub manager then approves over HTTP, and the rider's pickup and the
-door delivery of a tiffin (M7 §3.7, an outline) are `partners.api.pickup` and `orders.api` moves by
-the hub, as M7's routes will make them.
+own people and orders. One thing is not reachable over HTTP on main, and is done as the stand-in
+the spec names: a kitchen's own menu write (M2 §3.4: "nobody but the seed") is a row in
+`catalog.tiffin_menus` that the hub manager then approves over HTTP. The database stamps an order's
+timeline with its own clock, which no test can move, so the dispatch and delivery rows get the
+step's time (the rating window and the earning's date read them).
 """
 
 import json
@@ -32,13 +33,14 @@ from harness import REPO, App, Config, ist, key
 from sqlalchemy import text
 from test_simulated_day import VIKRAM, database, scalar, step
 
-from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.partners import api as partners_api
+from gharbasket.platform import outbox
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
 # Open product bugs this journey found, by the invariant that shows them (as in the day).
 BUGS: dict[str, str] = {}
 KITCHEN = "+919800004001"  # the neighbour who applies
+ARJUN = "+919800001006"  # the seed hub's rider
+MEENA = "+919800001004"  # Sunrise Towers' captain
 CUSTOMERS = {"+919800004002": 2, "+919800004003": 1}  # phone -> portions booked
 HUB = f"/v1/hubs/{SEED_HUB_ID}"
 PRICE_PAISE = 12_000  # a portion on the menu
@@ -71,6 +73,8 @@ class Journey:
     menu_id: str = ""
     assignment_id: str = ""
     pickup_qr: str = ""
+    route_id: str = ""  # the lunch tiffin route (M7 §3.7)
+    stops: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     documents: dict[str, str] = field(default_factory=dict[str, str])  # doc_type -> id
     households: dict[str, str] = field(default_factory=dict[str, str])  # phone -> household id
     orders: dict[str, str] = field(default_factory=dict[str, str])  # phone -> order id
@@ -509,12 +513,13 @@ def test_the_21_30_round_offers_the_orders_to_the_kitchen_and_she_accepts(
 
 
 def test_she_cooks_and_readies_and_the_tiffins_are_picked_up_and_delivered(
-    config: Config, app: App, trip: Journey, loop: Runner
+    config: Config, app: App, trip: Journey, loop: Runner, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """T 06:00 `POST …/start` (Being cooked); 10:30 `POST …/ready` with the hygiene checklist
-    (Ready, and the pickup QR appears); 12:15 the pickup by that QR and 13:00 the delivery at the
-    doors, as the hub's moves (M7 has no tiffin routes yet). `refund_unassigned_tiffins` at 09:30
-    refunds nothing of hers."""
+    """T 06:00 `POST …/start` (Being cooked); `refund_unassigned_tiffins` at 09:30 refunds nothing
+    of hers and `solve_tiffin_routes` at 09:35 publishes the lunch route; 10:30 `POST …/ready`
+    with the hygiene checklist (Ready, and the pickup QR appears); the rider starts and collects
+    by that QR (`POST /v1/stops/{id}/collect`), the captain takes the tiffins by count and proves
+    each door with its short code and the household's code (M7 §3.7)."""
     need_partner(trip)
 
     async def cook(path: str, **body: Any) -> dict[str, Any]:
@@ -543,6 +548,36 @@ def test_she_cooks_and_readies_and_the_tiffins_are_picked_up_and_delivered(
         assert ran["refused"] == 0, ran
 
     step(loop, ist(trip.t, 9, 30), refund_round())
+
+    async def routes() -> dict[str, Any]:
+        """The hub's two-wheeler with Arjun as its rider; at 09:35 `solve_tiffin_routes` plans
+        and publishes the lunch run (M7 §3.7), which the rider sees on his day."""
+        manager, rider = await app.sign_in(VIKRAM), await app.sign_in(ARJUN)
+        arjun = await scalar(config, "SELECT id FROM identity.users WHERE phone_e164 = :p", p=ARJUN)
+        expect(
+            await app.http.post(
+                f"{HUB}/vehicles",
+                json={
+                    "label": "TW-E2E",
+                    "kind": "two_wheeler",
+                    "default_rider_user_id": str(arjun),
+                },
+                headers={**manager, **key()},
+            ),
+            201,
+        )
+        ran = await app.job("solve_tiffin_routes", ist(trip.t, 9, 35))
+        assert ran["published"] >= 1 and ran["failed"] == 0, ran
+        await app.sweep(ist(trip.t, 9, 35))
+        mine = expect(await app.http.get(f"/v1/riders/me/routes?date={trip.t}", headers=rider))
+        [route] = [r for r in mine["items"] if r["kind"] == "tiffin"]
+        return expect(await app.http.get(f"/v1/routes/{route['id']}", headers=rider))
+
+    route = step(loop, ist(trip.t, 9, 36), routes())
+    trip.route_id, trip.stops = route["id"], route["stops"]
+    assert [s["kind"] for s in trip.stops] == ["kitchen", "drop"], trip.stops
+    assert trip.stops[0]["kitchen"]["partner_id"] == trip.partner_id, trip.stops
+    assert trip.stops[0]["kitchen"]["address"] is None  # before the start: the area only
     checklist = dict.fromkeys(
         ("handwash", "hair_cover", "clean_surface", "sealed", "fresh_today"), True
     )
@@ -551,38 +586,88 @@ def test_she_cooks_and_readies_and_the_tiffins_are_picked_up_and_delivered(
     trip.pickup_qr = ready["pickup_qr"]
     assert step(loop, ist(trip.t, 10, 31), statuses()) == ["packed"] * len(CUSTOMERS)
 
-    async def move(to: str, *, scan: bool) -> None:
-        """The hub manager's move of every tiffin the kitchen's QR names (or all of hers)."""
+    async def stamp(to: str) -> None:
+        """The database stamps the timeline with its own clock, which no test can move: the
+        rating window and the earning's date read these rows, so they take the step's time."""
         async with database(config) as session:
-            manager = await scalar(
-                config, "SELECT id FROM identity.users WHERE phone_e164 = :p", p=VIKRAM
-            )
-            ids = (
-                (await partners_api.pickup(session, trip.pickup_qr, SEED_HUB_ID)).order_ids
-                if scan
-                else tuple(trip.orders.values())
-            )
-            assert set(map(str, ids)) == set(trip.orders.values()), ids
-            for found in ids:
-                order_id = UUID(str(found))
-                await orders_api.transition(
-                    session, order_id, to, actor="hub", actor_user_id=manager
-                )
-                # The database stamps the timeline with its own clock, which no test can move: the
-                # rating window and the earning's date read this row, so it takes the day's time.
+            for order_id in trip.orders.values():
                 await session.execute(
                     text(
                         "UPDATE orders.order_events SET at = :now "
                         "WHERE order_id = :order AND to_status = :to"
                     ),
-                    {"now": datetime.now(UTC), "order": order_id, "to": to},
+                    {"now": datetime.now(UTC), "order": UUID(order_id), "to": to},
                 )
             await session.commit()
-        await app.sweep(ist(trip.t, 13, 0))
 
-    step(loop, ist(trip.t, 12, 15), move("dispatched", scan=True))
+    async def collect() -> dict[str, Any]:
+        """11:00 the rider starts his lunch route; 12:15 he scans the kitchen's code (M7 §3.7)."""
+        rider = await app.sign_in(ARJUN)
+        expect(await app.http.post(f"/v1/routes/{trip.route_id}/start", headers={**rider, **key()}))
+        kitchen_stop = next(s for s in trip.stops if s["kind"] == "kitchen")
+        taken = expect(
+            await app.http.post(
+                f"/v1/stops/{kitchen_stop['id']}/collect",
+                json={"pickup_qr": trip.pickup_qr},
+                headers={**rider, **key()},
+            )
+        )
+        await stamp("dispatched")
+        await app.sweep(ist(trip.t, 12, 15))
+        return taken
+
+    # The after-commit relay waits for the sweep in these steps, so M8's earnings and the rating
+    # window read the timeline rows once `stamp` has given them the step's time.
+    monkeypatch.setattr(outbox, "relay_soon", lambda sessionmaker: None)
+    taken = step(loop, ist(trip.t, 12, 15), collect())
+    assert {c["order_id"] for c in taken["collected"]} == set(trip.orders.values()), taken
+    assert taken["stop"]["status"] == "handed_over", taken
     assert step(loop, ist(trip.t, 12, 16), statuses()) == ["dispatched"] * len(CUSTOMERS)
-    step(loop, ist(trip.t, 13, 0), move("delivered", scan=False))
+
+    async def doors() -> list[str]:
+        """12:45 the captain takes the tiffins by count and the rider's code; 13:00 she proves each
+        door with the label's short code and the household's code; the rider completes."""
+        rider, captain = await app.sign_in(ARJUN), await app.sign_in(MEENA)
+        route = expect(await app.http.get(f"/v1/routes/{trip.route_id}", headers=rider))
+        drop = next(s for s in route["stops"] if s["kind"] == "drop")
+        assert not drop["rider_mode"] and drop["handover_code"], drop
+        expect(
+            await app.http.post(
+                f"/v1/stops/{drop['id']}/handover",
+                json={
+                    "crates": 0,
+                    "bags": len(CUSTOMERS),
+                    "handover_code": drop["handover_code"],
+                },
+                headers={**captain, **key()},
+            )
+        )
+        labels = {t["order_id"]: t["short_code"] for t in drop["tiffins"]}
+        proofs = []
+        for phone, order_id in trip.orders.items():
+            card = expect(
+                await app.http.get(f"/v1/deliveries/{order_id}", headers=await app.sign_in(phone))
+            )
+            proved = expect(
+                await app.http.post(
+                    f"/v1/deliveries/{order_id}/proof",
+                    json={
+                        "short_code": labels[order_id],
+                        "proof": "otp",
+                        "delivery_code": card["delivery_code"],
+                    },
+                    headers={**captain, **key()},
+                )
+            )
+            proofs.append(proved["status"])
+        expect(
+            await app.http.post(f"/v1/routes/{trip.route_id}/complete", headers={**rider, **key()})
+        )
+        await stamp("delivered")
+        await app.sweep(ist(trip.t, 13, 0))
+        return proofs
+
+    assert step(loop, ist(trip.t, 13, 0), doors()) == ["delivered"] * len(CUSTOMERS)
     assert step(loop, ist(trip.t, 13, 1), statuses()) == ["delivered"] * len(CUSTOMERS)
 
     async def done() -> dict[str, Any]:
