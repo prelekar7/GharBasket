@@ -119,12 +119,18 @@ jobs:
             valkey/valkey:8.1-alpine valkey-server --databases 128
 
       # Same image as local development (PostGIS + pgvector on Postgres 18), built from infra/postgres.
+      # The server flags are for this throwaway container only (the data dies with the job): no
+      # fsync or full-page writes and no checkpoints during the run, as the tests commit and roll
+      # back thousands of transactions and migrate a database per worker. Never use them on a
+      # database that must survive a crash.
       - name: Start Postgres
         run: |
           docker build --quiet --tag gharbasket/postgres:ci infra/postgres
           docker run --detach --name postgres --publish 5432:5432 \
             -e POSTGRES_USER=gharbasket -e POSTGRES_PASSWORD=gharbasket -e POSTGRES_DB=gharbasket \
-            gharbasket/postgres:ci
+            gharbasket/postgres:ci \
+            -c fsync=off -c synchronous_commit=off -c full_page_writes=off \
+            -c checkpoint_timeout=1h -c max_wal_size=4GB -c shared_buffers=256MB
 
       - uses: astral-sh/setup-uv@v10.2.0
         with:
@@ -150,7 +156,7 @@ jobs:
           exit 1
 
       - name: Tests (coverage gate in backend/api/pyproject.toml)
-        run: uv run --directory backend/api pytest --cov -n 4 --dist worksteal
+        run: uv run --directory backend/api pytest --cov -n 4 --dist worksteal --durations=15
 
       - name: ML service tests (coverage gate in backend/ml/pyproject.toml)
         run: uv run --directory backend/ml pytest --cov

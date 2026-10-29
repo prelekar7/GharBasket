@@ -10,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity.models import Address, Household
 from gharbasket.platform.models import OutboxEvent
-from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID, seed_societies
+from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
+from .. import seed_cache as cached
 from .conftest import ClientFactory
 from .fake_firebase import FakeGoogle
 from .onboarding import ONBOARDING, customer, onboard, onboarding
@@ -24,7 +25,7 @@ WITHOUT_HEALTH = ONBOARDING["consents"][:2]
 
 @pytest.fixture(autouse=True)
 async def societies(db_session: AsyncSession) -> None:
-    await seed_societies(db_session)
+    await cached.seed_societies(db_session)
 
 
 async def _household(

@@ -31,11 +31,13 @@ from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import Settings, use_settings
 from gharbasket.platform.valkey import create_valkey
 
+from . import fast_app
 from .commit_guard import CommitGuard
 
 API_DIR = Path(__file__).resolve().parents[1]
 # As the app and every tool do: tests relay the outbox without always building an app first.
 load_modules()
+fast_app.install()  # before the first create_app: the routes are analysed once per process
 
 
 # `create_app` configures structlog with `cache_logger_on_first_use=True`. A module's logger, once

@@ -1,7 +1,9 @@
-# The ML service for a Hugging Face Space (ADR-0025): uvicorn on port 7860 with osrm-routed as a
+# The full ML service image (ADR-0025): uvicorn on port 7860 with osrm-routed as a
 # second process, the Mumbai Metropolitan Region road network baked in at build time (a free Space
 # has no persistent disk). Build locally with `just ml-lock && docker build -t gharbasket-ml backend/ml`
-# (requirements.lock is generated from uv.lock, by deploy-ml.yml in CI).
+# (requirements.lock is generated from uv.lock). Hugging Face now charges for Docker Spaces, so staging
+# runs Dockerfile.render instead (a free Render web service, no OSRM); this image is the full one for
+# a local run or a paid host.
 #
 # Stage 1 clips the OpenStreetMap extract to the MMR box and builds the OSRM (MLD) network, as
 # infra/osrm/prepare.sh does on a laptop. Stage 2 is the OSRM runtime image plus a uv-managed

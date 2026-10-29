@@ -13,6 +13,7 @@ from gharbasket.modules.identity.models import Address, Consent, Household, Hous
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID, seed_societies
 
+from .. import seed_cache as cached
 from .conftest import ClientFactory
 from .fake_firebase import FakeGoogle
 from .onboarding import ONBOARDING, count, customer, onboard, onboarding
@@ -24,7 +25,7 @@ SAI_DARSHAN = "0199a000-0000-7000-8000-00000000b006"  # seed: no towers, no boun
 
 @pytest.fixture(autouse=True)
 async def societies(db_session: AsyncSession) -> None:
-    await seed_societies(db_session)
+    await cached.seed_societies(db_session)
 
 
 # --- onboarding -------------------------------------------------------------------------------

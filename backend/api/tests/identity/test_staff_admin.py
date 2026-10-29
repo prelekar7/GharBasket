@@ -14,8 +14,9 @@ from gharbasket.modules.identity.models import PendingRoleGrant, User, UserRole
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry
 from gharbasket.platform.tokens import ACCESS_TOKEN_TTL, verify_access_token
-from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID, seed_hubs, seed_societies
+from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
+from .. import seed_cache as cached
 from ..conftest import make_settings
 from .conftest import ClientFactory, bearer, sign_in
 from .fake_firebase import FakeGoogle
@@ -52,8 +53,8 @@ HUB_STAFF_KEYS = {
 
 @pytest.fixture(autouse=True)
 async def places(db_session: AsyncSession) -> None:
-    await seed_hubs(db_session)
-    await seed_societies(db_session)
+    await cached.seed_hubs(db_session)
+    await cached.seed_societies(db_session)
 
 
 def phone(n: int) -> str:
