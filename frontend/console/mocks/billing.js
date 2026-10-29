@@ -3,7 +3,7 @@
 //   POST /v1/admin/reconciliation/check            run the hourly job now
 //   POST /v1/admin/reconciliation/{id}/credit      post the missing wallet credit (a correcting journal entry)
 //   POST /v1/admin/reconciliation/{id}/investigate mark a mismatch as being looked at
-//   GET  /v1/admin/refunds, POST …/{id}/approve | reject | reopen
+//   GET  /v1/admin/refunds (read-only: refunds are automatic, M5 §3.3)
 // All money is integer paise. Nothing is edited or deleted: every fix would be a new ledger entry.
 import { HttpResponse, http } from "msw";
 import { STORY_NOW } from "./orders.js";
@@ -70,8 +70,8 @@ const reconBody = () => {
 // ---------- Refunds ----------
 
 /**
- * @typedef {{ id: string, flat: string, society: string, order_label: string, why: string, what_happened: string,
- *   reported_by: string, amount_paise: number, to: "wallet", wallet_before_paise: number,
+ * @typedef {{ id: string, flat: string, society: string, order_label: string, why: string,
+ *   reported_by: string, amount_paise: number, to: "wallet",
  *   status: "pending" | "approved" | "rejected" }} Refund
  */
 
@@ -86,11 +86,9 @@ const refunds = () =>
           society: "Sunrise Towers",
           order_label: "Box · Tue 6 Oct",
           why: "Short: methi, 2 judi (packer)",
-          what_happened: "was short 2 judi methi on Tue 6 Oct",
           reported_by: "Packing, Kharghar hub",
           amount_paise: 4000,
           to: "wallet",
-          wallet_before_paise: 41000,
           status: "pending",
         },
         {
@@ -99,11 +97,9 @@ const refunds = () =>
           society: "Krishna Kunj",
           order_label: "Box · Tue 6 Oct",
           why: "Delivery failed: no one home after 2 tries",
-          what_happened: "had a failed delivery on Tue 6 Oct (no one home after 2 tries)",
           reported_by: "Captain",
           amount_paise: 41000,
           to: "wallet",
-          wallet_before_paise: 13000,
           status: "pending",
         },
         {
@@ -112,11 +108,9 @@ const refunds = () =>
           society: "Sunrise Towers",
           order_label: "Add-on · Tue 6 Oct",
           why: "Damaged: eggs, 6 piece",
-          what_happened: "reported damaged eggs (6 piece) on Tue 6 Oct, with a photo",
           reported_by: "Customer, with photo",
           amount_paise: 4500,
           to: "wallet",
-          wallet_before_paise: 8000,
           status: "pending",
         },
       ]),
@@ -173,21 +167,4 @@ export const billingHandlers = [
       next_cursor: null,
     });
   }),
-
-  // Approve pays the wallet at once (a journal entry); reject and reopen only change the review state.
-  .../** @type {const} */ (["approve", "reject", "reopen"]).map((action) =>
-    http.post(`*/v1/admin/refunds/:id/${action}`, ({ request, params }) =>
-      idempotent(request, () => {
-        if (!allowed(request, ["admin", "hub_manager"]))
-          return problem(403, "auth.forbidden", "Not allowed");
-        const r = refunds().find((x) => x.id === params.id);
-        if (!r) return problem(404, "billing.refund_not_found", "No such refund");
-        const from = action === "reopen" ? ["rejected"] : ["pending"];
-        if (!from.includes(r.status))
-          return problem(409, "billing.refund_already_decided", "This refund was already decided");
-        r.status = action === "approve" ? "approved" : action === "reject" ? "rejected" : "pending";
-        return HttpResponse.json(r);
-      }),
-    ),
-  ),
 ];

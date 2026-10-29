@@ -1,5 +1,4 @@
 import { apiGet } from "@/lib/api.js";
-import { getRole } from "@/lib/auth.js";
 import { apiSource, parseSource } from "@/lib/data-source.js";
 import { currentHub } from "@/lib/hub.js";
 
@@ -7,7 +6,7 @@ import { currentHub } from "@/lib/hub.js";
  * What the page shows. The Gini and its trend come from M12 (`GET /v1/analytics/partner-earnings?kind=kitchen`,
  * section 3.5: `gini_bp` per week, null under 5 paid kitchens). The rest is the shape of
  * GET /v1/hubs/{id}/fairness, a proposal: no spec gives the per-kitchen table, the biggest kitchen's share or
- * the weight λ (M8 reads it from PARTNERS_FAIRNESS_LAMBDA and offers no way to change it). Statistics are
+ * the weight λ (M8 reads it from PARTNERS_FAIRNESS_LAMBDA; there is no way to change it in the console). Statistics are
  * computed by the API, never in the browser.
  * @typedef {object} Kitchen
  * @property {string | null} partner_id  null for kitchens that are not partners in this hub yet
@@ -26,19 +25,17 @@ import { currentHub } from "@/lib/hub.js";
  * @property {number} top_share_pct  the biggest kitchen's share of all tiffins
  * @property {number} top_share_change_pts
  * @property {number} kitchens_under_half  kitchens below half their capacity
- * @property {number} lambda  fairness weight of the nightly assignment, 0 to 1
- * @property {string | null} lambda_changed_by
- * @property {string | null} lambda_changed_at  ISO
+ * @property {number} lambda  fairness weight of the nightly assignment (PARTNERS_FAIRNESS_LAMBDA, set offline), 0 to 1
  * @property {boolean} fallback_active  the assignment service is down and tiffins go to the nearest kitchen with space
  * @property {Kitchen[]} kitchens
  */
 
 /**
  * @param {string | undefined} source "simulator" (default) or "pilot" (from the URL)
- * @returns {Promise<{ fairness: Fairness, canEdit: boolean }>}
+ * @returns {Promise<Fairness>}
  */
 export async function getFairness(source) {
-  const [hub, role] = await Promise.all([currentHub(), getRole()]);
+  const hub = await currentHub();
   const to = new Date(Date.now() + 5.5 * 3_600_000);
   const [proposed, earnings] = await Promise.all([
     apiGet(`/v1/hubs/${hub.id}/fairness`),
@@ -58,7 +55,7 @@ export async function getFairness(source) {
       .filter((/** @type {number | null} */ bp) => bp !== null)
       .map((/** @type {number} */ bp) => bp / 10_000)
   );
-  const fairness = {
+  return {
     ...proposed,
     gini: ginis.at(-1) ?? null,
     gini_trend: ginis,
@@ -66,5 +63,4 @@ export async function getFairness(source) {
       ginis.length > 1 ? Math.round(((ginis.at(-1) ?? 0) - (ginis.at(-2) ?? 0)) * 100) / 100 : null,
     gini_change_note: "vs last week",
   };
-  return { fairness, canEdit: role === "admin" };
 }
