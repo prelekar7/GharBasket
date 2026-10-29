@@ -178,7 +178,7 @@ const stop = tv({
 /**
  * One society on a rider's route. The current stop shows "Open in Maps" and a call to its captain.
  * @param {{ n: number, society: string, where?: string, captain?: string, window?: string, crates?: number, bags?: number,
- *   status?: "todo" | "current" | "done" | "issue", onNavigate?: () => void, onCall?: () => void,
+ *   status?: "todo" | "current" | "done" | "issue", navigate?: boolean, onNavigate?: () => void, onCall?: () => void,
  *   labels?: { stop?: string, crate?: string, crates?: string, bag?: string, bags?: string, captain?: string, navigate?: string, call?: string,
  *     todo?: string, current?: string, done?: string, issue?: string } }} props
  */
@@ -191,6 +191,7 @@ export function RouteStopCard({
   crates,
   bags,
   status = "todo",
+  navigate = true,
   onNavigate,
   onCall,
   labels: l = {},
@@ -220,12 +221,14 @@ export function RouteStopCard({
         </div>
         <span className={s.state()}>{l[status] ?? stateText[status]}</span>
       </div>
-      {status === "current" && (
+      {status === "current" && (navigate || captain) && (
         <div className="grid grid-cols-2 gap-2">
-          <Button onPress={onNavigate}>
-            <MapPinIcon aria-hidden size={20} />
-            {l.navigate ?? "Open in Maps"}
-          </Button>
+          {navigate && (
+            <Button onPress={onNavigate}>
+              <MapPinIcon aria-hidden size={20} />
+              {l.navigate ?? "Open in Maps"}
+            </Button>
+          )}
           {captain && (
             <Button onPress={onCall}>
               <PhoneIcon aria-hidden size={20} />

@@ -18,7 +18,7 @@ const problem = (status, code, title) =>
     { status, headers: { "content-type": "application/problem+json" } },
   );
 
-/** Fictional dev numbers: …02 is a customer who is also Captain of Sunrise Towers, …03 a rider. */
+/** Fictional dev numbers: …02 is a customer who is also Captain of Sunrise Towers, …03 a rider, …06 the rider of the lunch route. */
 export function rolesFor(/** @type {string} */ phone) {
   /** @type {import("@/lib/api.js").RoleGrant[]} */
   const roles = [{ role: "customer", scope_type: null, scope_id: null, status: "verified" }];
@@ -61,7 +61,8 @@ export function rolesFor(/** @type {string} */ phone) {
   };
   if (SEED_FIELD[phone])
     return phone === "+919800001004" ? [...roles, SEED_FIELD[phone]] : [SEED_FIELD[phone]];
-  if (phone === "+919800000003") {
+  // …03 has no route today; …06 is the rider of today's lunch (tiffin) route, M7 §3.7.
+  if (phone === "+919800000003" || phone === "+919800000006") {
     roles.splice(0, 1, {
       role: "rider",
       scope_type: "hub",

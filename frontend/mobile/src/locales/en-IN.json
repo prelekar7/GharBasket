@@ -1112,7 +1112,8 @@
     "when": "{day} · {slot} slot · van {plate}",
     "map": {
       "label": "Route map: the van, {count, plural, one {# society} other {# societies}} and the way back to the hub",
-      "fallback": "The map can’t show on this phone right now. Your stops are below, in order."
+      "fallback": "The map can’t show on this phone right now. Your stops are below, in order.",
+      "labelTiffin": "Route map: the van, {count, plural, one {# stop} other {# stops}} (kitchens and societies) and the way back to the hub"
     },
     "card": {
       "stop": "Stop {n}",
@@ -1224,6 +1225,53 @@
       "cert": "Download income certificate",
       "certFailed": "The certificate didn’t download. Try again.",
       "none": "Your earnings show here after your first route."
+    },
+    "kitchen": {
+      "where": "Pickup · {area} · {portions, plural, one {# portion} other {# portions}}",
+      "readyBy": "Ready by {time}",
+      "addressLater": "The address shows once the route has started.",
+      "tiffins": "Tiffins to collect",
+      "scan": "Scan kitchen code",
+      "scanned": "Collected",
+      "queued": "Saved. It will be sent when you have signal.",
+      "noScanner": "This phone can’t scan yet. Try again after the next update.",
+      "got": "Collected: {codes}",
+      "already": "{n, plural, one {# tiffin was} other {# tiffins were}} collected earlier.",
+      "notReady": "Not ready yet: {codes}. Scan again when the kitchen is done.",
+      "notOnRoute": "{n, plural, one {# tiffin here is} other {# tiffins here are}} on no stop of your route. Leave {n, plural, one {it} other {them}} with the kitchen."
+    },
+    "tiffin": {
+      "count": "{n, plural, one {# tiffin} other {# tiffins}}",
+      "portions": "{n, plural, one {# portion} other {# portions}}",
+      "heading": "Tiffins for this society",
+      "captainCounts": "{name} counts the {n, plural, one {# tiffin} other {# tiffins}} and types the code below in her app.",
+      "noCaptain": "No captain here: take each tiffin to its door and match the label.",
+      "refunded": "Refunded",
+      "failNote": "A tiffin that can’t be delivered is refunded to the family at once. It isn’t kept for later or sent again.",
+      "doorCodeHelp": "Check the label says {code}. The family’s code is in their app. No code? Take a photo of the tiffin at the door.",
+      "status": {
+        "to_collect": "To collect",
+        "on_route": "With you",
+        "with_captain": "With the captain",
+        "delivered": "Delivered",
+        "undelivered": "Refunded",
+        "left_behind": "Left behind"
+      },
+      "codeHelp": "{name} types this 4-digit code in her app to take the tiffins. Don’t send it in a message."
+    },
+    "errors": {
+      "nothing_ready": "The kitchen hasn’t marked any tiffin ready yet. Wait a few minutes and scan again.",
+      "pickup_code_invalid": "That isn’t a kitchen code for your hub. Scan the code on the kitchen’s phone.",
+      "pickup_wrong_kitchen": "That code is from another kitchen. Scan the code at this kitchen.",
+      "not_a_kitchen_stop": "This stop isn’t a kitchen.",
+      "stop_skipped": "You skipped this stop.",
+      "rider_required": "This route has no rider yet. Ask the hub to set a rider.",
+      "code_invalid": "That code isn’t right. Ask the family to check their app.",
+      "code_attempts_exceeded": "Too many wrong codes. Take a photo of the tiffin at the door instead.",
+      "bag_mismatch": "That label isn’t this tiffin’s. Check the code on the label.",
+      "delivery_closed": "This tiffin is already closed.",
+      "proof_required": "A code or a photo is needed.",
+      "other": "That didn’t work. Check your internet and try again."
     }
   },
   "captain": {

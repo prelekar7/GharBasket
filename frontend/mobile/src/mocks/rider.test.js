@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { mockFetch } from "./index.js";
-import { FAIL_KEY } from "./logistics.js";
+import { FAIL_KEY, TIFFIN_RIDER } from "./logistics.js";
 import { HUB_ID } from "./packer.js";
 
 const call = (
@@ -359,5 +359,262 @@ describe("GPS pings (M7 §3.3)", () => {
     expect((await post(`/v1/riders/me/location`, { route_id: id, pings: [] }, "")).status).toBe(
       422,
     );
+  });
+});
+
+describe("the lunch route: collect at the kitchens, then the doors (M7 §3.7)", () => {
+  const asTiffinRider = () =>
+    localStorage.setItem(
+      "gb-mock-web-session",
+      JSON.stringify({ phone: TIFFIN_RIDER, exp: Date.now() + 60_000 }),
+    );
+  const lunch = async () => {
+    asTiffinRider();
+    const { id } = await mine();
+    return (await get(`/v1/routes/${id}`)).json();
+  };
+  const go = async () => {
+    const { id } = await lunch();
+    return (await post(`/v1/routes/${id}/start`)).json();
+  };
+  const qr = (/** @type {{ id: string }} */ stop) => `GB1A:${stop.id.replaceAll("-", "")}`;
+  const collect = (/** @type {{ id: string }} */ stop, pickup_qr = qr(stop)) =>
+    post(`/v1/stops/${stop.id}/collect`, { pickup_qr });
+
+  it("lists a tiffin route with the kitchens before the drops", async () => {
+    const r = await lunch();
+    expect(r).toMatchObject({ kind: "tiffin", status: "published", delivery_date: todayIst() });
+    expect(r.stops.map((/** @type {any} */ s) => s.kind)).toEqual([
+      "kitchen",
+      "kitchen",
+      "drop",
+      "drop",
+    ]);
+    const [lata, , sunrise, kunj] = r.stops;
+    expect(lata).toMatchObject({
+      society: null,
+      slot: null,
+      crates: 0,
+      bags: 2,
+      portions: 3,
+      navigate_url: null,
+      kitchen: { display_name: "Lata’s Kitchen", area: "Sector 20, Kharghar", ready_by: "11:30" },
+    });
+    expect(lata.tiffins.map((/** @type {any} */ t) => [t.short_code, t.status])).toEqual([
+      ["T-01", "to_collect"],
+      ["T-02", "to_collect"],
+    ]);
+    expect(sunrise).toMatchObject({ crates: 0, bags: 2, rider_mode: false });
+    expect(kunj.rider_mode).toBe(true);
+  });
+
+  it("shows a kitchen's address only from the start, and flat labels only at a rider-mode drop", async () => {
+    const before = await lunch();
+    expect(before.stops[0].kitchen).toMatchObject({ address: null, location: null });
+    expect(before.stops[3].tiffins[0].flat_label).toBeNull();
+    const after = await go();
+    expect(after.stops[0].kitchen.address).toContain("Sunrise Towers");
+    expect(after.stops[0].navigate_url).toContain("destination=19.0352,73.0668");
+    expect(after.stops[0].handover_code).toBeNull();
+    expect(after.stops[2].handover_code).toBe("6140"); // her drop, a captain's
+    expect(after.stops[2].tiffins[0].flat_label).toBeNull();
+    expect(after.stops[3].tiffins.map((/** @type {any} */ t) => t.flat_label)).toEqual([
+      "B wing, 402",
+      "A wing, 102",
+    ]);
+  });
+
+  it("refuses to start a route that has no rider", async () => {
+    const r = await lunch();
+    const state = JSON.parse(localStorage.getItem("gb-mock-logistics-v3") ?? "{}");
+    state.tiffin.rider = null;
+    localStorage.setItem("gb-mock-logistics-v3", JSON.stringify(state));
+    const res = await post(`/v1/routes/${r.id}/start`);
+    expect(res.status).toBe(409);
+    expect(await code(res)).toBe("logistics.rider_required");
+  });
+
+  it("collects what is ready, says what is not ready and what is on no drop", async () => {
+    const { stops } = await go();
+    const [lata] = stops;
+    const got = await (await collect(lata)).json();
+    expect(got.collected).toEqual([
+      { order_id: expect.any(String), short_code: "T-01", drop_seq: 3 },
+      { order_id: expect.any(String), short_code: "T-02", drop_seq: 4 },
+    ]);
+    expect(got).toMatchObject({ already: [], not_ready: [], not_on_route: [expect.any(String)] });
+    expect(got.stop).toMatchObject({ status: "handed_over", bags: 2 });
+    expect(got.stop.tiffins.map((/** @type {any} */ t) => t.status)).toEqual([
+      "on_route",
+      "on_route",
+    ]);
+    expect(got.stop.kitchen.address).toBeNull(); // all collected: the address is gone
+    // The same scan again moves nothing: both are `already`.
+    const again = await (await collect(lata)).json();
+    expect(again).toMatchObject({
+      collected: [],
+      already: got.collected.map((/** @type {any} */ c) => c.order_id),
+    });
+  });
+
+  it("answers 409 nothing_ready until the kitchen has a tiffin ready, then collects them one by one", async () => {
+    const { stops } = await go();
+    const sunita = stops[1];
+    const first = await collect(sunita);
+    expect(first.status).toBe(409);
+    const problem = await first.json();
+    expect(problem.code).toBe("logistics.nothing_ready");
+    expect(problem.not_ready.map((/** @type {any} */ t) => t.short_code)).toEqual(["T-03", "T-04"]);
+    const second = await (await collect(sunita)).json();
+    expect(second.collected.map((/** @type {any} */ c) => c.short_code)).toEqual(["T-03"]);
+    expect(second.not_ready.map((/** @type {any} */ t) => t.short_code)).toEqual(["T-04"]);
+    expect(second.stop.bags).toBe(1);
+    const third = await (await collect(sunita)).json();
+    expect(third.collected.map((/** @type {any} */ c) => c.short_code)).toEqual(["T-04"]);
+    expect(third.already).toHaveLength(1);
+    expect(third.not_ready).toEqual([]);
+  });
+
+  it("refuses a code that is not the stop's kitchen's, a bad code and a stop that is no kitchen", async () => {
+    const { stops } = await go();
+    expect(await code(await collect(stops[0], qr(stops[1])))).toBe(
+      "logistics.pickup_wrong_kitchen",
+    );
+    expect(await code(await collect(stops[0], "GB1A:nope"))).toBe("logistics.pickup_code_invalid");
+    expect(await code(await collect(stops[2], qr(stops[0])))).toBe("logistics.not_a_kitchen_stop");
+    expect((await post(`/v1/stops/${stops[0].id}/collect`, {})).status).toBe(422);
+    const skipped = await post(`/v1/stops/${stops[1].id}/skip`, { reason: "other" });
+    expect(skipped.status).toBe(200);
+    expect(await code(await collect(stops[1]))).toBe("logistics.stop_skipped");
+  });
+
+  it("needs a started route to collect", async () => {
+    const { stops } = await lunch();
+    expect(await code(await collect(stops[0]))).toBe("logistics.route_not_started");
+  });
+
+  describe("at the doors", () => {
+    /** Starts the route, collects both of Lata's tiffins and lists the doors of Krishna Kunj. */
+    const toKunj = async () => {
+      const { stops } = await go();
+      await collect(stops[0]);
+      await collect(stops[1]);
+      const doors = (await (await get(`/v1/stops/${stops[3].id}/deliveries`)).json()).items;
+      return { stops, doors };
+    };
+    const proof = (/** @type {any} */ d, /** @type {object} */ body) =>
+      post(`/v1/deliveries/${d.order_id}/proof`, body);
+
+    it("lists a rider-mode drop's tiffins by flat, with the label to match", async () => {
+      const { doors } = await toKunj();
+      expect(doors[0]).toMatchObject({
+        flat_label: "B wing, 402",
+        kind: "tiffin",
+        short_code: "T-02",
+        status: "on_the_way",
+      });
+      const captainDrop = (await lunch()).stops[2];
+      expect((await get(`/v1/stops/${captainDrop.id}/deliveries`)).status).toBe(403);
+    });
+
+    it("takes a tiffin's label and the family's code or a photo, never a scan or a bag QR", async () => {
+      const { doors } = await toKunj();
+      const [d] = doors;
+      const otp = { short_code: "T-02", proof: "otp", delivery_code: "5170" };
+      expect(await code(await proof(d, { ...otp, bag_qr: `GB1:${"0".repeat(32)}` }))).toBe(
+        "request.invalid",
+      );
+      expect(await code(await proof(d, { proof: "otp", delivery_code: "5170" }))).toBe(
+        "request.invalid",
+      );
+      expect(await code(await proof(d, { ...otp, short_code: "T-0x" }))).toBe("request.invalid");
+      expect(await code(await proof(d, { ...otp, short_code: "T-77" }))).toBe(
+        "logistics.bag_mismatch",
+      );
+      expect(
+        await code(
+          await proof(d, {
+            bag_qr: `GB1:${d.order_id.replaceAll("-", "")}`,
+            proof: "otp",
+            delivery_code: "5170",
+          }),
+        ),
+      ).toBe("logistics.bag_mismatch");
+      expect(await code(await proof(d, { short_code: "T-02", proof: "scan" }))).toBe(
+        "logistics.proof_required",
+      );
+      expect(await code(await proof(d, { ...otp, delivery_code: "1111" }))).toBe(
+        "logistics.code_invalid",
+      );
+      expect(await code(await proof(d, { short_code: "T-02", proof: "photo" }))).toBe(
+        "logistics.photo_key_invalid",
+      );
+      const ok = await (await proof(d, otp)).json();
+      expect(ok).toMatchObject({
+        order_id: d.order_id,
+        status: "delivered",
+        proof: "otp",
+        by: "rider",
+      });
+      expect(await code(await proof(d, otp))).toBe("logistics.delivery_closed");
+    });
+
+    it("accepts only a photo after five wrong codes", async () => {
+      const { doors } = await toKunj();
+      const [d] = doors;
+      const wrong = { short_code: "T-02", proof: "otp", delivery_code: "0000" };
+      for (let i = 0; i < 5; i++)
+        expect(await code(await proof(d, wrong))).toBe("logistics.code_invalid");
+      const locked = await proof(d, { ...wrong, delivery_code: "5170" });
+      expect(locked.status).toBe(429);
+      expect(await code(locked)).toBe("logistics.code_attempts_exceeded");
+      const photo = await (
+        await proof(d, { short_code: "T-02", proof: "photo", photo_key: "delivery_photo/u/1.jpg" })
+      ).json();
+      expect(photo).toMatchObject({ status: "delivered", proof: "photo" });
+    });
+
+    it("refunds an undelivered tiffin at once, whatever the reason, and never holds it", async () => {
+      const { stops, doors } = await toKunj();
+      const fail = async (/** @type {number} */ i, /** @type {object} */ body) =>
+        (await post(`/v1/deliveries/${doors[i].order_id}/undelivered`, body)).json();
+      expect(await fail(0, { reason: "other" })).toMatchObject({ code: "request.invalid" });
+      const missed = await fail(0, { reason: "not_home" });
+      expect(missed).toMatchObject({ status: "refunded", reason: "not_home", hold_until: null });
+      expect((await fail(0, { reason: "refused" })).code).toBe("logistics.delivery_closed");
+      // T-03 of the second kitchen is not collected yet: it cannot be settled.
+      expect((await fail(1, { reason: "refused" })).code).toBe("orders.illegal_transition");
+      expect(
+        (await get(`/v1/stops/${stops[3].id}/deliveries`).then((r) => r.json())).items[0].status,
+      ).toBe("undelivered");
+    });
+
+    it("hands the rider-mode drop over when its last tiffin is settled, and the route completes", async () => {
+      const { stops, doors } = await toKunj();
+      await collect(stops[1]); // Sunita's second scan: T-03
+      const settle = (/** @type {number} */ i) =>
+        proof(doors[i], { short_code: doors[i].short_code, proof: "otp", delivery_code: "5170" });
+      await settle(0);
+      expect((await lunch()).stops[3].status).toBe("pending");
+      await settle(1);
+      const after = await lunch();
+      expect(after.stops[3].status).toBe("handed_over");
+      expect(after.stops[3].tiffins.map((/** @type {any} */ t) => t.status)).toEqual([
+        "delivered",
+        "delivered",
+      ]);
+      // The rider keeps hold of the captain's tiffins until she has taken them.
+      expect(after.stops[2].tiffins.map((/** @type {any} */ t) => t.status)).toEqual([
+        "on_route",
+        "to_collect",
+      ]);
+    });
+
+    it("lets a rider hand a rider-mode tiffin drop over only by its doors", async () => {
+      const { stops } = await toKunj();
+      expect(
+        await code(await post(`/v1/stops/${stops[3].id}/handover`, { crates: 0, bags: 2 })),
+      ).toBe("request.invalid");
+    });
   });
 });
