@@ -18,8 +18,9 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders import service
 from gharbasket.platform.errors import ProblemError
-from gharbasket.tools.seed import SEED_HUB_ID, seed_hubs
+from gharbasket.tools.seed import SEED_HUB_ID
 
+from .. import seed_cache as cached
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from .test_issue_triage import NEHA
@@ -36,7 +37,7 @@ CUTOFF = datetime(2026, 10, 12, 15, 30, tzinfo=UTC)  # Mon 21:00 IST for Tuesday
 @pytest.fixture
 async def hub(world: None, db_session: AsyncSession) -> None:
     """The seed hub (with its default pre-live fee); `world` alone has none."""
-    await seed_hubs(db_session)
+    await cached.seed_hubs(db_session)
     await db_session.commit()
 
 

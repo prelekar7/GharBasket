@@ -26,8 +26,9 @@ from gharbasket.modules.hub_ops.models import (
 )
 from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop, Vehicle
 from gharbasket.modules.orders.models import Order, OrderIssue, Slot
-from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID, seed_hubs
+from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
+from .. import seed_cache as cached
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from ..subscriptions.test_cycles import as_user
@@ -53,7 +54,7 @@ PRIYA = "+919800001001"  # customer
 
 @pytest.fixture
 async def hubs(db_session: AsyncSession) -> None:
-    await seed_hubs(db_session)
+    await cached.seed_hubs(db_session)
 
 
 @pytest.fixture

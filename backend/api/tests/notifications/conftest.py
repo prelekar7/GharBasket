@@ -16,7 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity.models import User
 from gharbasket.modules.notifications.fcm import FcmClient
-from gharbasket.tools.seed import seed, seed_households, seed_societies
+
+from .. import seed_cache as cached
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import clients, google  # noqa: F401
@@ -35,9 +36,9 @@ class Home:
 @pytest.fixture
 async def homes(db_session: AsyncSession) -> dict[str, Home]:
     """The seed people and households, by phone (Priya and Meena)."""
-    await seed(db_session)
-    await seed_societies(db_session)
-    await seed_households(db_session)
+    await cached.seed(db_session)
+    await cached.seed_societies(db_session)
+    await cached.seed_households(db_session)
     found: dict[str, Home] = {}
     for phone in (PRIYA, MEENA):
         user_id = await db_session.scalar(select(User.id).where(User.phone_e164 == phone))
