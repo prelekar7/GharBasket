@@ -17,7 +17,7 @@ test("the catalog editor is a staff role, lands on the catalog and is not a mock
   assert.equal(staffRoleOf([grant("catalog_editor"), grant("admin")]), "admin");
 });
 
-test("the catalog editor sees only the catalog and the prices", () => {
+test("the catalog editor sees only the catalog, the recipes and the prices", () => {
   const groups = navFor("catalog_editor");
   assert.deepEqual(
     groups.map((g) => g.id),
@@ -25,9 +25,9 @@ test("the catalog editor sees only the catalog and the prices", () => {
   );
   assert.deepEqual(
     groups[0].items.map((i) => i.href),
-    ["/catalog", "/prices"],
+    ["/catalog", "/recipes", "/prices"],
   );
-  for (const path of ["/catalog", "/catalog/okra", "/prices"])
+  for (const path of ["/catalog", "/catalog/okra", "/recipes", "/recipes/new", "/prices"])
     assert.ok(canAccess("catalog_editor", /** @type {any} */ (itemFor(path))), path);
   for (const path of ["/prices/publish", "/users", "/hubs", "/today", "/pnl", "/handoffs"])
     assert.ok(!canAccess("catalog_editor", /** @type {any} */ (itemFor(path))), path);
