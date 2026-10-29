@@ -1246,7 +1246,11 @@
       "delivered": "Delivered",
       "noExceptions": "Nothing to sort out yet",
       "held": "Held for pickup (families collect)",
-      "receive": "Receive the crates when the van comes"
+      "receive": "Receive the crates when the van comes",
+      "tiffinTitle": "Tiffins come at about {time}",
+      "tiffinBody": "{count, plural, one {# tiffin} other {# tiffins}} from home kitchens for your society. Count them when the rider hands them over. Each box has a code like T-07.",
+      "tiffinCounted": "{count, plural, one {# tiffin} other {# tiffins}} from home kitchens, all with you. Take each one to its door.",
+      "tiffinCount": "Count the tiffins"
     },
     "received": {
       "title": "Crates received",
@@ -1281,7 +1285,17 @@
       "failed": "Couldn’t save the handover. Try again.",
       "noCode": "No code? Take a photo of the crates",
       "photo": "Take a photo of the crates",
-      "photoAdded": "Photo added"
+      "photoAdded": "Photo added",
+      "tiffinTitle": "Receive tiffins",
+      "tiffins": "Tiffins",
+      "tiffinExpected": "Not with you yet: {n}",
+      "tiffinHelp": "Count the tiffins the rider hands you now. If a kitchen was late, count the rest when they arrive.",
+      "tiffinDoneBtn": "{count, plural, one {# tiffin received} other {# tiffins received}}",
+      "tiffinMismatch": "The rider has {count, plural, one {# tiffin} other {# tiffins}} for you: {codes}. Count the boxes again.",
+      "tiffinNone": "The rider hasn’t collected your tiffins from the kitchens yet. Try again when he arrives.",
+      "tiffinDone": "These tiffins are already with you.",
+      "tiffinReceived": "Tiffins received",
+      "tiffinReceivedBody": "Take each tiffin to its flat and ask for the family’s code. A tiffin is never kept for the evening."
     },
     "flats": {
       "title": "Flats",
@@ -1303,7 +1317,8 @@
         "damaged": "Damaged",
         "onTheWay": "On the van",
         "held": "Held",
-        "undelivered": "Not delivered"
+        "undelivered": "Not delivered",
+        "tiffinOnTheWay": "On the way"
       },
       "delivered": "{flat} delivered",
       "notToday": "That isn’t one of today’s bags. Check the label.",
@@ -1334,7 +1349,10 @@
       "whatPh": "eggs broken",
       "report": "Report",
       "added": "Added to exceptions",
-      "summary": "{kind}, {bags, plural, one {# bag} other {# bags}} · {society}"
+      "summary": "{kind}, {bags, plural, one {# bag} other {# bags}} · {society}",
+      "tiffinSummary": "Tiffin · {society}",
+      "tiffinNoHold": "Ask the family for their 4-digit code, or take a photo. If you can’t deliver it, the family is refunded at once; a tiffin is not kept for the evening.",
+      "tiffinWaiting": "Not with you yet. Count it when the rider hands it over, and check the code on the box."
     },
     "exceptions": {
       "back": "Back to flats",
@@ -1350,7 +1368,8 @@
       "save": "Save and tell the families",
       "saved": "Saved. The families are told.",
       "none": "Nothing to sort out",
-      "noneBody": "Problems you report at a door show up here."
+      "noneBody": "Problems you report at a door show up here.",
+      "tiffinBody": "A tiffin is not kept for the evening. The family is refunded at once and told it didn’t reach them."
     },
     "done": {
       "when": "{society} · {day} · {time}",
@@ -1375,6 +1394,18 @@
       "cert": "Download income certificate",
       "certFailed": "We couldn’t get the certificate. Try again.",
       "bags": "{count, plural, one {# bag} other {# bags}}"
+    },
+    "tiffin": {
+      "codeLabel": "Family’s code",
+      "codeHelp": "The 4 digits the family shows you. No code? Take a photo instead.",
+      "deliver": "Delivered to {flat}",
+      "photo": "Take a photo instead",
+      "codeWrong": "That code isn’t right. Ask the family again.",
+      "codeLocked": "Too many wrong codes. Take a photo of the delivery instead.",
+      "notWithYou": "This tiffin isn’t with you. Count the tiffins first.",
+      "wrongLabel": "That label isn’t this flat’s tiffin. Check the box.",
+      "closed": "This tiffin is already done.",
+      "failed": "Couldn’t save the delivery. Try again."
     }
   },
   "kitchen": {
