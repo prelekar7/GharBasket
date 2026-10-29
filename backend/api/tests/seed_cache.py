@@ -16,6 +16,7 @@ test_seed_catalog.py ...) and test bodies that call a seed to see what it does i
 functions from `gharbasket.tools.seed`.
 """
 
+import copy
 import functools
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -140,7 +141,7 @@ def cached[**P, R](
         kept = _kept.get(key)
         if kept is not None:
             await _replay(session, kept)
-            return kept.result
+            return copy.deepcopy(kept.result)  # each test its own, whatever it does with it
         tables = await _table_names(session)
         rows_before = {table: await _rows(session, table) for table in tables}
         result = await seed(session, *args, **kwargs)
@@ -150,7 +151,7 @@ def cached[**P, R](
             changed=changed,
             columns={table: await _insert_columns(session, table) for table in changed},
             had_rows=frozenset(t for t in changed if rows_before[t]),
-            result=result,
+            result=copy.deepcopy(result),
         )
         return result
 

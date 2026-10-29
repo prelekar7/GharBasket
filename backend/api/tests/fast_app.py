@@ -4,10 +4,9 @@ Making an app is half the suite's CPU: almost every test makes one, and each app
 routes again (a pydantic TypeAdapter per parameter and per response model, about 1,700 per app: a
 fifth of a second on a developer machine, a second with coverage on). The routes do not depend on
 the settings, so this keeps what FastAPI found for a route's parameters (`get_dependant`, by path
-and function) and for its response models (`create_model_field`, by type), and hands every app the
-same objects, which FastAPI only reads. The one thing it changes in a dependant after building it
-is the list of its dependencies (route-level `dependencies=[...]`), so each caller gets a copy of
-that list.
+and function) and hands every app the same objects, which FastAPI only reads. The one thing it
+changes in a dependant after building it is the list of its dependencies (route-level
+`dependencies=[...]`), so each caller gets a copy of that list.
 
 Test-only: the application code is untouched. If a FastAPI upgrade changes `get_dependant`'s
 parameters, nothing is patched and the suite is just slower.
@@ -19,7 +18,6 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import routing
-from fastapi._compat import v2
 from fastapi.dependencies import models, utils
 
 EXPECTED = {
@@ -33,7 +31,6 @@ EXPECTED = {
 }
 
 _found: dict[tuple[object, ...], models.Dependant] = {}
-_fields: dict[tuple[object, ...], v2.ModelField] = {}
 
 
 def _scopes(scopes: list[str] | None) -> tuple[str, ...] | None:
