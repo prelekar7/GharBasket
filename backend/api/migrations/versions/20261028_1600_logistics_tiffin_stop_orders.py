@@ -75,6 +75,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # The narrower checks cannot hold rows that use the new values; fail with a clear message
+    # instead of an obscure constraint violation, and never delete anyone's data.
+    bind = op.get_bind()
+    collects = bind.scalar(
+        sa.text("SELECT count(*) FROM logistics.field_events WHERE action = 'collect'")
+    )
+    nearest = bind.scalar(
+        sa.text("SELECT count(*) FROM logistics.route_plans WHERE source = 'nearest'")
+    )
+    if collects or nearest:
+        raise RuntimeError(
+            f"cannot downgrade: {collects} field_events have action 'collect' and {nearest} "
+            "route_plans have source 'nearest' (tiffin routes, M7 §3.7); remove or migrate them first"
+        )
     _checks(ACTIONS, SOURCES)
     op.drop_index("ix_stop_orders_order_id", table_name="stop_orders", schema="logistics")
     op.drop_table("stop_orders", schema="logistics")

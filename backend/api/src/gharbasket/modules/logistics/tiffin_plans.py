@@ -187,8 +187,11 @@ async def _kitchens(
     problems: list[str] = []
     unserved: list[str] = []
     for ref in refs:
+        if not ref.orders:
+            continue
         if ref.lat is None or ref.lng is None or ref.ready_by is None:
-            problems.append(f"kitchen {ref.assignment_id}: no location")
+            what = "no location" if ref.lat is None or ref.lng is None else "no ready-by time"
+            problems.append(f"kitchen {ref.assignment_id}: {what}")
             unserved += [str(o.order_id) for o in ref.orders]
             continue
         tiffins = []
