@@ -8,10 +8,10 @@ The classes come from `docs/integration/gaps.json`, which is edited by hand.
 
 | App | Call sites | Found | Wrong method | Missing | Unresolved | Wrapped (not shipped / @proposal) |
 |---|--:|--:|--:|--:|--:|--:|
-| mobile | 115 | 102 | 1 | 9 | 3 | 9 |
-| console | 189 | 170 | 2 | 17 | 0 | 19 |
+| mobile | 117 | 108 | 0 | 5 | 4 | 4 |
+| console | 182 | 171 | 0 | 8 | 3 | 15 |
 
-Distinct endpoints called: mobile 98, console 150. A call site is one `request(`/`apiGet(` … in the source.
+Distinct endpoints called: mobile 101, console 140. A call site is one `request(`/`apiGet(` … in the source.
 
 ## Gaps by class
 
@@ -19,55 +19,39 @@ Distinct endpoints called: mobile 98, console 150. A call site is one `request(`
 |---|--:|--:|--:|
 | unclassified | 0 | 0 call sites | 0 call sites |
 | pending-pr | 0 | 0 call sites | 0 call sites |
-| fix-frontend | 15 | 5 call sites | 10 call sites |
+| fix-frontend | 1 | 0 call sites | 1 call sites |
 | fix-backend | 0 | 0 call sites | 0 call sites |
 | later | 0 | 0 call sites | 0 call sites |
-| drop | 14 | 5 call sites | 9 call sites |
+| drop | 12 | 5 call sites | 7 call sites |
 
-29 gap endpoints in all (a call that is missing, or exists only with another method).
+13 gap endpoints in all (a call that is missing, or exists only with another method).
 
 Classes: `pending-pr` an open or stacked PR builds it; `fix-frontend` the frontend should change (a wrong method, id or
 path, or a call the spec rules out); `fix-backend` the backend lacks it and no spec says when (a frontend proposal or an
 unspecified view): spec it, build it, or tell the frontend to drop it; `later` a spec exists and a milestone builds it;
 `drop` mocked by decision, no real endpoint.
 
-### fix-frontend (15)
+### fix-frontend (1)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
-| `GET /v1/admin/hubs` (guarded) | console | `console/app/(console)/(admin)/hubs/page.jsx:14` | The spec has POST only. List with GET /v1/hubs and read each with GET /v1/hubs/{id}; show what those carry. M6 §3.1. If address, people and slots are needed in one list, that is a new backend ask. The spec has POST /v1/admin/hubs. | yash |  |
-| `GET /v1/hubs/{}/settings` | console | `console/app/(console)/(franchise)/settings/data.js:19` | Read GET /v1/hubs/{hub_id} (M6 §3.1, HubOut, ETag = version). Map hub_id → id, hub_name → name; the clock's receiving, packing, dispatch and surplus rows → timings; show status, address, procurement_buffer_pct and pre_live_box_fee_paise. Remove switches (ai_planner, auto_approve, tiffins, upi_autopay), languages, quiet_hours and changes: no backend has them. The other clock rows are fixed job times (handbook 10 §10.4): console copy, not data. M6 §3.1. Admin only in the nav, as today. | yash |  |
-| `GET /v1/orders/{}/rating` (guarded) | mobile | `mobile/src/features/orders/queries.js:118` | GET /v1/ratings?order_id={id}. The endpoint ships with the M8 stack. M8 §3.5. | yash |  |
-| `GET /v1/orders/{}/tiffin` (guarded) | mobile | `mobile/src/features/orders/queries.js:96` | Read OrderOut.tiffin and OrderOut.kitchen (on main, #319), then GET /v1/partners/{kitchen.partner_id}/card for the cook. M8 §3.4 table 'Mock today'. | yash |  |
-| `GET /v1/public/cooks/{}` | console | `console/lib/public-api.js:75` | Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public. M12 §3.7: public cook profiles are M8's card. | yash |  |
-| `GET /v1/public/societies` | console | `console/lib/public-api.js:50` | Drop the public society list from the landing page; a society page is GET /v1/public/societies/{slug}. M12 §3.7: 'Not in v1'. | yash |  |
-| `GET /v1/tiffin-offers` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:95` | Call GET /v1/tiffin-menus?date=&meal= and map the menus to offers (M4 §3.5 table 'Mock today'). Built on main (#317). The cycle does not carry offers. | yash |  |
-| `PATCH /v1/admin/festivals/{}` | console | `console/app/(console)/(admin)/festivals/actions.js:35` | F3: PATCH (and DELETE) /v1/admin/festivals/{day}/{code}/{region}, not a single id; the run's days become one call each. M2 §3.3. | yash |  |
-| `PATCH /v1/cycles/{}/meals` | mobile | `mobile/src/features/subscriptions/queries.js:186` | F1: useSwapMeal sends PATCH; send PUT (same body { date, slot }); change the mock handler too. M3 §3.2 renamed it to PUT; blocks the MS-A meal-swap flow. The spec has PUT /v1/cycles/{cycle_id}/meals. | yash |  |
-| `PATCH /v1/hubs/{}/settings` | console | `console/app/(console)/(franchise)/settings/actions.js:16` | PATCH /v1/admin/hubs/{hub_id} with If-Match (the version from the GET) and any of { name, address, location, service_area, status, timings, procurement_buffer_pct, pre_live_box_fee_paise }; 412 request.version_mismatch → reload. No switches, languages or quiet hours; the change history is the audit log, not shown. M6 §3.1 (admin; audit-logged). | yash |  |
-| `POST /v1/admin/reconciliation/{}/credit` | console | `console/app/(console)/(admin)/reconciliation/actions.js:41` | F4: POST /v1/admin/reconciliation/{id}/resolve with { note } (moves no money; the wallet credit is not an action). M5 §3.4. Built on main. | yash |  |
-| `POST /v1/admin/reconciliation/{}/investigate` | console | `console/app/(console)/(admin)/reconciliation/actions.js:46` | F4: same resolve call; the spec has no 'investigating' state. M5 §3.4. | yash |  |
-| `POST /v1/admin/reconciliation/check` | console | `console/app/(console)/(admin)/reconciliation/actions.js:32` | F4: drop the 'Check now' button; the hourly Razorpay check is a job. Ask for an admin trigger only if wanted. No endpoint in M5 §3.4. | yash |  |
-| `POST /v1/hubs/{}/cutoff/run` | console | `console/app/(console)/(hub)/cutoff/actions.js:17` | Remove 'Run cut-off now' from the cut-off page: M4 replaced it with the 21:00 job (cutoff_lock), which is operator-only. M4 spec endpoint table, row POST /v1/internal/jobs/cutoff_lock. | yash |  |
-| `POST /v1/orders/{}/rating` (guarded) | mobile | `mobile/src/features/orders/queries.js:198` | POST /v1/ratings with { order_id, stars } and an Idempotency-Key. The endpoint ships with the M8 stack. M8 §3.5. | yash |  |
+| `GET /v1/public/cooks/{}` | console | `console/lib/public-api.js:64` | Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public. M12 §3.7: public cook profiles are M8's card. | yash |  |
 
-### drop (14)
+### drop (12)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
 | `DELETE /v1/mandates/{}` | mobile | `mobile/src/features/billing/queries.js:171` | As POST /v1/mandates (M5 §3.7). | yash |  |
-| `GET /v1/budget-lock/preferences` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:293` | Dropped (M3 §11, owner 2026-10-25): the planner only swaps to cheaper (M3 §3.1); the app already hides the question. Remove useBudgetPreferences and the when_over PUT. | yash |  |
+| `GET /v1/budget-lock/preferences` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:324` | Dropped (M3 §11, owner 2026-10-25): the planner only swaps to cheaper (M3 §3.1); the app already hides the question. Remove useBudgetPreferences and the when_over PUT. | yash |  |
 | `GET /v1/hubs/{}/cycles` | console | `console/app/(console)/(hub)/cycles/page.jsx:24` | Dropped (M3 §3.5, owner 2026-10-25): the Cut-off page (M3 §3.4) has the counts per delivery date; take the Cycles page out of the nav. | yash |  |
 | `GET /v1/intel/experiments` | console | `console/app/(console)/(intelligence)/experiments/page.jsx:14` | Experiments are cut (M12 header, owner 2026-10-09); the page stays on its mock. | yash |  |
 | `GET /v1/mandates/current` | mobile | `mobile/src/features/billing/queries.js:142` | As POST /v1/mandates (M5 §3.7). | yash |  |
-| `PATCH /v1/admin/plans/{}` | console | `console/app/(console)/(admin)/plans/actions.js:31` | As POST /v1/admin/plans (M3 §3.5). | yash |  |
-| `POST /v1/admin/plans` | console | `console/app/(console)/(admin)/plans/actions.js:32` | Dropped (M3 §3.5, owner 2026-10-25): plans are seeded and a fee is a price. Keep the Plans page read-only even when GET /v1/admin/plans answers. The spec has GET /v1/admin/plans. | yash |  |
 | `POST /v1/admin/refunds/{}/{}` | console | `console/app/(console)/(admin)/refunds/actions.js:15` | Dropped (M5 §3.8, owner 2026-10-25): refunds are automatic (M5 §3.3); disputes are M4's issue triage (M4 §3.6). The Refunds page becomes a read-only list. | yash |  |
 | `POST /v1/hubs/{}/staff-invitations` | console | `console/app/(console)/(franchise)/staff/actions.js:17` | Dropped (M1 §3.6, owner 2026-10-25): staff roles through POST /v1/admin/user-roles (admin; a new number gets a pending grant), riders and packers through M8's POST /v1/hubs/{id}/partner-applications (hub manager); kitchens and captains apply in the app. Remove the Invite sheet from the franchise Staff page. | yash |  |
 | `POST /v1/intel/experiments/{}/promote` | console | `console/app/(console)/(intelligence)/experiments/actions.js:38` | As above. | yash |  |
 | `POST /v1/intel/experiments/{}/rollback` | console | `console/app/(console)/(intelligence)/experiments/actions.js:58` | As above. | yash |  |
 | `POST /v1/mandates` | mobile | `mobile/src/features/billing/queries.js:129` | UPI Autopay is not in this phase; M5 §3.7 keeps /v1/mandates out of openapi.json. Hide the Autopay choice behind a flag. | yash |  |
-| `PUT /v1/budget-lock/preferences` | mobile | `mobile/src/features/subscriptions/queries.js:321` | As GET /v1/budget-lock/preferences. | yash |  |
+| `PUT /v1/budget-lock/preferences` | mobile | `mobile/src/features/subscriptions/queries.js:352` | As GET /v1/budget-lock/preferences. | yash |  |
 | `PUT /v1/hubs/{}/fairness-weight` | console | `console/app/(console)/(hub)/fairness/actions.js:15` | Dropped (M8 §3.8, owner 2026-10-25): λ is PARTNERS_FAIRNESS_LAMBDA, chosen by the offline λ sweep (M10 §3.5, handbook 08); remove the page's Change control. | yash |  |
 
 "(guarded)" means every call site is wrapped in the console's `orNotShipped(` or marked `@proposal` in the mobile source, so the screen already copes with a 404.
@@ -84,13 +68,28 @@ Mismatches the scan cannot see (mock data, roles, comments). Hand-listed in `gap
 | F8 | console | lib/hub.js, mocks/README.md | GET /v1/hubs ships now: update the comments that say it is a 404, and the mocks README (it says API port 8010 and console port 3160; real mode is 8000 and 3000, see docs/SETUP.md 'Real mode'). | yash |
 | F9 | console | lib/ngo.js, app/(console)/(community)/handoffs/, app/(console)/(community)/drives/ | M9 §3.5 ships: build against its shapes, not the mock's (M9 §3.5 'Mock today'). POST /v1/admin/ngos takes { name, kind, hub_ids, accepts, registration_ref, verified, status, note } (coordinators are M1 role grants) and PATCH needs If-Match; GET /v1/ngo-handoffs is Page[Handoff] with `report` (`summary` is structured; `open_batches` is GET /v1/ngo-handoffs/ready); POST /v1/ngo-handoffs takes { ngo_id, hub_id, kind, donation_ids \| offer_ids \| meals, photo_keys (1 to 3 handoff_photo uploads), people_reached, handed_at, note } with an Idempotency-Key; a drive's ngo_id may be set. | yash |
 
-## Unresolved calls (3)
+## Unresolved calls (7)
 
 The static scan could not tell the method or path. They are not counted as found or missing.
 
 | File | Call | Why |
 |---|---|---|
-| `mobile/src/features/captain/queries.js:89` | `request(` | path is action.path |
-| `mobile/src/features/subscriptions/queries.js:116` | `request(` | a variable stands where the spec has a fixed word: /v1/cycles/{}/{} (could be POST /v1/cycles/{cycle_id}/approve, POST /v1/cycles/{cycle_id}/feedback, PATCH /v1/cycles/{cycle_id}/lines, PUT /v1/cycles/{cycle_id}/meals, POST /v1/cycles/{cycle_id}/skip, PUT /v1/cycles/{cycle_id}/slot, POST /v1/cycles/{cycle_id}/slot-quotes, POST /v1/cycles/{cycle_id}/unskip) |
+| `mobile/src/features/captain/queries.js:87` | `request(` | path is action.path |
+| `mobile/src/features/logistics/queries.js:123` | `request(` | path is action.path |
+| `mobile/src/features/subscriptions/queries.js:139` | `request(` | a variable stands where the spec has a fixed word: /v1/cycles/{}/{} (could be POST /v1/cycles/{cycle_id}/approve, POST /v1/cycles/{cycle_id}/feedback, PATCH /v1/cycles/{cycle_id}/lines, PUT /v1/cycles/{cycle_id}/meals, POST /v1/cycles/{cycle_id}/skip, PUT /v1/cycles/{cycle_id}/slot, POST /v1/cycles/{cycle_id}/slot-quotes, POST /v1/cycles/{cycle_id}/unskip) |
 | `mobile/src/lib/outbox.js:74` | `request(` | method is item.method |
+| `console/app/(console)/(admin)/festivals/actions.js:45` | `apiPatch(` | path is path |
+| `console/app/(console)/(admin)/festivals/actions.js:48` | `apiDelete(` | path is path |
+| `console/app/(console)/(hub)/partners/[id]/income-certificate/route.js:16` | `apiGet(` | path is path |
+
+## Problems in gaps.json
+
+- stale: PATCH /v1/cycles/{}/meals: classified as fix-frontend, but no frontend calls it any more
+- stale: PATCH /v1/admin/festivals/{}: classified as fix-frontend, but no frontend calls it any more
+- stale: POST /v1/admin/reconciliation/{}/credit: classified as fix-frontend, but no frontend calls it any more
+- stale: POST /v1/admin/reconciliation/{}/investigate: classified as fix-frontend, but no frontend calls it any more
+- stale: POST /v1/admin/reconciliation/check: classified as fix-frontend, but no frontend calls it any more
+- stale: POST /v1/hubs/{}/cutoff/run: classified as fix-frontend, but no frontend calls it any more
+- stale: GET /v1/admin/hubs: classified as fix-frontend, but no frontend calls it any more
+- stale: GET /v1/public/societies: classified as fix-frontend, but no frontend calls it any more
 

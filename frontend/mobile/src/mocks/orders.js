@@ -1,8 +1,10 @@
 // M4 orders mocks (docs/modules/M4-orders.md §3.1, frozen for S2): OrderSummaryOut for the list,
 // OrderOut (with lines and timeline) for one order, exactly as the API sends them. Statuses are
 // lowercase (handbook §6.2); times are UTC. What §3.1 does not have lives under its own proposed
-// endpoint: a tiffin's cook and dish, ratings, issues (mocks/tracking.js has the van).
+// endpoint: issues (mocks/tracking.js has the van). A tiffin's dishes and kitchen are on its order;
+// the cook's name is the card (mocks/partners.js); ratings are M8 §3.5 (POST and GET /v1/ratings).
 import { HttpResponse, http } from "msw";
+import { addonBox } from "./addons.js";
 import { caller, isNewUser } from "./handlers.js";
 import { deliveryStage, TODAY_BOX_ID } from "./tracking.js";
 
@@ -157,6 +159,9 @@ const full = (o) => ({
   timeline: o.timeline,
 });
 
+/** `full`, for the add-ons mock (mocks/addons.js). */
+export const fullOrder = (/** @type {Parameters<typeof full>[0]} */ o) => full(o);
+
 /**
  * The designs' Tuesday: the box is on the way (it reaches the captain, then the door, as the demo
  * day runs: mocks/tracking.js), a tiffin tomorrow, and last week's box delivered. The week still
@@ -178,18 +183,21 @@ function orders(/** @type {"en" | "hi"} */ lang) {
       timeline: timelineOf("2026-10-06", status),
       created_at: utc("2026-10-01", "19:12"),
     }),
-    full({
-      id: TIFFIN_TOMORROW_ID,
-      kind: "tiffin",
-      status: "approved",
-      delivery_date: "2026-10-07",
-      slot: TIFFIN_SLOT,
-      total_paise: 11000,
-      cycle_id: null,
-      lines: [],
-      timeline: [{ status: "approved", at: utc("2026-10-04", "10:05"), actor: "customer" }],
-      created_at: utc("2026-10-04", "10:05"),
-    }),
+    {
+      ...full({
+        id: TIFFIN_TOMORROW_ID,
+        kind: "tiffin",
+        status: "approved",
+        delivery_date: "2026-10-07",
+        slot: TIFFIN_SLOT,
+        total_paise: 11000,
+        cycle_id: null,
+        lines: [],
+        timeline: [{ status: "approved", at: utc("2026-10-04", "10:05"), actor: "customer" }],
+        created_at: utc("2026-10-04", "10:05"),
+      }),
+      ...tiffinOf("2026-10-07", TIFFIN_OFFER.slot, lang),
+    },
     full({
       id: PAST_BOX_ID,
       kind: "box",
@@ -202,6 +210,7 @@ function orders(/** @type {"en" | "hi"} */ lang) {
       timeline: timelineOf("2026-09-29", "delivered"),
       created_at: utc("2026-09-24", "19:30"),
     }),
+    addonBox(BOX_SLOT, lang),
   ];
 }
 
@@ -218,9 +227,29 @@ export const TIFFIN_OFFER = {
   slot: "lunch",
   cook: ["Lata tai", "लता ताई"],
   dish: ["Chapati-bhaji thali", "चपाती-भाजी थाली"],
-  items: ["Chapati, bhaji, dal, rice, salad", "चपाती, भाजी, दाल, चावल, सलाद"],
+  // The recipes of the menu (TiffinMenuOut.dishes): the real menu has these, not a thali name.
+  dishes: [
+    ["Chapati", "चपाती"],
+    ["Bhaji", "भाजी"],
+    ["Dal", "दाल"],
+    ["Rice", "चावल"],
+  ],
   price_paise: 11000,
 };
+
+/** The id of the approved lunch menu of a date (GET /v1/tiffin-menus): `…<yyyymmdd>0001`. @param {string} date */
+export const tiffinMenuId = (date) => `0199c000-0000-7000-8000-${date.replaceAll("-", "")}0001`;
+/** The date a mock menu id stands for, or null for an id this mock never sent. @param {unknown} id */
+const menuDate = (id) => {
+  const m = /^0199c000-0000-7000-8000-(\d{4})(\d{2})(\d{2})0001$/.exec(String(id));
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+};
+/** The menu's dishes, in the caller's language. @param {"en" | "hi"} lang */
+export const menuDishes = (lang) =>
+  TIFFIN_OFFER.dishes.map((d, i) => ({
+    recipe_id: `0199d000-0000-7000-8000-${String(i + 1).padStart(12, "0")}`,
+    name: d[lang === "hi" ? 1 : 0],
+  }));
 
 /** A tiffin for the box's day comes with the box: cooked while the van drives, then the captain brings both. */
 const TIFFIN_WITH_BOX = /** @type {Record<string, string>} */ ({
@@ -229,16 +258,12 @@ const TIFFIN_WITH_BOX = /** @type {Record<string, string>} */ ({
   delivered: "delivered",
 });
 
-/** Ratings by order id (POST /v1/orders/{id}/rating, our proposal for M4 and M8); they survive reloads. */
+/** Ratings by order id (POST /v1/ratings, M8 §3.5); they survive reloads. */
 const RATINGS_KEY = "gb-mock-ratings";
-/** @returns {Record<string, { key: string, score: number, tags: string[], comment: string | null }>} */
+/** @returns {Record<string, { key: string, partner_id: string, score: number, comment: string | null, created_at: string }>} */
 const ratings = () => JSON.parse(localStorage.getItem(RATINGS_KEY) ?? "{}");
 /** A new demo day (sign-in) has nothing rated yet. */
 export const clearRatings = () => localStorage.removeItem(RATINGS_KEY);
-const RATING_TAGS = {
-  box: ["fresh", "on_time", "packed_well", "missing"],
-  tiffin: ["tasty", "hot", "portion", "oily"],
-};
 
 /** The seeded orders and the booked tiffins, each as OrderOut, soonest first (the list reverses them). @param {"en" | "hi"} lang */
 function allOrders(lang) {
@@ -249,51 +274,46 @@ function allOrders(lang) {
       b.delivery_date === box.delivery_date
         ? (TIFFIN_WITH_BOX[box.status] ?? "approved")
         : "approved";
-    return full({
-      id: b.id,
-      kind: "tiffin",
-      status,
-      delivery_date: b.delivery_date,
-      slot: TIFFIN_SLOT,
-      total_paise: (b.qty ?? 1) * TIFFIN_OFFER.price_paise,
-      cycle_id: null,
-      lines: [],
-      timeline:
-        status === "delivered"
-          ? [
-              { status: "approved", at: utc(b.delivery_date, "00:00"), actor: "customer" },
-              { status: "delivered", at: utc(b.delivery_date, "13:00"), actor: "hub" },
-            ]
-          : [{ status: "approved", at: utc("2026-10-05", "10:00"), actor: "customer" }],
-      created_at: utc("2026-10-05", "10:00"),
-    });
+    return {
+      ...full({
+        id: b.id,
+        kind: "tiffin",
+        status,
+        delivery_date: b.delivery_date,
+        slot: TIFFIN_SLOT,
+        total_paise: (b.qty ?? 1) * TIFFIN_OFFER.price_paise,
+        cycle_id: null,
+        lines: [],
+        timeline:
+          status === "delivered"
+            ? [
+                { status: "approved", at: utc(b.delivery_date, "00:00"), actor: "customer" },
+                { status: "delivered", at: utc(b.delivery_date, "13:00"), actor: "hub" },
+              ]
+            : [{ status: "approved", at: utc("2026-10-05", "10:00"), actor: "customer" }],
+        created_at: utc("2026-10-05", "10:00"),
+      }),
+      ...tiffinOf(b.delivery_date, b.slot, lang),
+    };
   });
   return [...seeded, ...booked].sort((a, b) => a.delivery_date.localeCompare(b.delivery_date));
 }
 
-/** The cook and dish behind a tiffin order (GET /v1/orders/{id}/tiffin, our proposal). */
-function tiffinOf(/** @type {string} */ id, /** @type {"en" | "hi"} */ lang) {
-  const i = lang === "hi" ? 1 : 0;
-  if (id === TIFFIN_TOMORROW_ID)
-    return {
-      order_id: id,
-      kitchen_id: TIFFIN_OFFER.kitchen_id,
-      cook: { name: TIFFIN_OFFER.cook[i] },
-      dish: { name: ["Rajma chawal", "राजमा चावल"][i] },
-      meal: "lunch",
-      qty: 1,
-    };
-  const b = bookedTiffins().find((x) => x.id === id);
-  return (
-    b && {
-      order_id: id,
-      kitchen_id: b.kitchen_id,
-      cook: { name: TIFFIN_OFFER.cook[i] },
-      dish: { name: TIFFIN_OFFER.dish[i] },
-      meal: b.slot,
-      qty: b.qty ?? 1,
-    }
-  );
+/**
+ * What a tiffin order carries besides a box's fields: the menu's dishes (`tiffin`) and the kitchen
+ * that holds it (`kitchen`, M4 §3.1). The mock's one kitchen holds every tiffin.
+ * @param {string} date @param {string} meal @param {"en" | "hi"} lang
+ */
+function tiffinOf(date, meal, lang) {
+  return {
+    tiffin: { menu_id: tiffinMenuId(date), meal, dishes: menuDishes(lang) },
+    kitchen: { partner_id: TIFFIN_OFFER.kitchen_id },
+  };
+}
+
+/** The answer of POST /v1/orders: OrderOut with the menu's `tiffin`. @param {ReturnType<typeof bookedTiffins>[number]} b @param {"en" | "hi"} lang */
+function tiffinOrderOut(b, lang) {
+  return allOrders(lang).find((o) => o.id === b.id);
 }
 
 const ISSUE_KINDS = ["missing", "damaged", "late", "other"];
@@ -318,45 +338,62 @@ export const orderHandlers = [
       )
       .reverse()
       .slice(0, limit)
-      .map(({ lines: _lines, timeline: _timeline, ...summary }) => summary);
+      .map((o) => {
+        const {
+          lines: _l,
+          timeline: _t,
+          tiffin: _tf,
+          kitchen: _k,
+          ...summary
+        } = /** @type {typeof o & { tiffin?: unknown, kitchen?: unknown }} */ (o);
+        return summary;
+      });
     return HttpResponse.json({ items, next_cursor: null });
   }),
 
-  // A direct order (M4 §3: tiffins and add-ons, P3; boxes come from the weekly cycle). The body and
-  // the answer are our proposal until it ships.
+  // A direct tiffin order (M4 §3.5): { kind: "tiffin", menu_id, portions }. The menu fixes the date,
+  // the meal, the price and the cook. Answers OrderOut with `tiffin`.
   http.post("*/v1/orders", async ({ request }) => {
+    const lang = langOf(request);
     const key = request.headers.get("idempotency-key");
     if (!key)
       return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const list = bookedTiffins();
     const replay = list.find((b) => b.key === key);
-    if (replay) return HttpResponse.json(replay, { status: 201 });
-    const body =
-      /** @type {{ kind?: string, delivery_date?: string, slot?: string, kitchen_id?: string, qty?: number }} */ (
-        await request.json()
+    if (replay) return HttpResponse.json(tiffinOrderOut(replay, lang), { status: 201 });
+    const body = /** @type {{ kind?: string, menu_id?: string, portions?: number }} */ (
+      await request.json()
+    );
+    if (body.kind !== "tiffin")
+      return problem(422, "orders.kind_unavailable", "Only a tiffin can be ordered directly");
+    const date = menuDate(body.menu_id);
+    if (!date) return problem(422, "orders.menu_unknown", "That menu is not open to book");
+    const portions = body.portions ?? 2;
+    if (!(Number.isInteger(portions) && portions >= 1 && portions <= 12))
+      return problem(422, "request.invalid", "Book between 1 and 12 portions");
+    const meal = TIFFIN_OFFER.slot;
+    const twin = list.find((b) => b.delivery_date === date && b.slot === meal);
+    if (twin)
+      return HttpResponse.json(
+        {
+          type: "about:blank",
+          title: "A tiffin is already booked for that meal",
+          status: 409,
+          code: "orders.tiffin_already_booked",
+          order_id: twin.id,
+        },
+        { status: 409, headers: { "content-type": "application/problem+json" } },
       );
-    const qty = body.qty ?? 1;
-    if (
-      body.kind !== "tiffin" ||
-      !body.delivery_date ||
-      body.kitchen_id !== TIFFIN_OFFER.kitchen_id
-    )
-      return problem(422, "orders.invalid_order", "Only a tiffin from this week's kitchen");
-    if (!(Number.isInteger(qty) && qty >= 1 && qty <= 6))
-      return problem(422, "orders.qty_invalid", "Book between 1 and 6 tiffins");
-    if (list.some((b) => b.delivery_date === body.delivery_date && b.slot === body.slot))
-      return problem(409, "orders.already_booked", "A tiffin is already booked for that meal");
     const order = {
       id: crypto.randomUUID(),
       key,
-      delivery_date: body.delivery_date,
-      slot: body.slot ?? TIFFIN_OFFER.slot,
-      kitchen_id: body.kitchen_id,
-      qty,
-      total_paise: qty * TIFFIN_OFFER.price_paise,
+      delivery_date: date,
+      slot: meal,
+      kitchen_id: TIFFIN_OFFER.kitchen_id,
+      qty: portions,
     };
     localStorage.setItem(TIFFINS_KEY, JSON.stringify([...list, order]));
-    return HttpResponse.json(order, { status: 201 });
+    return HttpResponse.json(tiffinOrderOut(order, lang), { status: 201 });
   }),
 
   http.get("*/v1/orders/:id", ({ request, params }) => {
@@ -367,56 +404,52 @@ export const orderHandlers = [
       : problem(404, "orders.not_found", "No such order");
   }),
 
-  // Our proposal: who cooks a tiffin order and what (M8 owns the kitchen). Boxes have none.
-  http.get("*/v1/orders/:id/tiffin", ({ request, params }) => {
+  // M8 §3.5: GET /v1/ratings?order_id= answers the caller's own rating, else 404 (also for a box).
+  http.get("*/v1/ratings", ({ request }) => {
     if (!caller(request)) return problem(401, "auth.invalid_token", "Sign in again");
-    const info = tiffinOf(String(params.id), langOf(request));
-    return info ? HttpResponse.json(info) : problem(404, "orders.not_tiffin", "Not a tiffin order");
+    const id = String(new URL(request.url).searchParams.get("order_id"));
+    const { key: _key, ...r } = ratings()[id] ?? {};
+    return r.score
+      ? HttpResponse.json({ order_id: id, ...r })
+      : problem(404, "partners.rating_not_found", "No rating for this order");
   }),
 
-  // Our proposal: what the household rated a delivered order, or 404 if it has not.
-  http.get("*/v1/orders/:id/rating", ({ request, params }) => {
+  // M8 §3.5: rate a delivered tiffin once, 1 to 5 and a word for the staff. Boxes are not rated.
+  http.post("*/v1/ratings", async ({ request }) => {
     if (!caller(request)) return problem(401, "auth.invalid_token", "Sign in again");
-    const r = ratings()[String(params.id)];
-    return r
-      ? HttpResponse.json({ order_id: params.id, score: r.score, tags: r.tags, comment: r.comment })
-      : problem(404, "orders.not_rated", "Not rated yet");
-  }),
-
-  // Our proposal: one rating per delivered order, 1–5 with tags and words. M8 keeps the
-  // kitchen's and captain's averages; they never see who rated.
-  http.post("*/v1/orders/:id/rating", async ({ request, params }) => {
     const key = request.headers.get("idempotency-key");
     if (!key)
       return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
-    const id = String(params.id);
-    const rated = ratings();
-    if (rated[id]?.key === key)
-      return HttpResponse.json({ order_id: id, ...rated[id] }, { status: 201 });
-    if (rated[id]) return problem(409, "orders.already_rated", "This delivery is rated already");
-    const order = allOrders("en").find((o) => o.id === id);
-    if (!order) return problem(404, "orders.not_found", "No such order");
-    if (order.status !== "delivered")
-      return problem(409, "orders.not_delivered", "Rate it once it reaches you");
-    const body = /** @type {{ score?: number, tags?: string[], comment?: string }} */ (
+    const body = /** @type {{ order_id?: string, score?: number, comment?: string | null }} */ (
       await request.json()
     );
-    const allowed = RATING_TAGS[order.kind === "tiffin" ? "tiffin" : "box"];
+    const id = String(body.order_id);
     if (
       !(Number.isInteger(body.score) && Number(body.score) >= 1 && Number(body.score) <= 5) ||
-      !(body.tags ?? []).every((t) => allowed.includes(t))
+      (body.comment ?? "").length > 300
     )
-      return problem(422, "orders.invalid_rating", "Pick 1 to 5");
-    // Read again after the await: the box and the tiffin are rated at the same time.
+      return problem(422, "request.validation_failed", "Pick 1 to 5");
+    const rated = ratings();
+    const { key: replayKey, ...done } = rated[id] ?? {};
+    if (replayKey === key) return HttpResponse.json({ order_id: id, ...done }, { status: 201 });
+    const order = allOrders("en").find((o) => o.id === id);
+    if (order?.kind !== "tiffin")
+      return problem(404, "partners.rating_not_found", "No such tiffin order");
+    if (order.status !== "delivered")
+      return problem(409, "partners.rating_window_closed", "Rate it once it reaches you");
+    if (rated[id]) return problem(409, "partners.rating_exists", "This tiffin is rated already");
+    // Read again after the await: stored ratings may have changed meanwhile.
     const all = ratings();
     all[id] = {
       key,
+      partner_id: TIFFIN_OFFER.kitchen_id,
       score: Number(body.score),
-      tags: body.tags ?? [],
       comment: body.comment?.trim() || null,
+      created_at: new Date().toISOString(),
     };
     localStorage.setItem(RATINGS_KEY, JSON.stringify(all));
-    return HttpResponse.json({ order_id: id, ...all[id] }, { status: 201 });
+    const { key: _k, ...out } = all[id];
+    return HttpResponse.json({ order_id: id, ...out }, { status: 201 });
   }),
 
   // Our proposal (not yet in M4): a delivery problem the hub calls back about.

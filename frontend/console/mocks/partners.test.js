@@ -152,6 +152,49 @@ test("the card shows a kitchen's public facts only, and an inspection changes it
   assert.equal((await call("GET", `/v1/partners/${PARTNER_ID.lata}/card`)).body.hygiene.grade, "B");
 });
 
+test("an income certificate is a CertificateLink for the partner's months, issued by hub staff", async () => {
+  const path = `/v1/partners/${PARTNER_ID.lata}/earnings/certificate`;
+  const { status, body } = await call("GET", path);
+  assert.equal(status, 200);
+  assert.deepEqual(Object.keys(body).sort(), [
+    "expires_at",
+    "filename",
+    "from",
+    "reference",
+    "to",
+    "url",
+  ]);
+  assert.match(body.reference, /^GBIC-/);
+  assert.match(body.from, /^\d{4}-\d\d$/);
+  assert.equal(body.filename, `gharbasket-income-certificate-${body.from}-to-${body.to}.pdf`);
+  assert.ok(Date.parse(body.expires_at) > Date.now());
+  const asked = await call("GET", `${path}?from=2026-05&to=2026-09`);
+  assert.equal(asked.body.from, "2026-05");
+  assert.equal(asked.body.to, "2026-09");
+});
+
+test("an income certificate refuses bad months, other roles and unknown partners", async () => {
+  const path = `/v1/partners/${PARTNER_ID.lata}/earnings/certificate`;
+  for (const bad of [
+    "?from=2026-5",
+    "?from=2026-09&to=2026-05",
+    "?to=2999-01",
+    "?from=2025-01&to=2026-01",
+  ]) {
+    const refused = await call("GET", `${path}${bad}`);
+    assert.equal(refused.status, 422, bad);
+    assert.equal(refused.body.code, "partners.certificate_period_invalid");
+    assert.equal(refused.body.max_months, 12);
+  }
+  assert.equal((await call("GET", path, { role: "franchise_owner" })).status, 403);
+  const unknown = await call(
+    "GET",
+    "/v1/partners/0199b300-0000-7000-8000-00000000ffff/earnings/certificate",
+  );
+  assert.equal(unknown.status, 404);
+  assert.equal(unknown.body.code, "partners.partner_not_found");
+});
+
 test("a franchise owner may read partners but not decide or suspend", async () => {
   assert.equal((await call("GET", `${HUB}/partners`, { role: "franchise_owner" })).status, 200);
   const refused = await call("POST", `/v1/partners/${PARTNER_ID.lata}/suspend`, {

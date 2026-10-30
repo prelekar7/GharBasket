@@ -23,7 +23,7 @@ const EMPTY = {
 /**
  * Society requests: customers asking us to come to a society we don't list. Phone numbers of the
  * requesters are not in this data at all, so they cannot be shown by mistake.
- * @param {{ requests: SocietyRequest[], societies: { id: string, name: string, area: string }[], now: number }} props
+ * @param {{ requests: SocietyRequest[], societies: { id: string, name: string, area: string | null }[], now: number }} props
  */
 export function RequestsView({ requests, societies, now }) {
   const router = useRouter();
@@ -82,7 +82,10 @@ export function RequestsView({ requests, societies, now }) {
     });
   }
 
-  const options = societies.map((s) => ({ value: s.id, label: `${s.name} (${s.area})` }));
+  const options = societies.map((s) => ({
+    value: s.id,
+    label: s.area ? `${s.name} (${s.area})` : s.name,
+  }));
 
   return (
     <>
@@ -123,7 +126,7 @@ export function RequestsView({ requests, societies, now }) {
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td className={`${TD} font-semibold`}>{r.name}</td>
-                    <td className={TD}>{r.area}</td>
+                    <td className={TD}>{r.area ?? "—"}</td>
                     <td className={`${TD} text-fg-secondary`}>
                       {r.location ? "Placed on the map" : "Not placed"}
                     </td>

@@ -6,8 +6,9 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { Doors } from "@/features/logistics/Doors.jsx";
-import { nextStop, stopDone } from "@/features/logistics/format.js";
+import { clock, nextStop, stopDone } from "@/features/logistics/format.js";
 import { useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
+import { KitchenScan, TiffinList } from "@/features/logistics/Tiffins.jsx";
 
 const SKIP_REASONS = /** @type {const} */ ([
   "captain_absent",
@@ -16,7 +17,7 @@ const SKIP_REASONS = /** @type {const} */ ([
   "other",
 ]);
 
-/** One society: directions, its crates and bags, and the handover (design RiderStop; M7 §3.3, §3.4). */
+/** One society: directions, its crates and bags, and the handover (design RiderStop; M7 §3.3, §3.4). A tiffin route also has kitchen pickups and tiffin drops (§3.7). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/rider/stop")({
   validateSearch: (/** @type {Record<string, unknown>} */ s) => ({
@@ -62,6 +63,8 @@ function StopDetail({ route, stop }) {
   const captain = stop.captain?.display_name ?? null;
   const done = stopDone(stop);
   const started = route.status === "in_progress";
+  const kitchen = stop.kind === "kitchen" ? stop.kitchen : null;
+  const tiffins = route.kind === "tiffin" && !kitchen; // a tiffin drop: no crates, no counting
   const counted = { crates: Number(crates), bags: Number(bags) };
 
   const onward = () => {
@@ -79,7 +82,7 @@ function StopDetail({ route, stop }) {
       <FieldHeader
         back={{ label: t("rider.stop.back"), onPress: () => navigate({ to: "/rider" }) }}
         eyebrow={t("rider.stop.of", { n: stop.seq, total: route.stops.length })}
-        title={stop.society?.name ?? ""}
+        title={kitchen?.display_name ?? stop.society?.name ?? ""}
         end={
           done && (
             <StatusPill status={stop.status === "skipped" ? "issue" : "delivered"}>
@@ -88,30 +91,63 @@ function StopDetail({ route, stop }) {
           )
         }
       />
-      <div className="flex flex-wrap gap-2">
-        <Button onPress={() => window.open(stop.navigate_url, "_blank")}>
-          <NavigationArrowIcon aria-hidden size={20} />
-          {t("rider.stop.navigate")}
-        </Button>
-      </div>
-      <section className="flex flex-col gap-2">
-        <h2 className="m-0 text-[19px] leading-[26px] font-bold">{t("rider.stop.crates")}</h2>
-        <p className="m-0 flex gap-3 text-[15px] leading-[22px]">
-          <strong className="rounded-md bg-surface px-3.5 py-2.5 tabular-nums">
-            {t("rider.card.crates", { n: stop.crates })}
-          </strong>
-          <strong className="rounded-md bg-surface px-3.5 py-2.5 tabular-nums">
-            {t("rider.card.bags", { n: stop.bags })}
-          </strong>
+      {kitchen && (
+        <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
+          {[kitchen.area, t("rider.kitchen.readyBy", { time: clock(kitchen.ready_by) })].join(
+            " · ",
+          )}
+          <br />
+          {kitchen.address ?? (started ? null : t("rider.kitchen.addressLater"))}
         </p>
-        <p className="text-[15px] leading-[22px] text-fg-secondary">
-          {captain
-            ? t("rider.stop.captainCounts", { name: captain, bags: stop.bags })
-            : t("rider.stop.noCaptain")}
-        </p>
-      </section>
-      {stop.rider_mode && stop.status === "handed_over" && started && <Doors stopId={stop.id} />}
-      {!done && started && captain && (
+      )}
+      {stop.navigate_url && (
+        <div className="flex flex-wrap gap-2">
+          <Button onPress={() => window.open(stop.navigate_url ?? "", "_blank")}>
+            <NavigationArrowIcon aria-hidden size={20} />
+            {t("rider.stop.navigate")}
+          </Button>
+        </div>
+      )}
+      {(kitchen || tiffins) && (
+        <section className="flex flex-col gap-2">
+          <h2 className="m-0 text-[19px] leading-[26px] font-bold">
+            {t(kitchen ? "rider.kitchen.tiffins" : "rider.tiffin.heading")}
+          </h2>
+          <TiffinList items={stop.tiffins ?? []} />
+          {tiffins && (
+            <p className="text-[15px] leading-[22px] text-fg-secondary">
+              {captain
+                ? t("rider.tiffin.captainCounts", { name: captain, n: stop.bags })
+                : t("rider.tiffin.noCaptain")}
+            </p>
+          )}
+        </section>
+      )}
+      {kitchen && started && (
+        <KitchenScan stop={stop} open={!!stop.tiffins?.some((x) => x.status === "to_collect")} />
+      )}
+      {!kitchen && !tiffins && (
+        <section className="flex flex-col gap-2">
+          <h2 className="m-0 text-[19px] leading-[26px] font-bold">{t("rider.stop.crates")}</h2>
+          <p className="m-0 flex gap-3 text-[15px] leading-[22px]">
+            <strong className="rounded-md bg-surface px-3.5 py-2.5 tabular-nums">
+              {t("rider.card.crates", { n: stop.crates })}
+            </strong>
+            <strong className="rounded-md bg-surface px-3.5 py-2.5 tabular-nums">
+              {t("rider.card.bags", { n: stop.bags })}
+            </strong>
+          </p>
+          <p className="text-[15px] leading-[22px] text-fg-secondary">
+            {captain
+              ? t("rider.stop.captainCounts", { name: captain, bags: stop.bags })
+              : t("rider.stop.noCaptain")}
+          </p>
+        </section>
+      )}
+      {stop.rider_mode && started && (tiffins || stop.status === "handed_over") && (
+        <Doors stopId={stop.id} />
+      )}
+      {!done && started && captain && !kitchen && (
         <section className="flex flex-col gap-1.5 rounded-md bg-surface p-3.5">
           <h2 className="m-0 text-[19px] leading-[26px] font-bold">{t("rider.stop.code")}</h2>
           {stop.handover_code ? (
@@ -120,7 +156,7 @@ function StopDetail({ route, stop }) {
                 {stop.handover_code}
               </p>
               <p className="text-[15px] leading-[22px] text-fg-secondary">
-                {t("rider.stop.codeHelp", { name: captain })}
+                {t(tiffins ? "rider.tiffin.codeHelp" : "rider.stop.codeHelp", { name: captain })}
               </p>
             </>
           ) : (
@@ -130,7 +166,7 @@ function StopDetail({ route, stop }) {
           )}
         </section>
       )}
-      {!done && started && !captain && (
+      {!done && started && !captain && !kitchen && !tiffins && (
         <section className="flex flex-col gap-2.5 rounded-md bg-surface p-3.5">
           <h2 className="m-0 text-[19px] leading-[26px] font-bold">{t("rider.stop.count")}</h2>
           <TextField
@@ -161,7 +197,7 @@ function StopDetail({ route, stop }) {
           <Button variant="primary" size="lg" block onPress={() => actions.start(route)}>
             {t("rider.start")}
           </Button>
-        ) : captain ? (
+        ) : kitchen || (tiffins && !captain) ? null : captain ? (
           stop.status === "pending" ? (
             <Button variant="primary" size="lg" block onPress={() => actions.arrive(route, stop)}>
               {t("rider.stop.arrived")}
