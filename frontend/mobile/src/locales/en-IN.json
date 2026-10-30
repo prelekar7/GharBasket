@@ -991,6 +991,8 @@
   },
   "notif": {
     "title": "Notifications",
+    "markAll": "Mark all as read",
+    "markAllFailed": "We couldn’t mark them read. Check your internet and try again.",
     "settings": "What you get",
     "unread": "unread",
     "unreadCount": "{n} new",
