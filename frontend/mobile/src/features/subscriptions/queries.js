@@ -73,15 +73,34 @@ export function usePreviewCycle(lang) {
 }
 
 /**
- * A home kitchen's lunch or dinner tiffin the family can add to a day of the week.
- * @typedef {{ date: string, slot: "lunch" | "dinner", kitchen_id: string, cook: { name: string }, dish: { name: string, items?: string }, price_paise: number, order_by: string }} TiffinOffer
+ * A home kitchen's lunch or dinner tiffin the family can add to a day of the week: one approved
+ * menu of GET /v1/tiffin-menus (M4 §3.5), under the names the Week screens use.
+ * @typedef {{ menu_id: string, date: string, slot: "lunch" | "dinner", kitchen_id: string, cook: { name: string }, dish: { name: string, items?: string }, price_paise: number, order_by: string }} TiffinOffer
+ * @typedef {{ id: string, date: string, meal: "lunch" | "dinner", hub_id: string, dishes: { recipe_id: string, name: string }[], price_paise: number, kitchen: { partner_id: string, display_name: string, photo_url: string | null }, order_by: string }} TiffinMenu
  */
 
 /**
- * Tiffins on offer for the days of a week, while it is still open.
- * @proposal (not in the contract yet) GET /v1/tiffin-offers?from=YYYY-MM-DD&to=YYYY-MM-DD → { items: TiffinOffer[] }.
- * M3 plans the week and M8 kitchens cook; the designs (Core-W2, HcTiffin) offer a tiffin inside a
- * day, so this needs one read that joins them. Until it exists the offer is simply not shown.
+ * A menu as an offer. The menu has no thali name or item list, only its dishes, so `dish.name` is
+ * the dishes joined and `dish.items` is left out; the cook is the menu's kitchen (a preference: the
+ * fair assignment may give the order to another kitchen), and `kitchen_id` is her partner id.
+ * @param {TiffinMenu} m @returns {TiffinOffer}
+ */
+export const menuToOffer = (m) => ({
+  menu_id: m.id,
+  date: m.date,
+  slot: m.meal,
+  kitchen_id: m.kitchen.partner_id,
+  cook: { name: m.kitchen.display_name },
+  dish: { name: m.dishes.map((d) => d.name).join(", ") },
+  price_paise: m.price_paise,
+  order_by: m.order_by,
+});
+
+/**
+ * Tiffins on offer for the days of a week, while it is still open (GET /v1/tiffin-menus: the
+ * approved menus of the caller's hub from tomorrow for a week, still open to book). The cycle does
+ * not carry offers. The read has no range, so the menus are cut to the days of this week; lunch
+ * comes before dinner on a day, which is the one the day sheet shows.
  * @param {Cycle | null | undefined} cycle
  */
 export function useTiffinOffers(cycle) {
@@ -89,14 +108,18 @@ export function useTiffinOffers(cycle) {
   const from = days[0]?.date;
   const to = days.at(-1)?.date;
   return useQuery({
-    queryKey: ["tiffin-offers", from, to],
-    queryFn: () =>
-      /** @type {Promise<{ items: TiffinOffer[] }>} */ (
-        request(`/v1/tiffin-offers?from=${from}&to=${to}`)
-      ),
+    queryKey: ["tiffin-menus", from, to],
+    queryFn: () => /** @type {Promise<{ items: TiffinMenu[] }>} */ (request("/v1/tiffin-menus")),
     enabled: isEditable(cycle) && !!from,
     retry: false,
-    select: (r) => r.items,
+    select: (r) =>
+      r.items
+        .filter((m) => m.date >= String(from) && m.date <= String(to))
+        .map(menuToOffer)
+        .sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) || (a.slot === b.slot ? 0 : a.slot === "lunch" ? -1 : 1),
+        ),
   });
 }
 
