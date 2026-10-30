@@ -1,67 +1,32 @@
 "use client";
 
-import { Button, Dialog, EmptyState, formatPaise, MoneyText, toast } from "@gharbasket/ui";
-import { useState, useTransition } from "react";
+import { EmptyState, MoneyText } from "@gharbasket/ui";
 import { PageHead } from "@/components/ops/PageHead.jsx";
-import { decideRefund } from "./actions.js";
 
 const th = "border-b border-line-strong px-3 py-2.5 font-semibold whitespace-nowrap";
 
 /**
- * Refunds waiting for a decision. Approving pays the wallet at once, so it confirms with a Dialog;
- * rejecting moves no money and has an Undo toast instead.
+ * Refunds waiting for review, read-only: refunds are paid automatically (M5 §3.3) and disputes are
+ * handled as issues (M4 §3.6), so there is nothing to decide here.
  * @param {{ refunds: import("./page.jsx").Refund[] }} props
  */
 export function RefundsView({ refunds }) {
-  const [pending, startTransition] = useTransition();
-  // The refund being confirmed, with one Idempotency-Key per confirmation.
-  const [asking, setAsking] = useState(
-    /** @type {{ refund: import("./page.jsx").Refund, key: string } | null} */ (null),
-  );
-
-  /** @param {import("./page.jsx").Refund} r */
-  function approve(r, key = crypto.randomUUID()) {
-    startTransition(async () => {
-      const res = await decideRefund(r.id, "approve", key);
-      toast(
-        res.ok ? `Refunded ${formatPaise(r.amount_paise)} to ${r.flat}’s wallet.` : res.message,
-      );
-    });
-  }
-
-  /** @param {import("./page.jsx").Refund} r */
-  function reject(r) {
-    startTransition(async () => {
-      const res = await decideRefund(r.id, "reject", crypto.randomUUID());
-      if (!res.ok) return void toast(res.message);
-      toast(`Rejected the refund for ${r.flat}.`, {
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            const back = await decideRefund(r.id, "reopen", crypto.randomUUID());
-            toast(back.ok ? "Put back in the list." : back.message);
-          },
-        },
-      });
-    });
-  }
-
   return (
     <>
-      <PageHead title="Refunds to review">
-        Short items and failed deliveries. Refunds go to the wallet at once; a refund to the bank
-        happens only when the customer asks.
+      <PageHead title="Refunds">
+        Short items and failed deliveries. Refunds go to the wallet automatically; a refund to the
+        bank happens only when the customer asks. Disputes are handled as issues.
       </PageHead>
 
       {refunds.length === 0 ? (
         <EmptyState
-          title="Nothing to review"
-          body="Short items and failed deliveries show up here as they are reported."
+          title="No refunds"
+          body="Short items and failed deliveries show up here as they are refunded."
         />
       ) : (
         <div className="relative overflow-x-auto rounded-md border border-line">
-          <table className="w-full min-w-[820px] border-collapse text-sm leading-5">
-            <caption className="sr-only">Refunds waiting for a decision</caption>
+          <table className="w-full min-w-[640px] border-collapse text-sm leading-5">
+            <caption className="sr-only">Refunds</caption>
             <thead>
               <tr className="text-left text-fg-secondary">
                 <th scope="col" className={th}>
@@ -78,9 +43,6 @@ export function RefundsView({ refunds }) {
                 </th>
                 <th scope="col" className={th}>
                   To
-                </th>
-                <th scope="col" className={th}>
-                  <span className="sr-only">Decision</span>
                 </th>
               </tr>
             </thead>
@@ -101,38 +63,12 @@ export function RefundsView({ refunds }) {
                     <MoneyText paise={r.amount_paise} size="sm" />
                   </td>
                   <td className="px-3 py-2.5">Wallet</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex justify-end gap-1.5">
-                      <Button variant="quiet" isDisabled={pending} onPress={() => reject(r)}>
-                        Reject<span className="sr-only"> refund for {r.flat}</span>
-                      </Button>
-                      <Button
-                        variant="primary"
-                        isDisabled={pending}
-                        onPress={() => setAsking({ refund: r, key: crypto.randomUUID() })}
-                      >
-                        Approve<span className="sr-only"> refund for {r.flat}</span>
-                      </Button>
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-
-      <Dialog
-        title={asking ? `Refund ${formatPaise(asking.refund.amount_paise)} to the wallet?` : ""}
-        confirmLabel={asking ? `Refund ${formatPaise(asking.refund.amount_paise)}` : ""}
-        cancelLabel="Cancel"
-        isOpen={asking !== null}
-        onOpenChange={(o) => !o && setAsking(null)}
-        onConfirm={() => asking && approve(asking.refund, asking.key)}
-      >
-        {asking &&
-          `${asking.refund.flat}, ${asking.refund.society}, ${asking.refund.what_happened}. The wallet goes from ${formatPaise(asking.refund.wallet_before_paise)} to ${formatPaise(asking.refund.wallet_before_paise + asking.refund.amount_paise)}, and they get a notification.`}
-      </Dialog>
     </>
   );
 }

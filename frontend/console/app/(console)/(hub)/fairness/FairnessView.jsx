@@ -1,12 +1,9 @@
 "use client";
 
-import { Button, Dialog, TextField, toast } from "@gharbasket/ui";
 import { ChartCard, DataTable, KpiTile } from "@gharbasket/ui/console";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo } from "react";
 import { DataSourceControl } from "@/components/DataSourceControl.jsx";
 import { formatDate } from "@/lib/fleet.js";
-import { Toasts } from "../_fleet/Toasts.jsx";
-import { saveFairnessWeight } from "./actions.js";
 
 /** A signed number with a real minus sign, e.g. "−0.05". @param {number} n @param {number} digits */
 const signed = (n, digits) => `${n < 0 ? "−" : n > 0 ? "+" : ""}${Math.abs(n).toFixed(digits)}`;
@@ -20,10 +17,10 @@ const COLUMNS = [
 ];
 
 /**
- * How evenly kitchens share tiffin income, with the weight that steers the nightly assignment.
- * @param {{ fairness: import("./data.js").Fairness, canEdit: boolean }} props
+ * How evenly kitchens share tiffin income,.
+ * @param {{ fairness: import("./data.js").Fairness }} props
  */
-export function FairnessView({ fairness: f, canEdit }) {
+export function FairnessView({ fairness: f }) {
   const labels = useMemo(() => f.kitchens.map((k) => k.name), [f.kitchens]);
   const series = useMemo(
     () => [
@@ -112,12 +109,7 @@ export function FairnessView({ fairness: f, canEdit }) {
           labels={labels}
           series={series}
         />
-        <WeightPanel
-          lambda={f.lambda}
-          by={f.lambda_changed_by}
-          at={f.lambda_changed_at}
-          canEdit={canEdit}
-        />
+        <WeightPanel lambda={f.lambda} />
       </div>
 
       <DataTable
@@ -127,77 +119,25 @@ export function FairnessView({ fairness: f, canEdit }) {
         caption="Kitchens this week"
         footer="Lata Shinde is the seed kitchen; the other kitchens are examples."
       />
-      <Toasts />
     </>
   );
 }
 
-/** @param {{ lambda: number, by: string | null, at: string | null, canEdit: boolean }} props */
-function WeightPanel({ lambda, by, at, canEdit }) {
-  const [text, setText] = useState(String(lambda));
-  const [error, setError] = useState("");
-  const [confirming, setConfirming] = useState(false);
-  const [pending, start] = useTransition();
-  const value = Number(text);
-  const changed = text.trim() !== "" && value !== lambda;
-
-  function ask() {
-    if (text.trim() === "" || !Number.isFinite(value) || value < 0 || value > 1) {
-      setError("Enter a number from 0 to 1");
-      return;
-    }
-    if (changed) setConfirming(true);
-  }
-
-  function save() {
-    start(async () => {
-      const r = await saveFairnessWeight(value);
-      toast(r.ok ? "Weight saved. It applies from tonight’s 9:30 run." : r.message);
-    });
-  }
-
+/** The weight that steers the nightly assignment, shown for reference only: it is chosen offline. @param {{ lambda: number }} props */
+function WeightPanel({ lambda }) {
   return (
     <section
       aria-label="Fairness setting"
       className="flex min-w-0 flex-col gap-3 rounded-md bg-surface p-4"
     >
       <h2 className="text-[17px] leading-6 font-bold">How strongly to spread orders</h2>
-      <TextField
-        label="Fairness weight (λ)"
-        inputMode="decimal"
-        value={text}
-        onChange={(v) => {
-          setText(v);
-          setError("");
-        }}
-        isReadOnly={!canEdit}
-        isInvalid={!!error}
-        errorMessage={error}
-        description="Higher spreads tiffins more evenly; lower favours the nearest and best-rated kitchen. Changes apply from tonight’s 9:30 run."
-      />
-      {canEdit ? (
-        <Button variant="primary" block isDisabled={pending || !changed} onPress={ask}>
-          Save weight
-        </Button>
-      ) : (
-        <p className="text-sm leading-5 font-semibold">Only an admin can change this weight.</p>
-      )}
+      <p className="text-sm leading-5 text-fg-secondary">Fairness weight (λ)</p>
+      <p className="font-display text-[28px] leading-[34px] font-semibold">{lambda}</p>
       <p className="text-sm leading-5 text-fg-secondary">
-        Admin only. Every change is logged with who made it
-        {by && at ? `; the last was by ${by} on ${formatDate(at)}` : ""}. If the assignment service
+        Higher spreads tiffins more evenly; lower favours the nearest and best-rated kitchen. The
+        weight is chosen offline from the λ sweep and is not changed here. If the assignment service
         is down, tiffins go to the nearest kitchen with space, and this page says so.
       </p>
-      <Dialog
-        title={`Change the fairness weight to ${value}?`}
-        confirmLabel={`Save weight ${value}`}
-        cancelLabel={`Keep ${lambda}`}
-        isOpen={confirming}
-        onOpenChange={setConfirming}
-        onConfirm={save}
-      >
-        This changes how tiffin income is shared between kitchens from tonight’s 9:30 run, and the
-        change is logged under your name.
-      </Dialog>
     </section>
   );
 }

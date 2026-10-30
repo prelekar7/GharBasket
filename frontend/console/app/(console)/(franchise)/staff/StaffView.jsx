@@ -3,7 +3,6 @@
 import { DataTable, FilterBar } from "@gharbasket/ui/console";
 import { parseAsString, useQueryState } from "nuqs";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
-import { InviteSheet } from "./InviteSheet.jsx";
 
 /** @typedef {import("./data.js").StaffMember} StaffMember */
 
@@ -39,9 +38,10 @@ export function StaffView({ people }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Staff and partners" actions={<InviteSheet />}>
-        Everyone who works for Kharghar hub, employed or partner. Roles are granted on Users and
-        roles by an admin; this page is for running the team.
+      <PageHeader title="Staff and partners">
+        Everyone who works for Kharghar hub, employed or partner. Staff roles are granted by an
+        admin under Users and roles; riders and packers join through partner applications (hub
+        manager); kitchens and captains apply in the app.
       </PageHeader>
       <FilterBar
         search={{

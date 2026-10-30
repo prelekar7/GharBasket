@@ -9,9 +9,9 @@ The classes come from `docs/integration/gaps.json`, which is edited by hand.
 | App | Call sites | Found | Wrong method | Missing | Unresolved | Wrapped (not shipped / @proposal) |
 |---|--:|--:|--:|--:|--:|--:|
 | mobile | 115 | 108 | 0 | 3 | 4 | 3 |
-| console | 196 | 185 | 0 | 8 | 3 | 15 |
+| console | 189 | 185 | 0 | 1 | 3 | 15 |
 
-Distinct endpoints called: mobile 99, console 151. A call site is one `request(`/`apiGet(` … in the source.
+Distinct endpoints called: mobile 99, console 144. A call site is one `request(`/`apiGet(` … in the source.
 
 ## Gaps by class
 
@@ -22,9 +22,9 @@ Distinct endpoints called: mobile 99, console 151. A call site is one `request(`
 | fix-frontend | 1 | 0 call sites | 1 call sites |
 | fix-backend | 0 | 0 call sites | 0 call sites |
 | later | 0 | 0 call sites | 0 call sites |
-| drop | 10 | 3 call sites | 7 call sites |
+| drop | 3 | 3 call sites | 0 call sites |
 
-11 gap endpoints in all (a call that is missing, or exists only with another method).
+4 gap endpoints in all (a call that is missing, or exists only with another method).
 
 Classes: `pending-pr` an open or stacked PR builds it; `fix-frontend` the frontend should change (a wrong method, id or
 path, or a call the spec rules out); `fix-backend` the backend lacks it and no spec says when (a frontend proposal or an
@@ -37,20 +37,13 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 |---|---|---|---|---|---|
 | `GET /v1/public/cooks/{}` | console | `console/lib/public-api.js:64` | Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public. M12 §3.7: public cook profiles are M8's card. | yash |  |
 
-### drop (10)
+### drop (3)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
 | `DELETE /v1/mandates/{}` | mobile | `mobile/src/features/billing/queries.js:153` | As POST /v1/mandates (M5 §3.7). | yash |  |
-| `GET /v1/hubs/{}/cycles` | console | `console/app/(console)/(hub)/cycles/page.jsx:24` | Dropped (M3 §3.5, owner 2026-10-25): the Cut-off page (M3 §3.4) has the counts per delivery date; take the Cycles page out of the nav. | yash |  |
-| `GET /v1/intel/experiments` | console | `console/app/(console)/(intelligence)/experiments/page.jsx:14` | Experiments are cut (M12 header, owner 2026-10-09); the page stays on its mock. | yash |  |
 | `GET /v1/mandates/current` | mobile | `mobile/src/features/billing/queries.js:143` | As POST /v1/mandates (M5 §3.7). | yash |  |
-| `POST /v1/admin/refunds/{}/{}` | console | `console/app/(console)/(admin)/refunds/actions.js:15` | Dropped (M5 §3.8, owner 2026-10-25): refunds are automatic (M5 §3.3); disputes are M4's issue triage (M4 §3.6). The Refunds page becomes a read-only list. | yash |  |
-| `POST /v1/hubs/{}/staff-invitations` | console | `console/app/(console)/(franchise)/staff/actions.js:17` | Dropped (M1 §3.6, owner 2026-10-25): staff roles through POST /v1/admin/user-roles (admin; a new number gets a pending grant), riders and packers through M8's POST /v1/hubs/{id}/partner-applications (hub manager); kitchens and captains apply in the app. Remove the Invite sheet from the franchise Staff page. | yash |  |
-| `POST /v1/intel/experiments/{}/promote` | console | `console/app/(console)/(intelligence)/experiments/actions.js:38` | As above. | yash |  |
-| `POST /v1/intel/experiments/{}/rollback` | console | `console/app/(console)/(intelligence)/experiments/actions.js:58` | As above. | yash |  |
 | `POST /v1/mandates` | mobile | `mobile/src/features/billing/queries.js:131` | UPI Autopay is not in this phase; M5 §3.7 keeps /v1/mandates out of openapi.json. Done: hidden behind VITE_FEATURE_AUTOPAY (off by default); with it off the app makes no mandate call. The pilot switches the flag on. | yash |  |
-| `PUT /v1/hubs/{}/fairness-weight` | console | `console/app/(console)/(hub)/fairness/actions.js:15` | Dropped (M8 §3.8, owner 2026-10-25): λ is PARTNERS_FAIRNESS_LAMBDA, chosen by the offline λ sweep (M10 §3.5, handbook 08); remove the page's Change control. | yash |  |
 
 "(guarded)" means every call site is wrapped in the console's `orNotShipped(` or marked `@proposal` in the mobile source, so the screen already copes with a 404.
 

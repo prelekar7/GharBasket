@@ -346,8 +346,6 @@ const fairnessStore = () =>
     top_share_pct: 31,
     top_share_change_pts: -6,
     lambda: 0.3,
-    lambda_changed_by: /** @type {string | null} */ ("Neha Iyer"),
-    lambda_changed_at: /** @type {string | null} */ ("2026-09-22T18:10:00+05:30"),
     fallback_active: false,
     kitchens: [
       {
@@ -726,35 +724,6 @@ export const partnersHandlers = [
     return HttpResponse.json({
       ...f,
       kitchens_under_half: f.kitchens.filter((k) => k.tiffins < k.capacity / 2).length,
-    });
-  }),
-
-  // PUT /v1/hubs/{id}/fairness-weight (proposal): admin only; every change is logged with who made it.
-  http.put("*/v1/hubs/:hub/fairness-weight", async ({ request, params }) => {
-    if (params.hub !== HUB_ID) return problem(404, "hubs.not_found", "No such hub");
-    if (roleOf(request) !== "admin")
-      return problem(403, "partners.admin_only", "Only an admin can change the fairness weight");
-    const body = /** @type {any} */ (await request.json().catch(() => null));
-    const value = Number(body?.lambda);
-    if (
-      body?.lambda === "" ||
-      body?.lambda == null ||
-      !Number.isFinite(value) ||
-      value < 0 ||
-      value > 1
-    ) {
-      return problem(422, "request.invalid", "Weight must be from 0 to 1", {
-        errors: [{ field: "lambda", message: "Enter a number from 0 to 1" }],
-      });
-    }
-    const f = fairnessStore();
-    f.lambda = value;
-    f.lambda_changed_by = "Neha Iyer";
-    f.lambda_changed_at = NOW;
-    return HttpResponse.json({
-      lambda: f.lambda,
-      lambda_changed_by: f.lambda_changed_by,
-      lambda_changed_at: f.lambda_changed_at,
     });
   }),
 ];
