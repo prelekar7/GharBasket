@@ -21,3 +21,16 @@ export function hubDays(back, ahead) {
  * @param {string | null | undefined} picked @param {string[]} days
  */
 export const pickDay = (picked, days) => (picked && days.includes(picked) ? picked : todayIso());
+
+/**
+ * The days the Packing picker offers: the last few days (`hubDays`) and the hub's coming delivery days,
+ * the same list the Orders page picks from. A delivery day can be more than two days away, so the
+ * picker must not stop at M6's own window (today + 2): the API says `hub_ops.date_out_of_range` for a
+ * day it will not serve, and the page then shows today.
+ * @param {string[]} past days up to and including today, oldest first (`hubDays(n, 0)`)
+ * @param {string[]} upcoming the hub's delivery days (`deliveryDates`)
+ * @returns {string[]} ISO days, oldest first, each once
+ */
+export function packingDays(past, upcoming) {
+  return [...new Set([...past, ...upcoming])].sort();
+}

@@ -16,7 +16,7 @@ import { fieldError, idempotent, mockStore, mockUuid, problem, roleOf } from "./
 export const TODAY = "2026-10-06";
 export const NOW = "2026-10-06T11:10:00+05:30";
 
-/** @typedef {"admin" | "hub_manager" | "franchise_owner" | "ngo_coordinator"} Role */
+/** @typedef {"admin" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "catalog_editor"} Role */
 /** @typedef {import("../lib/kindness.js").PointRate} PointRate */
 /**
  * @typedef {{ id: string, name: string }} NgoCard

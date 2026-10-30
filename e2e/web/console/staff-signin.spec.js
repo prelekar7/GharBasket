@@ -40,10 +40,6 @@ for (const [person, name, home, broken] of HOMES) {
 }
 
 test("Rekha Joshi (catalog editor) reaches the console", async ({ page }) => {
-  test.fail(
-    true,
-    "F7: the console does not know the catalog_editor role, so she is sent to the public page",
-  );
   await signInApi(page, "console", PEOPLE.catalogEditor);
   await page.goto("/");
   await expect(page).toHaveURL(/\/catalog/);
