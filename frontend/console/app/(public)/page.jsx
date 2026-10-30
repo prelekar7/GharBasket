@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { linkButton, PublicFooter, PublicHeader } from "@/components/public/Chrome.jsx";
-import { SocietyFinder } from "@/components/public/SocietyFinder.jsx";
-import { getSocieties } from "@/lib/public-api.js";
 import { APP_URL } from "@/lib/public-lang.js";
 
 /**
  * Landing page of Landing.dc.html, at "/" for signed-out visitors (proxy.js still sends a signed-in
- * staff member from "/" to their console home). Static apart from the society list, which is cached.
+ * staff member from "/" to their console home). Static: there is no public list of societies in v1, so a
+ * visitor reaches a society page (/s/{slug}) from its invite link.
  */
 
 export const metadata = {
@@ -109,8 +108,7 @@ function ExampleWeek() {
   );
 }
 
-export default async function LandingPage() {
-  const societies = await getSocieties("en");
+export default function LandingPage() {
   return (
     <>
       <PublicHeader wide>
@@ -148,7 +146,17 @@ export default async function LandingPage() {
               approve it by 9 PM the evening before; a neighbour in your society hands it over the
               next morning.
             </p>
-            <SocietyFinder societies={societies} />
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href={APP_URL}
+                className={`${linkButton.base} ${linkButton.primary} ${linkButton.lg}`}
+              >
+                Open the app
+              </a>
+              <a href="#societies" className="font-semibold text-fg">
+                Got a link from a neighbour?
+              </a>
+            </div>
             <p className="m-0 text-base leading-6 text-fg-secondary">
               Kharghar, Kamothe and New Panvel for now. Works on any phone as an app from your
               browser, in English, हिन्दी and मराठी.
@@ -190,26 +198,10 @@ export default async function LandingPage() {
               once enough neighbours join. Until then, invite them with your society’s link.
             </p>
           </div>
-          <ul>
-            {societies.map((s) => (
-              <li key={s.slug}>
-                <Link
-                  href={`/s/${s.slug}`}
-                  className="flex items-center justify-between gap-3 border-b border-line py-3.5 text-fg no-underline"
-                >
-                  <span className="flex flex-col">
-                    <strong>{s.name}</strong>
-                    <span className="text-sm leading-6 text-fg-secondary">{s.area}</span>
-                  </span>
-                  <span
-                    className={`inline-flex min-h-5 items-center rounded-xs px-1.5 text-xs leading-[18px] font-bold whitespace-nowrap ${s.status === "live" ? "bg-primary text-on-primary" : "bg-accent text-on-accent"}`}
-                  >
-                    {s.status === "live" ? "Delivering" : "Unlocking"}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <p className="m-0 rounded-md bg-surface p-5 text-base leading-6">
+            Your society has its own page with a live count of the homes that have joined. Open the
+            link a neighbour or your society’s committee shared, or ask for it in the app.
+          </p>
         </section>
       </main>
       <PublicFooter wide note="GharBasket · a B.Tech major project at SIES GST, Navi Mumbai" />

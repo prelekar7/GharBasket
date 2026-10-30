@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { foldEvent, parseEvents } from "@/features/logistics/tracking.js";
+import { foldEvent, parseEvents, tiffinLeg } from "@/features/logistics/tracking.js";
 import { mockFetch } from "./index.js";
 import {
   DOOR_MS,
   deliveryStage,
+  KITCHEN_MS,
   ROUTE_ID,
   restartTrip,
+  TIFFIN_CODE,
+  TIFFIN_ROUTE_ID,
   TODAY_BOX_ID,
   TRIP_MS,
 } from "./tracking.js";
@@ -179,5 +182,113 @@ describe("reading the stream", () => {
     expect(foldEvent(updated, { event: "end", data: { reason: "handed_over" } }).ended).toBe(
       "handed_over",
     );
+  });
+});
+
+describe("a tiffin on the delivery day (M7 §3.7)", () => {
+  const TIFFIN_ID = "0199b000-0000-7000-8000-0000000000f1";
+  const card = async () => (await get(`/v1/deliveries/${TIFFIN_ID}`)).json();
+  beforeEach(() => {
+    localStorage.setItem(
+      "gb-mock-tiffins",
+      JSON.stringify([
+        {
+          id: TIFFIN_ID,
+          key: "k",
+          delivery_date: "2026-10-06",
+          slot: "lunch",
+          kitchen_id: "kit-lata",
+        },
+      ]),
+    );
+  });
+
+  it("is scheduled until collected, with no code and nothing to track; hold and redelivery stay null", async () => {
+    atTripTime(0);
+    expect(await card()).toMatchObject({
+      status: "scheduled",
+      window: { start: "12:30", end: "13:30" },
+      eta: "13:05",
+      tracking: null,
+      delivery_code: null,
+      hold_until: null,
+      redelivery: null,
+      proof: null,
+    });
+  });
+
+  it("is on_route from the kitchen with the code and its own route, then with_captain, then delivered", async () => {
+    atTripTime(TRIP_MS + 1000);
+    expect(await card()).toMatchObject({
+      status: "on_route",
+      tracking: { route_id: TIFFIN_ROUTE_ID },
+      delivery_code: TIFFIN_CODE,
+      captain: { display_name: "Meena tai", photo_url: null },
+    });
+    atTripTime(TRIP_MS + DOOR_MS / 2 + 1000);
+    expect(await card()).toMatchObject({
+      status: "with_captain",
+      tracking: null,
+      delivery_code: TIFFIN_CODE,
+    });
+    atTripTime(TRIP_MS + DOOR_MS + 1000);
+    const done = await card();
+    expect(done).toMatchObject({ status: "delivered", eta: null, delivery_code: null });
+    expect(done.proof).toMatchObject({ kind: "otp", photo_url: null });
+  });
+
+  it("is not found for a tiffin that is not booked for today", async () => {
+    atTripTime(TRIP_MS + 1000);
+    const res = await get("/v1/deliveries/0199b000-0000-7000-8000-0000000000f2");
+    expect([res.status, await problem(res)]).toEqual([404, "logistics.delivery_not_found"]);
+  });
+
+  /** The first event of the tiffin route's stream. */
+  async function first() {
+    const res = await get(`/v1/routes/${TIFFIN_ROUTE_ID}/live`);
+    const reader = /** @type {ReadableStream<Uint8Array>} */ (res.body).getReader();
+    const { value } = await reader.read();
+    await reader.cancel();
+    return parseEvents(new TextDecoder().decode(value))[0][0];
+  }
+
+  it("has no position while the rider is near a kitchen: the snapshot carries the stop and its ETA only", async () => {
+    atTripTime(TRIP_MS + 1000);
+    expect(await first()).toMatchObject({
+      event: "snapshot",
+      data: {
+        route_id: TIFFIN_ROUTE_ID,
+        position: null,
+        stops: [{ seq: 1, status: "pending", eta_now: "13:05" }],
+      },
+    });
+  });
+
+  it("shows a rounded position once the rider is away from the kitchens, and ends at the handover", async () => {
+    atTripTime(TRIP_MS + KITCHEN_MS + 5000);
+    const [snapshot] = [await first()];
+    const { lat, lng } = snapshot.data.position;
+    expect([lat, lng]).toEqual([Number(lat.toFixed(4)), Number(lng.toFixed(4))]);
+    atTripTime(TRIP_MS + DOOR_MS / 2 + 1000);
+    expect(await first()).toEqual({ event: "end", data: { reason: "handed_over" } });
+  });
+});
+
+describe("a tiffin on the customer's screen", () => {
+  it("keeps what it has when the stream sends no position, and counts its legs", () => {
+    const snap = foldEvent(
+      { position: null, stop: null, ended: null },
+      {
+        event: "snapshot",
+        data: { position: null, stops: [{ seq: 1, status: "pending", eta_now: "13:05" }] },
+      },
+    );
+    expect(snap).toMatchObject({ position: null, stop: { eta_now: "13:05" } });
+    expect(foldEvent(snap, { event: "position", data: null }).position).toBeNull();
+    expect(
+      ["scheduled", "on_route", "with_captain", "delivered", "refunded", "triage"].map((x) =>
+        tiffinLeg(/** @type {any} */ (x)),
+      ),
+    ).toEqual([0, 1, 2, 3, 1, 1]);
   });
 });

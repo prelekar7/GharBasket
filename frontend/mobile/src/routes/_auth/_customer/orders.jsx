@@ -94,7 +94,19 @@ function Orders() {
   // The list has no lines or timeline: the one order on show is read in full.
   const detail = useOrder(current?.id, lang);
   const tiffin = useTiffinInfo(current?.kind === "tiffin" ? current.id : undefined, lang);
-  const rating = useRating(current?.status === "delivered" ? current.id : undefined);
+  // Only tiffins are rated (M8 §3.5): this order, or the one that came with the box that day.
+  const rateTarget =
+    current?.status === "delivered"
+      ? current.kind === "tiffin"
+        ? current
+        : orders.find(
+            (o) =>
+              o.kind === "tiffin" &&
+              o.delivery_date === current.delivery_date &&
+              o.status === "delivered",
+          )
+      : undefined;
+  const rating = useRating(rateTarget?.id);
 
   if (isPending)
     return (
@@ -240,7 +252,7 @@ function Orders() {
                 {t("orders.rate")}
               </Button>
             )}
-            {current.kind === "box" && TRACKABLE.has(current.status) && (
+            {TRACKABLE.has(current.status) && (
               <Button
                 variant="primary"
                 onPress={() =>
