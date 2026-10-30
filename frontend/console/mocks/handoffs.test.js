@@ -187,7 +187,8 @@ describe("impact", () => {
       })
     ).json();
     assert.equal(body.totals.partners_earned_paise, null);
-    assert.deepEqual(body.societies, []);
+    assert.equal(body.totals.referrals_converted, null);
+    assert.equal(body.societies, null);
     assert.ok(body.ngos.length >= 1);
     const other = await call(
       "GET",
@@ -204,16 +205,26 @@ describe("impact", () => {
         .status,
       200,
     );
-    assert.equal(
-      (await call("GET", `analytics/impact?scope=hub&hub_id=${KHARGHAR_HUB_ID}&month=2020-01`))
-        .status,
-      422,
+    const old = await call(
+      "GET",
+      `analytics/impact?scope=hub&hub_id=${KHARGHAR_HUB_ID}&month=2020-01`,
     );
-    assert.equal(
-      (await call("GET", `analytics/impact?scope=hub&hub_id=${KHARGHAR_HUB_ID}&month=2099-01`))
-        .status,
-      422,
+    assert.equal(old.status, 422);
+    assert.equal((await old.json()).code, "analytics.range_too_long");
+    const future = await call(
+      "GET",
+      `analytics/impact?scope=hub&hub_id=${KHARGHAR_HUB_ID}&month=2099-01`,
     );
+    assert.equal(future.status, 422);
+    assert.equal((await future.json()).code, "analytics.range_invalid");
+    // A scope's id left out: 403 for staff, 422 for an admin; an admin's unknown NGO is 404.
+    assert.equal((await call("GET", "analytics/impact?scope=hub")).status, 403);
+    assert.equal((await call("GET", "analytics/impact?scope=hub", { role: "admin" })).status, 422);
+    const unknown = await call("GET", `analytics/impact?scope=ngo&ngo_id=${_id("ffff", 1)}`, {
+      role: "admin",
+    });
+    assert.equal(unknown.status, 404);
+    assert.equal((await unknown.json()).code, "community.ngo_not_found");
   });
 
   test("format=csv is an attachment with one row for the hub and one per NGO", async () => {
@@ -221,8 +232,12 @@ describe("impact", () => {
     assert.match(res.headers.get("content-type") ?? "", /^text\/csv/);
     assert.match(res.headers.get("content-disposition") ?? "", /^attachment/);
     const lines = (await res.text()).trim().split("\n");
-    assert.equal(lines[0].split(",")[0], "month");
+    const head = lines[0].split(",");
+    assert.equal(head[0], "month");
+    assert.equal(head.length, 16);
+    assert.ok(lines.every((l) => l.split(",").length === head.length));
     assert.ok(lines.length >= 2);
+    assert.match(res.headers.get("content-disposition") ?? "", /impact-2026-10-hub-/);
   });
 
   test("a hand-off photo upload: handoff_photo only, JPEG/PNG/WebP, up to 5 MB", async () => {

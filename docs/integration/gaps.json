@@ -43,34 +43,6 @@
       "fix": "F4: drop the 'Check now' button; the hourly Razorpay check is a job. Ask for an admin trigger only if wanted.",
       "note": "No endpoint in M5 §3.4."
     },
-    "GET /v1/tiffin-offers": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "Call GET /v1/tiffin-menus?date=&meal= and map the menus to offers (M4 §3.5 table 'Mock today'). Built on main (#317).",
-      "note": "The cycle does not carry offers."
-    },
-    "GET /v1/orders/{}/tiffin": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "Read OrderOut.tiffin and OrderOut.kitchen (on main, #319), then GET /v1/partners/{kitchen.partner_id}/card for the cook.",
-      "note": "M8 §3.4 table 'Mock today'."
-    },
-    "GET /v1/orders/{}/rating": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "GET /v1/ratings?order_id={id}. The endpoint ships with the M8 stack.",
-      "note": "M8 §3.5."
-    },
-    "POST /v1/orders/{}/rating": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "POST /v1/ratings with { order_id, stars } and an Idempotency-Key. The endpoint ships with the M8 stack.",
-      "note": "M8 §3.5."
-    },
     "POST /v1/hubs/{}/cutoff/run": {
       "app": "console",
       "class": "fix-frontend",
@@ -111,37 +83,11 @@
       "owner": "yash",
       "note": "Dropped (M8 §3.8, owner 2026-10-25): λ is PARTNERS_FAIRNESS_LAMBDA, chosen by the offline λ sweep (M10 §3.5, handbook 08); remove the page's Change control."
     },
-    "GET /v1/hubs/{}/settings": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "Read GET /v1/hubs/{hub_id} (M6 §3.1, HubOut, ETag = version). Map hub_id → id, hub_name → name; the clock's receiving, packing, dispatch and surplus rows → timings; show status, address, procurement_buffer_pct and pre_live_box_fee_paise. Remove switches (ai_planner, auto_approve, tiffins, upi_autopay), languages, quiet_hours and changes: no backend has them. The other clock rows are fixed job times (handbook 10 §10.4): console copy, not data.",
-      "note": "M6 §3.1. Admin only in the nav, as today."
-    },
-    "PATCH /v1/hubs/{}/settings": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "PATCH /v1/admin/hubs/{hub_id} with If-Match (the version from the GET) and any of { name, address, location, service_area, status, timings, procurement_buffer_pct, pre_live_box_fee_paise }; 412 request.version_mismatch → reload. No switches, languages or quiet hours; the change history is the audit log, not shown.",
-      "note": "M6 §3.1 (admin; audit-logged)."
-    },
     "POST /v1/hubs/{}/staff-invitations": {
       "app": "console",
       "class": "drop",
       "owner": "yash",
       "note": "Dropped (M1 §3.6, owner 2026-10-25): staff roles through POST /v1/admin/user-roles (admin; a new number gets a pending grant), riders and packers through M8's POST /v1/hubs/{id}/partner-applications (hub manager); kitchens and captains apply in the app. Remove the Invite sheet from the franchise Staff page."
-    },
-    "POST /v1/admin/plans": {
-      "app": "console",
-      "class": "drop",
-      "owner": "yash",
-      "note": "Dropped (M3 §3.5, owner 2026-10-25): plans are seeded and a fee is a price. Keep the Plans page read-only even when GET /v1/admin/plans answers."
-    },
-    "PATCH /v1/admin/plans/{}": {
-      "app": "console",
-      "class": "drop",
-      "owner": "yash",
-      "note": "As POST /v1/admin/plans (M3 §3.5)."
     },
     "POST /v1/admin/refunds/{}/{}": {
       "app": "console",

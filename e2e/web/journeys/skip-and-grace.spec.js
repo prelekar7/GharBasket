@@ -116,10 +116,6 @@ test.describe
     });
 
     test("the week of a short wallet says payment is needed, with the top-up to keep the box", async () => {
-      test.fail(
-        true,
-        "F12: useFailedBoxOrder is enabled only for a cycle that is approved or locked, but the API's cycle is payment_failed here, so the week shows the raw key week.lead.payment_failed and no top-up card",
-      );
       const page = pages.payer;
       await page.goto("/week");
       await expect(page.getByText("Payment didn’t go through")).toBeVisible();

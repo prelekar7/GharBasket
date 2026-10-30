@@ -89,6 +89,7 @@ function RiderRoute() {
   const donations = route.stops.reduce((n, s) => n + (s.pickups?.donations.length ?? 0), 0);
   const empties = route.stops.reduce((n, s) => n + (s.pickups?.empties_collected ?? 0), 0);
   const toStop = (/** @type {string} */ id) => navigate({ to: "/rider/stop", search: { id } });
+  const tiffin = route.kind === "tiffin";
   const mapFallback = (
     <figure className="m-0 grid h-[180px] place-items-center rounded-md border border-dashed border-line-strong bg-surface p-4 text-center">
       <figcaption className="text-[15px] leading-[22px] text-fg-secondary">
@@ -111,7 +112,9 @@ function RiderRoute() {
           <RouteMap
             route={route}
             hub={hub.data.location}
-            label={t("rider.map.label", { count: route.stops.length })}
+            label={t(tiffin ? "rider.map.labelTiffin" : "rider.map.label", {
+              count: route.stops.length,
+            })}
             fallback={mapFallback}
           />
         ) : hub.isError ? (
@@ -130,17 +133,34 @@ function RiderRoute() {
                 : s.id === current?.id
                   ? "current"
                   : "todo";
+          // A kitchen is a pickup (M7 §3.7): its name, area and portions, ready-by instead of an ETA.
+          const kitchen = s.kitchen;
           const card = (
             <RouteStopCard
               n={s.seq}
-              society={s.society?.name ?? ""}
+              society={kitchen?.display_name ?? s.society?.name ?? ""}
+              where={
+                kitchen
+                  ? t("rider.kitchen.where", {
+                      area: kitchen.area ?? "",
+                      portions: s.portions ?? 0,
+                    })
+                  : tiffin
+                    ? t("rider.tiffin.count", { n: s.bags })
+                    : undefined
+              }
               // A captain's phone is never returned (M9 §3.1), so the current card has no call button.
               captain={status === "current" ? undefined : s.captain?.display_name}
-              window={clock(s.eta_now ?? s.eta)}
-              crates={s.crates}
-              bags={s.bags}
+              window={
+                kitchen
+                  ? t("rider.kitchen.readyBy", { time: clock(kitchen.ready_by) })
+                  : clock(s.eta_now ?? s.eta)
+              }
+              crates={tiffin ? undefined : s.crates}
+              bags={tiffin ? undefined : s.bags}
               status={status}
-              onNavigate={() => window.open(s.navigate_url, "_blank")}
+              navigate={!!s.navigate_url}
+              onNavigate={() => window.open(s.navigate_url ?? "", "_blank")}
               labels={{
                 stop: t("rider.card.stop", { n: s.seq }),
                 crate: t("rider.card.crates", { n: s.crates }),
@@ -176,8 +196,8 @@ function RiderRoute() {
       <p className="text-[15px] leading-[22px] text-fg-secondary">
         <strong className="text-fg">
           {t("rider.back", { time: clock(route.return_by), hub: hub.data?.name ?? "" })}
-        </strong>{" "}
-        · {t("rider.backDetail", { count: donations })}
+        </strong>
+        {!tiffin && ` · ${t("rider.backDetail", { count: donations })}`}
       </p>
       {route.status === "published" && (
         <p className="text-[15px] leading-[22px] text-fg-secondary">{t("rider.offline")}</p>
