@@ -534,3 +534,74 @@ describe("earnings (M8 §3.6)", () => {
     expect((await res.json()).code).toBe("auth.forbidden");
   });
 });
+
+describe("income certificate (M8 §3.7, US-12)", () => {
+  const certificate = (/** @type {string} */ query = "") =>
+    call("GET", `/v1/earnings/certificate${query}`);
+  const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" })
+    .format(new Date())
+    .slice(0, 7);
+
+  it("is one answer for the captain, kitchen, rider and packer: a CertificateLink", async () => {
+    for (const phone of ["+919800001004", "+919800001005", "+919800001006", "+919800001007"]) {
+      await signIn(phone);
+      const res = await certificate();
+      expect(res.status).toBe(200);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      const link = await res.json();
+      expect(Object.keys(link).sort()).toEqual([
+        "expires_at",
+        "filename",
+        "from",
+        "reference",
+        "to",
+        "url",
+      ]);
+      expect(link).toMatchObject({
+        reference: expect.stringMatching(/^GBIC-/),
+        to: thisMonth,
+        filename: `gharbasket-income-certificate-${link.from}-to-${thisMonth}.pdf`,
+        url: expect.any(String),
+      });
+      expect(Date.parse(link.expires_at)).toBeGreaterThan(Date.now());
+    }
+  });
+
+  it("covers the six months ending with this one, or the months asked for", async () => {
+    await signIn("+919800001006");
+    const six = await (await certificate()).json();
+    const [y, m] = thisMonth.split("-").map(Number);
+    const back = y * 12 + (m - 1) - 5;
+    expect(six.from).toBe(`${Math.floor(back / 12)}-${String((back % 12) + 1).padStart(2, "0")}`);
+    const asked = await (await certificate("?from=2026-05&to=2026-09")).json();
+    expect(asked).toMatchObject({ from: "2026-05", to: "2026-09" });
+    expect(asked.filename).toBe("gharbasket-income-certificate-2026-05-to-2026-09.pdf");
+  });
+
+  it("refuses months that are not YYYY-MM, reversed, in the future or more than 12", async () => {
+    await signIn("+919800001006");
+    for (const bad of [
+      "?from=2026-5",
+      "?from=2026-09&to=2026-05",
+      "?to=2999-01",
+      "?from=2025-01&to=2026-01",
+    ]) {
+      const res = await certificate(bad);
+      expect(res.status).toBe(422);
+      const problem = await res.json();
+      expect(problem).toMatchObject({
+        code: "partners.certificate_period_invalid",
+        max_months: 12,
+      });
+    }
+  });
+
+  it("is a 404 for someone who is no partner, and a 401 when signed out", async () => {
+    await signIn();
+    const res = await certificate();
+    expect(res.status).toBe(404);
+    expect((await res.json()).code).toBe("partners.partner_not_found");
+    localStorage.clear();
+    expect((await certificate()).status).toBe(401);
+  });
+});

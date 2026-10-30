@@ -138,12 +138,34 @@ test("GET /v1/festivals is one FestivalOut per date", async () => {
   assert.deepEqual(keys(body.items[0].rules), ["fasting", "no_onion_garlic"]);
 });
 
-test("GET /v1/plans is PlanOut with feature codes; state and subscribers are admin-only proposals", async () => {
+test("GET /v1/plans is PlanOut of the live plans; /v1/admin/plans adds state and subscribers and is read-only", async () => {
   const { body } = await call("GET", "/v1/plans");
   assert.deepEqual(keys(body), ["items"]);
   assert.deepEqual(keys(body.items[0]), ["code", "features", "fee_paise", "name"]);
   assert.equal(body.items[0].fee_paise, 0);
+  assert.deepEqual(
+    body.items.map((/** @type {{ code: string }} */ p) => p.code),
+    ["autopilot", "tiffin"],
+  );
   const admin = await call("GET", "/v1/admin/plans");
+  assert.deepEqual(
+    admin.body.items.map((/** @type {{ code: string, state: string }} */ p) => [p.code, p.state]),
+    [
+      ["autopilot", "live"],
+      ["tiffin", "live"],
+      ["salad", "draft"],
+    ],
+  );
+  assert.ok(
+    admin.body.items.every((/** @type {{ subscriber_count: unknown }} */ p) =>
+      Number.isInteger(p.subscriber_count),
+    ),
+  );
+  // Create and edit were dropped (M3 §3.5): the mock has no route for them.
+  assert.deepEqual(
+    plansHandlers.map((h) => h.info.method),
+    ["GET", "GET"],
+  );
   assert.deepEqual(keys(admin.body.items[0]), [
     "code",
     "features",

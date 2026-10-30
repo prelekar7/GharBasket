@@ -1,10 +1,12 @@
-import { Button } from "@gharbasket/ui";
+import { Button, TextField } from "@gharbasket/ui";
 import { CameraIcon, CheckIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { clockTime, istClock, shortDate, weekdayName } from "@/features/subscriptions/format.js";
+import { ApiError } from "@/lib/api.js";
 import { uploadFile } from "@/lib/upload.js";
 import { bagQr } from "./day.js";
+import { useTiffinProof } from "./queries.js";
 
 /** "Tue 6 Oct" / "मंगल 6 अक्टू॰". @param {string} iso @param {string} lang */
 export const dayLabel = (iso, lang) => `${weekdayName(iso, lang)} ${shortDate(iso, lang)}`;
@@ -31,6 +33,76 @@ export const proof = (flat) => ({
   path: `/v1/deliveries/${flat.order_id}/proof`,
   body: { bag_qr: bagQr(flat.order_id), proof: "scan", client_at: new Date().toISOString() },
 });
+
+/**
+ * At a tiffin's door (M7 §3.7): its label, then the family's 4-digit code or a photo. A tiffin has
+ * no bag to scan, and she can only settle one that was handed to her. Sent at once, so a wrong
+ * code is heard at the door; after five wrong ones only the photo works.
+ * @param {{ flat: import("./day.js").Flat, onDone: () => void }} props
+ */
+export function TiffinDoor({ flat, onDone }) {
+  const { t } = useTranslation();
+  const prove = useTiffinProof();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState(/** @type {string | null} */ (null));
+  const [busy, setBusy] = useState(false);
+  const send = async (/** @type {Record<string, unknown>} */ how) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await prove(flat.order_id, {
+        short_code: flat.short_code,
+        ...how,
+        client_at: new Date().toISOString(),
+      });
+      onDone();
+    } catch (e) {
+      const problem = e instanceof ApiError ? e.code : "";
+      setError(
+        {
+          "logistics.code_invalid": t("captain.tiffin.codeWrong"),
+          "logistics.code_attempts_exceeded": t("captain.tiffin.codeLocked"),
+          "logistics.delivery_not_found": t("captain.tiffin.notWithYou"),
+          "logistics.bag_mismatch": t("captain.tiffin.wrongLabel"),
+          "logistics.delivery_closed": t("captain.tiffin.closed"),
+        }[problem] ?? t("captain.tiffin.failed"),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <TextField
+        label={t("captain.tiffin.codeLabel")}
+        description={t("captain.tiffin.codeHelp")}
+        inputMode="numeric"
+        maxLength={4}
+        autoComplete="off"
+        value={code}
+        onChange={setCode}
+        isInvalid={!!error}
+        errorMessage={error ?? undefined}
+      />
+      <Button
+        variant="primary"
+        size="lg"
+        block
+        isPending={busy}
+        isDisabled={!/^\d{4}$/.test(code.trim())}
+        onPress={() => send({ proof: "otp", delivery_code: code.trim() })}
+      >
+        {t("captain.tiffin.deliver", { flat: flat.flat_label })}
+      </Button>
+      <PhotoButton
+        added={false}
+        label={t("captain.tiffin.photo")}
+        doneLabel={t("captain.exceptions.photoAdded")}
+        onKey={(key) => send({ proof: "photo", photo_key: key })}
+      />
+    </div>
+  );
+}
 
 /**
  * Sends the problems sorted out on Exceptions: not home → POST …/undelivered (the bag is held for

@@ -6,7 +6,8 @@ import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ProfileActions } from "@/components/ProfileActions.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLabel } from "@/features/logistics/format.js";
-import { certificateUrl, useEarnings } from "@/features/logistics/queries.js";
+import { useEarnings } from "@/features/logistics/queries.js";
+import { openCertificate } from "@/features/partners/certificate.js";
 import { useSession } from "@/lib/session.js";
 
 /** What the rider earned on the latest routes, the payout day and the income certificate (design RiderEarnings; M8, M5). */
@@ -22,15 +23,10 @@ function RiderEarnings() {
 
   const download = async () => {
     setCert("busy");
-    // Opened during the tap, so a popup blocker allows it; the PDF link fills it in after.
-    const tab = window.open("", "_blank");
     try {
-      const url = await certificateUrl();
-      if (tab) tab.location.href = url;
-      else window.location.assign(url);
+      await openCertificate();
       setCert("idle");
     } catch {
-      tab?.close();
       setCert("failed");
     }
   };

@@ -1,12 +1,12 @@
-// Plans (M3 `GET /v1/plans`): the contract's PlanOut gives a code, a name, a fee and feature codes.
-// Plain JS, no React.
+// Plans (M3): `GET /v1/plans` is PlanOut (live plans only) and `GET /v1/admin/plans` is AdminPlanOut, the
+// same plus `state` and `subscriber_count`. Plain JS, no React.
 
 /**
- * A plan. `code`, `name`, `fee_paise` and `features` are the contract's PlanOut; `fee_paise` is 0 until
- * pricing is decided and `features` are codes, not text. `state` and `subscriber_count` come only from
- * the proposed admin list (`GET /v1/admin/plans`, @proposal not in the contract yet) and are missing otherwise.
+ * A plan as the admin list gives it (AdminPlanOut). `fee_paise` is 0 until pricing is decided and
+ * `features` are codes, not text. `state` is live when the plan is active; `subscriber_count` counts
+ * subscriptions that have not ended (0, never null).
  * @typedef {{ code: "autopilot" | "tiffin" | "salad", name: string, fee_paise: number, features: string[],
- *   state?: "live" | "draft", subscriber_count?: number | null }} Plan
+ *   state: "live" | "draft", subscriber_count: number }} Plan
  */
 
 /** The plan codes the contract has, with what each one is. */

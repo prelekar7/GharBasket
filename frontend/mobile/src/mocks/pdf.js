@@ -1,6 +1,6 @@
 /**
- * A one-page PDF with one line of text, as a data URL. The mocks of GET /v1/earnings/certificate
- * use it so the download works without a server (the real API returns a short-lived signed link).
+ * A one-page PDF with one line of text, as a link a tab can open. The mock of GET /v1/earnings/certificate
+ * uses it so the download works without a server (the real API returns a short-lived signed link).
  * @param {string} text plain text without parentheses
  */
 export function mockPdfUrl(text) {
@@ -22,5 +22,8 @@ export function mockPdfUrl(text) {
   pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
   pdf += offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  // A browser will not open a data: URL in a tab (the Download button does that), a blob: URL it will.
+  if (typeof URL.createObjectURL === "function")
+    return URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
   return `data:application/pdf;base64,${btoa(pdf)}`;
 }
