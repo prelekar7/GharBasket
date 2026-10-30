@@ -1,10 +1,18 @@
 "use client";
 
-import { Button, Select, toast } from "@gharbasket/ui";
+import { Badge, Button, EmptyState, Select, toast } from "@gharbasket/ui";
 import { useState, useTransition } from "react";
 import { PageHead } from "@/components/ops/PageHead.jsx";
 import { WEEKDAYS } from "@/lib/when.js";
 import { saveDeliveryDays } from "./actions.js";
+
+/** The badge of a society that is not live. */
+const STATUS_LABEL = /** @type {const} */ ({
+  live: "Live",
+  unlocking: "Unlocking",
+  prospect: "Not live yet",
+  paused: "Paused",
+});
 
 /** Days sorted by weekday. @param {Picked} days @returns {Picked} */
 const byDay = (days) => [...days].sort((a, b) => a.weekday - b.weekday);
@@ -15,7 +23,7 @@ const MAX_DAYS = 3;
 /** @typedef {import("./page.jsx").Day[]} Picked a society's days: weekday (0 = Monday) and slot, sorted by weekday */
 
 /**
- * Delivery days and slot of each live society. Edits stay in the page until "Save delivery days". The API
+ * Delivery days and slot of each society of the hub, whatever its status. Edits stay in the page until "Save delivery days". The API
  * gives each day its own slot; the Slot picker sets one slot for all of a society's days, and shows
  * "Different slots" when the days already differ.
  * @param {{ data: import("./page.jsx").DeliveryDays }} props
@@ -81,9 +89,17 @@ export function DeliveryDaysView({ data }) {
   return (
     <>
       <PageHead title="Delivery days">
-        Which days and slot each live society gets its boxes. Changes apply from the next week
+        Which days and slot each society of the hub gets its boxes, live or not yet: a society that
+        is still unlocking can get boxes once its days are set. Changes apply from the next week
         Autopilot plans, never to a week already drafted.
       </PageHead>
+
+      {data.items.length === 0 && (
+        <EmptyState
+          title="No societies on this hub yet"
+          body="When a society is added to the hub, it shows up here to get its delivery days."
+        />
+      )}
 
       {data.items.map((s) => {
         const pick = picks[s.society_id];
@@ -95,7 +111,10 @@ export function DeliveryDaysView({ data }) {
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-col">
-                <h2 className="text-[17px] leading-6 font-bold">{s.name}</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-[17px] leading-6 font-bold">{s.name}</h2>
+                  {s.status !== "live" && <Badge tone="outline">{STATUS_LABEL[s.status]}</Badge>}
+                </div>
                 <span className="text-sm leading-5 text-fg-secondary">{s.area}</span>
               </div>
               <div className="w-[200px]">
@@ -103,7 +122,7 @@ export function DeliveryDaysView({ data }) {
                   label="Slot"
                   options={data.slots.map((x) => ({ value: x.id, label: x.label }))}
                   value={slot}
-                  placeholder="Different slots"
+                  placeholder={pick.length === 0 ? "Pick a day first" : "Different slots"}
                   onChange={(v) =>
                     setPicks({ ...picks, [s.society_id]: pick.map((d) => ({ ...d, slot_id: v })) })
                   }
@@ -139,16 +158,6 @@ export function DeliveryDaysView({ data }) {
           </section>
         );
       })}
-
-      {data.not_live.length > 0 && (
-        <section className="flex flex-col gap-1 rounded-md bg-surface px-4 py-3.5">
-          <strong>Not live yet</strong>
-          <p className="text-sm leading-5 text-fg-secondary">
-            {data.not_live.slice(0, -1).join(", ")} and {data.not_live.at(-1)} get delivery days
-            when they unlock.
-          </p>
-        </section>
-      )}
 
       {error && (
         <p role="alert" className="text-sm leading-5 font-semibold text-danger">

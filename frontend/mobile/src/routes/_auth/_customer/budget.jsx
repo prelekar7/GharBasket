@@ -3,7 +3,6 @@ import {
   formatPaise,
   IconButton,
   ProgressBar,
-  RadioCards,
   Skeleton,
   TextField,
   toast,
@@ -13,21 +12,15 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import {
-  useBudgetLock,
-  useBudgetPreferences,
-  useSaveBudgetLock,
-} from "@/features/subscriptions/queries.js";
+import { useBudgetLock, useSaveBudgetLock } from "@/features/subscriptions/queries.js";
 
-/** @typedef {import("@/features/subscriptions/queries.js").WhenOver} WhenOver */
-const WHEN_OVER = /** @type {WhenOver[]} */ (["swap", "trim", "ask"]);
 const MIN_PAISE = 50000;
 const DEFAULT_PAISE = 300000;
 const rupees = new Intl.NumberFormat("en-IN");
 
 /**
- * Budget Lock: this month so far, the monthly limit, and what Autopilot does when a week would go
- * over (design HcBudget, M3 US-6). The last part is a proposal and only shows once the API has it.
+ * Budget Lock: this month so far and the monthly limit (design HcBudget, M3 US-6). When a week
+ * would go over, the planner only swaps to cheaper items (M3 §3.1); there is nothing to choose.
  */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/budget")({ component: BudgetLock });
@@ -37,11 +30,9 @@ function BudgetLock() {
   const router = useRouter();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const lock = useBudgetLock();
-  const prefs = useBudgetPreferences();
   const save = useSaveBudgetLock();
   // Untouched fields show what is saved; null means "not changed yet".
   const [limit, setLimit] = useState(/** @type {number | null} */ (null));
-  const [whenOver, setWhenOver] = useState(/** @type {WhenOver | null} */ (null));
 
   const header = (
     <header className="-ml-3 flex items-center gap-1">
@@ -72,18 +63,16 @@ function BudgetLock() {
 
   const b = lock.data;
   const paise = limit ?? b.budget_paise ?? DEFAULT_PAISE;
-  const mode = whenOver ?? prefs.data?.when_over ?? "swap";
   const month = new Intl.DateTimeFormat(lang, { month: "long", timeZone: "UTC" }).format(
     new Date(`${b.month}-15T00:00:00Z`),
   );
   const left = b.remaining_paise;
   const store = (/** @type {number | null} */ budget) =>
     save.mutate(
-      { budget_paise: budget, when_over: prefs.data ? mode : undefined },
+      { budget_paise: budget },
       {
         onSuccess: () => {
           setLimit(null);
-          setWhenOver(null);
           toast(t(budget === null ? "budget.turnedOff" : "budget.saved"));
         },
         onError: () => toast(t("profile.saveFailed")),
@@ -127,21 +116,6 @@ function BudgetLock() {
         isInvalid={paise < MIN_PAISE}
         errorMessage={t("onboarding.budget.min", { amount: formatPaise(MIN_PAISE) })}
       />
-      {prefs.data && (
-        <>
-          <h2 className="text-lg leading-[26px] font-bold">{t("budget.tightTitle")}</h2>
-          <RadioCards
-            label={t("budget.tightTitle")}
-            value={mode}
-            onChange={(v) => setWhenOver(/** @type {WhenOver} */ (v))}
-            options={WHEN_OVER.map((value) => ({
-              value,
-              title: t(`budget.tight.${value}.title`),
-              description: t(`budget.tight.${value}.body`),
-            }))}
-          />
-        </>
-      )}
       <div className="mt-auto flex flex-col gap-1">
         <Button
           variant="primary"

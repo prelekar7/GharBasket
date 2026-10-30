@@ -8,11 +8,13 @@
 //   POST /v1/kyc-documents/{id}/file-links                      5-minute signed links, audit-logged (§3.1)
 //   POST /v1/kitchens/{partner_id}/inspection {grade, note}     Kitchen                            (§3.4)
 //   GET  /v1/hubs/{id}/partner-rates                            RateCard                           (§3.6)
+//   GET  /v1/partners/{id}/earnings/certificate?from&to         CertificateLink: a 5-minute PDF link (§3.7)
 // Documents are never Aadhaar and numbers only come back masked ("XXXXXX234F"). The fairness dashboard at the end
 // is still a proposal (M8 §8 only says it reads `assignment_runs`; no endpoint is specified).
 // Seed people: Lata Shinde (kitchen), Arjun Pawar (rider), Meena Jadhav (captain, Sunrise Towers) and Kavita More
 // (packer); the applicants are made-up samples.
 import { HttpResponse, http } from "msw";
+import { monthOptions, monthsUpTo } from "../lib/months.js";
 import { deny, istDay } from "./adminShared.js";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { SOCIETY_ID } from "./ids.js";
@@ -20,6 +22,10 @@ import { PARTNER_ID } from "./partner-ids.js";
 import { fieldError, idempotent, mockStore, mockUuid, problem, roleOf } from "./util.js";
 
 const HUB_ID = KHARGHAR_HUB_ID;
+/** The mock link of an income certificate: a one-page PDF in `public/` (the real one is a signed storage URL). */
+export const MOCK_CERTIFICATE_PDF = "/mock-income-certificate.pdf";
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+const NOW = "2026-10-06T09:40:00+05:30";
 const THALI_PAISE = 6000;
 
 /** @typedef {"kitchen" | "captain" | "rider" | "packer"} PartnerKind */
@@ -555,6 +561,44 @@ export const partnersHandlers = [
     return p
       ? HttpResponse.json(partnerOut(p))
       : problem(404, "partners.partner_not_found", "No such partner");
+  }),
+
+  // GET /v1/partners/{id}/earnings/certificate?from=&to= (M8 §3.7, US-12): the PDF of one person's earnings by
+  // month, issued by hub staff. A 5-minute link; here the PDF is a file of this site. `left` is a 404.
+  http.get("*/v1/partners/:id/earnings/certificate", ({ request, params }) => {
+    const refused = deny(request, STAFF);
+    if (refused) return refused;
+    const p = partnersStore().find((x) => x.id === params.id);
+    if (!p || p.status === "left")
+      return problem(404, "partners.partner_not_found", "No such partner");
+    const query = new URL(request.url).searchParams;
+    const thisMonth = monthOptions(Date.now())[0].value;
+    const to = query.get("to") ?? thisMonth;
+    const from = query.get("from") ?? (MONTH.test(to) ? monthsUpTo(to, 6)[0] : to);
+    // "YYYY-MM" sorts as text: from ≤ to ≤ this month, and `from` no earlier than 12 months up to `to`.
+    if (
+      !(MONTH.test(from) && MONTH.test(to)) ||
+      from > to ||
+      to > thisMonth ||
+      from < monthsUpTo(to, 12)[0]
+    )
+      return problem(
+        422,
+        "partners.certificate_period_invalid",
+        "Pick months like 2026-05 to 2026-10, at most 12, none in the future",
+        { max_months: 12 },
+      );
+    return HttpResponse.json(
+      {
+        reference: `GBIC-MOCK-${String(p.id).slice(-4).toUpperCase()}`,
+        from,
+        to,
+        url: MOCK_CERTIFICATE_PDF,
+        filename: `gharbasket-income-certificate-${from}-to-${to}.pdf`,
+        expires_at: new Date(Date.now() + 5 * 60_000).toISOString().replace(/\.\d+Z$/, "Z"),
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
   }),
 
   // GET /v1/partners/{id}/card (M8 §3.5): what families see of a kitchen. Never an address, phone or KYC detail.

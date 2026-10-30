@@ -10,7 +10,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { currentStop, isHandedOver, tally } from "@/features/captain/day.js";
+import { currentStop, isHandedOver, tally, tiffinStop } from "@/features/captain/day.js";
 import { clock, dayLabel, ReceivedCard } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useCaptainPartner, useDrafts } from "@/features/captain/queries.js";
 import { clockTime } from "@/features/subscriptions/format.js";
@@ -34,12 +34,15 @@ function Today() {
   const d = day.data;
   const name = partner.data?.display_name ?? "";
   const stop = currentStop(d);
-  const handedOver = isHandedOver(d);
+  const handedOver = !!stop && isHandedOver(d);
   const n = tally(d);
-  if (handedOver && n.handled === n.total) return <AllDone day={d} name={name} />;
+  if (isHandedOver(d) && n.handled === n.total) return <AllDone day={d} name={name} />;
   const issues = Object.keys(drafts.issues).length;
   const sum = (/** @type {"crates" | "bags"} */ k) =>
-    d.stops.reduce((total, s) => total + s.expected[k], 0);
+    d.stops.filter((s) => s !== tiffin).reduce((total, s) => total + s.expected[k], 0);
+  const tiffin = tiffinStop(d);
+  const tiffins = d.flats.filter((f) => f.kind === "tiffin");
+  const tiffinsToCount = tiffins.filter((f) => f.status === "on_the_way").length;
   /** @type {[string, number][]} */
   const rows = [
     [t("captain.today.crates"), sum("crates")],
@@ -80,13 +83,38 @@ function Today() {
       {handedOver ? (
         <ReceivedCard />
       ) : (
-        <section className="flex flex-col gap-1.5 rounded-md bg-accent-soft p-3.5">
+        stop && (
+          <section className="flex flex-col gap-1.5 rounded-md bg-accent-soft p-3.5">
+            <h2 className="m-0 text-[19px] leading-[26px] font-bold">
+              {t("captain.today.vanTitle", {
+                time: stop?.eta_now ? clockTime(stop.eta_now, lang) : (stop?.slot.start ?? ""),
+              })}
+            </h2>
+            <p className="m-0">{t("captain.today.van", { count: stop?.expected.crates ?? 0 })}</p>
+          </section>
+        )
+      )}
+      {tiffin && (
+        <section className="flex flex-col gap-2 rounded-md bg-surface p-3.5">
           <h2 className="m-0 text-[19px] leading-[26px] font-bold">
-            {t("captain.today.vanTitle", {
-              time: stop?.eta_now ? clockTime(stop.eta_now, lang) : (stop?.slot.start ?? ""),
+            {t("captain.today.tiffinTitle", {
+              time: tiffin.eta_now ? clockTime(tiffin.eta_now, lang) : (tiffin.slot?.start ?? ""),
             })}
           </h2>
-          <p className="m-0">{t("captain.today.van", { count: stop?.expected.crates ?? 0 })}</p>
+          <p className="m-0">
+            {t(tiffinsToCount ? "captain.today.tiffinBody" : "captain.today.tiffinCounted", {
+              count: tiffins.length,
+            })}
+          </p>
+          {tiffinsToCount > 0 && (
+            <Button
+              size="lg"
+              block
+              onPress={() => navigate({ to: "/captain/scan", search: { tiffin: true } })}
+            >
+              {t("captain.today.tiffinCount")}
+            </Button>
+          )}
         </section>
       )}
       <Rows rows={rows} />
@@ -110,9 +138,9 @@ function Today() {
           variant="primary"
           size="lg"
           block
-          onPress={() => navigate({ to: handedOver ? "/captain/flats" : "/captain/scan" })}
+          onPress={() => navigate({ to: handedOver || !stop ? "/captain/flats" : "/captain/scan" })}
         >
-          {handedOver ? t("captain.received.toFlats") : t("captain.today.receive")}
+          {handedOver || !stop ? t("captain.received.toFlats") : t("captain.today.receive")}
         </Button>
       </div>
     </div>

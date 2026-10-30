@@ -1,4 +1,4 @@
-import { CheckIcon, TruckIcon, WarehouseIcon } from "@phosphor-icons/react";
+import { CheckIcon, CookingPotIcon, TruckIcon, WarehouseIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LngLatBounds, Map as MapLibre, Marker } from "@/lib/maplibre.js";
@@ -30,8 +30,11 @@ export default function RouteMap({ route, hub, label, fallback }) {
   const box = useRef(/** @type {HTMLDivElement | null} */ (null));
   const van = useRef(/** @type {Marker | null} */ (null));
   const [failed, setFailed] = useState(() => !hasWebGL2() || !navigator.onLine);
-  // Bank and kitchen stops have no society; every drop does.
-  const stops = route.stops.flatMap((s) => (s.society ? [{ ...s, at: s.society.location }] : []));
+  // Every drop has a society; a kitchen has a point only while the API shows its address (M7 §3.7).
+  const stops = route.stops.flatMap((s) => {
+    const at = s.society?.location ?? s.kitchen?.location;
+    return at ? [{ ...s, at }] : [];
+  });
   const count = stops.length;
   // Marker elements live outside React's tree; their content is rendered into them with portals.
   const els = useMemo(
@@ -145,7 +148,13 @@ export default function RouteMap({ route, hub, label, fallback }) {
             aria-hidden
             className={`${pin} ${stopDone(s) ? "border-primary bg-primary text-on-primary" : "border-info bg-bg text-fg"}`}
           >
-            {stopDone(s) ? <CheckIcon size={18} weight="bold" /> : s.seq}
+            {stopDone(s) ? (
+              <CheckIcon size={18} weight="bold" />
+            ) : s.kind === "kitchen" ? (
+              <CookingPotIcon size={18} />
+            ) : (
+              s.seq
+            )}
           </span>,
           els.stops[i],
           s.id,

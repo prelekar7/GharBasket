@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { useSociety } from "@/features/community/queries.js";
 import { useMyHousehold } from "@/features/identity/profile.js";
+import { usePublicPartner } from "@/features/partners/queries.js";
 import { ApiError, request } from "@/lib/api.js";
 import { MOVING } from "./status.js";
 
@@ -21,7 +22,9 @@ import { MOVING } from "./status.js";
  *   reason_code: string | null, reason_params: Record<string, unknown> | null,
  *   substituted_from: ProductRef | null, shortage_qty: number }} OrderLine
  * @typedef {{ status: OrderStatus, at: string, actor: "customer" | "system" | "hub" }} TimelineEntry
- * @typedef {OrderSummary & { lines: OrderLine[], timeline: TimelineEntry[] }} Order
+ * @typedef {{ menu_id: string, meal: "lunch" | "dinner", dishes: { recipe_id: string, name: string }[] }} TiffinRef
+ * @typedef {OrderSummary & { lines: OrderLine[], timeline: TimelineEntry[], tiffin?: TiffinRef | null,
+ *   kitchen?: { partner_id: string } | null }} Order
  */
 
 /** Polling stands in for M7's SSE stream until it exists; the real one pushes every 15 s. */
@@ -81,33 +84,36 @@ export function useDeliveryPlace() {
 const absent = (e) => e instanceof ApiError && e.status === 404;
 
 /**
- * The home cook and dish of a tiffin order (GET /v1/orders/{id}/tiffin, our proposal: M4's order
- * has no cook or dish, and M8 owns the kitchens). Null for anything else; screens fall back to
- * "Tiffin". @proposal (not in the contract yet)
- * @typedef {{ order_id: string, kitchen_id: string, cook: { name: string }, dish: { name: string },
- *   meal: "lunch" | "dinner", qty: number }} TiffinInfo
+ * The home cook and dish of a tiffin order: the order's `tiffin` (its dishes) and `kitchen`
+ * (M4 §3.1), and the kitchen's card for her name (GET /v1/partners/{id}/card, M8 §3.5). Null for
+ * anything else, and until a kitchen holds the order; screens fall back to "Tiffin". The menu has
+ * no thali name, so `dish.name` is the dishes joined.
+ * @typedef {{ order_id: string, cook: { name: string }, dish: { name: string }, meal: "lunch" | "dinner" }} TiffinInfo
  * @param {string | undefined} id @param {string} lang
+ * @returns {{ data: TiffinInfo | null | undefined }}
  */
 export function useTiffinInfo(id, lang) {
-  return useQuery({
-    queryKey: ["orders", id, "tiffin", lang],
-    queryFn: async () => {
-      try {
-        return /** @type {TiffinInfo} */ (await request(`/v1/orders/${id}/tiffin`));
-      } catch (e) {
-        if (absent(e)) return null;
-        throw e;
-      }
+  const order = useOrder(id, lang);
+  const o = order.data;
+  const cook = usePublicPartner(o?.kitchen?.partner_id);
+  if (!o) return { data: undefined };
+  if (!o.tiffin || !o.kitchen) return { data: null };
+  if (cook.isError) return { data: null };
+  if (!cook.data) return { data: undefined };
+  return {
+    data: {
+      order_id: o.id,
+      cook: { name: cook.data.name },
+      dish: { name: o.tiffin.dishes.map((d) => d.name).join(", ") },
+      meal: o.tiffin.meal,
     },
-    enabled: !!id,
-    retry: false,
-  });
+  };
 }
 
 /**
- * What the household rated a delivered order (GET /v1/orders/{id}/rating, our proposal for M4 and
- * M8), or null if it did not (yet). @proposal (not in the contract yet)
- * @typedef {{ order_id: string, score: number, tags: string[], comment: string | null }} RatingOut
+ * What the household rated a delivered tiffin (GET /v1/ratings?order_id=, M8 §3.5), or null if it
+ * did not (yet). Only tiffins are rated: for a box the API says 404, which reads as null too.
+ * @typedef {{ order_id: string, partner_id: string, score: number, comment: string | null, created_at: string }} RatingOut
  * @param {string | undefined} id
  */
 export function useRating(id) {
@@ -115,7 +121,7 @@ export function useRating(id) {
     queryKey: ["orders", id, "rating"],
     queryFn: async () => {
       try {
-        return /** @type {RatingOut} */ (await request(`/v1/orders/${id}/rating`));
+        return /** @type {RatingOut} */ (await request(`/v1/ratings?order_id=${id}`));
       } catch (e) {
         if (absent(e)) return null;
         throw e;
@@ -148,28 +154,20 @@ export function useReportIssue(orderId) {
 }
 
 /**
- * Book a home kitchen's tiffins for a meal (POST /v1/orders, kind "tiffin": M4 lists it for P3
- * without a body, so this one is our proposal). One key per day, meal and count, so a retry never
- * books twice; it is paid at the cut-off with the box. @proposal (not in the contract yet)
+ * Book a home kitchen's tiffins for a meal (POST /v1/orders, kind "tiffin", M4 §3.5): the menu
+ * fixes the date, meal, price and cook; `portions` is 1 to 12. One key per menu and count, so a
+ * retry never books twice; it is paid at the cut-off with the box.
  */
 export function useAddTiffin() {
   const client = useQueryClient();
   const keys = useRef(/** @type {Record<string, string>} */ ({}));
   return useMutation({
-    mutationFn: (
-      /** @type {{ date: string, slot: string, kitchenId: string, qty: number }} */ v,
-    ) => {
-      const id = `${v.date}:${v.slot}:${v.qty}`;
+    mutationFn: (/** @type {{ menuId: string, qty: number }} */ v) => {
+      const id = `${v.menuId}:${v.qty}`;
       keys.current[id] ??= crypto.randomUUID();
       return request("/v1/orders", {
         method: "POST",
-        body: {
-          kind: "tiffin",
-          delivery_date: v.date,
-          slot: v.slot,
-          kitchen_id: v.kitchenId,
-          qty: v.qty,
-        },
+        body: { kind: "tiffin", menu_id: v.menuId, portions: v.qty },
         headers: { "idempotency-key": keys.current[id] },
       });
     },
@@ -180,28 +178,23 @@ export function useAddTiffin() {
   });
 }
 
-/** @typedef {{ orderId: string, score: number, tags: string[], comment?: string }} Rating */
-
 /**
- * Rate a delivered day: the box and any tiffin with it, one rating each (POST
- * /v1/orders/{id}/rating, our proposal for M4 and M8). One Idempotency-Key per order, so a retry
- * after half went through never rates twice. @proposal (not in the contract yet)
+ * Rate a delivered tiffin, 1 to 5 stars and a word for the staff (POST /v1/ratings, M8 §3.5): once
+ * per order, from delivery until 48 hours after it. One Idempotency-Key per order, so a retry never
+ * rates twice.
  */
-export function useRateDelivery() {
+export function useRateTiffin() {
   const client = useQueryClient();
   const keys = useRef(/** @type {Record<string, string>} */ ({}));
   return useMutation({
-    mutationFn: (/** @type {Rating[]} */ list) =>
-      Promise.all(
-        list.map((r) => {
-          keys.current[r.orderId] ??= crypto.randomUUID();
-          return request(`/v1/orders/${r.orderId}/rating`, {
-            method: "POST",
-            body: { score: r.score, tags: r.tags, comment: r.comment || undefined },
-            headers: { "idempotency-key": keys.current[r.orderId] },
-          });
-        }),
-      ),
+    mutationFn: (/** @type {{ orderId: string, score: number, comment?: string }} */ r) => {
+      keys.current[r.orderId] ??= crypto.randomUUID();
+      return request("/v1/ratings", {
+        method: "POST",
+        body: { order_id: r.orderId, score: r.score, comment: r.comment || undefined },
+        headers: { "idempotency-key": keys.current[r.orderId] },
+      });
+    },
     onSuccess: () => client.invalidateQueries({ queryKey: ["orders"] }),
   });
 }

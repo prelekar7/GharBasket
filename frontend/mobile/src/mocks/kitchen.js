@@ -6,8 +6,7 @@
 // UUIDs, money is integer paise. Times: respond_by is UTC, ready_by an IST clock time.
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
-import { HUB_ID } from "./packer.js";
-import { mockPdfUrl } from "./pdf.js";
+import { HUB_ID, SOCIETY_ID as SEED_SOCIETY_ID } from "./packer.js";
 
 const KEY = "gb-mock-kitchen-v2";
 const MAX_PORTIONS = 100;
@@ -35,7 +34,7 @@ const name = (/** @type {keyof typeof NAMES} */ code, /** @type {Request} */ r) 
   return NAMES[code][Math.max(0, LANGS.indexOf(lang))];
 };
 const SOCIETY_ID = {
-  "sunrise-towers": uid("e", 1),
+  "sunrise-towers": SEED_SOCIETY_ID,
   "krishna-kunj": uid("e", 2),
 };
 const DISH_ID = { varan_bhaat: uid("d", 1), chapati_bhaji: uid("d", 2), jain: uid("d", 3) };
@@ -454,17 +453,5 @@ export const kitchenHandlers = [
         generated_at: new Date().toISOString(),
       };
     }),
-  ),
-
-  // The income certificate (US-7) as a short-lived link; here a tiny PDF made on the spot. Its
-  // endpoint is not in M8 §3.7 (an outline) yet.
-  http.get(
-    "*/v1/earnings/certificate",
-    read(() => ({
-      url: mockPdfUrl(
-        "GharBasket income certificate (example) - Lata Shinde, kitchen partner, Kharghar hub",
-      ),
-      filename: "gharbasket-income-certificate.pdf",
-    })),
   ),
 ];
