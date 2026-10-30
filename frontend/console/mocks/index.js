@@ -14,6 +14,7 @@ import { intelHandlers } from "./intel.js";
 import { logisticsHandlers } from "./logistics.js";
 import { notificationsHandlers } from "./notifications.js";
 import { opsBoardHandlers } from "./opsboard.js";
+import { orderIssuesHandlers } from "./orderIssues.js";
 import { ordersHandlers } from "./orders.js";
 import { packingHandlers } from "./packing.js";
 import { partnersHandlers } from "./partners.js";
@@ -23,9 +24,9 @@ import { pricesHandlers } from "./prices.js";
 import { procurementHandlers } from "./procurement.js";
 import { publicHandlers } from "./public.js";
 import { receivingHandlers } from "./receiving.js";
-import { settingsHandlers } from "./settings.js";
 import { stockHandlers } from "./stock.js";
 import { teamHandlers } from "./team.js";
+import { tiffinBoardHandlers } from "./tiffin-board.js";
 import { vendorsHandlers } from "./vendors.js";
 import { wasteHandlers } from "./waste.js";
 
@@ -45,12 +46,13 @@ export const handlers = [
   ...logisticsHandlers,
   ...notificationsHandlers,
   ...ordersHandlers,
+  ...orderIssuesHandlers,
   ...partnersHandlers,
+  ...tiffinBoardHandlers,
   ...payoutsHandlers,
   ...plansHandlers,
   ...pricesHandlers,
   ...publicHandlers,
-  ...settingsHandlers,
   ...teamHandlers,
   ...opsBoardHandlers,
   ...packingHandlers,

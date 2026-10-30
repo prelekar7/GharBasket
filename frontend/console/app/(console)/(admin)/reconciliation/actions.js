@@ -2,46 +2,36 @@
 
 import { revalidatePath } from "next/cache";
 import { apiPost } from "@/lib/api.js";
-import { humanMessage } from "@/lib/ops-errors.js";
+import { fieldErrors, humanMessage } from "@/lib/ops-errors.js";
 
-/** @typedef {{ ok: true } | { ok: false, message: string }} Result */
+/** @typedef {{ ok: true } | { ok: false, message: string, fields: Record<string, string> }} Result */
 
 /**
- * @param {string} path
- * @param {string} idempotencyKey
+ * Closes an open reconciliation item with a note: `POST /v1/admin/reconciliation/{item_id}/resolve`
+ * with `{ note }` (M5 §3.4, admin; answers the ReconItem with its `resolution`, audit-logged). This is
+ * the only action the API has. It moves no money: a wallet credit or any other money correction is a
+ * separate, manual adjustment entry, and the note is where the admin says what was decided. There is no
+ * Idempotency-Key; a second resolve of the same item is 409 `billing.recon_not_open`.
+ * @param {string} id the item's id
+ * @param {string} note 1 to 500 characters
  * @returns {Promise<Result>}
  */
-async function post(path, idempotencyKey) {
+export async function resolveMismatch(id, note) {
   try {
-    await apiPost(path, {}, { idempotencyKey });
+    await apiPost(`/v1/admin/reconciliation/${encodeURIComponent(id)}/resolve`, {
+      note: note.trim(),
+    });
     revalidatePath("/reconciliation");
     return { ok: true };
   } catch (error) {
     return {
       ok: false,
       message: humanMessage(error, {
-        "billing.mismatch_not_found": "Someone already resolved this. The list is up to date now.",
-        "billing.not_creditable": "This one can't be fixed by a credit. Investigate it instead.",
+        "billing.recon_not_found": "This item no longer exists. The list is up to date now.",
+        "billing.recon_not_open": "Someone already closed this. The list is up to date now.",
+        "request.invalid": "Write a note of 1 to 500 characters.",
       }),
+      fields: fieldErrors(error),
     };
   }
-}
-
-/** Runs the hourly Razorpay check now. @param {string} key @returns {Promise<Result>} */
-export async function checkNow(key) {
-  return post("/v1/admin/reconciliation/check", key);
-}
-
-/**
- * Credits the wallet for a payment Razorpay captured but our ledger never saw. It posts a new,
- * correcting journal entry; nothing is edited or deleted.
- * @param {string} id @param {string} key @returns {Promise<Result>}
- */
-export async function creditWallet(id, key) {
-  return post(`/v1/admin/reconciliation/${id}/credit`, key);
-}
-
-/** @param {string} id @param {string} key @returns {Promise<Result>} */
-export async function markInvestigating(id, key) {
-  return post(`/v1/admin/reconciliation/${id}/investigate`, key);
 }

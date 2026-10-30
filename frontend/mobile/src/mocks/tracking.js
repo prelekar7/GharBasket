@@ -2,8 +2,11 @@
 // (GET /v1/deliveries/{order_id}) and the van's position stream (GET /v1/routes/{id}/live, SSE).
 // The rider's side of M7 is mocks/logistics.js. The van drives a short demo trip in real time; the
 // customer never gets the rider, other societies or exact coordinates (positions to 4 decimals).
+// A tiffin booked for the box's day (M7 §3.7) rides a second route: the rider is near the kitchen
+// first (the stream has `position: null`), then drives to the society, where the captain takes it.
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
+import { bookedTiffins } from "./orders.js";
 
 /** Today's box and the route it rides on (the rider's route in mocks/logistics.js): UUIDs. */
 export const ROUTE_ID = "01994000-0000-7000-8000-000000000001";
@@ -15,6 +18,10 @@ const TRIP_KEY = "gb-mock-trip";
 /** The van's last stretch, hub to the society gate, then the captain's walk to the doors. */
 export const TRIP_MS = 120_000;
 export const DOOR_MS = 180_000;
+/** A tiffin's route, its rider's first stretch (near a kitchen: no position) and the household's code. */
+export const TIFFIN_ROUTE_ID = "01994000-0000-7000-8000-000000000002";
+export const KITCHEN_MS = 30_000;
+export const TIFFIN_CODE = "7316";
 
 /** Kharghar hub to Sunrise Towers along the roads, [lng, lat]. */
 const ROUTE = [
@@ -41,6 +48,25 @@ export function deliveryStage(now = Date.now()) {
     progress: Math.min(1, t / TRIP_MS),
     status: t < TRIP_MS ? "dispatched" : t < TRIP_MS + DOOR_MS ? "at_society" : "delivered",
   };
+}
+
+/** Milliseconds into the demo day. @param {number} [now] */
+function elapsedMs(now = Date.now()) {
+  deliveryStage(now);
+  return now - Number(localStorage.getItem(TRIP_KEY));
+}
+
+/**
+ * How far a booked tiffin has got on the demo day (M7 §3.7 `Delivery.status`): not collected while
+ * the box's van drives, then with the rider (first near the kitchen), with the captain, delivered.
+ * @param {number} [now]
+ * @returns {"scheduled" | "on_route" | "with_captain" | "delivered"}
+ */
+export function tiffinStage(now = Date.now()) {
+  const elapsed = elapsedMs(now);
+  if (elapsed < TRIP_MS) return "scheduled";
+  if (elapsed < TRIP_MS + DOOR_MS / 2) return "on_route";
+  return elapsed < TRIP_MS + DOOR_MS ? "with_captain" : "delivered";
 }
 
 /** Sign-in starts the demo day again: the van leaves the hub. */
@@ -75,9 +101,9 @@ const notCustomer = (request) => {
   return !!role && !role.startsWith("customer");
 };
 
-/** The van, as the stream sends it: 4 decimals (about 11 m) and how old the fix is. */
-function position() {
-  const { lat, lng } = along(deliveryStage().progress);
+/** The van, as the stream sends it: 4 decimals (about 11 m) and how old the fix is. @param {number} [f] how far along the route */
+function position(f = deliveryStage().progress) {
+  const { lat, lng } = along(f);
   return {
     at: new Date().toISOString(),
     lat: +lat.toFixed(4),
@@ -86,6 +112,13 @@ function position() {
     age_s: 4,
   };
 }
+/** The tiffin rider: no position while he is near a kitchen. @param {boolean} [near] */
+function tiffinPosition(near = elapsedMs() - TRIP_MS < KITCHEN_MS) {
+  return near ? null : position((elapsedMs() - TRIP_MS - KITCHEN_MS) / (DOOR_MS / 2 - KITCHEN_MS));
+}
+/** A tiffin booked for the box's day, the one on the tiffin route. @param {string} orderId */
+const isTodayTiffin = (orderId) =>
+  bookedTiffins().some((b) => b.id === orderId && b.delivery_date === "2026-10-06");
 /** Delivery.status for the stage of the day. @param {string} status */
 const deliveryStatus = (status) =>
   status === "dispatched" ? "on_route" : status === "at_society" ? "with_captain" : "delivered";
@@ -95,8 +128,30 @@ export const trackingHandlers = [
   // `tracking.route_id` opens the stream until the society's handover. No rider, no phone.
   http.get("*/v1/deliveries/:orderId", ({ request, params }) => {
     if (!caller(request)) return signedOut();
-    if (notCustomer(request) || params.orderId !== TODAY_BOX_ID)
+    const orderId = String(params.orderId);
+    if (notCustomer(request) || (orderId !== TODAY_BOX_ID && !isTodayTiffin(orderId)))
       return problem(404, "logistics.delivery_not_found", "No delivery here");
+    if (orderId !== TODAY_BOX_ID) {
+      // §3.7: `scheduled` until collected; `hold_until` and `redelivery` are always null; the code
+      // shows while the tiffin is on its way.
+      const status = tiffinStage();
+      return HttpResponse.json({
+        order_id: orderId,
+        status,
+        attempt: 1,
+        window: { start: "12:30", end: "13:30" },
+        eta: status === "delivered" ? null : "13:05",
+        tracking: status === "on_route" ? { route_id: TIFFIN_ROUTE_ID } : null,
+        captain: { display_name: "Meena tai", photo_url: null },
+        hold_until: null,
+        delivery_code: status === "scheduled" || status === "delivered" ? null : TIFFIN_CODE,
+        proof:
+          status === "delivered"
+            ? { kind: "otp", at: "2026-10-06T07:50:00Z", photo_url: null }
+            : null,
+        redelivery: null,
+      });
+    }
     const { status } = deliveryStage();
     const handedOver = status !== "dispatched";
     return HttpResponse.json({
@@ -121,7 +176,12 @@ export const trackingHandlers = [
   http.get("*/v1/routes/:id/live", ({ request, params }) => {
     if (!caller(request)) return signedOut();
     if (notCustomer(request)) return problem(403, "auth.forbidden", "Not your route");
-    if (params.id !== ROUTE_ID) return problem(404, "logistics.route_not_found", "Route not found");
+    const tiffin = params.id === TIFFIN_ROUTE_ID;
+    if (params.id !== ROUTE_ID && !tiffin)
+      return problem(404, "logistics.route_not_found", "Route not found");
+    const running = () =>
+      tiffin ? tiffinStage() === "on_route" : deliveryStage().status === "dispatched";
+    const spot = () => (tiffin ? tiffinPosition() : position());
     const encoder = new TextEncoder();
     /** @type {ReturnType<typeof setInterval> | undefined} */
     let timer;
@@ -138,24 +198,25 @@ export const trackingHandlers = [
             // Already closed by the reader going away.
           }
         };
-        const { status } = deliveryStage();
-        if (status !== "dispatched") {
+        if (!running()) {
           send("end", { reason: "handed_over" });
           return stop();
         }
         send("snapshot", {
-          route_id: ROUTE_ID,
+          route_id: tiffin ? TIFFIN_ROUTE_ID : ROUTE_ID,
           status: "in_progress",
-          position: position(),
-          stops: [{ ...SOCIETY_STOP, status: "pending" }],
+          position: spot(),
+          stops: [{ ...SOCIETY_STOP, eta_now: tiffin ? "13:05" : "08:40", status: "pending" }],
         });
         timer = setInterval(() => {
-          if (deliveryStage().status !== "dispatched") {
+          if (!running()) {
             send("stop", { seq: 1, status: "handed_over", eta_now: null });
             send("end", { reason: "handed_over" });
             return stop();
           }
-          send("position", position());
+          // Like the API, a position is sent only when there is one to show.
+          const at = spot();
+          if (at) send("position", at);
         }, POSITION_MS);
         request.signal.addEventListener("abort", stop);
       },

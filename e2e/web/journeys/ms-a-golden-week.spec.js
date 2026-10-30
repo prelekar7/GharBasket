@@ -170,11 +170,7 @@ test.describe
       expect(after.total_paise).toBeGreaterThan(before.total_paise);
     });
 
-    test("swap a meal: the app sends PATCH, the API has PUT /v1/cycles/{id}/meals", async () => {
-      test.fail(
-        true,
-        "F1: the app sends PATCH /v1/cycles/{id}/meals; the API has PUT (405 http.method_not_allowed)",
-      );
+    test("swap a meal (PUT /v1/cycles/{id}/meals)", async () => {
       const before = (await api.get("/v1/cycles/current")).body;
       await page.goto("/week");
       await page.getByRole("button", { name: "Open Ravi 25 Oct" }).click();
@@ -318,10 +314,6 @@ test.describe
       });
 
       test("the console's Packing page shows the bag for T", async () => {
-        test.fail(
-          true,
-          "F11: /packing offers only today-3 to today+2 (hubDays(3, 2)) by the console's own clock, so a delivery day four days on cannot be opened; the page falls back to today",
-        );
         await admin.goto(`/packing?date=${T.day}`);
         await expect(admin.getByRole("heading", { name: /^Packing · Sat 24 Oct/ })).toBeVisible();
         await expect(admin.getByText("Sunrise Towers").first()).toBeVisible();

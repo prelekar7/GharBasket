@@ -15,6 +15,8 @@ const DATE = "2026-10-06";
 const uid = (ns, n) => `0199${ns}000-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
 /** The seeded Kharghar hub, as in the real dev database. */
 export const HUB_ID = uid("a", 0xa001);
+/** The seeded Sunrise Towers society (backend tools/seed.py SEED_SOCIETY_ID). */
+export const SOCIETY_ID = uid("b", 0xb001);
 const ME = { user_id: uid("9", 7), name: "Kavita More" };
 const OTHER = { user_id: uid("9", 8), name: "Sunil Gaikwad" };
 const SLOT = { id: uid("f", 1), label: "7-9 am", start: "07:00", end: "09:00" };

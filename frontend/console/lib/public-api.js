@@ -5,7 +5,8 @@ import { cacheLife } from "next/cache";
  * Anonymous reads for the (public) pages. Unlike lib/api.js these never touch cookies or request
  * headers, so the results can sit in the Next cache and the pages stay fast. The visitor's language
  * is passed in explicitly (it becomes `Accept-Language`, which the API answers with localised text).
- * Mock mode answers from mocks/public.js; real mode calls `GB_API_URL`.
+ * Mock mode answers from mocks/public.js; real mode calls `GB_API_URL`. There is no public list of
+ * societies in v1: a visitor reaches a society page from its invite link.
  *
  * @typedef {import("../mocks/public.js").PublicSociety} PublicSociety
  * @typedef {import("../mocks/public.js").PublicCook} PublicCook
@@ -37,18 +38,6 @@ async function publicGet(path, lang) {
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`GET ${path} failed with ${response.status}`);
   return response.json();
-}
-
-/**
- * Every society a visitor may find, for the landing page.
- * @param {Lang} lang
- * @returns {Promise<PublicSociety[]>}
- */
-export async function getSocieties(lang) {
-  "use cache";
-  cacheLife("minutes");
-  const body = await publicGet("/v1/public/societies", lang);
-  return body?.items ?? [];
 }
 
 /**

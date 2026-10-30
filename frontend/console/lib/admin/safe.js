@@ -13,8 +13,9 @@ import { isNotShipped, NOT_SHIPPED_MESSAGE } from "../proposal.js";
 /** Plain-words messages for the problem codes the admin pages can meet. */
 const MESSAGES = /** @type {Record<string, string>} */ ({
   "auth.forbidden": "You don't have permission to do this.",
-  "community.boundary_required":
-    "Draw and save the boundary first, so addresses here can be checked.",
+  "community.boundary_invalid":
+    "The boundary must be one closed shape of 4 to 500 corners inside India that does not cross itself.",
+  "community.slug_taken": "That name is busy right now. Try again in a moment.",
   "community.society_not_found": "That society is no longer on the list. Reload the page.",
   "community.request_not_found": "That request is no longer on the list. Reload the page.",
   "community.request_closed": "Someone has already handled this request. Reload the page.",
@@ -25,10 +26,17 @@ const MESSAGES = /** @type {Record<string, string>} */ ({
   "identity.role_not_found": "That role was already removed.",
   "identity.role_not_removable": "This role is managed under Partners and KYC.",
   "identity.cannot_remove_own_admin": "You can't remove your own admin role.",
-  "hubs.exists": "A hub with that name already exists.",
+  "hub_ops.slug_taken": "A hub with that name already exists.",
   "hubs.not_found": "That hub is no longer on the list. Reload the page.",
-  "tiffin.not_found": "That dish is no longer on the list. Reload the page.",
-  "tiffin.not_waiting": "This dish was already handled. Reload the page.",
+  "catalog.menu_not_found": "That menu is no longer on the list. Reload the page.",
+  "catalog.menu_not_submitted": "This menu was already handled. Reload the page.",
+  "catalog.menu_not_decided": "This menu is already waiting for approval. Reload the page.",
+  "catalog.menu_closed":
+    "The order-by time for this menu has passed, so it can no longer be changed.",
+  "catalog.menu_invalid":
+    "This menu cannot be approved: its product or a recipe is switched off, or its price is not above 0.",
+  "hub_ops.hub_not_found": "That hub is no longer on the list. Reload the page.",
+  "request.version_mismatch": "Someone changed this hub. Reload the page and try again.",
   "request.idempotency_mismatch": "That did not go through. Try again.",
 });
 
