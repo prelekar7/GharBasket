@@ -8,7 +8,7 @@ The classes come from `docs/integration/gaps.json`, which is edited by hand.
 
 | App | Call sites | Found | Wrong method | Missing | Unresolved | Wrapped (not shipped / @proposal) |
 |---|--:|--:|--:|--:|--:|--:|
-| mobile | 114 | 106 | 0 | 5 | 3 | 4 |
+| mobile | 115 | 106 | 0 | 5 | 4 | 4 |
 | console | 181 | 169 | 1 | 9 | 2 | 25 |
 
 Distinct endpoints called: mobile 97, console 139. A call site is one `request(`/`apiGet(` … in the source.
@@ -70,13 +70,14 @@ Mismatches the scan cannot see (mock data, roles, comments). Hand-listed in `gap
 | F8 | console | lib/hub.js, mocks/README.md | GET /v1/hubs ships now: update the comments that say it is a 404, and the mocks README (it says API port 8010 and console port 3160; real mode is 8000 and 3000, see docs/SETUP.md 'Real mode'). | yash |
 | F9 | console | lib/ngo.js, app/(console)/(community)/handoffs/, app/(console)/(community)/drives/ | M9 §3.5 ships: build against its shapes, not the mock's (M9 §3.5 'Mock today'). POST /v1/admin/ngos takes { name, kind, hub_ids, accepts, registration_ref, verified, status, note } (coordinators are M1 role grants) and PATCH needs If-Match; GET /v1/ngo-handoffs is Page[Handoff] with `report` (`summary` is structured; `open_batches` is GET /v1/ngo-handoffs/ready); POST /v1/ngo-handoffs takes { ngo_id, hub_id, kind, donation_ids \| offer_ids \| meals, photo_keys (1 to 3 handoff_photo uploads), people_reached, handed_at, note } with an Idempotency-Key; a drive's ngo_id may be set. | yash |
 
-## Unresolved calls (5)
+## Unresolved calls (6)
 
 The static scan could not tell the method or path. They are not counted as found or missing.
 
 | File | Call | Why |
 |---|---|---|
 | `mobile/src/features/captain/queries.js:89` | `request(` | path is action.path |
+| `mobile/src/features/logistics/queries.js:123` | `request(` | path is action.path |
 | `mobile/src/features/subscriptions/queries.js:139` | `request(` | a variable stands where the spec has a fixed word: /v1/cycles/{}/{} (could be POST /v1/cycles/{cycle_id}/approve, POST /v1/cycles/{cycle_id}/feedback, PATCH /v1/cycles/{cycle_id}/lines, PUT /v1/cycles/{cycle_id}/meals, POST /v1/cycles/{cycle_id}/skip, PUT /v1/cycles/{cycle_id}/slot, POST /v1/cycles/{cycle_id}/slot-quotes, POST /v1/cycles/{cycle_id}/unskip) |
 | `mobile/src/lib/outbox.js:74` | `request(` | method is item.method |
 | `console/app/(console)/(admin)/festivals/actions.js:45` | `apiPatch(` | path is path |
