@@ -1,4 +1,5 @@
-// The hubs: the mocks answer with the real contract's shapes (M6 hub_ops: HubsOut, HubOut, HubPatch + If-Match).
+// The hubs: the mocks answer with the real contract's shapes and rules (M6 §3.1: HubsOut, HubOut, HubPatch
+// + If-Match).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { getResponse } from "msw";
@@ -58,6 +59,8 @@ test("GET /v1/hubs/{id} is HubOut with an ETag; an unknown hub is hub_ops.hub_no
   assert.deepEqual(Object.keys(hub.body).sort(), [
     "address",
     "created_at",
+    "green_saving_max_paise",
+    "green_saving_share_pct",
     "id",
     "location",
     "name",
@@ -118,4 +121,72 @@ test("PATCH /v1/admin/hubs/{id} needs If-Match and moves the version", async () 
     200,
   );
   assert.equal((await call("PATCH", path, { body: {}, role: "hub_manager" })).status, 403);
+});
+
+const HUB = `/v1/hubs/${KHARGHAR_HUB_ID}`;
+const ADMIN = `/v1/admin/hubs/${KHARGHAR_HUB_ID}`;
+
+/** The current version, from the ETag. */
+async function version() {
+  const { etag } = await call("GET", HUB);
+  return Number(etag?.replace(/"/g, ""));
+}
+
+test("PATCH changes only the fields sent, bumps the version, and a stale If-Match is 412", async () => {
+  const v = await version();
+  const done = await call("PATCH", ADMIN, {
+    body: { procurement_buffer_pct: 15, timings: { packing: "05:30" } },
+    headers: { "if-match": `"${v}"` },
+  });
+  assert.equal(done.status, 200);
+  assert.equal(done.body.procurement_buffer_pct, 15);
+  assert.deepEqual(done.body.timings, {
+    receiving: "04:00",
+    packing: "05:30",
+    dispatch: "06:30",
+    surplus: "12:30",
+  });
+  assert.equal(done.body.pre_live_box_fee_paise, 3000);
+  assert.equal(done.body.version, v + 1);
+  assert.equal(done.etag, `"${v + 1}"`);
+
+  const stale = await call("PATCH", ADMIN, {
+    body: { status: "paused" },
+    headers: { "if-match": `"${v}"` },
+  });
+  assert.equal(stale.status, 412);
+  assert.equal(stale.body.code, "request.version_mismatch");
+  assert.equal((await call("GET", HUB)).body.status, "active");
+});
+
+test("a PATCH that changes nothing keeps the version", async () => {
+  const v = await version();
+  const same = await call("PATCH", ADMIN, {
+    body: { procurement_buffer_pct: 15 },
+    headers: { "if-match": `"${v}"` },
+  });
+  assert.equal(same.status, 200);
+  assert.equal(same.body.version, v);
+});
+
+test("PATCH checks the values: ranges, null, unknown fields and the order of the times", async () => {
+  const v = await version();
+  const headers = { "if-match": `"${v}"` };
+  for (const body of [
+    { procurement_buffer_pct: 51 },
+    { pre_live_box_fee_paise: 10_001 },
+    { pre_live_box_fee_paise: 12.5 },
+    { status: "planned" },
+    { name: "ab" },
+    { address: null },
+    { city: "Pune" },
+  ]) {
+    const res = await call("PATCH", ADMIN, { body, headers });
+    assert.equal(res.status, 422, JSON.stringify(body));
+    assert.equal(res.body.code, "request.invalid");
+  }
+  const order = await call("PATCH", ADMIN, { body: { timings: { packing: "03:00" } }, headers });
+  assert.equal(order.status, 422);
+  assert.equal(order.body.code, "hub_ops.timings_invalid");
+  assert.equal(await version(), v);
 });

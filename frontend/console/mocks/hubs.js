@@ -47,6 +47,7 @@ export function visibleHubs(request) {
  *   service_area: { type: "Polygon", coordinates: number[][][] } | null,
  *   timings: { receiving: string, packing: string, dispatch: string, surplus: string },
  *   procurement_buffer_pct: number, pre_live_box_fee_paise: number,
+ *   green_saving_share_pct: number, green_saving_max_paise: number,
  *   version: number, created_at: string, updated_at: string }} HubDetail
  */
 
@@ -69,6 +70,8 @@ const seed = () => [
     timings: TIMINGS,
     procurement_buffer_pct: 10,
     pre_live_box_fee_paise: 3000,
+    green_saving_share_pct: 50,
+    green_saving_max_paise: 1500,
     version: 1,
     created_at: "2026-09-01T08:00:00Z",
     updated_at: "2026-09-01T08:00:00Z",
@@ -80,6 +83,8 @@ const seed = () => [
     timings: TIMINGS,
     procurement_buffer_pct: 10,
     pre_live_box_fee_paise: 3000,
+    green_saving_share_pct: 50,
+    green_saving_max_paise: 1500,
     version: 1,
     created_at: "2026-10-01T08:00:00Z",
     updated_at: "2026-10-01T08:00:00Z",
