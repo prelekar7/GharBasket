@@ -204,3 +204,42 @@ test("a franchise owner may read partners but not decide or suspend", async () =
   });
   assert.equal(refused.status, 403);
 });
+
+test("the fairness read is the contract's FairnessOut: the λ in use and the runs, newest first", async () => {
+  const { status, body } = await call("GET", `${HUB}/fairness`);
+  assert.equal(status, 200);
+  assert.deepEqual(Object.keys(body).sort(), ["fallback_active", "hub_id", "lambda_paise", "runs"]);
+  assert.equal(body.lambda_paise, 300);
+  assert.equal(body.runs.length, 28);
+  assert.deepEqual(Object.keys(body.runs[0]).sort(), [
+    "at",
+    "date",
+    "gini",
+    "gini_eligible",
+    "kitchens_used",
+    "km_per_portion",
+    "lambda_paise",
+    "meal",
+    "model",
+    "portions",
+    "round",
+    "run_id",
+    "source",
+    "status",
+    "unassigned",
+  ]);
+  const times = /** @type {any[]} */ (body.runs).map((r) => r.at);
+  assert.deepEqual(times, [...times].sort().reverse());
+  assert.equal(body.fallback_active, body.runs[0].model === "greedy-m8");
+  assert.ok(body.runs.some((/** @type {any} */ r) => r.gini === null && r.lambda_paise === 300));
+  assert.ok(body.runs.some((/** @type {any} */ r) => r.lambda_paise === null));
+  assert.equal((await call("GET", `${HUB}/fairness?runs=3`)).body.runs.length, 3);
+});
+
+test("the fairness read refuses other hubs, other roles and a bad runs value", async () => {
+  const other = "/v1/hubs/0199a000-0000-7000-8000-00000000a002/fairness";
+  assert.equal((await call("GET", other)).body.code, "auth.forbidden");
+  assert.equal((await call("GET", `${HUB}/fairness`, { role: "ngo_coordinator" })).status, 403);
+  assert.equal((await call("GET", `${HUB}/fairness?runs=0`)).body.code, "request.invalid");
+  assert.equal((await call("GET", `${HUB}/fairness?runs=101`)).status, 422);
+});

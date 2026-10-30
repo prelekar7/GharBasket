@@ -7,6 +7,8 @@
 // Refunds: GET /v1/admin/refunds (read-only: refunds are automatic, M5 §3.3).
 // All money is integer paise. Nothing is edited or deleted: a fix would be a new ledger entry.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
+import { SOCIETY_ID } from "./ids.js";
 import { STORY_NOW } from "./orders.js";
 import { fieldError, idempotent, mockStore, mockUuid, problem, roleOf } from "./util.js";
 
@@ -102,51 +104,65 @@ const reconItem = (m) => ({
 // ---------- Refunds ----------
 
 /**
- * @typedef {{ id: string, flat: string, society: string, order_label: string, why: string,
- *   reported_by: string, amount_paise: number, to: "wallet",
- *   status: "pending" | "approved" | "rejected" }} Refund
+ * One order refund, the real RefundRow of `GET /v1/admin/refunds` (M5 §3.8, backend/api/openapi.json).
+ * @typedef {{ id: string, order_id: string, order_kind: "box" | "tiffin" | "addon", delivery_date: string,
+ *   society: { id: string, name: string }, flat_label: string | null,
+ *   reason: "shortage" | "issue" | "undelivered" | "no_kitchen" | "carry_over" | "other",
+ *   product_id: string | null, issue_id: string | null, amount_paise: number, to: "wallet" | "source",
+ *   refund_id: string | null, status: "credited" | "pending" | "processing" | "processed" | "partly_failed" | "failed",
+ *   created_at: string }} RefundRow
  */
 
+const REFUND_REASONS = ["shortage", "issue", "undelivered", "no_kitchen", "carry_over", "other"];
+const SUNRISE = { id: SOCIETY_ID["sunrise-towers"], name: "Sunrise Towers" };
+const KRISHNA = { id: SOCIETY_ID["krishna-kunj"], name: "Krishna Kunj" };
+
+/** @param {number} n @returns {RefundRow} a wallet refund, newest first by n */
+const walletRefund = (n) => ({
+  id: mockUuid("b901", n),
+  order_id: mockUuid("b902", n),
+  order_kind: n % 4 === 0 ? "addon" : "box",
+  delivery_date: n % 3 === 0 ? "2026-10-05" : "2026-10-03",
+  society: n % 2 ? SUNRISE : KRISHNA,
+  flat_label: n % 5 === 0 ? null : `${"AB"[n % 2]} wing, ${"AB"[n % 2]}-${100 + n}`,
+  reason: /** @type {RefundRow["reason"]} */ (REFUND_REASONS[n % 3 === 0 ? 4 : n % 2 ? 0 : 1]),
+  product_id: n % 2 ? mockUuid("b903", n) : null,
+  issue_id: n % 2 ? null : mockUuid("b904", n),
+  amount_paise: 1500 + (n % 7) * 500,
+  to: "wallet",
+  refund_id: null,
+  status: "credited",
+  created_at: new Date(Date.parse("2026-10-05T18:00:00+05:30") - n * 3_600_000).toISOString(),
+});
+
+/** 57 rows (so the default page of 50 has a next page): a few to the bank, one stuck, the rest in the wallet. */
 const refunds = () =>
-  mockStore(
-    "refunds",
-    () =>
-      /** @type {Refund[]} */ ([
-        {
-          id: "ref-1",
-          flat: "B-402",
-          society: "Sunrise Towers",
-          order_label: "Box · Tue 6 Oct",
-          why: "Short: methi, 2 judi (packer)",
-          reported_by: "Packing, Kharghar hub",
-          amount_paise: 4000,
-          to: "wallet",
-          status: "pending",
-        },
-        {
-          id: "ref-2",
-          flat: "A-101",
-          society: "Krishna Kunj",
-          order_label: "Box · Tue 6 Oct",
-          why: "Delivery failed: no one home after 2 tries",
-          reported_by: "Captain",
-          amount_paise: 41000,
-          to: "wallet",
-          status: "pending",
-        },
-        {
-          id: "ref-3",
-          flat: "A-1203",
-          society: "Sunrise Towers",
-          order_label: "Add-on · Tue 6 Oct",
-          why: "Damaged: eggs, 6 piece",
-          reported_by: "Customer, with photo",
-          amount_paise: 4500,
-          to: "wallet",
-          status: "pending",
-        },
-      ]),
-  );
+  mockStore("refunds", () => {
+    const rows = Array.from({ length: 57 }, (_, i) => walletRefund(i + 1));
+    Object.assign(rows[1], {
+      reason: "undelivered",
+      order_kind: "tiffin",
+      to: "source",
+      amount_paise: 41000,
+      refund_id: mockUuid("b905", 2),
+      status: "processing",
+    });
+    Object.assign(rows[3], {
+      to: "source",
+      refund_id: mockUuid("b905", 4),
+      status: "failed",
+      amount_paise: 9000,
+    });
+    return rows;
+  });
+
+/** The opaque cursor is the offset into the list, base64 like the API's. @param {number} n */
+const toCursor = (n) => Buffer.from(`o:${n}`).toString("base64url");
+/** @param {string} c @returns {number | null} */
+const fromCursor = (c) => {
+  const m = /^o:(\d+)$/.exec(Buffer.from(c, "base64url").toString());
+  return m ? Number(m[1]) : null;
+};
 
 export const billingHandlers = [
   // GET /v1/admin/reconciliation (M5 §3, admin)
@@ -177,14 +193,40 @@ export const billingHandlers = [
     return HttpResponse.json(reconItem(item));
   }),
 
-  // GET /v1/admin/refunds?status=pending
+  // GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit= (M5 §3.8): read-only, newest first
   http.get("*/v1/admin/refunds", ({ request }) => {
-    if (!allowed(request, ["admin", "hub_manager"]))
+    const role = roleOf(request);
+    if (role !== "admin" && role !== "hub_manager")
       return problem(403, "auth.forbidden", "Not allowed");
-    const status = new URL(request.url).searchParams.get("status") ?? "pending";
+    const q = new URL(request.url).searchParams;
+    const hub = q.get("hub_id");
+    if (!hub && role !== "admin")
+      return problem(422, "orders.hub_required", "Say which hub: hub_id is required for hub staff");
+    if (hub && hub !== KHARGHAR_HUB_ID && role !== "admin")
+      return problem(403, "auth.forbidden", "That hub is not yours");
+    const reason = q.get("reason");
+    const destination = q.get("destination");
+    const from = q.get("from");
+    const to = q.get("to");
+    const limit = q.has("limit") ? Number(q.get("limit")) : 50;
+    const offset = q.has("cursor") ? fromCursor(q.get("cursor") ?? "") : 0;
+    const days = from && to ? (Date.parse(to) - Date.parse(from)) / 86_400_000 : 0;
+    if (
+      (reason && !REFUND_REASONS.includes(reason)) ||
+      (destination && destination !== "wallet" && destination !== "source") ||
+      !(limit >= 1 && limit <= 100) ||
+      days > 31
+    )
+      return problem(422, "request.invalid", "A window over 31 days or an unknown value");
+    if (offset === null)
+      return problem(422, "request.invalid_cursor", "That page link is not valid");
+    const rows = refunds()
+      .filter((r) => (!reason || r.reason === reason) && (!from || r.delivery_date >= from))
+      .filter((r) => (!to || r.delivery_date <= to) && (!destination || r.to === destination));
+    const items = rows.slice(offset, offset + limit);
     return HttpResponse.json({
-      items: refunds().filter((r) => r.status === status),
-      next_cursor: null,
+      items,
+      next_cursor: offset + limit < rows.length ? toCursor(offset + limit) : null,
     });
   }),
 ];
