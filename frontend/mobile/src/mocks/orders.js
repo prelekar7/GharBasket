@@ -6,6 +6,7 @@
 import { HttpResponse, http } from "msw";
 import { addonBox } from "./addons.js";
 import { caller, isNewUser } from "./handlers.js";
+import { movedSlot, slotRef } from "./slotData.js";
 import { deliveryStage, TODAY_BOX_ID } from "./tracking.js";
 
 const problem = (
@@ -135,7 +136,7 @@ const walletWasShort = () => {
 /**
  * One order as OrderOut. `lines` and `timeline` go too; the list drops them (OrderSummaryOut).
  * @param {{ id: string, kind: "box" | "tiffin", status: string, delivery_date: string, slot: typeof BOX_SLOT, total_paise: number,
- *   cycle_id: string | null, lines: object[], timeline: object[], created_at: string }} o
+ *   cycle_id: string | null, lines: object[], timeline: object[], created_at: string, discount_paise?: number }} o
  */
 const full = (o) => ({
   id: o.id,
@@ -151,8 +152,9 @@ const full = (o) => ({
   lines: o.lines,
   subtotal_paise: o.total_paise,
   fees_paise: 0,
-  discount_paise: 0,
-  total_paise: o.total_paise,
+  discount_paise: o.discount_paise ?? 0,
+  discount_code: o.discount_paise ? "green_slot" : null,
+  total_paise: o.total_paise - (o.discount_paise ?? 0),
   version: o.timeline.length + 1,
   created_at: o.created_at,
   locked_at: /** @type {any[]} */ (o.timeline).find((e) => e.status === "locked")?.at ?? null,
@@ -176,7 +178,9 @@ function orders(/** @type {"en" | "hi"} */ lang) {
       kind: "box",
       status,
       delivery_date: "2026-10-06",
-      slot: BOX_SLOT,
+      // A green-slot move (M3 §3.6) shows on the order: its slot and the discount (M4 §3.9).
+      slot: slotRef(movedSlot().slot_id, lang),
+      discount_paise: movedSlot().green?.saving_paise,
       total_paise: BOX_TOTAL,
       cycle_id: "0199b000-0000-7000-8000-0000000000c6",
       lines: boxLines(lang),
