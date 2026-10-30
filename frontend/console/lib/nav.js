@@ -28,6 +28,9 @@ const ADMIN_AND_HUB = ["admin", "hub_manager"];
  */
 const PRICE_READERS = [...ADMIN_AND_HUB, "catalog_editor"];
 
+/** @type {ConsoleRole[]} */
+const RECIPE_READERS = ["admin", "hub_manager", "catalog_editor"];
+
 /** @type {NavGroup[]} */
 export const NAV = [
   {
@@ -37,6 +40,8 @@ export const NAV = [
     items: [
       { href: "/catalog", label: "Catalog", ready: true, key: "c" },
       { href: "/catalog/[id]", label: "Product", hidden: true, ready: true },
+      { href: "/recipes", label: "Recipes", ready: true, roles: RECIPE_READERS },
+      { href: "/recipes/[id]", label: "Recipe", hidden: true, ready: true, roles: RECIPE_READERS },
       { href: "/prices", label: "Prices", ready: true, key: "p", roles: PRICE_READERS },
       {
         href: "/prices/publish",
@@ -93,11 +98,9 @@ export const NAV = [
     items: [
       { href: "/today", label: "Ops board", ready: true, key: "t" },
       { href: "/orders", label: "Orders", ready: true, key: "o" },
-      { href: "/issues", label: "Issues", ready: true, roles: ADMIN_AND_HUB },
       { href: "/packing", label: "Packing", ready: true },
       { href: "/routes", label: "Routes", ready: true, key: "r" },
       { href: "/deliveries", label: "Deliveries", ready: true, key: "d" },
-      { href: "/kept-items", label: "Kept items", ready: true },
     ],
   },
   {
@@ -118,7 +121,6 @@ export const NAV = [
     items: [
       { href: "/procurement", label: "Procurement", ready: true },
       { href: "/receiving", label: "Receiving and QC", ready: true },
-      { href: "/inventory", label: "Inventory", ready: true },
       { href: "/vendors", label: "Vendors", ready: true },
       { href: "/waste", label: "Waste and cascade", ready: true, key: "w" },
     ],
@@ -132,7 +134,6 @@ export const NAV = [
       { href: "/partners", label: "Partners and KYC", ready: true },
       { href: "/partners/[id]", label: "Partner", hidden: true, ready: true },
       { href: "/fairness", label: "Fairness", ready: true },
-      { href: "/tiffin-board", label: "Tiffin board", ready: true, roles: ADMIN_AND_HUB },
     ],
   },
   {
