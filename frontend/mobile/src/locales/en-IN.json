@@ -1606,6 +1606,19 @@
       "captainNone": "With your captain",
       "door": "At your door, {flat}",
       "doorNone": "At your door"
+    },
+    "noDot": "On its way to {society}. The map shows once the rider is away from the kitchens.",
+    "tiffin": {
+      "title": "{day}’s tiffin",
+      "cooked": "Cooked by your kitchen",
+      "pickedUp": "Picked up from the kitchen",
+      "refunded": "It couldn’t reach you. You’ve been refunded.",
+      "triage": "It didn’t reach you. We’re sorting it out.",
+      "withCaptain": "With {captain}",
+      "onTheWay": "On the way to {society}, about {time}",
+      "notYet": "Not picked up yet. It reaches you by {time}",
+      "codeTitle": "Your tiffin code",
+      "codeHelp": "Say it at the door when it arrives. Don’t share it before."
     }
   },
   "tiffin": {

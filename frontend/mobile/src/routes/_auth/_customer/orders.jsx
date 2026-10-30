@@ -250,7 +250,7 @@ function Orders() {
                 {t("orders.rate")}
               </Button>
             )}
-            {current.kind === "box" && TRACKABLE.has(current.status) && (
+            {TRACKABLE.has(current.status) && (
               <Button
                 variant="primary"
                 onPress={() =>
