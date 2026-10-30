@@ -23,7 +23,6 @@ import { pricesHandlers } from "./prices.js";
 import { procurementHandlers } from "./procurement.js";
 import { publicHandlers } from "./public.js";
 import { receivingHandlers } from "./receiving.js";
-import { settingsHandlers } from "./settings.js";
 import { teamHandlers } from "./team.js";
 import { vendorsHandlers } from "./vendors.js";
 import { wasteHandlers } from "./waste.js";
@@ -49,7 +48,6 @@ export const handlers = [
   ...plansHandlers,
   ...pricesHandlers,
   ...publicHandlers,
-  ...settingsHandlers,
   ...teamHandlers,
   ...opsBoardHandlers,
   ...packingHandlers,

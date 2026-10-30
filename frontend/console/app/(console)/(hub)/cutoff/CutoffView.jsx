@@ -1,12 +1,10 @@
 "use client";
 
-import { Button, Dialog, EmptyState, ProgressBar, toast } from "@gharbasket/ui";
+import { EmptyState, ProgressBar } from "@gharbasket/ui";
 import { DataTable } from "@gharbasket/ui/console";
-import { useRef, useState, useTransition } from "react";
 import { PageHead } from "@/components/ops/PageHead.jsx";
 import { StatTile } from "@/components/ops/StatTile.jsx";
 import { clockLabel, dayLabel, istDay, timeLeft, weekdayName } from "@/lib/when.js";
-import { rerunCutoff } from "./actions.js";
 
 /** @type {import("@/components/ops/types.js").Columns} */
 const COLUMNS = [
@@ -19,30 +17,17 @@ const COLUMNS = [
 ];
 
 /**
- * The cut-off monitor: the night's numbers, the last run, and who is short in the wallet.
- * @param {{ hubId: string, cutoff: import("./page.jsx").Cutoff, canRun: boolean }} props
+ * The cut-off monitor: the night's numbers, the last run, and who is short in the wallet. Read only:
+ * the `cutoff_lock` job runs the cut-off at 21:00, nobody runs it by hand.
+ * `hubId` and `canRun` are what page.jsx used to pass for the removed "Re-run cut-off" button; they are
+ * ignored, and page.jsx stops passing them once its other branch lands.
+ * @param {{ cutoff: import("./page.jsx").Cutoff, hubId?: string, canRun?: boolean }} props
  */
-export function CutoffView({ hubId, cutoff, canRun }) {
+export function CutoffView({ cutoff }) {
   const { counts, last_run: last, short } = cutoff;
-  const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
-  // One Idempotency-Key per confirmation: a retried click replays, a new confirmation runs again.
-  const key = useRef(crypto.randomUUID());
   const left = timeLeft(cutoff.as_of, cutoff.cutoff_at);
   const tonight = istDay(cutoff.cutoff_at) === istDay(cutoff.as_of);
   const grace = clockLabel(cutoff.grace_until);
-
-  function confirm() {
-    startTransition(async () => {
-      const r = await rerunCutoff(hubId, key.current);
-      key.current = crypto.randomUUID();
-      toast(
-        r.ok
-          ? `Cut-off re-run: ${r.newlyLocked} new ${r.newlyLocked === 1 ? "order" : "orders"} locked, none charged twice.`
-          : r.message,
-      );
-    });
-  }
 
   /** @type {import("@/components/ops/types.js").Rows} */
   const rows = short.map((s) => ({
@@ -59,15 +44,6 @@ export function CutoffView({ hubId, cutoff, canRun }) {
     <>
       <PageHead
         title={`Cut-off · ${tonight ? "tonight, " : ""}${dayLabel(istDay(cutoff.cutoff_at))}, ${clockLabel(cutoff.cutoff_at)}`}
-        action={
-          canRun ? (
-            <Button isDisabled={pending} onPress={() => setOpen(true)}>
-              Re-run cut-off
-            </Button>
-          ) : (
-            <span className="text-sm text-fg-secondary">Only an admin can re-run the cut-off.</span>
-          )
-        }
       >
         At {clockLabel(cutoff.cutoff_at)} approved boxes for {dayLabel(cutoff.delivery_date)} are
         paid from the wallet and locked for packing.
@@ -124,22 +100,6 @@ export function CutoffView({ hubId, cutoff, canRun }) {
           />
         )}
       </section>
-
-      <p className="text-sm leading-5 text-fg-secondary">
-        A re-run is safe: it only locks orders not yet locked and never charges twice.
-      </p>
-
-      <Dialog
-        title={`Re-run the cut-off for ${dayLabel(cutoff.delivery_date)}?`}
-        confirmLabel="Re-run cut-off"
-        cancelLabel="Cancel"
-        isOpen={open}
-        onOpenChange={setOpen}
-        onConfirm={confirm}
-      >
-        Approved boxes are paid from the wallet and locked for packing. Orders already locked are
-        skipped, so no one is charged twice.
-      </Dialog>
     </>
   );
 }

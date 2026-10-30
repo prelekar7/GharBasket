@@ -79,7 +79,7 @@ const SOCIETIES = [
   },
 ];
 
-/** Finds a society by its UUID or its slug (other mocks still say "sunrise-towers"). @param {string} idOrSlug */
+/** Finds a society by its UUID or its slug (the app links by id; the slug stays for old links). @param {string} idOrSlug */
 const find = (idOrSlug) => SOCIETIES.find((s) => s.id === idOrSlug || s.slug === idOrSlug);
 
 /** Hindi for the words the server would localise; society names stay as people write them. */

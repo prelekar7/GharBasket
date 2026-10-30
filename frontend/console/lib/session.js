@@ -28,14 +28,20 @@ export const FRESH_COOKIE = "gb_fresh";
  */
 export const isMockApi = () => process.env.GB_API_MOCK !== "false";
 
-/** @typedef {"admin" | "hub_manager" | "franchise_owner" | "ngo_coordinator"} ConsoleRole */
+/** @typedef {"admin" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "catalog_editor"} ConsoleRole */
 
 /**
  * The staff roles that may use the console, best first. A person who holds several works as the
  * first one unless they chose another.
  * @type {ConsoleRole[]}
  */
-export const STAFF_ROLES = ["admin", "hub_manager", "franchise_owner", "ngo_coordinator"];
+export const STAFF_ROLES = [
+  "admin",
+  "hub_manager",
+  "franchise_owner",
+  "ngo_coordinator",
+  "catalog_editor",
+];
 
 /** What a staff role is scoped to in `/v1/me` and in `X-Active-Role` (null: not scoped). */
 export const SCOPE_TYPE = /** @type {const} */ ({
@@ -43,6 +49,7 @@ export const SCOPE_TYPE = /** @type {const} */ ({
   hub_manager: "hub",
   franchise_owner: "hub",
   ngo_coordinator: "ngo",
+  catalog_editor: null,
 });
 
 /**
@@ -58,7 +65,7 @@ export const ROLES = {
     home: "/catalog",
     person: "Neha Iyer",
     phone: "9800001011",
-    sections: ["admin", "hub", "community", "intelligence", "franchise", "analytics"],
+    sections: ["catalog", "admin", "hub", "community", "intelligence", "franchise", "analytics"],
   },
   hub_manager: {
     label: "Hub manager",
@@ -80,6 +87,14 @@ export const ROLES = {
     person: "Asha Fernandes",
     phone: "9800001010",
     sections: ["community"],
+    realOnly: true,
+  },
+  catalog_editor: {
+    label: "Catalog editor",
+    home: "/catalog",
+    person: "Rekha Joshi",
+    phone: "9800001013",
+    sections: ["catalog"],
     realOnly: true,
   },
 };
@@ -114,7 +129,7 @@ export const devLoginEnabled =
 
 /**
  * @typedef {object} MeRole one entry of `GET /v1/me` `roles` (M1 §3.1)
- * @property {string} role customer, captain, kitchen_partner, rider, packer, hub_manager, franchise_owner, ngo_coordinator, admin
+ * @property {string} role customer, captain, kitchen_partner, rider, packer, hub_manager, franchise_owner, ngo_coordinator, admin, catalog_editor
  * @property {"society" | "hub" | "ngo" | null} scope_type
  * @property {string | null} scope_id uuid of the hub, society or NGO
  * @property {string} status applied, kyc_pending, verified or suspended

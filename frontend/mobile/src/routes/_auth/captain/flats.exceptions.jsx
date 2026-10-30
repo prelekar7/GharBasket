@@ -57,7 +57,11 @@ function Exceptions() {
               {t("captain.exceptions.notHome", { flat: flat.flat_label })}
             </h2>
             <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
-              {t("captain.exceptions.notHomeBody")}
+              {t(
+                flat.kind === "tiffin"
+                  ? "captain.exceptions.tiffinBody"
+                  : "captain.exceptions.notHomeBody",
+              )}
             </p>
           </section>
         ) : (

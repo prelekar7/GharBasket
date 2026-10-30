@@ -6,7 +6,7 @@
 // UUIDs, money is integer paise. Times: respond_by is UTC, ready_by an IST clock time.
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
-import { HUB_ID } from "./packer.js";
+import { HUB_ID, SOCIETY_ID as SEED_SOCIETY_ID } from "./packer.js";
 import { mockPdfUrl } from "./pdf.js";
 
 const KEY = "gb-mock-kitchen-v2";
@@ -35,7 +35,7 @@ const name = (/** @type {keyof typeof NAMES} */ code, /** @type {Request} */ r) 
   return NAMES[code][Math.max(0, LANGS.indexOf(lang))];
 };
 const SOCIETY_ID = {
-  "sunrise-towers": uid("e", 1),
+  "sunrise-towers": SEED_SOCIETY_ID,
   "krishna-kunj": uid("e", 2),
 };
 const DISH_ID = { varan_bhaat: uid("d", 1), chapati_bhaji: uid("d", 2), jain: uid("d", 3) };
