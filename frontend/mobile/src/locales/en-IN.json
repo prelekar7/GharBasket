@@ -1549,29 +1549,12 @@
   "rate": {
     "when": "{day} · delivered",
     "title": "How was today?",
-    "box": "Your box",
     "tiffin": "{slot, select, dinner {Dinner tiffin} other {Lunch tiffin}}",
     "tiffinBy": "{dish} · {cook}",
-    "tags": {
-      "box": {
-        "fresh": "Fresh",
-        "on_time": "On time",
-        "packed_well": "Packed well",
-        "missing": "Something was missing"
-      },
-      "tiffin": {
-        "tasty": "Tasty",
-        "hot": "Hot enough",
-        "portion": "Right portion",
-        "oily": "Too oily"
-      }
-    },
     "more": "Anything else? (optional)",
     "morePh": "Tell us in your own words",
     "privacy": "{cook} and {captain} see the average rating, never your name or flat.",
     "privacyNoCaptain": "{cook} and your captain see the average rating, never your name or flat.",
-    "privacyBox": "{captain} and the hub see the average rating, never your name or flat.",
-    "privacyBoxNoCaptain": "Your captain and the hub see the average rating, never your name or flat.",
     "send": "Send rating",
     "problem": "Report a problem with this order",
     "thanks": "Thank you. Your rating is in.",
@@ -1580,7 +1563,9 @@
     "doneBody": "Thanks for rating this delivery. You can still report a problem from Orders.",
     "notYetTitle": "Not delivered yet",
     "notYetBody": "You can rate it once it reaches your door.",
-    "backToOrders": "Back to Orders"
+    "backToOrders": "Back to Orders",
+    "noneTitle": "No tiffin to rate",
+    "noneBody": "Ratings are for home-cooked tiffins. This delivery had none."
   },
   "budget": {
     "title": "Budget Lock",

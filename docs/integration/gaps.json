@@ -43,34 +43,6 @@
       "fix": "F4: drop the 'Check now' button; the hourly Razorpay check is a job. Ask for an admin trigger only if wanted.",
       "note": "No endpoint in M5 §3.4."
     },
-    "GET /v1/tiffin-offers": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "Call GET /v1/tiffin-menus?date=&meal= and map the menus to offers (M4 §3.5 table 'Mock today'). Built on main (#317).",
-      "note": "The cycle does not carry offers."
-    },
-    "GET /v1/orders/{}/tiffin": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "Read OrderOut.tiffin and OrderOut.kitchen (on main, #319), then GET /v1/partners/{kitchen.partner_id}/card for the cook.",
-      "note": "M8 §3.4 table 'Mock today'."
-    },
-    "GET /v1/orders/{}/rating": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "GET /v1/ratings?order_id={id}. The endpoint ships with the M8 stack.",
-      "note": "M8 §3.5."
-    },
-    "POST /v1/orders/{}/rating": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "POST /v1/ratings with { order_id, stars } and an Idempotency-Key. The endpoint ships with the M8 stack.",
-      "note": "M8 §3.5."
-    },
     "POST /v1/hubs/{}/cutoff/run": {
       "app": "console",
       "class": "fix-frontend",

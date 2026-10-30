@@ -8,10 +8,10 @@ The classes come from `docs/integration/gaps.json`, which is edited by hand.
 
 | App | Call sites | Found | Wrong method | Missing | Unresolved | Wrapped (not shipped / @proposal) |
 |---|--:|--:|--:|--:|--:|--:|
-| mobile | 115 | 104 | 0 | 8 | 3 | 7 |
+| mobile | 114 | 106 | 0 | 5 | 3 | 4 |
 | console | 181 | 169 | 1 | 9 | 2 | 25 |
 
-Distinct endpoints called: mobile 98, console 139. A call site is one `request(`/`apiGet(` … in the source.
+Distinct endpoints called: mobile 97, console 139. A call site is one `request(`/`apiGet(` … in the source.
 
 ## Gaps by class
 
@@ -19,26 +19,23 @@ Distinct endpoints called: mobile 98, console 139. A call site is one `request(`
 |---|--:|--:|--:|
 | unclassified | 0 | 0 call sites | 0 call sites |
 | pending-pr | 0 | 0 call sites | 0 call sites |
-| fix-frontend | 4 | 3 call sites | 1 call sites |
+| fix-frontend | 1 | 0 call sites | 1 call sites |
 | fix-backend | 0 | 0 call sites | 0 call sites |
 | later | 0 | 0 call sites | 0 call sites |
 | drop | 14 | 5 call sites | 9 call sites |
 
-18 gap endpoints in all (a call that is missing, or exists only with another method).
+15 gap endpoints in all (a call that is missing, or exists only with another method).
 
 Classes: `pending-pr` an open or stacked PR builds it; `fix-frontend` the frontend should change (a wrong method, id or
 path, or a call the spec rules out); `fix-backend` the backend lacks it and no spec says when (a frontend proposal or an
 unspecified view): spec it, build it, or tell the frontend to drop it; `later` a spec exists and a milestone builds it;
 `drop` mocked by decision, no real endpoint.
 
-### fix-frontend (4)
+### fix-frontend (1)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
-| `GET /v1/orders/{}/rating` (guarded) | mobile | `mobile/src/features/orders/queries.js:118` | GET /v1/ratings?order_id={id}. The endpoint ships with the M8 stack. M8 §3.5. | yash |  |
-| `GET /v1/orders/{}/tiffin` (guarded) | mobile | `mobile/src/features/orders/queries.js:96` | Read OrderOut.tiffin and OrderOut.kitchen (on main, #319), then GET /v1/partners/{kitchen.partner_id}/card for the cook. M8 §3.4 table 'Mock today'. | yash |  |
 | `GET /v1/public/cooks/{}` | console | `console/lib/public-api.js:64` | Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public. M12 §3.7: public cook profiles are M8's card. | yash |  |
-| `POST /v1/orders/{}/rating` (guarded) | mobile | `mobile/src/features/orders/queries.js:190` | POST /v1/ratings with { order_id, stars } and an Idempotency-Key. The endpoint ships with the M8 stack. M8 §3.5. | yash |  |
 
 ### drop (14)
 
@@ -92,7 +89,6 @@ The static scan could not tell the method or path. They are not counted as found
 - stale: POST /v1/admin/reconciliation/{}/credit: classified as fix-frontend, but no frontend calls it any more
 - stale: POST /v1/admin/reconciliation/{}/investigate: classified as fix-frontend, but no frontend calls it any more
 - stale: POST /v1/admin/reconciliation/check: classified as fix-frontend, but no frontend calls it any more
-- stale: GET /v1/tiffin-offers: classified as fix-frontend, but no frontend calls it any more
 - stale: POST /v1/hubs/{}/cutoff/run: classified as fix-frontend, but no frontend calls it any more
 - stale: GET /v1/admin/hubs: classified as fix-frontend, but no frontend calls it any more
 - stale: GET /v1/public/societies: classified as fix-frontend, but no frontend calls it any more
