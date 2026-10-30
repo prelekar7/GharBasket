@@ -6,12 +6,8 @@ import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ProfileActions } from "@/components/ProfileActions.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLabel } from "@/features/captain/parts.jsx";
-import {
-  downloadCertificate,
-  useCaptainDay,
-  useCaptainPartner,
-  useEarnings,
-} from "@/features/captain/queries.js";
+import { useCaptainDay, useCaptainPartner, useEarnings } from "@/features/captain/queries.js";
+import { openCertificate } from "@/features/partners/certificate.js";
 
 /**
  * What this week's delivery days paid, when it reaches the bank, and the income certificate (design
@@ -78,7 +74,7 @@ function Earnings() {
         isPending={busy}
         onPress={async () => {
           setBusy(true);
-          await downloadCertificate()
+          await openCertificate()
             .catch(() => toast(t("captain.earnings.certFailed")))
             .finally(() => setBusy(false));
         }}

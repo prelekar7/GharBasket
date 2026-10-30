@@ -8,6 +8,8 @@ import { fieldProblem, problem, shapeError } from "./identity.js";
 
 const LOCALES = ["en-IN", "hi-IN", "mr-IN"];
 const DEVICES_KEY = "gb-mock-devices";
+/** Mock-only: the token the server holds for the signed-in session (tests read it). */
+export const PUSH_TOKEN_KEY = "gb-mock-push-token";
 
 /** @typedef {{ id: string, platform: "android" | "web", signed_in_at: string, last_seen_at: string, current: boolean }} Device */
 
@@ -63,6 +65,27 @@ export const profileHandlers = [
     all[phone] = { ...all[phone], ...patch };
     localStorage.setItem(PROFILE_KEY, JSON.stringify(all));
     return HttpResponse.json({ ...userFor(phone), roles: rolesFor(phone) });
+  }),
+
+  // PUT /v1/me/push-token (PushTokenIn → 204): sets this session's FCM token, null clears it.
+  http.put("*/v1/me/push-token", async ({ request }) => {
+    const phone = caller(request);
+    if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
+    const body = await request.json().catch(() => undefined);
+    if (body === undefined) return problem(400, "http.400", "The body cannot be read");
+    const bad = shapeError(body, ["push_token"], ["push_token"]);
+    if (bad) return fieldProblem(bad);
+    const token = /** @type {any} */ (body).push_token;
+    if (token !== null && (typeof token !== "string" || token.length < 1 || token.length > 4096))
+      return fieldProblem({
+        loc: ["push_token"],
+        message: "String should have 1 to 4096 characters",
+        type: "string_too_short",
+      });
+    // The same token on another session of this user is cleared there; the mock has one.
+    if (token === null) localStorage.removeItem(PUSH_TOKEN_KEY);
+    else localStorage.setItem(PUSH_TOKEN_KEY, token);
+    return new HttpResponse(null, { status: 204 });
   }),
 
   // GET /v1/me/devices: a bare list, newest first.

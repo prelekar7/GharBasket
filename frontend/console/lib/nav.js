@@ -13,7 +13,7 @@ import { ROLES } from "./session.js";
  *   the sidebar. `[id]` in an href matches one path segment.
  * - `key` is the letter of the "G then <letter>" shortcut.
  *
- * @typedef {"admin" | "hub" | "franchise" | "analytics" | "intelligence" | "community"} Section
+ * @typedef {"catalog" | "admin" | "hub" | "franchise" | "analytics" | "intelligence" | "community"} Section
  * @typedef {import("./session.js").ConsoleRole} ConsoleRole
  * @typedef {{ href: string, label: string, ready?: boolean, hidden?: boolean, key?: string, roles?: ConsoleRole[] }} NavItem
  * @typedef {{ id: string, section: Section, label: string, items: NavItem[] }} NavGroup
@@ -22,16 +22,27 @@ import { ROLES } from "./session.js";
 /** @type {ConsoleRole[]} */
 const ADMIN_AND_HUB = ["admin", "hub_manager"];
 
+/**
+ * Who may read the price lists: the catalog editor reads them too (publishing stays with admin and hub manager).
+ * @type {ConsoleRole[]}
+ */
+const PRICE_READERS = [...ADMIN_AND_HUB, "catalog_editor"];
+
+/** @type {ConsoleRole[]} */
+const RECIPE_READERS = ["admin", "hub_manager", "catalog_editor"];
+
 /** @type {NavGroup[]} */
 export const NAV = [
   {
-    id: "admin",
-    section: "admin",
-    label: "Admin",
+    id: "catalog",
+    section: "catalog",
+    label: "Catalog",
     items: [
       { href: "/catalog", label: "Catalog", ready: true, key: "c" },
       { href: "/catalog/[id]", label: "Product", hidden: true, ready: true },
-      { href: "/prices", label: "Prices", ready: true, key: "p", roles: ADMIN_AND_HUB },
+      { href: "/recipes", label: "Recipes", ready: true, roles: RECIPE_READERS },
+      { href: "/recipes/[id]", label: "Recipe", hidden: true, ready: true, roles: RECIPE_READERS },
+      { href: "/prices", label: "Prices", ready: true, key: "p", roles: PRICE_READERS },
       {
         href: "/prices/publish",
         label: "Publish a price list",
@@ -39,6 +50,13 @@ export const NAV = [
         ready: true,
         roles: ADMIN_AND_HUB,
       },
+    ],
+  },
+  {
+    id: "admin",
+    section: "admin",
+    label: "Admin",
+    items: [
       { href: "/plans", label: "Plans", ready: true },
       { href: "/hubs", label: "Hubs", ready: true, key: "h" },
       { href: "/societies", label: "Societies", ready: true, key: "s", roles: ADMIN_AND_HUB },
@@ -92,7 +110,6 @@ export const NAV = [
     items: [
       { href: "/cutoff", label: "Cut-off", ready: true },
       { href: "/slots", label: "Slots", ready: true },
-      { href: "/cycles", label: "Cycles", ready: true },
       { href: "/delivery-days", label: "Delivery days", ready: true },
     ],
   },
@@ -122,10 +139,7 @@ export const NAV = [
     id: "intelligence",
     section: "intelligence",
     label: "Intelligence",
-    items: [
-      { href: "/ai-health", label: "AI health", ready: true },
-      { href: "/experiments", label: "Experiments", ready: true },
-    ],
+    items: [{ href: "/ai-health", label: "AI health", ready: true }],
   },
   {
     id: "community",

@@ -8,11 +8,13 @@
 //   POST /v1/kyc-documents/{id}/file-links                      5-minute signed links, audit-logged (§3.1)
 //   POST /v1/kitchens/{partner_id}/inspection {grade, note}     Kitchen                            (§3.4)
 //   GET  /v1/hubs/{id}/partner-rates                            RateCard                           (§3.6)
+//   GET  /v1/partners/{id}/earnings/certificate?from&to         CertificateLink: a 5-minute PDF link (§3.7)
 // Documents are never Aadhaar and numbers only come back masked ("XXXXXX234F"). The fairness dashboard at the end
 // is still a proposal (M8 §8 only says it reads `assignment_runs`; no endpoint is specified).
 // Seed people: Lata Shinde (kitchen), Arjun Pawar (rider), Meena Jadhav (captain, Sunrise Towers) and Kavita More
 // (packer); the applicants are made-up samples.
 import { HttpResponse, http } from "msw";
+import { monthOptions, monthsUpTo } from "../lib/months.js";
 import { deny, istDay } from "./adminShared.js";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { SOCIETY_ID } from "./ids.js";
@@ -20,6 +22,9 @@ import { PARTNER_ID } from "./partner-ids.js";
 import { fieldError, idempotent, mockStore, mockUuid, problem, roleOf } from "./util.js";
 
 const HUB_ID = KHARGHAR_HUB_ID;
+/** The mock link of an income certificate: a one-page PDF in `public/` (the real one is a signed storage URL). */
+export const MOCK_CERTIFICATE_PDF = "/mock-income-certificate.pdf";
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const NOW = "2026-10-06T09:40:00+05:30";
 const THALI_PAISE = 6000;
 
@@ -328,57 +333,43 @@ const RATES = [
   { kind: "packer", basis: "packed_order", amount_paise: 400 },
 ];
 
-// ---- Fairness: how kitchen tiffins were spread last week, and the weight the nightly assignment uses -------------------
+// ---- Fairness: the λ in use and the latest assignment runs (M8 §3.8; the real FairnessOut, backend/api/openapi.json) -------
 
-/** Week of 28 Sep. Lata Shinde is the seed kitchen at ₹70 a tiffin; the other three are samples. Gini and shares are the API's numbers. */
-const fairnessStore = () =>
-  mockStore("partners-fairness", () => ({
-    week_start: "2026-09-28",
-    gini: 0.14,
-    gini_trend: [0.24, 0.21, 0.19, 0.14],
-    gini_change: -0.05,
-    gini_change_note: "since λ was raised",
-    top_share_pct: 31,
-    top_share_change_pts: -6,
-    lambda: 0.3,
-    lambda_changed_by: /** @type {string | null} */ ("Neha Iyer"),
-    lambda_changed_at: /** @type {string | null} */ ("2026-09-22T18:10:00+05:30"),
-    fallback_active: false,
-    kitchens: [
-      {
-        partner_id: PARTNER_ID.lata,
-        name: "Lata Shinde",
-        tiffins: 47,
-        capacity: 80,
-        earned_paise: 47 * THALI_PAISE,
-        rating: 4.7,
-      },
-      {
-        partner_id: null,
-        name: "Kitchen 2",
-        tiffins: 44,
-        capacity: 70,
-        earned_paise: 44 * THALI_PAISE,
-        rating: 4.6,
-      },
-      {
-        partner_id: null,
-        name: "Kitchen 3",
-        tiffins: 38,
-        capacity: 60,
-        earned_paise: 38 * THALI_PAISE,
-        rating: 4.8,
-      },
-      {
-        partner_id: null,
-        name: "Kitchen 4",
-        tiffins: 22,
-        capacity: 60,
-        earned_paise: 22 * THALI_PAISE,
-        rating: 4.5,
-      },
-    ],
-  }));
+/** λ is PARTNERS_FAIRNESS_LAMBDA in paise per portion (M10 §3.5): 300 is the knee of the offline sweep. */
+const FAIRNESS_LAMBDA_PAISE = 300;
+
+/** Two weeks of lunch and dinner rounds ending on 5 Oct, newest first; the Gini falls as the weight bites. The newest dinner fell back to M8's greedy. */
+const fairnessRuns = () =>
+  mockStore("partners-fairness-runs", () => {
+    /** @type {Record<string, any>[]} */
+    const runs = [];
+    for (let i = 0; i < 28; i++) {
+      const day = new Date(Date.UTC(2026, 9, 5) - Math.floor(i / 2) * 86_400_000);
+      const meal = i % 2 === 0 ? "dinner" : "lunch";
+      const fallback = i === 0;
+      const earlier = i >= 26; // before the run recorded its λ
+      runs.push({
+        run_id: mockUuid("b910", i + 1),
+        date: day.toISOString().slice(0, 10),
+        meal,
+        round: i % 5 === 4 ? 2 : 1,
+        source: fallback ? "fallback" : "ml",
+        model: fallback ? "greedy-m8" : "cp-sat-v2",
+        status: fallback ? "fallback" : "solved",
+        portions: 40 + ((i * 7) % 13),
+        kitchens_used: fallback ? 2 : 4,
+        unassigned: i % 9 === 8 ? 2 : 0,
+        gini: i === 5 ? null : Math.round((0.14 + i * 0.006) * 100) / 100,
+        gini_eligible: i === 5 ? null : Math.round((0.11 + i * 0.005) * 100) / 100,
+        km_per_portion: i === 5 ? null : Math.round((1.8 + (i % 4) * 0.1) * 10) / 10,
+        lambda_paise: earlier ? null : FAIRNESS_LAMBDA_PAISE,
+        at: new Date(
+          day.getTime() + (meal === "dinner" ? 21.5 : 9.5) * 3_600_000 - 5.5 * 3_600_000,
+        ).toISOString(),
+      });
+    }
+    return runs;
+  });
 
 /** @param {string} iso */
 const monthOf = (iso) => iso.slice(0, 7);
@@ -560,6 +551,44 @@ export const partnersHandlers = [
       : problem(404, "partners.partner_not_found", "No such partner");
   }),
 
+  // GET /v1/partners/{id}/earnings/certificate?from=&to= (M8 §3.7, US-12): the PDF of one person's earnings by
+  // month, issued by hub staff. A 5-minute link; here the PDF is a file of this site. `left` is a 404.
+  http.get("*/v1/partners/:id/earnings/certificate", ({ request, params }) => {
+    const refused = deny(request, STAFF);
+    if (refused) return refused;
+    const p = partnersStore().find((x) => x.id === params.id);
+    if (!p || p.status === "left")
+      return problem(404, "partners.partner_not_found", "No such partner");
+    const query = new URL(request.url).searchParams;
+    const thisMonth = monthOptions(Date.now())[0].value;
+    const to = query.get("to") ?? thisMonth;
+    const from = query.get("from") ?? (MONTH.test(to) ? monthsUpTo(to, 6)[0] : to);
+    // "YYYY-MM" sorts as text: from ≤ to ≤ this month, and `from` no earlier than 12 months up to `to`.
+    if (
+      !(MONTH.test(from) && MONTH.test(to)) ||
+      from > to ||
+      to > thisMonth ||
+      from < monthsUpTo(to, 12)[0]
+    )
+      return problem(
+        422,
+        "partners.certificate_period_invalid",
+        "Pick months like 2026-05 to 2026-10, at most 12, none in the future",
+        { max_months: 12 },
+      );
+    return HttpResponse.json(
+      {
+        reference: `GBIC-MOCK-${String(p.id).slice(-4).toUpperCase()}`,
+        from,
+        to,
+        url: MOCK_CERTIFICATE_PDF,
+        filename: `gharbasket-income-certificate-${from}-to-${to}.pdf`,
+        expires_at: new Date(Date.now() + 5 * 60_000).toISOString().replace(/\.\d+Z$/, "Z"),
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
+  }),
+
   // GET /v1/partners/{id}/card (M8 §3.5): what families see of a kitchen. Never an address, phone or KYC detail.
   http.get("*/v1/partners/:id/card", ({ params }) => {
     const p = partnersStore().find((x) => x.id === params.id);
@@ -675,43 +704,22 @@ export const partnersHandlers = [
     });
   }),
 
-  // GET /v1/hubs/{id}/fairness (proposal): the earnings distribution of last week (analytics `mv_partner_earnings_distribution`,
-  // M12) with the current fairness weight λ of the M10 assignment. `kitchens_under_half` counts kitchens below half their capacity.
-  http.get("*/v1/hubs/:hub/fairness", ({ params }) => {
-    if (params.hub !== HUB_ID) return problem(404, "hubs.not_found", "No such hub");
-    const f = fairnessStore();
+  // GET /v1/hubs/{hub_id}/fairness?runs=28 (M8 §3.8): hub_manager, franchise_owner (their hub), admin. A hub outside the grants is 403.
+  http.get("*/v1/hubs/:hub/fairness", ({ request, params }) => {
+    const refused = deny(request, READERS);
+    if (refused) return refused;
+    if (params.hub !== HUB_ID && roleOf(request) !== "admin")
+      return problem(403, "auth.forbidden", "That hub is not yours");
+    const q = new URL(request.url).searchParams;
+    const count = q.has("runs") ? Number(q.get("runs")) : 28;
+    if (!Number.isInteger(count) || count < 1 || count > 100)
+      return problem(422, "request.invalid", "runs is 1 to 100");
+    const runs = fairnessRuns().slice(0, count);
     return HttpResponse.json({
-      ...f,
-      kitchens_under_half: f.kitchens.filter((k) => k.tiffins < k.capacity / 2).length,
-    });
-  }),
-
-  // PUT /v1/hubs/{id}/fairness-weight (proposal): admin only; every change is logged with who made it.
-  http.put("*/v1/hubs/:hub/fairness-weight", async ({ request, params }) => {
-    if (params.hub !== HUB_ID) return problem(404, "hubs.not_found", "No such hub");
-    if (roleOf(request) !== "admin")
-      return problem(403, "partners.admin_only", "Only an admin can change the fairness weight");
-    const body = /** @type {any} */ (await request.json().catch(() => null));
-    const value = Number(body?.lambda);
-    if (
-      body?.lambda === "" ||
-      body?.lambda == null ||
-      !Number.isFinite(value) ||
-      value < 0 ||
-      value > 1
-    ) {
-      return problem(422, "request.invalid", "Weight must be from 0 to 1", {
-        errors: [{ field: "lambda", message: "Enter a number from 0 to 1" }],
-      });
-    }
-    const f = fairnessStore();
-    f.lambda = value;
-    f.lambda_changed_by = "Neha Iyer";
-    f.lambda_changed_at = NOW;
-    return HttpResponse.json({
-      lambda: f.lambda,
-      lambda_changed_by: f.lambda_changed_by,
-      lambda_changed_at: f.lambda_changed_at,
+      hub_id: params.hub,
+      lambda_paise: FAIRNESS_LAMBDA_PAISE,
+      fallback_active: runs[0]?.model === "greedy-m8",
+      runs,
     });
   }),
 ];

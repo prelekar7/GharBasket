@@ -451,7 +451,8 @@
       "skipped": "This week is skipped. No box and no charge.",
       "locked": "Edits are closed. Your box is being packed.",
       "draft": "We’re still planning this week. You’ll be able to check it soon.",
-      "cancelled": "This week’s box was cancelled. Nothing was charged."
+      "cancelled": "This week’s box was cancelled. Nothing was charged.",
+      "payment_failed": "Your box wasn’t paid at the cut-off. Add money to your wallet to keep it."
     },
     "brings": "{name} brings it to {flat}",
     "open": "Open box",
@@ -704,7 +705,7 @@
       "messageGeneric": "Hum GharBasket join kar rahe hain. Hafte ka khana aur sabzi pehle se plan. {society} mein delivery shuru karwane ke liye join karo: {link}"
     },
     "impact": {
-      "title": "This month in {society}",
+      "title": "{society} so far",
       "body": "{kg} kg food not wasted · {n} items donated ·",
       "cooks": "earned by partners in our hub"
     },
@@ -784,7 +785,36 @@
     "emptyBody": "Your first box shows here once your society unlocks and you approve the week.",
     "track": "Track live",
     "rate": "How was today?",
-    "rated": "Thanks for rating today’s delivery."
+    "rated": "Thanks for rating today’s delivery.",
+    "addons": {
+      "open": "Add-ons",
+      "title": "Add-ons",
+      "lead": "Add, change or remove items until {cutoff}. They are paid with your box at the cut-off.",
+      "none": "No add-ons yet. Search below to add something to this box.",
+      "removed": "Will be removed",
+      "listed": "Added",
+      "save": "Save add-ons",
+      "saved": "Add-ons saved.",
+      "closed": "The cut-off has passed, so this box can no longer be changed.",
+      "changed": "Your order changed. We have loaded it again, please check and save once more.",
+      "unavailable": "One of these isn’t available at your hub right now. Remove it and try again.",
+      "limits": "Choose 1 to 20 of an item, and at most 20 different add-ons.",
+      "failed": "We couldn’t save the add-ons. Check your internet and try again."
+    },
+    "feedback": {
+      "open": "Was it enough?",
+      "title": "How did the week go?",
+      "lead": "For each item, tell us if it ran out, was wasted, or was just right. Next week’s box gets better.",
+      "ran_out": "Ran out",
+      "wasted": "Wasted",
+      "just_right": "Just right",
+      "send": "Send",
+      "sent": "Thank you. We will use this for next week’s box.",
+      "thanks": "Thanks for telling us how the week went.",
+      "closed": "Feedback is open for 14 days after delivery, and that time is over.",
+      "unknown": "One of these items was not in this box. Please close and open this again.",
+      "failed": "We couldn’t send it. Check your internet and try again."
+    }
   },
   "kindness": {
     "title": "Your gullak",
@@ -992,6 +1022,8 @@
   },
   "notif": {
     "title": "Notifications",
+    "markAll": "Mark all as read",
+    "markAllFailed": "We couldn’t mark them read. Check your internet and try again.",
     "settings": "What you get",
     "unread": "unread",
     "unreadCount": "{n} new",
@@ -1143,7 +1175,8 @@
     "when": "{day} · {slot} slot · van {plate}",
     "map": {
       "label": "Route map: the van, {count, plural, one {# society} other {# societies}} and the way back to the hub",
-      "fallback": "The map can’t show on this phone right now. Your stops are below, in order."
+      "fallback": "The map can’t show on this phone right now. Your stops are below, in order.",
+      "labelTiffin": "Route map: the van, {count, plural, one {# stop} other {# stops}} (kitchens and societies) and the way back to the hub"
     },
     "card": {
       "stop": "Stop {n}",
@@ -1255,6 +1288,53 @@
       "cert": "Download income certificate",
       "certFailed": "The certificate didn’t download. Try again.",
       "none": "Your earnings show here after your first route."
+    },
+    "kitchen": {
+      "where": "Pickup · {area} · {portions, plural, one {# portion} other {# portions}}",
+      "readyBy": "Ready by {time}",
+      "addressLater": "The address shows once the route has started.",
+      "tiffins": "Tiffins to collect",
+      "scan": "Scan kitchen code",
+      "scanned": "Collected",
+      "queued": "Saved. It will be sent when you have signal.",
+      "noScanner": "This phone can’t scan yet. Try again after the next update.",
+      "got": "Collected: {codes}",
+      "already": "{n, plural, one {# tiffin was} other {# tiffins were}} collected earlier.",
+      "notReady": "Not ready yet: {codes}. Scan again when the kitchen is done.",
+      "notOnRoute": "{n, plural, one {# tiffin here is} other {# tiffins here are}} on no stop of your route. Leave {n, plural, one {it} other {them}} with the kitchen."
+    },
+    "tiffin": {
+      "count": "{n, plural, one {# tiffin} other {# tiffins}}",
+      "portions": "{n, plural, one {# portion} other {# portions}}",
+      "heading": "Tiffins for this society",
+      "captainCounts": "{name} counts the {n, plural, one {# tiffin} other {# tiffins}} and types the code below in her app.",
+      "noCaptain": "No captain here: take each tiffin to its door and match the label.",
+      "refunded": "Refunded",
+      "failNote": "A tiffin that can’t be delivered is refunded to the family at once. It isn’t kept for later or sent again.",
+      "doorCodeHelp": "Check the label says {code}. The family’s code is in their app. No code? Take a photo of the tiffin at the door.",
+      "status": {
+        "to_collect": "To collect",
+        "on_route": "With you",
+        "with_captain": "With the captain",
+        "delivered": "Delivered",
+        "undelivered": "Refunded",
+        "left_behind": "Left behind"
+      },
+      "codeHelp": "{name} types this 4-digit code in her app to take the tiffins. Don’t send it in a message."
+    },
+    "errors": {
+      "nothing_ready": "The kitchen hasn’t marked any tiffin ready yet. Wait a few minutes and scan again.",
+      "pickup_code_invalid": "That isn’t a kitchen code for your hub. Scan the code on the kitchen’s phone.",
+      "pickup_wrong_kitchen": "That code is from another kitchen. Scan the code at this kitchen.",
+      "not_a_kitchen_stop": "This stop isn’t a kitchen.",
+      "stop_skipped": "You skipped this stop.",
+      "rider_required": "This route has no rider yet. Ask the hub to set a rider.",
+      "code_invalid": "That code isn’t right. Ask the family to check their app.",
+      "code_attempts_exceeded": "Too many wrong codes. Take a photo of the tiffin at the door instead.",
+      "bag_mismatch": "That label isn’t this tiffin’s. Check the code on the label.",
+      "delivery_closed": "This tiffin is already closed.",
+      "proof_required": "A code or a photo is needed.",
+      "other": "That didn’t work. Check your internet and try again."
     }
   },
   "captain": {
@@ -1277,7 +1357,11 @@
       "delivered": "Delivered",
       "noExceptions": "Nothing to sort out yet",
       "held": "Held for pickup (families collect)",
-      "receive": "Receive the crates when the van comes"
+      "receive": "Receive the crates when the van comes",
+      "tiffinTitle": "Tiffins come at about {time}",
+      "tiffinBody": "{count, plural, one {# tiffin} other {# tiffins}} from home kitchens for your society. Count them when the rider hands them over. Each box has a code like T-07.",
+      "tiffinCounted": "{count, plural, one {# tiffin} other {# tiffins}} from home kitchens, all with you. Take each one to its door.",
+      "tiffinCount": "Count the tiffins"
     },
     "received": {
       "title": "Crates received",
@@ -1312,7 +1396,17 @@
       "failed": "Couldn’t save the handover. Try again.",
       "noCode": "No code? Take a photo of the crates",
       "photo": "Take a photo of the crates",
-      "photoAdded": "Photo added"
+      "photoAdded": "Photo added",
+      "tiffinTitle": "Receive tiffins",
+      "tiffins": "Tiffins",
+      "tiffinExpected": "Not with you yet: {n}",
+      "tiffinHelp": "Count the tiffins the rider hands you now. If a kitchen was late, count the rest when they arrive.",
+      "tiffinDoneBtn": "{count, plural, one {# tiffin received} other {# tiffins received}}",
+      "tiffinMismatch": "The rider has {count, plural, one {# tiffin} other {# tiffins}} for you: {codes}. Count the boxes again.",
+      "tiffinNone": "The rider hasn’t collected your tiffins from the kitchens yet. Try again when he arrives.",
+      "tiffinDone": "These tiffins are already with you.",
+      "tiffinReceived": "Tiffins received",
+      "tiffinReceivedBody": "Take each tiffin to its flat and ask for the family’s code. A tiffin is never kept for the evening."
     },
     "flats": {
       "title": "Flats",
@@ -1334,7 +1428,8 @@
         "damaged": "Damaged",
         "onTheWay": "On the van",
         "held": "Held",
-        "undelivered": "Not delivered"
+        "undelivered": "Not delivered",
+        "tiffinOnTheWay": "On the way"
       },
       "delivered": "{flat} delivered",
       "notToday": "That isn’t one of today’s bags. Check the label.",
@@ -1365,7 +1460,10 @@
       "whatPh": "eggs broken",
       "report": "Report",
       "added": "Added to exceptions",
-      "summary": "{kind}, {bags, plural, one {# bag} other {# bags}} · {society}"
+      "summary": "{kind}, {bags, plural, one {# bag} other {# bags}} · {society}",
+      "tiffinSummary": "Tiffin · {society}",
+      "tiffinNoHold": "Ask the family for their 4-digit code, or take a photo. If you can’t deliver it, the family is refunded at once; a tiffin is not kept for the evening.",
+      "tiffinWaiting": "Not with you yet. Count it when the rider hands it over, and check the code on the box."
     },
     "exceptions": {
       "back": "Back to flats",
@@ -1381,7 +1479,8 @@
       "save": "Save and tell the families",
       "saved": "Saved. The families are told.",
       "none": "Nothing to sort out",
-      "noneBody": "Problems you report at a door show up here."
+      "noneBody": "Problems you report at a door show up here.",
+      "tiffinBody": "A tiffin is not kept for the evening. The family is refunded at once and told it didn’t reach them."
     },
     "done": {
       "when": "{society} · {day} · {time}",
@@ -1406,6 +1505,18 @@
       "cert": "Download income certificate",
       "certFailed": "We couldn’t get the certificate. Try again.",
       "bags": "{count, plural, one {# bag} other {# bags}}"
+    },
+    "tiffin": {
+      "codeLabel": "Family’s code",
+      "codeHelp": "The 4 digits the family shows you. No code? Take a photo instead.",
+      "deliver": "Delivered to {flat}",
+      "photo": "Take a photo instead",
+      "codeWrong": "That code isn’t right. Ask the family again.",
+      "codeLocked": "Too many wrong codes. Take a photo of the delivery instead.",
+      "notWithYou": "This tiffin isn’t with you. Count the tiffins first.",
+      "wrongLabel": "That label isn’t this flat’s tiffin. Check the box.",
+      "closed": "This tiffin is already done.",
+      "failed": "Couldn’t save the delivery. Try again."
     }
   },
   "kitchen": {
@@ -1557,6 +1668,19 @@
       "captainNone": "With your captain",
       "door": "At your door, {flat}",
       "doorNone": "At your door"
+    },
+    "noDot": "On its way to {society}. The map shows once the rider is away from the kitchens.",
+    "tiffin": {
+      "title": "{day}’s tiffin",
+      "cooked": "Cooked by your kitchen",
+      "pickedUp": "Picked up from the kitchen",
+      "refunded": "It couldn’t reach you. You’ve been refunded.",
+      "triage": "It didn’t reach you. We’re sorting it out.",
+      "withCaptain": "With {captain}",
+      "onTheWay": "On the way to {society}, about {time}",
+      "notYet": "Not picked up yet. It reaches you by {time}",
+      "codeTitle": "Your tiffin code",
+      "codeHelp": "Say it at the door when it arrives. Don’t share it before."
     }
   },
   "tiffin": {
@@ -1579,29 +1703,12 @@
   "rate": {
     "when": "{day} · delivered",
     "title": "How was today?",
-    "box": "Your box",
     "tiffin": "{slot, select, dinner {Dinner tiffin} other {Lunch tiffin}}",
     "tiffinBy": "{dish} · {cook}",
-    "tags": {
-      "box": {
-        "fresh": "Fresh",
-        "on_time": "On time",
-        "packed_well": "Packed well",
-        "missing": "Something was missing"
-      },
-      "tiffin": {
-        "tasty": "Tasty",
-        "hot": "Hot enough",
-        "portion": "Right portion",
-        "oily": "Too oily"
-      }
-    },
     "more": "Anything else? (optional)",
     "morePh": "Tell us in your own words",
     "privacy": "{cook} and {captain} see the average rating, never your name or flat.",
     "privacyNoCaptain": "{cook} and your captain see the average rating, never your name or flat.",
-    "privacyBox": "{captain} and the hub see the average rating, never your name or flat.",
-    "privacyBoxNoCaptain": "Your captain and the hub see the average rating, never your name or flat.",
     "send": "Send rating",
     "problem": "Report a problem with this order",
     "thanks": "Thank you. Your rating is in.",
@@ -1610,7 +1717,9 @@
     "doneBody": "Thanks for rating this delivery. You can still report a problem from Orders.",
     "notYetTitle": "Not delivered yet",
     "notYetBody": "You can rate it once it reaches your door.",
-    "backToOrders": "Back to Orders"
+    "backToOrders": "Back to Orders",
+    "noneTitle": "No tiffin to rate",
+    "noneBody": "Ratings are for home-cooked tiffins. This delivery had none."
   },
   "budget": {
     "title": "Budget Lock",
@@ -1787,7 +1896,7 @@
   },
   "impact": {
     "title": "Our impact",
-    "link": "Our impact this month",
+    "link": "Our impact",
     "scope": "Whose impact",
     "me": "My family",
     "society": "Our society",
@@ -1811,7 +1920,7 @@
     "youNone": "Nothing given yet. Give clothes, books or toys from the Kindness tab.",
     "how": "Counted from verified donations, surplus that was eaten instead of thrown away, and partner earnings in the ledger. Updated every hour.",
     "share": "Share with neighbours",
-    "shareMessage": "This month {society} saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}",
+    "shareMessage": "{society} has saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}",
     "allTime": "So far",
     "underFive": "Numbers show once 5 homes in the society have joined in."
   }

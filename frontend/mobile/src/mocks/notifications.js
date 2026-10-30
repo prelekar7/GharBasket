@@ -122,6 +122,13 @@ export const notificationHandlers = [
     });
   }),
 
+  // POST /v1/notifications/read-all → 204: the whole inbox is read (idempotent, no body).
+  http.post("*/v1/notifications/read-all", ({ request }) => {
+    if (!caller(request)) return new HttpResponse(null, { status: 401 });
+    localStorage.setItem(READ_KEY, JSON.stringify(MESSAGES.map(([id]) => id)));
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   http.post("*/v1/notifications/:id/read", ({ request, params }) => {
     if (!caller(request)) return new HttpResponse(null, { status: 401 });
     const read = readIds();

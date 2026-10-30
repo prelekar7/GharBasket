@@ -12,7 +12,7 @@ import { istDate } from "./format.js";
  * @typedef {{ slot: "breakfast" | "lunch" | "dinner", recipe_id: string | null, name: string | null, tiffin: boolean, sides: string[] }} PlannedMeal no recipe and tiffin: a no-cook slot
  * @typedef {{ code: string, params: Record<string, any> }} Highlight
  * @typedef {{ id: string, label: string, start: string, end: string }} Slot
- * @typedef {"draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "preview"} CycleStatus
+ * @typedef {"draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "payment_failed" | "preview"} CycleStatus
  * @typedef {object} Cycle
  * @property {string | null} id null for a preview
  * @property {string} household_id
@@ -77,15 +77,34 @@ export function usePreviewCycle(lang) {
 }
 
 /**
- * A home kitchen's lunch or dinner tiffin the family can add to a day of the week.
- * @typedef {{ date: string, slot: "lunch" | "dinner", kitchen_id: string, cook: { name: string }, dish: { name: string, items?: string }, price_paise: number, order_by: string }} TiffinOffer
+ * A home kitchen's lunch or dinner tiffin the family can add to a day of the week: one approved
+ * menu of GET /v1/tiffin-menus (M4 §3.5), under the names the Week screens use.
+ * @typedef {{ menu_id: string, date: string, slot: "lunch" | "dinner", kitchen_id: string, cook: { name: string }, dish: { name: string, items?: string }, price_paise: number, order_by: string }} TiffinOffer
+ * @typedef {{ id: string, date: string, meal: "lunch" | "dinner", hub_id: string, dishes: { recipe_id: string, name: string }[], price_paise: number, kitchen: { partner_id: string, display_name: string, photo_url: string | null }, order_by: string }} TiffinMenu
  */
 
 /**
- * Tiffins on offer for the days of a week, while it is still open.
- * @proposal (not in the contract yet) GET /v1/tiffin-offers?from=YYYY-MM-DD&to=YYYY-MM-DD → { items: TiffinOffer[] }.
- * M3 plans the week and M8 kitchens cook; the designs (Core-W2, HcTiffin) offer a tiffin inside a
- * day, so this needs one read that joins them. Until it exists the offer is simply not shown.
+ * A menu as an offer. The menu has no thali name or item list, only its dishes, so `dish.name` is
+ * the dishes joined and `dish.items` is left out; the cook is the menu's kitchen (a preference: the
+ * fair assignment may give the order to another kitchen), and `kitchen_id` is her partner id.
+ * @param {TiffinMenu} m @returns {TiffinOffer}
+ */
+export const menuToOffer = (m) => ({
+  menu_id: m.id,
+  date: m.date,
+  slot: m.meal,
+  kitchen_id: m.kitchen.partner_id,
+  cook: { name: m.kitchen.display_name },
+  dish: { name: m.dishes.map((d) => d.name).join(", ") },
+  price_paise: m.price_paise,
+  order_by: m.order_by,
+});
+
+/**
+ * Tiffins on offer for the days of a week, while it is still open (GET /v1/tiffin-menus: the
+ * approved menus of the caller's hub from tomorrow for a week, still open to book). The cycle does
+ * not carry offers. The read has no range, so the menus are cut to the days of this week; lunch
+ * comes before dinner on a day, which is the one the day sheet shows.
  * @param {Cycle | null | undefined} cycle
  */
 export function useTiffinOffers(cycle) {
@@ -93,14 +112,18 @@ export function useTiffinOffers(cycle) {
   const from = days[0]?.date;
   const to = days.at(-1)?.date;
   return useQuery({
-    queryKey: ["tiffin-offers", from, to],
-    queryFn: () =>
-      /** @type {Promise<{ items: TiffinOffer[] }>} */ (
-        request(`/v1/tiffin-offers?from=${from}&to=${to}`)
-      ),
+    queryKey: ["tiffin-menus", from, to],
+    queryFn: () => /** @type {Promise<{ items: TiffinMenu[] }>} */ (request("/v1/tiffin-menus")),
     enabled: isEditable(cycle) && !!from,
     retry: false,
-    select: (r) => r.items,
+    select: (r) =>
+      r.items
+        .filter((m) => m.date >= String(from) && m.date <= String(to))
+        .map(menuToOffer)
+        .sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) || (a.slot === b.slot ? 0 : a.slot === "lunch" ? -1 : 1),
+        ),
   });
 }
 
@@ -181,14 +204,14 @@ export function useEditCycle() {
   });
 }
 
-/** Swap one planned meal for another (PATCH /v1/cycles/{id}/meals, our proposal for M3), with If-Match. */
+/** Swap one planned meal for another (PUT /v1/cycles/{id}/meals, M3), with If-Match; `set` defaults to "next". */
 export function useSwapMeal() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (/** @type {{ cycle: Cycle, date: string, slot: PlannedMeal["slot"] }} */ v) =>
       /** @type {Promise<Cycle>} */ (
         request(`/v1/cycles/${v.cycle.id}/meals`, {
-          method: "PATCH",
+          method: "PUT",
           body: { date: v.date, slot: v.slot },
           headers: { "if-match": ifMatch(v.cycle) },
         })
@@ -202,6 +225,14 @@ export function useSwapMeal() {
  * `payment_failed` until the debit is retried or the grace period ends.
  * @typedef {{ id: string, kind: "box" | "tiffin" | "addon", status: string, cycle_id: string | null, delivery_date: string, cutoff_at: string, total_paise: number, version: number }} BoxOrder
  */
+
+/**
+ * Whether this cycle's box order can be looked up: approved or locked, or `payment_failed` when
+ * the wallet was short at the cut-off (the cycle then carries that status itself).
+ * @param {Pick<Cycle, "status">} cycle
+ */
+export const hasBoxOrder = (cycle) =>
+  cycle.status === "approved" || cycle.status === "locked" || cycle.status === "payment_failed";
 
 /** Two hours after the cut-off, the grace period before an unpaid box is cancelled (M4 §3.1, 23:00 IST). @param {Pick<BoxOrder, "cutoff_at">} order */
 export const graceEnds = (order) =>
@@ -226,7 +257,7 @@ export function useFailedBoxOrder(cycle, { poll = false } = {}) {
         ) ?? null
       );
     },
-    enabled: !!cycle?.order_id && (cycle.status === "approved" || cycle.status === "locked"),
+    enabled: !!cycle?.order_id && hasBoxOrder(cycle),
     refetchInterval: poll ? 2000 : false,
   });
 }

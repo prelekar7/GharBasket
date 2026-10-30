@@ -131,6 +131,28 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 5. Add an UptimeRobot monitor on `/v1/health` every 10 minutes.
 6. Add a cron-job.org job (timezone Asia/Kolkata) for every `runner: cron-job.org` entry of `infra/jobs/schedule.yaml`, the one schedule of every job (a list of crons is one cron-job.org job each; the minute-level ones run only in short windows around the events that need them, to let Neon sleep; set the Neon compute to a fixed 0.25 CU). Each calls `POST <STAGING_API_URL>/v1/internal/jobs/<name>` with `Authorization: Bearer <JOBS_TOKEN>`; the `actions` entries run from `jobs-staging.yml`.
 
+### Vercel projects (PWA and console)
+
+Two Vercel projects are imported from this repository (Git integration, production branch `main`, a preview per PR). Today the handbook names Prathamesh Relekar as owner of the Vercel projects (§12.8); Yash Salunkhe creates them because he holds the frontends.
+
+| Setting | PWA (`frontend/mobile`) | Console (`frontend/console`) |
+|---|---|---|
+| Framework preset | Vite | Next.js |
+| Root Directory | `frontend/mobile` | `frontend/console` |
+| Include source files outside the Root Directory | on (the default for new projects; needed for `frontend/packages/ui` and the pnpm workspace) | on |
+| Install, build and output commands | the defaults. **Do not override the install command**: a plain `pnpm install` there makes Vercel use its oldest pnpm (6) | the defaults |
+| Environment, both projects | `ENABLE_EXPERIMENTAL_COREPACK=1` (so the pinned `packageManager` pnpm is used) | the same |
+
+The root `prepare` script installs the git hooks (`lefthook install`), which exits with an error where there is no `.git` directory; it now skips itself when `VERCEL` is set, as it is in every Vercel build. (`LEFTHOOK=0` does not help: it turns the hooks off, not their installation.)
+
+**PWA.** `frontend/mobile/vercel.json` sends `/v1/*` to the API and every other path to `index.html` (the single-page app), so browsers use the API's cookies same-origin (ADR-0024). The destination is fixed in that file: moving to a production API means editing it. The service worker already keeps `/v1/` out of its navigation fallback. Environment (public values, from Infisical `staging`; `pnpm env:pull` in `frontend/mobile` prints them): the five `VITE_FIREBASE_*`, `VITE_FIREBASE_TEST_MODE` (`true` only while using Firebase's fictional test numbers), and `VITE_PUBLIC_WEB_URL` (the PWA's own address, used in neighbour invite links). Never set `VITE_API_MOCK`: builds drop the mocks anyway. Also add the PWA's domain under Firebase console → Authentication → Settings → Authorized domains, or phone sign-in is refused.
+
+**Console.** It does **not** use a `/v1/*` rewrite, by design (`lib/auth-api.js`): its server calls the API and copies the cookies, and nothing in the browser calls the API, so a rewrite would only publish the whole API on the console's address. In real mode it needs `GB_API_MOCK=false` and `GB_API_URL=https://gharbasket-api.onrender.com`. **Its sign-in is not built yet**: the console accepts only the dev phone path, which the API allows only when `APP_ENV=dev`, so a console in real mode cannot be signed into on staging until Firebase phone sign-in is added to it. Until then a Vercel console can only show its demo data: leave `GB_API_MOCK` unset (mock mode is the default) and set `GB_DEV_LOGIN=1` so the seed staff buttons appear. Without `GB_API_MOCK=false` the console serves fake data, whatever API exists.
+
+**After the first deploy:**
+1. Send both addresses to Prathamesh to add to `WEB_ORIGINS` on Render. The API's origin check applies to browser requests, so the PWA needs it; the console's server calls carry no `Origin`, so it probably does not. A preview deployment has its own address that is not in `WEB_ORIGINS`, so signing in on a preview is expected to be refused until that address is added.
+2. Smoke test the PWA: `curl https://<pwa-address>/v1/health` answers `{"status":"ok",...}` through the rewrite; deep links such as `/week` load; sign in with a Firebase test number and reload the page (the session survives).
+
 ## 12.3 Database hosting and the latency note
 
 - **Neon** hosts one shared database for the Infisical `dev` and `staging` environments, with PostGIS and pgvector. There is no branch per PR.

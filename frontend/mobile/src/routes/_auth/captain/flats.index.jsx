@@ -15,7 +15,7 @@ import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { bagQr, findFlat, isHandedOver, nextFlat, towerOf } from "@/features/captain/day.js";
-import { dayLabel, isOpen, proof } from "@/features/captain/parts.jsx";
+import { dayLabel, isOpen, proof, TiffinDoor } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useCaptainWrite, useDrafts } from "@/features/captain/queries.js";
 import { clockTime } from "@/features/subscriptions/format.js";
 import { useSession } from "@/lib/session.js";
@@ -57,6 +57,7 @@ function Flats() {
   const d = day.data;
   const issues = drafts.issues;
   const handedOver = isHandedOver(d);
+  const hasBags = d.flats.some((f) => f.kind !== "tiffin");
   const next = nextFlat(d.flats.filter((f) => !issues[f.order_id]));
   const wings = [...new Set(d.flats.map(towerOf))];
   const shown = wing ?? (next && towerOf(next)) ?? wings[0];
@@ -116,7 +117,7 @@ function Flats() {
       <FlatChecklist
         label={t("captain.flats.progress", { wing: shown })}
         onSelect={(item) =>
-          setPicked(flats.find((f) => f.flat_label === item.flat)?.order_id ?? null)
+          setPicked(flats.find((f) => rowLabel(f) === item.flat)?.order_id ?? null)
         }
         items={flats.map((f) => {
           const issue = issues[f.order_id];
@@ -124,9 +125,11 @@ function Flats() {
             ? ["issue", issue.kind === "not_home" ? "notHome" : "damaged"]
             : f.order_id === next?.order_id
               ? ["out", "next"]
-              : PILL[f.status];
+              : f.kind === "tiffin" && f.status === "on_the_way"
+                ? ["planned", "tiffinOnTheWay"]
+                : PILL[f.status];
           return {
-            flat: f.flat_label,
+            flat: rowLabel(f),
             note: [
               t(`captain.flats.contents.${f.kind}`),
               f.redelivery ? t("captain.flats.redelivery") : null,
@@ -146,16 +149,18 @@ function Flats() {
         className={`sticky mt-auto flex flex-col bg-bg pt-2 ${senior ? "bottom-[calc(76px+env(safe-area-inset-bottom))]" : "bottom-[calc(64px+env(safe-area-inset-bottom))]"}`}
       >
         {handedOver ? (
-          <ScanField
-            label={t("captain.flats.scan")}
-            manualLabel={t("captain.flats.manual")}
-            expected={next ? bagQr(next.order_id) : undefined}
-            state={last?.state}
-            successLabel={last?.text}
-            errorLabel={last?.text}
-            onCode={deliver}
-            onManual={() => navigate({ to: "/captain/flats/manual" })}
-          />
+          hasBags && (
+            <ScanField
+              label={t("captain.flats.scan")}
+              manualLabel={t("captain.flats.manual")}
+              expected={next ? bagQr(next.order_id) : undefined}
+              state={last?.state}
+              successLabel={last?.text}
+              errorLabel={last?.text}
+              onCode={deliver}
+              onManual={() => navigate({ to: "/captain/flats/manual" })}
+            />
+          )
         ) : (
           <Button
             variant="primary"
@@ -181,6 +186,9 @@ function Flats() {
   );
 }
 
+/** A tiffin's row leads with its label, "B-402 · T-07", the code printed on its box (M7 §3.7); the same flat may also have a box. @param {import("@/features/captain/day.js").Flat} f */
+const rowLabel = (f) => (f.short_code ? `${f.flat_label} · ${f.short_code}` : f.flat_label);
+
 const omit = (/** @type {Record<string, any>} */ o, /** @type {string} */ k) =>
   Object.fromEntries(Object.entries(o).filter(([key]) => key !== k));
 
@@ -195,6 +203,7 @@ function FlatSheet({ flat, society, onClose, onIssue }) {
   const [note, setNote] = useState("");
   const [damaged, setDamaged] = useState(false);
   const open = flat?.status === "with_you";
+  const tiffin = flat?.kind === "tiffin";
   const close = () => {
     setNote("");
     setDamaged(false);
@@ -235,12 +244,33 @@ function FlatSheet({ flat, society, onClose, onIssue }) {
     >
       {flat && (
         <p className="m-0 text-base">
-          {t("captain.flat.summary", {
-            kind: t(`captain.flats.contents.${flat.kind}`),
-            society,
-            bags: flat.bags,
-          })}
+          {tiffin
+            ? t("captain.flat.tiffinSummary", { society })
+            : t("captain.flat.summary", {
+                kind: t(`captain.flats.contents.${flat.kind}`),
+                society,
+                bags: flat.bags,
+              })}
         </p>
+      )}
+      {flat?.short_code && (
+        <p className="m-0 text-[32px] leading-10 font-bold tabular-nums">{flat.short_code}</p>
+      )}
+      {tiffin && flat && (
+        <>
+          <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
+            {t(open ? "captain.flat.tiffinNoHold" : "captain.flat.tiffinWaiting")}
+          </p>
+          {open && (
+            <TiffinDoor
+              flat={flat}
+              onDone={() => {
+                close();
+                toast(t("captain.flats.delivered", { flat: flat.flat_label }));
+              }}
+            />
+          )}
+        </>
       )}
       {open && damaged && (
         <TextField
