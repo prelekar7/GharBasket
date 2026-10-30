@@ -17,7 +17,7 @@ const call = async (
         "x-gb-client": "web",
         "accept-language": lang,
         // As the app sends it: shared endpoints (earnings, trainings) answer by the acting role.
-        "x-active-role": "kitchen_partner:hub-kharghar",
+        "x-active-role": "kitchen_partner:0199a000-0000-7000-8000-00000000a001",
         ...(key ? { "idempotency-key": key } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -162,7 +162,7 @@ describe("kitchen partner mocks (M8)", () => {
           headers: {
             "content-type": "application/json",
             "x-gb-client": "web",
-            "x-active-role": "kitchen_partner:hub-kharghar",
+            "x-active-role": "kitchen_partner:0199a000-0000-7000-8000-00000000a001",
             ...(ifMatch ? { "if-match": ifMatch } : {}),
           },
           body: JSON.stringify(body),

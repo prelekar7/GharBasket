@@ -172,8 +172,8 @@ const toInput = (f) => ({
 
 /**
  * The edit panel of one day or run (or a new one). Saving sends an Idempotency-Key made for this save
- * and offers Undo; what you typed stays if the save fails. The calendar's admin endpoints have not
- * shipped (they are a @proposal), so against the real API a save says "not available yet".
+ * and offers Undo; what you typed stays if the save fails. A run is saved as
+ * one call per day (see actions.js).
  * @param {{ festival: Festival | null, onSaved: (f: Festival) => void }} props
  */
 function FestivalPanel({ festival, onSaved }) {
@@ -206,7 +206,7 @@ function FestivalPanel({ festival, onSaved }) {
     const idempotencyKey = key.current;
     startSaving(async () => {
       const r = await saveFestival(
-        festival?.id ?? null,
+        festival,
         { ...form, name: form.name.trim() },
         idempotencyKey,
       ).catch(() => ({
@@ -227,7 +227,7 @@ function FestivalPanel({ festival, onSaved }) {
           ? {
               label: "Undo",
               onClick: async () => {
-                const u = await saveFestival(r.festival.id, toInput(before), crypto.randomUUID());
+                const u = await saveFestival(r.festival, toInput(before), crypto.randomUUID());
                 toast(u.ok ? "Change undone" : "Could not undo. Edit the day to change it back.");
                 router.refresh();
               },

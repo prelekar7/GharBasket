@@ -1,6 +1,6 @@
 // Public mocks (no sign-in): society invite pages and the know-your-cook profile.
-// GET /v1/public/societies/{slug} is in the M12 spec ("for the SEO landing page"). The list
-// endpoint and the cook endpoint are our proposals: M8 puts the know-your-cook card at the
+// GET /v1/public/societies/{slug} is in the M12 spec ("for the SEO landing page"); there is no public list of
+// societies in v1. The cook endpoint is our proposal: M8 puts the know-your-cook card at the
 // authenticated GET /v1/partners/{id}/public, but a public page needs an anonymous, consent-gated
 // variant, so we propose GET /v1/public/cooks/{id} (404 `partners.not_public` unless the cook opted in).
 // Both read `Accept-Language` (en | hi) and return the localised display fields; the page never
@@ -143,14 +143,6 @@ function langOf(request) {
 }
 
 export const publicHandlers = [
-  // GET /v1/public/societies → every society a visitor may find (proposal; the landing page list).
-  http.get("*/v1/public/societies", ({ request }) => {
-    const lang = langOf(request);
-    return HttpResponse.json({
-      items: SOCIETIES.map((s) => (lang === "hi" ? { ...s.en, ...s.hi } : s.en)),
-    });
-  }),
-
   // GET /v1/public/societies/{slug} → one society and its unlock progress (M12).
   http.get("*/v1/public/societies/:slug", ({ request, params }) => {
     const found = SOCIETIES.find((s) => s.en.slug === params.slug);

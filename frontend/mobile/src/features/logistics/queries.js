@@ -1,6 +1,8 @@
+import { toast } from "@gharbasket/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { todayIst } from "@/features/subscriptions/format.js";
-import { request } from "@/lib/api.js";
+import { ApiError, request } from "@/lib/api.js";
 import { db, enqueue, flush } from "@/lib/outbox.js";
 
 // Rider data (M7 §3.3 and §3.4, frozen). Reads are cached and persisted, so a route loaded at the
@@ -11,13 +13,18 @@ import { db, enqueue, flush } from "@/lib/outbox.js";
  * @typedef {{ id: string, name: string, location: { lat: number, lng: number } }} StopSociety
  * @typedef {{ empties_collected: number | null, donations: Donation[] }} StopPickups
  * @typedef {{ donation_id: string, ref: string, qty: number, note: string, status: "expected" | "collected" | "not_ready" }} Donation
+ * @typedef {{ order_id: string, short_code: string, portions: number, flat_label: string | null,
+ *   status: "to_collect" | "on_route" | "with_captain" | "delivered" | "undelivered" | "left_behind" }} TiffinItem
+ * @typedef {{ partner_id: string, display_name: string, area: string | null, ready_by: string,
+ *   address: string | null, location: { lat: number, lng: number } | null }} Kitchen
  * @typedef {{ id: string, seq: number, kind: "drop" | "bank" | "kitchen", society: StopSociety | null,
  *   slot: { id: string, label: string, start: string, end: string } | null, eta: string, late_min: number,
  *   eta_now: string | null, status: "pending" | "arrived" | "handed_over" | "skipped", crates: number,
  *   bags: number, redelivery_bags: number, empties_expected: number,
  *   captain: { display_name: string, photo_url: string | null } | null, rider_mode: boolean,
- *   handover_code: string | null, navigate_url: string, arrived_at: string | null,
- *   handed_over_at: string | null, pickups?: StopPickups }} Stop
+ *   handover_code: string | null, navigate_url: string | null, arrived_at: string | null,
+ *   handed_over_at: string | null, pickups?: StopPickups | null,
+ *   kitchen?: Kitchen | null, portions?: number, tiffins?: TiffinItem[] | null }} Stop
  * @typedef {{ id: string, plan_id: string, hub_id: string, delivery_date: string, kind: "box" | "tiffin",
  *   trip: number, status: "draft" | "published" | "in_progress" | "completed" | "cancelled",
  *   vehicle: { id: string, label: string, kind: string }, rider: { user_id: string, name: string } | null,
@@ -25,6 +32,8 @@ import { db, enqueue, flush } from "@/lib/outbox.js";
  *   bags: number, km: number, started_at: string | null, completed_at: string | null, version: number }} RouteSummary
  * @typedef {RouteSummary & { stops: Stop[], source: string, left_behind: string[] }} Route
  * @typedef {{ route: Route | null, next: RouteSummary | null }} MyRoute
+ * @typedef {{ stop: Stop, collected: { order_id: string, short_code: string, drop_seq: number }[], already: string[],
+ *   not_ready: { order_id: string, short_code: string }[], not_on_route: string[] }} Collected
  */
 
 const mine = async (/** @type {string} */ date) =>
@@ -103,12 +112,47 @@ async function send(client, action) {
 }
 
 /**
+ * A write whose answer the screen needs now (a kitchen scan, a tiffin's door proof, a tiffin route's
+ * start): sent at once with its own Idempotency-Key, so the server's refusal reaches the rider. Only
+ * when there is no signal (or the server is down) is it saved in the outbox, as `{ queued: true }`.
+ * @param {import("@tanstack/react-query").QueryClient} client @param {{ path: string, body?: Record<string, unknown> }} action
+ */
+async function sendNow(client, action) {
+  const body = { ...action.body, client_at: new Date().toISOString() };
+  try {
+    const data = await request(action.path, {
+      method: "POST",
+      body,
+      headers: { "idempotency-key": crypto.randomUUID() },
+    });
+    client.invalidateQueries({ queryKey: ["routes"] });
+    return { queued: false, data };
+  } catch (e) {
+    if (e instanceof ApiError && e.status < 500) throw e;
+    await enqueue({ path: action.path, body });
+    return { queued: true, data: null };
+  }
+}
+
+/** Why a tap was refused, in words ("rider.errors.<code>"; the last part of the problem's `code`). @param {import("i18next").TFunction} t @param {unknown} e */
+export const problemText = (t, e) =>
+  t(`rider.errors.${e instanceof ApiError ? e.code.split(".").pop() : ""}`, {
+    defaultValue: t("rider.errors.other"),
+  });
+
+function useExplain() {
+  const { t } = useTranslation();
+  return (/** @type {unknown} */ e) => void toast(problemText(t, e));
+}
+
+/**
  * Rider actions: each is saved in the outbox (sent now, or when there is signal again) and
  * applied to the cached route straight away. Once the outbox is empty the route is read again, so
  * what only the server knows (handover codes after start, a captain's handover) shows up.
  */
 export function useRiderActions() {
   const client = useQueryClient();
+  const explain = useExplain();
   /** @param {Route} route @param {(r: Route) => Route} change @param {{ path: string, body?: Record<string, unknown> }} action */
   const act = async (route, change, action) => {
     // Any day's list: the server may answer "today" with the route of the next delivery day.
@@ -124,11 +168,22 @@ export function useRiderActions() {
   });
   const now = () => new Date().toISOString();
   return {
-    /** POST /v1/routes/{id}/start @param {Route} route */
+    /** POST /v1/routes/{id}/start; a tiffin route is refused without a rider (rider_required), so it waits for the answer. @param {Route} route */
     start: (route) =>
-      act(route, (r) => ({ ...r, status: "in_progress", started_at: now() }), {
-        path: `/v1/routes/${route.id}/start`,
-      }),
+      route.kind === "tiffin"
+        ? sendNow(client, { path: `/v1/routes/${route.id}/start` }).catch(explain)
+        : act(route, (r) => ({ ...r, status: "in_progress", started_at: now() }), {
+            path: `/v1/routes/${route.id}/start`,
+          }),
+    /**
+     * POST /v1/stops/{id}/collect at a kitchen (M7 §3.7): the kitchen's GB1A: code. The answer says
+     * what was collected, so it is sent at once; the server is the truth, so the route is read again.
+     * Throws the problem (nothing_ready, pickup_code_invalid, ...); `{ queued: true }` without signal.
+     * @param {Stop} stop @param {string} pickupQr
+     * @returns {Promise<{ queued: boolean, data: Collected | null }>}
+     */
+    collect: (stop, pickupQr) =>
+      sendNow(client, { path: `/v1/stops/${stop.id}/collect`, body: { pickup_qr: pickupQr } }),
     /** POST /v1/routes/{id}/complete @param {Route} route @param {number} [empties] */
     complete: (route, empties) =>
       act(route, (r) => ({ ...r, status: "completed", completed_at: now() }), {
@@ -194,7 +249,7 @@ export function useRiderActions() {
 
 /**
  * @typedef {{ order_id: string, flat_label: string, kind: "box" | "addon" | "tiffin", bags: number,
- *   redelivery: boolean, status: "on_the_way" | "with_you" | "held" | "delivered" | "undelivered",
+ *   short_code?: string | null, redelivery: boolean, status: "on_the_way" | "with_you" | "held" | "delivered" | "undelivered",
  *   hold_until: string | null }} Door
  */
 
@@ -215,6 +270,7 @@ export function useDoors(stopId, enabled) {
  */
 export function useDoorActions(stopId) {
   const client = useQueryClient();
+  const explain = useExplain();
   /** @param {Door} door @param {Door["status"]} status @param {string} path @param {Record<string, unknown>} body */
   const door = (door, status, path, body) => {
     client.setQueryData(["routes", "doors", stopId], (/** @type {Door[] | undefined} */ doors) =>
@@ -222,16 +278,32 @@ export function useDoorActions(stopId) {
     );
     return send(client, { path, body });
   };
+  /** A tiffin's proof is its label (never a bag QR) and the family's code or a photo; a wrong code is shown at once (M7 §3.7). @param {Door} d @param {Record<string, unknown>} proof */
+  const tiffin = async (d, proof) => {
+    try {
+      await sendNow(client, {
+        path: `/v1/deliveries/${d.order_id}/proof`,
+        body: { short_code: d.short_code, ...proof },
+      });
+      client.setQueryData(["routes", "doors", stopId], (/** @type {Door[] | undefined} */ doors) =>
+        doors?.map((x) => (x.order_id === d.order_id ? { ...x, status: "delivered" } : x)),
+      );
+    } catch (e) {
+      explain(e);
+    }
+  };
   return {
     /**
      * POST /v1/deliveries/{order_id}/proof: a rider needs the customer's code or a photo.
      * @param {Door} d @param {{ proof: "otp", delivery_code: string } | { proof: "photo", photo_key: string }} proof
      */
     deliver: (d, proof) =>
-      door(d, "delivered", `/v1/deliveries/${d.order_id}/proof`, {
-        bag_qr: `GB1:${d.order_id.replaceAll("-", "")}`,
-        ...proof,
-      }),
+      d.kind === "tiffin"
+        ? tiffin(d, proof)
+        : door(d, "delivered", `/v1/deliveries/${d.order_id}/proof`, {
+            bag_qr: `GB1:${d.order_id.replaceAll("-", "")}`,
+            ...proof,
+          }),
     /** POST /v1/deliveries/{order_id}/undelivered @param {Door} d @param {"not_home" | "refused" | "wrong_address" | "damaged" | "missing"} reason */
     undeliver: (d, reason) =>
       door(d, "undelivered", `/v1/deliveries/${d.order_id}/undelivered`, { reason }),

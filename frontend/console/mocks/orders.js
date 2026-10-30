@@ -1,7 +1,7 @@
 // Orders, cut-off and slot mocks (M4 §3). `GET /v1/orders` (OrderSummaryOut), `GET /v1/slots`, `POST
-// /v1/admin/slots` and `PATCH /v1/admin/slots/{id}` are the real contract's shapes. `GET /v1/hubs/{id}/cutoff`,
-// `GET /v1/hubs/{id}/delivery-dates` and `POST /v1/hubs/{id}/cutoff/run` are proposals for the console (the
-// spec has no read side for the cut-off monitor; PR #103 replaces the run with a job).
+// /v1/admin/slots` and `PATCH /v1/admin/slots/{id}` are the real contract's shapes. `GET /v1/hubs/{id}/cutoff`
+// (the cut-off monitor's read) and `GET /v1/hubs/{id}/delivery-dates` are proposals for the console. There is
+// no "run the cut-off" call: the `cutoff_lock` job does it at 21:00.
 // Money is integer paise. The mock "now" is fixed to the shared story: Mon 5 Oct 2026, 6:46 PM IST,
 // so the cut-off countdown reads "2 h 14 min" on every load.
 import { HttpResponse, http } from "msw";
@@ -391,30 +391,4 @@ export const ordersHandlers = [
         }),
     });
   }),
-
-  // POST /v1/hubs/{id}/cutoff/run (M4 §3, admin, idempotent): locks approved orders not yet locked.
-  http.post("*/v1/hubs/:hub/cutoff/run", ({ request }) =>
-    idempotent(request, () => {
-      if (roleOf(request) !== "admin") return problem(403, "auth.forbidden", "Admins only");
-      const s = state();
-      const todo = s.orders.filter(
-        (o) => o.delivery_date === DELIVERY_DATE && o.status === "approved",
-      );
-      for (const o of todo) o.status = "locked";
-      const total = s.orders.filter((o) => o.status === "locked").length;
-      s.lastRun = {
-        cutoff_on: "2026-10-05",
-        locked: total,
-        total,
-        duration_s: 4,
-        grace_paid: 0,
-        cancelled: 0,
-      };
-      return HttpResponse.json({
-        newly_locked: todo.length,
-        already_locked: total - todo.length,
-        payment_failed: counts(s.orders).payment_needed,
-      });
-    }),
-  ),
 ];
