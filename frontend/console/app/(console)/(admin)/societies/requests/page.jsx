@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { NoAccess, NotAvailable } from "@/components/admin/Page.jsx";
+import { NoAccess } from "@/components/admin/Page.jsx";
 import { isForbidden } from "@/lib/admin/safe.js";
-import { apiGet } from "@/lib/api.js";
 import { apiAll } from "@/lib/api-pages.js";
-import { orNotShipped } from "@/lib/proposal.js";
 import { RequestsView } from "./RequestsView.jsx";
 
 export const metadata = { title: "Society requests" };
@@ -11,17 +9,11 @@ export const metadata = { title: "Society requests" };
 export default async function Page() {
   try {
     const [requests, societies] = await Promise.all([
-      // @proposal (not in the contract yet): reviewing society requests
-      orNotShipped(apiGet("/v1/admin/society-requests")),
+      // GET /v1/admin/society-requests (M9 §3.9): newest first, every status; the tabs filter in the browser.
+      apiAll("/v1/admin/society-requests"),
+      // "Mark duplicate" can name any listed society: the public list (SocietySummary), 50 a page at most.
       apiAll("/v1/societies", {}, { limit: 50 }),
     ]);
-    if (!requests)
-      return (
-        <NotAvailable title="Society requests">
-          Reviewing requests needs an endpoint that has not shipped. Requests people send in the app
-          are kept until it does.
-        </NotAvailable>
-      );
     return (
       <>
         <nav aria-label="Breadcrumb" className="text-sm leading-5 text-fg-secondary">
@@ -36,7 +28,7 @@ export default async function Page() {
         <RequestsView
           requests={requests.items}
           societies={societies.items.map(
-            (/** @type {{ id: string, name: string, area: string }} */ s) => ({
+            (/** @type {{ id: string, name: string, area: string | null }} */ s) => ({
               id: s.id,
               name: s.name,
               area: s.area,

@@ -9,9 +9,9 @@ The classes come from `docs/integration/gaps.json`, which is edited by hand.
 | App | Call sites | Found | Wrong method | Missing | Unresolved | Wrapped (not shipped / @proposal) |
 |---|--:|--:|--:|--:|--:|--:|
 | mobile | 115 | 106 | 0 | 5 | 4 | 4 |
-| console | 181 | 169 | 1 | 9 | 2 | 25 |
+| console | 175 | 165 | 0 | 8 | 2 | 18 |
 
-Distinct endpoints called: mobile 97, console 139. A call site is one `request(`/`apiGet(` … in the source.
+Distinct endpoints called: mobile 97, console 134. A call site is one `request(`/`apiGet(` … in the source.
 
 ## Gaps by class
 
@@ -22,9 +22,9 @@ Distinct endpoints called: mobile 97, console 139. A call site is one `request(`
 | fix-frontend | 1 | 0 call sites | 1 call sites |
 | fix-backend | 0 | 0 call sites | 0 call sites |
 | later | 0 | 0 call sites | 0 call sites |
-| drop | 14 | 5 call sites | 9 call sites |
+| drop | 12 | 5 call sites | 7 call sites |
 
-15 gap endpoints in all (a call that is missing, or exists only with another method).
+13 gap endpoints in all (a call that is missing, or exists only with another method).
 
 Classes: `pending-pr` an open or stacked PR builds it; `fix-frontend` the frontend should change (a wrong method, id or
 path, or a call the spec rules out); `fix-backend` the backend lacks it and no spec says when (a frontend proposal or an
@@ -37,7 +37,7 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 |---|---|---|---|---|---|
 | `GET /v1/public/cooks/{}` | console | `console/lib/public-api.js:64` | Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public. M12 §3.7: public cook profiles are M8's card. | yash |  |
 
-### drop (14)
+### drop (12)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
@@ -46,8 +46,6 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `GET /v1/hubs/{}/cycles` | console | `console/app/(console)/(hub)/cycles/page.jsx:24` | Dropped (M3 §3.5, owner 2026-10-25): the Cut-off page (M3 §3.4) has the counts per delivery date; take the Cycles page out of the nav. | yash |  |
 | `GET /v1/intel/experiments` | console | `console/app/(console)/(intelligence)/experiments/page.jsx:14` | Experiments are cut (M12 header, owner 2026-10-09); the page stays on its mock. | yash |  |
 | `GET /v1/mandates/current` | mobile | `mobile/src/features/billing/queries.js:142` | As POST /v1/mandates (M5 §3.7). | yash |  |
-| `PATCH /v1/admin/plans/{}` | console | `console/app/(console)/(admin)/plans/actions.js:31` | As POST /v1/admin/plans (M3 §3.5). | yash |  |
-| `POST /v1/admin/plans` | console | `console/app/(console)/(admin)/plans/actions.js:32` | Dropped (M3 §3.5, owner 2026-10-25): plans are seeded and a fee is a price. Keep the Plans page read-only even when GET /v1/admin/plans answers. The spec has GET /v1/admin/plans. | yash |  |
 | `POST /v1/admin/refunds/{}/{}` | console | `console/app/(console)/(admin)/refunds/actions.js:15` | Dropped (M5 §3.8, owner 2026-10-25): refunds are automatic (M5 §3.3); disputes are M4's issue triage (M4 §3.6). The Refunds page becomes a read-only list. | yash |  |
 | `POST /v1/hubs/{}/staff-invitations` | console | `console/app/(console)/(franchise)/staff/actions.js:17` | Dropped (M1 §3.6, owner 2026-10-25): staff roles through POST /v1/admin/user-roles (admin; a new number gets a pending grant), riders and packers through M8's POST /v1/hubs/{id}/partner-applications (hub manager); kitchens and captains apply in the app. Remove the Invite sheet from the franchise Staff page. | yash |  |
 | `POST /v1/intel/experiments/{}/promote` | console | `console/app/(console)/(intelligence)/experiments/actions.js:38` | As above. | yash |  |
@@ -76,7 +74,7 @@ The static scan could not tell the method or path. They are not counted as found
 
 | File | Call | Why |
 |---|---|---|
-| `mobile/src/features/captain/queries.js:89` | `request(` | path is action.path |
+| `mobile/src/features/captain/queries.js:87` | `request(` | path is action.path |
 | `mobile/src/features/logistics/queries.js:123` | `request(` | path is action.path |
 | `mobile/src/features/subscriptions/queries.js:139` | `request(` | a variable stands where the spec has a fixed word: /v1/cycles/{}/{} (could be POST /v1/cycles/{cycle_id}/approve, POST /v1/cycles/{cycle_id}/feedback, PATCH /v1/cycles/{cycle_id}/lines, PUT /v1/cycles/{cycle_id}/meals, POST /v1/cycles/{cycle_id}/skip, PUT /v1/cycles/{cycle_id}/slot, POST /v1/cycles/{cycle_id}/slot-quotes, POST /v1/cycles/{cycle_id}/unskip) |
 | `mobile/src/lib/outbox.js:74` | `request(` | method is item.method |

@@ -32,9 +32,9 @@ const listOf = (names) =>
 /**
  * Hubs and their service areas: pick a hub, see its facts, draw or move its service area on the
  * map, and see the societies inside it.
- * The hubs are the real `GET /v1/hubs/{hub_id}` (HubOut). The admin list of societies is a @proposal
- * (not in the contract yet): without it (`societies` null) the page cannot say which societies a hub serves.
- * @param {{ hubs: AdminHub[], societies: Society[] | null, currentId: string }} props
+ * The hubs are the real `GET /v1/hubs/{hub_id}` (HubOut) and the societies the real
+ * `GET /v1/admin/societies` (M9 §3.9), grouped by their hub's id.
+ * @param {{ hubs: AdminHub[], societies: (Society & { hub_id: string | null })[] | null, currentId: string }} props
  */
 export function HubsView({ hubs, societies, currentId }) {
   const [param, setParam] = useQueryState("hub", parseAsString.withOptions({ history: "replace" }));
