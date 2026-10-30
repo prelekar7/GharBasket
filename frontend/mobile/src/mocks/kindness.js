@@ -43,6 +43,13 @@ const RATES = [
   { code: "toys", label: ["Toys", "खिलौने", "खेळणी"], unit: "each", points: 15, max_qty: 10 },
 ];
 
+/** @param {number} n */
+function dayFromToday(n) {
+  const d = new Date(`${today()}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 const DIWALI = {
   id: "0199a000-0000-7000-8000-00000d1a0001",
   code: "diwali-2026",
@@ -54,8 +61,9 @@ const DIWALI = {
   ],
   codes: ["clothes", "toys"],
   multiplier: 2.0,
-  starts_on: "2026-10-01",
-  ends_on: "2026-10-31",
+  // Relative to today, so the drive keeps running whenever the mocks are used.
+  starts_on: dayFromToday(-7),
+  ends_on: dayFromToday(28),
 };
 
 /** @param {typeof DIWALI} d @param {number} i @param {any[]} donations */

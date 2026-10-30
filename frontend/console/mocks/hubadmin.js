@@ -1,83 +1,25 @@
-// Hub administration mocks. The real M6 §3.1 contract (built, backend/api/openapi.json): `GET /v1/hubs/{id}`
-// (HubOut, ETag = version) and `PATCH /v1/admin/hubs/{id}` (admin, If-Match, HubPatch; 412
-// `request.version_mismatch`, 428 `request.precondition_required`). The list `GET /v1/admin/hubs`, the
-// people and slots on a hub, and `POST /v1/admin/hubs` as the Hubs page uses it are a @proposal (not in the
-// contract yet). `GET /v1/hubs` (mocks/hubs.js) stays the switcher's list of working hubs, so a hub added
-// here is "planned" and is not in the switcher yet.
-import { HttpResponse, http } from "msw";
-import { deny, polygon, slugify, validPolygon } from "./adminShared.js";
-import { checkIfMatch, hubGuard, withEtag } from "./hubops.js";
-import { HUBS, KHARGHAR_HUB_ID } from "./hubs.js";
-import { idempotent, mockStore, mockUuid, problem, roleOf } from "./util.js";
+// Hub administration mocks: the real `POST /v1/admin/hubs` and `PATCH /v1/admin/hubs/{hub_id}` (M6 §3.1,
+// admin only; PATCH is a HubPatch and needs If-Match with the hub's version: 428
+// `request.precondition_required`, 412 `request.version_mismatch`, 422 `hub_ops.timings_invalid`). The
+// reads are `GET /v1/hubs` and `GET /v1/hubs/{hub_id}` in mocks/hubs.js; both share one store, so a hub
+// added or changed here shows there. There is no `GET /v1/admin/hubs`. Two things differ from the
+// contract: POST takes only `name` and `address` (the real HubIn also needs `slug` and `location`, which
+// the Add hub sheet does not ask for yet; the slug is made from the name and the location defaults to the
+// seed hub's), and a service area is checked only for being a closed polygon.
+import { http } from "msw";
+import { deny, slugify, validPolygon } from "./adminShared.js";
+import { checkIfMatch, withEtag } from "./hubops.js";
+import { hubDetails } from "./hubs.js";
+import { idempotent, problem } from "./util.js";
 
-/**
- * @typedef {{ receiving: string, packing: string, dispatch: string, surplus: string }} Timings the hub's day, IST `HH:MM`
- * @typedef {{ id: string, slug: string, name: string, city: string, status: "active" | "paused" | "planned", address: string,
- *   location: { lat: number, lng: number }, timings: Timings, procurement_buffer_pct: number,
- *   pre_live_box_fee_paise: number, green_saving_share_pct: number, green_saving_max_paise: number,
- *   franchise_owner: { id: string, name: string } | null, hub_manager: { id: string, name: string } | null,
- *   slots: string[], cutoff: string, service_area: { type: "Polygon", coordinates: number[][][] } | null,
- *   version: number, created_at: string, updated_at: string }} AdminHub
- */
-
-/** What a new hub starts with (M6 §3.1). @type {Timings} */
-const DEFAULT_TIMINGS = {
-  receiving: "04:00",
-  packing: "05:00",
-  dispatch: "06:30",
-  surplus: "12:30",
-};
 const TIMING_KEYS = /** @type {const} */ (["receiving", "packing", "dispatch", "surplus"]);
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-const CREATED = "2026-09-01T09:00:00+05:30";
-
-/** @type {() => AdminHub[]} */
-const seed = () => [
-  {
-    id: KHARGHAR_HUB_ID,
-    slug: "kharghar",
-    name: "Kharghar hub",
-    city: "Navi Mumbai",
-    status: "active",
-    address: "Sector 10, Kharghar",
-    location: { lat: 19.033, lng: 73.066 },
-    timings: { ...DEFAULT_TIMINGS },
-    procurement_buffer_pct: 10,
-    pre_live_box_fee_paise: 3000,
-    green_saving_share_pct: 50,
-    green_saving_max_paise: 1500,
-    franchise_owner: { id: mockUuid("b600", 3), name: "Sanjay Mehta" },
-    hub_manager: { id: mockUuid("b600", 2), name: "Vikram Desai" },
-    slots: ["8 to 10 AM", "5 to 7 PM"],
-    cutoff: "9 PM the evening before",
-    // Kharghar to New Panvel; Old Panvel (18.988 N) lies just outside.
-    service_area: polygon([
-      [73.05, 19.045],
-      [73.1, 19.058],
-      [73.125, 19.03],
-      [73.118, 19.003],
-      [73.062, 19.006],
-      [73.045, 19.03],
-    ]),
-    version: 1,
-    created_at: CREATED,
-    updated_at: CREATED,
-  },
-];
-
-const hubs = () => mockStore("hubadmin.hubs", seed);
-
-/** The fields of the real `HubOut` (what `GET /v1/hubs/{id}` answers). @param {AdminHub} h */
-function hubOut(h) {
-  const { city, franchise_owner, hub_manager, slots, cutoff, ...out } = h;
-  return out;
-}
 
 /**
  * The hub with a HubPatch applied, or the 422 to send. Only the fields sent change; a field that may not
  * be null (everything but `service_area`) sent as null is `request.invalid`, like the API.
- * @param {AdminHub} hub @param {Record<string, any> | null} body
- * @returns {AdminHub | Response}
+ * @param {import("./hubs.js").HubDetail} hub @param {Record<string, any> | null} body
+ * @returns {import("./hubs.js").HubDetail | Response}
  */
 function applyPatch(hub, body) {
   /** @type {{ field: string, message: string }[]} */
@@ -134,12 +76,6 @@ function applyPatch(hub, body) {
 }
 
 export const hubadminHandlers = [
-  http.get(
-    "*/v1/admin/hubs",
-    ({ request }) =>
-      deny(request, ["admin"]) ?? HttpResponse.json({ items: hubs(), next_cursor: null }),
-  ),
-
   http.post(
     "*/v1/admin/hubs",
     ({ request }) =>
@@ -152,50 +88,38 @@ export const hubadminHandlers = [
         if (!name) errors.push({ field: "name", message: "Enter the hub's name" });
         if (!address) errors.push({ field: "address", message: "Enter the hub's address" });
         if (errors.length) return problem(422, "request.invalid", "Check the fields", { errors });
-        const slug = slugify(name.replace(/\s+hub$/i, ""));
-        if (hubs().some((h) => h.slug === slug))
-          return problem(409, "hubs.exists", "A hub with that name already exists");
-        /** @type {AdminHub} */
+        const slug = String(body?.slug ?? "") || slugify(name.replace(/\s+hub$/i, ""));
+        if (hubDetails().some((h) => h.slug === slug))
+          return problem(409, "hub_ops.slug_taken", "A hub with this slug exists.");
+        const now = new Date().toISOString();
+        const seedHub = hubDetails()[0];
+        /** @type {import("./hubs.js").HubDetail} */
         const hub = {
           id: crypto.randomUUID(),
           slug,
           name: /hub$/i.test(name) ? name : `${name} hub`,
-          city: String(body?.city ?? "").trim() || "Navi Mumbai",
-          status: "planned",
+          status: "active",
           address,
-          location: { lat: 19.033, lng: 73.066 },
-          timings: { ...DEFAULT_TIMINGS },
+          location: body?.location ?? seedHub.location,
+          service_area: null,
+          timings: seedHub.timings,
           procurement_buffer_pct: 10,
-          pre_live_box_fee_paise: 0,
+          pre_live_box_fee_paise: 3000,
           green_saving_share_pct: 50,
           green_saving_max_paise: 1500,
-          franchise_owner: null,
-          hub_manager: null,
-          slots: [],
-          cutoff: "9 PM the evening before",
-          service_area: null,
           version: 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: now,
+          updated_at: now,
         };
-        hubs().push(hub);
-        return HttpResponse.json(hub, { status: 201 });
+        hubDetails().push(hub);
+        return withEtag(hub, hub.version, 201);
       }),
   ),
-
-  // GET /v1/hubs/{id}: hub staff of that hub and admins; the answer carries the ETag (the version).
-  http.get("*/v1/hubs/:id", ({ request, params }) => {
-    const hub = hubs().find((h) => h.id === params.id);
-    if (hub) return hubGuard(request, hub.id) ?? withEtag(hubOut(hub), hub.version);
-    const listed = HUBS.find((h) => h.id === params.id);
-    if (listed && roleOf(request) === "admin") return withEtag(listed, 1);
-    return problem(404, "hub_ops.hub_not_found", "No such hub");
-  }),
 
   http.patch("*/v1/admin/hubs/:id", async ({ request, params }) => {
     const refused = deny(request, ["admin"]);
     if (refused) return refused;
-    const hub = hubs().find((h) => h.id === params.id);
+    const hub = hubDetails().find((h) => h.id === params.id);
     if (!hub) return problem(404, "hub_ops.hub_not_found", "No such hub");
     const stale = checkIfMatch(request, hub.version);
     if (stale) return stale;
@@ -206,6 +130,6 @@ export const hubadminHandlers = [
     if (JSON.stringify(next) !== JSON.stringify(hub)) {
       Object.assign(hub, next, { version: hub.version + 1, updated_at: new Date().toISOString() });
     }
-    return withEtag(hubOut(hub), hub.version);
+    return withEtag(hub, hub.version);
   }),
 ];

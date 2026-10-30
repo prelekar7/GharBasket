@@ -153,7 +153,7 @@ function Tiffin() {
           isPending={book.isPending}
           onPress={() =>
             book.mutate(
-              { date, slot: offer.slot, kitchenId: offer.kitchen_id, qty },
+              { menuId: offer.menu_id, qty },
               {
                 onSuccess: () => {
                   toast(t("week.day.added", { dish: offer.dish.name, cook: offer.cook.name }));
@@ -162,7 +162,7 @@ function Tiffin() {
                 onError: (e) =>
                   toast(
                     t(
-                      e instanceof ApiError && e.code === "orders.already_booked"
+                      e instanceof ApiError && e.code === "orders.tiffin_already_booked"
                         ? "tiffin.already"
                         : "onboarding.error",
                     ),

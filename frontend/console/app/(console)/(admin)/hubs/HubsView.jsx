@@ -6,6 +6,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import { useRef, useState, useTransition } from "react";
 import { KV, PageHead, Panel } from "@/components/admin/Page.jsx";
 import { polygonOf, ringOf } from "@/lib/admin/geo.js";
+import { formatRupees } from "@/lib/money.js";
 import "@/lib/maps.js";
 import { createHub, saveServiceArea } from "./actions.js";
 
@@ -31,34 +32,21 @@ const listOf = (names) =>
 /**
  * Hubs and their service areas: pick a hub, see its facts, draw or move its service area on the
  * map, and see the societies inside it.
- * The admin list of hubs and of societies are @proposals (not in the contract yet). Without the hub list
- * (`limited`) only each hub's name is known, so the page is read-only; without the society list
- * (`societies` null) it cannot say which societies a hub serves.
- * @param {{ hubs: AdminHub[], societies: Society[] | null, currentId: string, limited: boolean }} props
+ * The hubs are the real `GET /v1/hubs/{hub_id}` (HubOut). The admin list of societies is a @proposal
+ * (not in the contract yet): without it (`societies` null) the page cannot say which societies a hub serves.
+ * @param {{ hubs: AdminHub[], societies: Society[] | null, currentId: string }} props
  */
-export function HubsView({ hubs, societies, currentId, limited }) {
+export function HubsView({ hubs, societies, currentId }) {
   const [param, setParam] = useQueryState("hub", parseAsString.withOptions({ history: "replace" }));
   const [adding, setAdding] = useState(false);
   const hub = hubs.find((h) => h.id === param) ?? hubs.find((h) => h.id === currentId) ?? hubs[0];
   const [tool, setTool] = useState(/** @type {"draw" | "edit"} */ ("edit"));
 
-  const addButton = limited ? null : <Button onPress={() => setAdding(true)}>Add hub</Button>;
   const head = (
-    <>
-      <PageHead title="Hubs" action={addButton}>
-        Each hub is a franchise fulfilment centre with a service area. A society inside the area can
-        be served once it unlocks.
-      </PageHead>
-      {limited && (
-        <p
-          role="status"
-          className="rounded-md border border-line bg-surface px-3.5 py-3 text-sm leading-5"
-        >
-          Hub details, service areas and adding hubs are not available yet. They need endpoints that
-          have not shipped, so this shows the hubs you can use, by name.
-        </p>
-      )}
-    </>
+    <PageHead title="Hubs" action={<Button onPress={() => setAdding(true)}>Add hub</Button>}>
+      Each hub is a franchise fulfilment centre with a service area. A society inside the area can
+      be served once it unlocks.
+    </PageHead>
   );
 
   if (!hub) {
@@ -90,13 +78,17 @@ export function HubsView({ hubs, societies, currentId, limited }) {
   /** @param {import("@/lib/admin/geo.js").LngLat[] | null} ring */
   async function save(ring) {
     const before = hub.service_area;
-    const result = await saveServiceArea(hub.id, ring ? polygonOf(ring) : null);
+    const result = await saveServiceArea(hub.id, ring ? polygonOf(ring) : null, hub.version);
     if (!result.ok) {
       toast(result.message);
       return;
     }
     toast(ring ? "Service area saved" : "Service area deleted", {
-      action: { label: "Undo", onClick: () => void saveServiceArea(hub.id, before) },
+      // The save moved the hub to a new version; the undo must send that one in If-Match.
+      action: {
+        label: "Undo",
+        onClick: () => void saveServiceArea(hub.id, before, result.data.version),
+      },
     });
   }
 
@@ -140,7 +132,7 @@ export function HubsView({ hubs, societies, currentId, limited }) {
               else toast("There is no service area to delete yet.");
             }}
           />
-          {!hub.service_area && !limited && (
+          {!hub.service_area && (
             <p role="status" className="rounded-sm bg-accent-soft px-3 py-2.5 text-sm leading-5">
               {hub.name} has no service area yet. Draw it on the map and save, so we know which
               societies it can serve.
@@ -152,19 +144,19 @@ export function HubsView({ hubs, societies, currentId, limited }) {
           <Panel label={`${hub.name} details`}>
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="text-[17px] leading-6 font-bold">{hub.name}</h2>
-              {hub.status === "planned" && <Badge tone="accent">Planned</Badge>}
+              {hub.status === "paused" && <Badge tone="accent">Paused</Badge>}
             </div>
-            {!limited && (
-              <div>
-                <KV k="Address">{hub.address}</KV>
-                <KV k="Franchise owner">{hub.franchise_owner?.name ?? "Not assigned yet"}</KV>
-                <KV k="Hub manager">{hub.hub_manager?.name ?? "Not assigned yet"}</KV>
-                <KV k="Delivery slots">
-                  {hub.slots.length ? hub.slots.join(" · ") : "Not set yet"}
-                </KV>
-                <KV k="Cut-off">{hub.cutoff}</KV>
-              </div>
-            )}
+            <div>
+              <KV k="Address">{hub.address}</KV>
+              <KV k="Day timings">
+                Receiving {hub.timings.receiving} · packing {hub.timings.packing} · dispatch{" "}
+                {hub.timings.dispatch} · surplus {hub.timings.surplus}
+              </KV>
+              <KV k="Buying buffer">{hub.procurement_buffer_pct}% over the plan</KV>
+              <KV k="Fee per box before a society is live">
+                {formatRupees(hub.pre_live_box_fee_paise)}
+              </KV>
+            </div>
           </Panel>
 
           <Panel label="Societies in this area">
@@ -202,7 +194,7 @@ export function HubsView({ hubs, societies, currentId, limited }) {
 }
 
 /**
- * The "Add hub" sheet: a name and an address. The new hub is planned until its area and people are set.
+ * The "Add hub" sheet: a name and an address. The new hub has no service area until one is drawn.
  * @param {{ open: boolean, onOpenChange: (open: boolean) => void, onCreated: (id: string) => void }} props
  */
 function AddHub({ open, onOpenChange, onCreated }) {
@@ -242,7 +234,7 @@ function AddHub({ open, onOpenChange, onCreated }) {
   return (
     <Sheet
       title="Add a hub"
-      description="It starts as planned. Draw its service area on the map once it is added."
+      description="Draw its service area on the map once it is added."
       open={open}
       onOpenChange={onOpenChange}
       footer={

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyAction, bagQr, findFlat, tally } from "@/features/captain/day.js";
 import { mockFetch } from "./index.js";
 
-const CAPTAIN = { "x-active-role": "captain:0199e000-0000-7000-8000-000000000001" };
+const CAPTAIN = { "x-active-role": "captain:0199a000-0000-7000-8000-00000000b001" };
 
 const get = async (/** @type {string} */ path, headers = CAPTAIN) =>
   mockFetch(new Request(`http://localhost${path}`, { headers }));
@@ -210,7 +210,9 @@ describe("captain day (M7 §3.4 mocks)", () => {
     expect(e.entries.every((/** @type {any} */ x) => Number.isInteger(x.amount_paise))).toBe(true);
     // A kitchen partner's call is answered by mocks/kitchen.js, not with the captain's numbers.
     const k = await (
-      await get("/v1/earnings", { "x-active-role": "kitchen_partner:hub-kharghar" })
+      await get("/v1/earnings", {
+        "x-active-role": "kitchen_partner:0199a000-0000-7000-8000-00000000a001",
+      })
     ).json();
     expect(k.total_paise).not.toBe(e.total_paise);
   });

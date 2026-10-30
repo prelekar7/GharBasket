@@ -148,28 +148,20 @@ export function useReportIssue(orderId) {
 }
 
 /**
- * Book a home kitchen's tiffins for a meal (POST /v1/orders, kind "tiffin": M4 lists it for P3
- * without a body, so this one is our proposal). One key per day, meal and count, so a retry never
- * books twice; it is paid at the cut-off with the box. @proposal (not in the contract yet)
+ * Book a home kitchen's tiffins for a meal (POST /v1/orders, kind "tiffin", M4 §3.5): the menu
+ * fixes the date, meal, price and cook; `portions` is 1 to 12. One key per menu and count, so a
+ * retry never books twice; it is paid at the cut-off with the box.
  */
 export function useAddTiffin() {
   const client = useQueryClient();
   const keys = useRef(/** @type {Record<string, string>} */ ({}));
   return useMutation({
-    mutationFn: (
-      /** @type {{ date: string, slot: string, kitchenId: string, qty: number }} */ v,
-    ) => {
-      const id = `${v.date}:${v.slot}:${v.qty}`;
+    mutationFn: (/** @type {{ menuId: string, qty: number }} */ v) => {
+      const id = `${v.menuId}:${v.qty}`;
       keys.current[id] ??= crypto.randomUUID();
       return request("/v1/orders", {
         method: "POST",
-        body: {
-          kind: "tiffin",
-          delivery_date: v.date,
-          slot: v.slot,
-          kitchen_id: v.kitchenId,
-          qty: v.qty,
-        },
+        body: { kind: "tiffin", menu_id: v.menuId, portions: v.qty },
         headers: { "idempotency-key": keys.current[id] },
       });
     },
