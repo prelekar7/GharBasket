@@ -29,7 +29,7 @@ const SOCIETIES = [
     name: "Sunrise Towers",
     items_donated: 18,
     kg_donated: 7.5,
-    meals_donated: 8,
+    meals_donated: null,
     households_joined: 54,
   },
   {
@@ -37,7 +37,7 @@ const SOCIETIES = [
     name: "Krishna Kunj",
     items_donated: 12,
     kg_donated: 5,
-    meals_donated: 6,
+    meals_donated: null,
     households_joined: 15,
   },
 ];
@@ -45,9 +45,12 @@ const SOCIETIES = [
 /** @param {string} month */
 const isMonth = (month) => /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
 
-/** The CSV of the contract: one row per (month, hub, ngo), the hub total first. @param {Record<string, any>} body */
+/**
+ * The CSV of the contract (the API's 16 columns): a hub's or the platform's total row (ngo blank) and then one
+ * row per NGO that received something; an NGO's file has its own rows only. A cell that does not apply is blank.
+ * @param {Record<string, any>} body
+ */
 function csv(body) {
-  const t = body.totals;
   const head = [
     "month",
     "hub_id",
@@ -56,42 +59,55 @@ function csv(body) {
     "items_donated",
     "kg_donated",
     "donations_verified",
+    "households_donating",
     "meals_donated",
     "meals_served",
     "people_reached",
     "referrals_converted",
     "societies_live",
+    "partners_earned_paise",
+    "partners_paid",
+    "waste_g_per_100kg",
   ];
-  const rows = [
-    [
-      body.month,
-      body.hub_id ?? "",
-      "",
-      t.food_saved_kg,
-      t.items_donated,
-      t.kg_donated,
-      t.donations_verified,
-      t.meals_donated,
-      t.meals_served,
-      t.people_reached ?? "",
-      t.referrals_converted,
-      t.societies_live,
-    ],
-    ...body.ngos.map((/** @type {Record<string, any>} */ n) => [
-      body.month,
-      body.hub_id ?? "",
-      n.ngo_id,
-      "",
-      n.items,
-      n.kg,
-      "",
-      "",
-      n.meals,
-      n.people_reached ?? "",
-      "",
-      "",
-    ]),
+  const t = body.totals;
+  const cell = (/** @type {unknown} */ v) => v ?? "";
+  const total = [
+    body.month,
+    cell(body.hub_id),
+    "",
+    t.food_saved_kg,
+    t.items_donated,
+    t.kg_donated,
+    cell(t.donations_verified),
+    cell(t.households_donating),
+    cell(t.meals_donated),
+    t.meals_served,
+    cell(t.people_reached),
+    cell(t.referrals_converted),
+    cell(t.societies_live),
+    cell(t.partners_earned_paise),
+    cell(t.partners_paid),
+    cell(t.waste_g_per_100kg),
   ];
+  const received = body.ngos.map((/** @type {Record<string, any>} */ n) => [
+    body.month,
+    cell(body.hub_id),
+    n.ngo_id,
+    "",
+    n.items,
+    n.kg,
+    "",
+    "",
+    "",
+    n.meals,
+    cell(n.people_reached),
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
+  const rows = body.scope === "ngo" ? received : [total, ...received];
   return `${[head, ...rows].map((r) => r.join(",")).join("\n")}\n`;
 }
 
@@ -118,8 +134,13 @@ export const impactHandlers = [
       });
     if (scope === "platform" && role !== "admin")
       return problem(403, "auth.forbidden", "Only admins see the platform");
+    // A scope's id left out: 403 for someone who may not read everything, 422 for an admin.
+    const left = (/** @type {string} */ what) =>
+      role === "admin"
+        ? problem(422, "request.invalid", `Give the ${what} to read.`)
+        : problem(403, "auth.forbidden", `Give the ${what} you want to read.`);
     if (scope === "hub") {
-      if (!hubId) return problem(403, "auth.forbidden", "Choose a hub");
+      if (!hubId) return left("hub_id");
       if (role === "ngo_coordinator")
         return problem(403, "auth.forbidden", "NGO coordinators see their NGO");
       if (!HUBS.some((h) => h.id === hubId))
@@ -128,19 +149,20 @@ export const impactHandlers = [
         return problem(403, "auth.forbidden", "You do not have access to this hub");
     }
     if (scope === "ngo") {
-      if (
-        !ngoId ||
-        (role === "ngo_coordinator" && ngoId !== NGO_ID.first) ||
-        role === "franchise_owner"
-      )
+      if (!ngoId) return left("ngo_id");
+      if (role === "admin" && !Object.values(NGO_ID).includes(ngoId))
+        return problem(404, "community.ngo_not_found", "No such NGO.");
+      if ((role === "ngo_coordinator" && ngoId !== NGO_ID.first) || role === "franchise_owner")
         return problem(403, "auth.forbidden", "You do not have access to this NGO");
     }
     if (source === "synthetic" && role !== "admin")
       return problem(403, "auth.forbidden", "Only admins may ask for synthetic data");
     if (!isMonth(month)) return problem(422, "request.invalid", "month is YYYY-MM");
     const [first] = monthsUpTo(CURRENT, 24);
-    if (month > CURRENT || month < first)
-      return problem(422, "analytics.range_invalid", "Pick one of the last 24 months");
+    if (month > CURRENT)
+      return problem(422, "analytics.range_invalid", "That month has not happened yet.");
+    if (month < first)
+      return problem(422, "analytics.range_too_long", "The report goes back 24 months at most.");
 
     const m = MONTHS[month] ?? NONE;
     const handoffs = handoffsStore().handoffs.filter(
@@ -164,24 +186,27 @@ export const impactHandlers = [
       };
     });
     const hubOrPlatform = scope !== "ngo";
+    // What an NGO report leaves out (no donor, society or pay), and what the API cannot say, is null.
+    const donor = (/** @type {number | null} */ v) => (hubOrPlatform ? v : null);
     const body = {
       scope,
       hub_id: scope === "hub" ? hubId : null,
       ngo_id: scope === "ngo" ? ngoId : null,
       month,
+      data_source: source,
       as_of: AS_OF,
       stale: false,
       totals: {
         food_saved_kg: m.food,
         items_donated: m.items,
         kg_donated: m.kg,
-        donations_verified: m.verified,
-        households_donating: m.verified >= 5 ? Math.max(5, m.verified - 1) : null,
-        meals_donated: m.meals,
+        donations_verified: donor(m.verified),
+        households_donating: donor(m.verified >= 5 ? Math.max(5, m.verified - 1) : null),
+        meals_donated: donor(m.meals),
         meals_served: m.served,
         people_reached: handoffs.length > 0 ? people : null,
-        referrals_converted: m.items > 0 ? 6 : 0,
-        societies_live: m.items > 0 ? 2 : 0,
+        referrals_converted: donor(m.items > 0 ? 6 : 0),
+        societies_live: donor(m.items > 0 ? 2 : 0),
         partners_earned_paise: hubOrPlatform && m.items > 0 ? 1_580_000 : null,
         partners_paid: hubOrPlatform && m.items > 0 ? 14 : null,
         waste_g_per_100kg: hubOrPlatform && m.items > 0 ? 1900 : null,
@@ -197,14 +222,20 @@ export const impactHandlers = [
           meals_served: at("served"),
         };
       })(),
-      societies: scope === "hub" && month === CURRENT ? SOCIETIES : [],
+      // Scope hub only (null for platform and ngo); a month with no facts has the societies with zeros.
+      societies:
+        scope === "hub"
+          ? SOCIETIES.map((s) =>
+              month === CURRENT ? s : { ...s, items_donated: 0, kg_donated: 0 },
+            )
+          : null,
       ngos,
     };
     if (q.get("format") === "csv") {
       return new Response(csv(body), {
         headers: {
           "content-type": "text/csv; charset=utf-8",
-          "content-disposition": `attachment; filename="gharbasket-impact-${month}.csv"`,
+          "content-disposition": `attachment; filename="impact-${month}-${scope}${scope === "platform" ? "" : `-${(scope === "hub" ? hubId : ngoId)?.slice(0, 8)}`}.csv"`,
           "cache-control": "private, max-age=60",
         },
       });

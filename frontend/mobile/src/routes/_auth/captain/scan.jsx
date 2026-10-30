@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { bagQr, currentStop, findFlat, isHandedOver } from "@/features/captain/day.js";
+import { bagQr, currentStop, findFlat, isHandedOver, tiffinStop } from "@/features/captain/day.js";
 import { PhotoButton, ReceivedCard } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useHandover } from "@/features/captain/queries.js";
 import { Row } from "@/features/kitchen/ui.jsx";
@@ -15,11 +15,16 @@ import { ApiError } from "@/lib/api.js";
 /**
  * Receiving the van's crates at the gate: count the crates and bags, type the code the rider shows,
  * and send (design CaptainHandover; M7 §3.4). When the counts differ from the van's, scan the bags
- * you have. Crates are counted, not tracked (ADR-0026 §6).
+ * you have. Crates are counted, not tracked (ADR-0026 §6). With `tiffin` it is the tiffin drop
+ * (M7 §3.7): count the tiffins the rider hands over, no crates and no scans, as often as more
+ * come from the kitchens.
  */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/captain/scan")({
-  validateSearch: (/** @type {Record<string, unknown>} */ s) => ({ typing: s.typing === true }),
+  validateSearch: (/** @type {Record<string, unknown>} */ s) => ({
+    typing: s.typing === true,
+    tiffin: s.tiffin === true,
+  }),
   component: Handover,
 });
 
@@ -27,7 +32,7 @@ function Handover() {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const navigate = useNavigate();
-  const { typing } = Route.useSearch();
+  const { typing, tiffin } = Route.useSearch();
   const day = useCaptainDay();
   const send = useHandover();
   const [counts, setCounts] = useState(
@@ -49,14 +54,15 @@ function Handover() {
   if (day.isPending) return <Skeleton lines={8} />;
   if (day.isError || !day.data) return <ScreenError onRetry={() => day.refetch()} />;
   const d = day.data;
-  const stop = currentStop(d);
+  const stop = tiffin ? tiffinStop(d) : currentStop(d);
   if (!stop) return <ScreenError onRetry={() => day.refetch()} />;
-  const done = isHandedOver(d);
-  const crates = counts?.crates ?? stop.expected.crates;
-  const bags = counts?.bags ?? stop.expected.bags;
+  const waiting = d.flats.filter((f) => f.kind === "tiffin" && f.status === "on_the_way").length;
+  const done = tiffin ? waiting === 0 : isHandedOver(d);
+  const crates = tiffin ? 0 : (counts?.crates ?? stop.expected.crates);
+  const bags = counts?.bags ?? (tiffin ? waiting : stop.expected.bags);
   const differs = crates !== stop.expected.crates || bags !== stop.expected.bags;
-  const scanning = differs || forceScan;
-  const onVan = d.flats.filter((f) => f.status === "on_the_way");
+  const scanning = !tiffin && (differs || forceScan);
+  const onVan = d.flats.filter((f) => f.status === "on_the_way" && f.kind !== "tiffin");
   const next = onVan.find((f) => !scanned.includes(f.order_id));
   const ready = (photoKey || /^\d{4}$/.test(code.trim())) && (!scanning || scanned.length > 0);
 
@@ -86,15 +92,28 @@ function Handover() {
       toast(t("captain.handover.sent"));
     } catch (e) {
       const problem = e instanceof ApiError ? e.code : "";
-      if (problem === "logistics.count_mismatch") setForceScan(true);
+      if (problem === "logistics.count_mismatch" && !tiffin) setForceScan(true);
       if (problem === "logistics.code_attempts_exceeded") setNeedPhoto(true);
       if (problem === "logistics.already_handed_over") day.refetch();
+      // The rider carries fewer or more tiffins than she counted: show his count and labels.
+      const expected = e instanceof ApiError ? e.extra.expected : null;
+      if (tiffin && problem === "logistics.count_mismatch" && expected)
+        setCounts({ crates: 0, bags: /** @type {{ bags: number }} */ (expected).bags });
       setError(
         {
           "logistics.code_invalid": t("captain.handover.codeWrong"),
           "logistics.code_attempts_exceeded": t("captain.handover.codeLocked"),
-          "logistics.count_mismatch": t("captain.handover.mismatch"),
+          "logistics.count_mismatch": tiffin
+            ? t("captain.handover.tiffinMismatch", {
+                count: /** @type {{ bags: number }} */ (expected)?.bags ?? 0,
+                codes: /** @type {string[]} */ (
+                  (e instanceof ApiError && e.extra.short_codes) || []
+                ).join(", "),
+              })
+            : t("captain.handover.mismatch"),
           "logistics.bag_mismatch": t("captain.handover.notOnVan"),
+          "logistics.nothing_to_hand_over": t("captain.handover.tiffinNone"),
+          "logistics.already_handed_over": t("captain.handover.tiffinDone"),
         }[problem] ?? t("captain.handover.failed"),
       );
     } finally {
@@ -106,40 +125,55 @@ function Handover() {
     <div className="flex flex-1 flex-col gap-3.5">
       <FieldHeader
         eyebrow={t("captain.handover.when", {
-          slot: stop.slot.label,
-          time: stop.eta_now ? clockTime(stop.eta_now, lang) : stop.slot.start,
+          slot: stop.slot?.label ?? "",
+          time: stop.eta_now ? clockTime(stop.eta_now, lang) : (stop.slot?.start ?? ""),
         })}
-        title={t("captain.handover.title")}
+        title={t(tiffin ? "captain.handover.tiffinTitle" : "captain.handover.title")}
       />
-      {done && <ReceivedCard />}
+      {done && tiffin ? (
+        <section className="flex flex-col gap-1.5 rounded-md bg-accent-soft p-3.5">
+          <h2 className="m-0 text-[19px] leading-[26px] font-bold">
+            {t("captain.handover.tiffinReceived")}
+          </h2>
+          <p className="m-0">{t("captain.handover.tiffinReceivedBody")}</p>
+        </section>
+      ) : (
+        done && <ReceivedCard />
+      )}
       {!done && (
         <>
           <ul className="m-0 list-none p-0">
+            {!tiffin && (
+              <Row
+                tall
+                title={t("captain.handover.crates")}
+                sub={t("captain.handover.expected", { n: stop.expected.crates })}
+                end={
+                  <QtyStepper
+                    label={t("captain.handover.crates")}
+                    value={crates}
+                    min={0}
+                    max={99}
+                    onChange={(v) => setCounts({ crates: v, bags })}
+                    labels={{
+                      decrease: t("kitchen.menu.decrease"),
+                      increase: t("kitchen.menu.increase"),
+                    }}
+                  />
+                }
+              />
+            )}
             <Row
               tall
-              title={t("captain.handover.crates")}
-              sub={t("captain.handover.expected", { n: stop.expected.crates })}
-              end={
-                <QtyStepper
-                  label={t("captain.handover.crates")}
-                  value={crates}
-                  min={0}
-                  max={99}
-                  onChange={(v) => setCounts({ crates: v, bags })}
-                  labels={{
-                    decrease: t("kitchen.menu.decrease"),
-                    increase: t("kitchen.menu.increase"),
-                  }}
-                />
+              title={t(tiffin ? "captain.handover.tiffins" : "captain.handover.bags")}
+              sub={
+                tiffin
+                  ? t("captain.handover.tiffinExpected", { n: waiting })
+                  : t("captain.handover.expected", { n: stop.expected.bags })
               }
-            />
-            <Row
-              tall
-              title={t("captain.handover.bags")}
-              sub={t("captain.handover.expected", { n: stop.expected.bags })}
               end={
                 <QtyStepper
-                  label={t("captain.handover.bags")}
+                  label={t(tiffin ? "captain.handover.tiffins" : "captain.handover.bags")}
                   value={bags}
                   min={0}
                   max={999}
@@ -180,7 +214,7 @@ function Handover() {
             </section>
           ) : (
             <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
-              {t("captain.handover.countHelp")}
+              {t(tiffin ? "captain.handover.tiffinHelp" : "captain.handover.countHelp")}
             </p>
           )}
           <section className="flex flex-col gap-2 rounded-md bg-surface p-3.5">
@@ -230,7 +264,9 @@ function Handover() {
               isPending={busy}
               onPress={submit}
             >
-              {t("captain.handover.done", { count: crates })}
+              {tiffin
+                ? t("captain.handover.tiffinDoneBtn", { count: bags })
+                : t("captain.handover.done", { count: crates })}
             </Button>
             {!needPhoto && !photoKey && (
               <Button variant="quiet" block onPress={() => setNeedPhoto(true)}>

@@ -4,7 +4,7 @@
 import { HttpResponse, http } from "msw";
 import { seedShortWallet } from "./billing.js";
 import { clearRatings } from "./orders.js";
-import { HUB_ID } from "./packer.js";
+import { HUB_ID, SOCIETY_ID } from "./packer.js";
 import { seedPaymentFailed } from "./subscriptions.js";
 import { restartTrip } from "./tracking.js";
 
@@ -18,7 +18,7 @@ const problem = (status, code, title) =>
     { status, headers: { "content-type": "application/problem+json" } },
   );
 
-/** Fictional dev numbers: …02 is a customer who is also Captain of Sunrise Towers, …03 a rider. */
+/** Fictional dev numbers: …02 is a customer who is also Captain of Sunrise Towers, …03 a rider, …06 the rider of the lunch route. */
 export function rolesFor(/** @type {string} */ phone) {
   /** @type {import("@/lib/api.js").RoleGrant[]} */
   const roles = [{ role: "customer", scope_type: null, scope_id: null, status: "verified" }];
@@ -26,7 +26,7 @@ export function rolesFor(/** @type {string} */ phone) {
     roles.push({
       role: "captain",
       scope_type: "society",
-      scope_id: "0190f0aa-5000-7000-8000-000000000001", // Sunrise Towers
+      scope_id: SOCIETY_ID, // Sunrise Towers
       status: "verified",
     });
   }
@@ -37,13 +37,13 @@ export function rolesFor(/** @type {string} */ phone) {
     "+919800001004": {
       role: "captain",
       scope_type: "society",
-      scope_id: "sunrise-towers",
+      scope_id: SOCIETY_ID,
       status: "verified",
     },
     "+919800001005": {
       role: "kitchen_partner",
       scope_type: "hub",
-      scope_id: "hub-kharghar",
+      scope_id: HUB_ID,
       status: "verified",
     },
     "+919800001006": {
@@ -61,11 +61,12 @@ export function rolesFor(/** @type {string} */ phone) {
   };
   if (SEED_FIELD[phone])
     return phone === "+919800001004" ? [...roles, SEED_FIELD[phone]] : [SEED_FIELD[phone]];
-  if (phone === "+919800000003") {
+  // …03 has no route today; …06 is the rider of today's lunch (tiffin) route, M7 §3.7.
+  if (phone === "+919800000003" || phone === "+919800000006") {
     roles.splice(0, 1, {
       role: "rider",
       scope_type: "hub",
-      scope_id: "0190f0aa-6000-7000-8000-000000000001", // Kharghar hub
+      scope_id: HUB_ID, // Kharghar hub
       status: "verified",
     });
   }

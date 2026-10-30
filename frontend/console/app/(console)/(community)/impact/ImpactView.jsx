@@ -9,17 +9,19 @@ import { Toasts } from "@/components/Toasts.jsx";
 import { monthLabel, monthShort } from "@/lib/months.js";
 
 /**
- * GET /v1/analytics/impact (M12 section 3.6). A total the API withholds (fewer than 5 contributors, or none
- * reported) is null.
+ * GET /v1/analytics/impact (M12 section 3.6). A total the API withholds (fewer than 5 contributors, none
+ * reported, or not for this scope: an NGO's report has no donors, referrals, societies or pay) is null.
+ * `societies` is for scope hub only.
  * @typedef {{
- *   scope: "platform" | "hub" | "ngo", hub_id: string | null, ngo_id: string | null, month: string, as_of: string,
- *   totals: { food_saved_kg: number, items_donated: number, kg_donated: number, donations_verified: number,
- *     households_donating: number | null, meals_donated: number, meals_served: number,
- *     people_reached: number | null, referrals_converted: number, societies_live: number,
+ *   scope: "platform" | "hub" | "ngo", hub_id: string | null, ngo_id: string | null, month: string,
+ *   data_source: "real" | "synthetic", as_of: string | null, stale: boolean,
+ *   totals: { food_saved_kg: number, items_donated: number, kg_donated: number, donations_verified: number | null,
+ *     households_donating: number | null, meals_donated: number | null, meals_served: number,
+ *     people_reached: number | null, referrals_converted: number | null, societies_live: number | null,
  *     partners_earned_paise: number | null, partners_paid: number | null, waste_g_per_100kg: number | null },
  *   trend: { months: string[], food_saved_kg: number[], items_donated: number[], meals_served: number[] },
  *   societies: { society_id: string, name: string, items_donated: number, kg_donated: number,
- *     meals_donated: number, households_joined: number }[],
+ *     meals_donated: number | null, households_joined: number }[] | null,
  *   ngos: { ngo_id: string, name: string, handoffs: number, items: number, kg: number, meals: number,
  *     people_reached: number | null }[],
  * }} Impact
@@ -48,6 +50,7 @@ const NGO_COLUMNS = [
 /** @param {{ impact: Impact, months: { value: string, label: string }[] }} props */
 export function ImpactView({ impact, months }) {
   const { totals: t, trend, societies, ngos } = impact;
+
   const [, setMonth] = useQueryState("month", parseAsString.withOptions({ shallow: false }));
   const label = monthLabel(impact.month);
   const name = label.split(" ")[0];
@@ -134,7 +137,7 @@ export function ImpactView({ impact, months }) {
               series={[{ name: "Items donated", values: trend.items_donated }]}
             />
           </div>
-          {societies.length > 0 && (
+          {societies && societies.length > 0 && (
             <DataTable
               dense
               caption={`Impact by society, ${name}`}
@@ -144,7 +147,7 @@ export function ImpactView({ impact, months }) {
                 s: { text: s.name, strong: true },
                 items: s.items_donated,
                 kg: `${s.kg_donated} kg`,
-                meals: s.meals_donated,
+                meals: s.meals_donated ?? "—",
                 joined: s.households_joined,
               }))}
             />
