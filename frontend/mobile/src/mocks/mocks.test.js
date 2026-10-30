@@ -186,7 +186,7 @@ describe("week day: meal swap and tiffin", () => {
   it("swaps a meal and remembers it as the person's choice", async () => {
     const res = await mockFetch(
       new Request("http://localhost/v1/cycles/cyc-2026-10-05/meals", {
-        method: "PATCH",
+        method: "PUT",
         headers: { "content-type": "application/json", "if-match": "1" },
         body: JSON.stringify({ date: "2026-10-06", slot: "dinner" }),
       }),

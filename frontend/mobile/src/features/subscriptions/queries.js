@@ -12,7 +12,7 @@ import { istDate } from "./format.js";
  * @typedef {{ slot: "breakfast" | "lunch" | "dinner", recipe_id: string | null, name: string | null, tiffin: boolean, sides: string[] }} PlannedMeal no recipe and tiffin: a no-cook slot
  * @typedef {{ code: string, params: Record<string, any> }} Highlight
  * @typedef {{ id: string, label: string, start: string, end: string }} Slot
- * @typedef {"draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "preview"} CycleStatus
+ * @typedef {"draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "payment_failed" | "preview"} CycleStatus
  * @typedef {object} Cycle
  * @property {string | null} id null for a preview
  * @property {string} household_id
@@ -200,14 +200,14 @@ export function useEditCycle() {
   });
 }
 
-/** Swap one planned meal for another (PATCH /v1/cycles/{id}/meals, our proposal for M3), with If-Match. */
+/** Swap one planned meal for another (PUT /v1/cycles/{id}/meals, M3), with If-Match; `set` defaults to "next". */
 export function useSwapMeal() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (/** @type {{ cycle: Cycle, date: string, slot: PlannedMeal["slot"] }} */ v) =>
       /** @type {Promise<Cycle>} */ (
         request(`/v1/cycles/${v.cycle.id}/meals`, {
-          method: "PATCH",
+          method: "PUT",
           body: { date: v.date, slot: v.slot },
           headers: { "if-match": ifMatch(v.cycle) },
         })
@@ -221,6 +221,14 @@ export function useSwapMeal() {
  * `payment_failed` until the debit is retried or the grace period ends.
  * @typedef {{ id: string, kind: "box" | "tiffin" | "addon", status: string, cycle_id: string | null, delivery_date: string, cutoff_at: string, total_paise: number, version: number }} BoxOrder
  */
+
+/**
+ * Whether this cycle's box order can be looked up: approved or locked, or `payment_failed` when
+ * the wallet was short at the cut-off (the cycle then carries that status itself).
+ * @param {Pick<Cycle, "status">} cycle
+ */
+export const hasBoxOrder = (cycle) =>
+  cycle.status === "approved" || cycle.status === "locked" || cycle.status === "payment_failed";
 
 /** Two hours after the cut-off, the grace period before an unpaid box is cancelled (M4 §3.1, 23:00 IST). @param {Pick<BoxOrder, "cutoff_at">} order */
 export const graceEnds = (order) =>
@@ -245,7 +253,7 @@ export function useFailedBoxOrder(cycle, { poll = false } = {}) {
         ) ?? null
       );
     },
-    enabled: !!cycle?.order_id && (cycle.status === "approved" || cycle.status === "locked"),
+    enabled: !!cycle?.order_id && hasBoxOrder(cycle),
     refetchInterval: poll ? 2000 : false,
   });
 }

@@ -83,20 +83,6 @@
       "owner": "yash",
       "note": "Dropped (M8 §3.8, owner 2026-10-25): λ is PARTNERS_FAIRNESS_LAMBDA, chosen by the offline λ sweep (M10 §3.5, handbook 08); remove the page's Change control."
     },
-    "GET /v1/hubs/{}/settings": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "Read GET /v1/hubs/{hub_id} (M6 §3.1, HubOut, ETag = version). Map hub_id → id, hub_name → name; the clock's receiving, packing, dispatch and surplus rows → timings; show status, address, procurement_buffer_pct and pre_live_box_fee_paise. Remove switches (ai_planner, auto_approve, tiffins, upi_autopay), languages, quiet_hours and changes: no backend has them. The other clock rows are fixed job times (handbook 10 §10.4): console copy, not data.",
-      "note": "M6 §3.1. Admin only in the nav, as today."
-    },
-    "PATCH /v1/hubs/{}/settings": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "PATCH /v1/admin/hubs/{hub_id} with If-Match (the version from the GET) and any of { name, address, location, service_area, status, timings, procurement_buffer_pct, pre_live_box_fee_paise }; 412 request.version_mismatch → reload. No switches, languages or quiet hours; the change history is the audit log, not shown.",
-      "note": "M6 §3.1 (admin; audit-logged)."
-    },
     "POST /v1/hubs/{}/staff-invitations": {
       "app": "console",
       "class": "drop",

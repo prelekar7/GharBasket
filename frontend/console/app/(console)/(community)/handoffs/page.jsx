@@ -1,8 +1,10 @@
+import { PageHead } from "@/components/admin/Page.jsx";
 import { apiGet } from "@/lib/api.js";
 import { getRole } from "@/lib/auth.js";
 import { currentHub } from "@/lib/hub.js";
 import { monthOptions } from "@/lib/months.js";
 import { currentNgoId } from "@/lib/ngo.js";
+import { NOT_SHIPPED_MESSAGE, orNotShipped } from "@/lib/proposal.js";
 import { HandoffsView } from "./HandoffsView.jsx";
 
 export const metadata = { title: "NGO hand-offs" };
@@ -21,13 +23,20 @@ export default async function Page({ searchParams }) {
     : months[0].value;
   const ngoId = role === "ngo_coordinator" ? await currentNgoId() : undefined;
   const [list, ready, ngos, offers] = await Promise.all([
-    apiGet("/v1/ngo-handoffs", { searchParams: { hub_id: hub.id, ngo_id: ngoId, month } }),
-    apiGet("/v1/ngo-handoffs/ready", { searchParams: { hub_id: hub.id } }),
-    apiGet("/v1/ngos", {
-      searchParams: { hub_id: role === "ngo_coordinator" ? undefined : hub.id },
-    }),
-    apiGet("/v1/ngo/offers", { searchParams: { hub_id: hub.id, status: "open" } }),
+    orNotShipped(
+      apiGet("/v1/ngo-handoffs", { searchParams: { hub_id: hub.id, ngo_id: ngoId, month } }),
+    ),
+    orNotShipped(apiGet("/v1/ngo-handoffs/ready", { searchParams: { hub_id: hub.id } })),
+    orNotShipped(
+      apiGet("/v1/ngos", {
+        searchParams: { hub_id: role === "ngo_coordinator" ? undefined : hub.id },
+      }),
+    ),
+    orNotShipped(apiGet("/v1/ngo/offers", { searchParams: { hub_id: hub.id, status: "open" } })),
   ]);
+  // M9 is not built yet: the whole screen needs all four reads.
+  if (!list || !ready || !ngos || !offers)
+    return <PageHead title="NGO hand-offs">{NOT_SHIPPED_MESSAGE}</PageHead>;
   return (
     <HandoffsView
       handoffs={list.items}

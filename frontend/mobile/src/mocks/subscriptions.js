@@ -662,9 +662,9 @@ export const subscriptionHandlers = [
     return HttpResponse.json(cycle(langOf(request)));
   }),
 
-  // PATCH meals: { date, slot } with If-Match: swaps that meal for the next alternative (our
-  // proposal for M3; the spec has no meal edits).
-  http.patch("*/v1/cycles/:id/meals", async ({ request }) => {
+  // PUT meals: { date, slot } with If-Match: swaps that meal for the next alternative (M3; the
+  // API's default `set: "next"`).
+  http.put("*/v1/cycles/:id/meals", async ({ request }) => {
     const state = loadState();
     if (versionOf(request.headers.get("if-match")) !== state.version)
       return problem(412, "subscriptions.version_conflict", "The plan changed; reload it");

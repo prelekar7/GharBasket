@@ -450,7 +450,8 @@
       "skipped": "This week is skipped. No box and no charge.",
       "locked": "Edits are closed. Your box is being packed.",
       "draft": "We’re still planning this week. You’ll be able to check it soon.",
-      "cancelled": "This week’s box was cancelled. Nothing was charged."
+      "cancelled": "This week’s box was cancelled. Nothing was charged.",
+      "payment_failed": "Your box wasn’t paid at the cut-off. Add money to your wallet to keep it."
     },
     "brings": "{name} brings it to {flat}",
     "open": "Open box",
