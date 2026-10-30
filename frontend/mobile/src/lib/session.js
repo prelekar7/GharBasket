@@ -1,5 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import {
+  releasePushToken,
+  stopPushToken,
+  syncPushToken,
+} from "@/features/notifications/pushToken.js";
 import { logout, logoutAll, me, setActiveRoleHeader } from "@/lib/api.js";
 import { clearLocalData } from "@/lib/localData.js";
 
@@ -55,6 +60,7 @@ export const useSession = create(
                 : null;
           setActiveRoleHeader(headerFor(grants, activeRole));
           set({ signedIn: true, user, grants, roles, activeRole });
+          syncPushToken();
         },
         setUser: (user) => set({ user }),
         setActiveRole: (activeRole) => {
@@ -75,11 +81,13 @@ export const useSession = create(
           return restoring;
         },
         signOut: async ({ everywhere = false } = {}) => {
+          await releasePushToken();
           await (everywhere ? logoutAll() : logout()).catch(() => {});
           await clearLocalData();
           get().clear();
         },
         clear: () => {
+          stopPushToken();
           setActiveRoleHeader(null);
           set({ signedIn: false, user: null, grants: [], roles: [] });
         },

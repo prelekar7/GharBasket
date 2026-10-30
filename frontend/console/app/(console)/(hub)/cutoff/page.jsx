@@ -1,6 +1,8 @@
+import { PageHead } from "@/components/admin/Page.jsx";
 import { apiGet } from "@/lib/api.js";
 import { getRole } from "@/lib/auth.js";
 import { currentHub } from "@/lib/hub.js";
+import { NOT_SHIPPED_MESSAGE, orNotShipped } from "@/lib/proposal.js";
 import { CutoffView } from "./CutoffView.jsx";
 
 export const metadata = { title: "Cut-off" };
@@ -15,6 +17,10 @@ export const metadata = { title: "Cut-off" };
 
 export default async function Page() {
   const hub = await currentHub();
-  const [cutoff, role] = await Promise.all([apiGet(`/v1/hubs/${hub.id}/cutoff`), getRole()]);
+  const [cutoff, role] = await Promise.all([
+    orNotShipped(apiGet(`/v1/hubs/${hub.id}/cutoff`)),
+    getRole(),
+  ]);
+  if (!cutoff) return <PageHead title="Cut-off">{NOT_SHIPPED_MESSAGE}</PageHead>;
   return <CutoffView hubId={hub.id} cutoff={cutoff} canRun={role === "admin"} />;
 }

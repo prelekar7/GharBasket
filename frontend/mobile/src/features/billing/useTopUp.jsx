@@ -61,8 +61,11 @@ export function useTopUp({ onPaid }) {
     const status = await pollTopUp(order.id, { signal: alive.current.signal });
     if (alive.current.signal.aborted) return;
     setBusy(false);
-    // The wallet may have moved even when we gave up waiting.
+    // The wallet may have moved even when we gave up waiting. A top-up in the grace period re-runs
+    // the box debit, so the week and the orders must not keep saying "Payment needed".
     client.invalidateQueries({ queryKey: ["wallet"] });
+    client.invalidateQueries({ queryKey: ["cycle"] });
+    client.invalidateQueries({ queryKey: ["orders"] });
     if (status === "paid") {
       delete keys.current[order.amount_paise];
       return onPaid();

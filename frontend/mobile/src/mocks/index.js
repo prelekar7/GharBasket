@@ -1,4 +1,5 @@
 import { getResponse } from "msw";
+import { addonHandlers } from "./addons.js";
 import { assistantHandlers } from "./assistant.js";
 import { billingHandlers } from "./billing.js";
 import { captainHandlers } from "./captain.js";
@@ -27,6 +28,7 @@ const all = [
   // Before the role mocks: GET /v1/earnings?week= is answered for every partner kind here.
   ...partnerHandlers,
   ...logisticsHandlers,
+  ...addonHandlers,
   ...orderHandlers,
   ...kindnessHandlers,
   ...profileHandlers,

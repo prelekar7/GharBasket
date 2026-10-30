@@ -170,11 +170,7 @@ test.describe
       expect(after.total_paise).toBeGreaterThan(before.total_paise);
     });
 
-    test("swap a meal: the app sends PATCH, the API has PUT /v1/cycles/{id}/meals", async () => {
-      test.fail(
-        true,
-        "F1: the app sends PATCH /v1/cycles/{id}/meals; the API has PUT (405 http.method_not_allowed)",
-      );
+    test("swap a meal (PUT /v1/cycles/{id}/meals)", async () => {
       const before = (await api.get("/v1/cycles/current")).body;
       await page.goto("/week");
       await page.getByRole("button", { name: "Open Ravi 25 Oct" }).click();
