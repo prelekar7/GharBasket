@@ -97,6 +97,7 @@ export const NAV = [
       { href: "/packing", label: "Packing", ready: true },
       { href: "/routes", label: "Routes", ready: true, key: "r" },
       { href: "/deliveries", label: "Deliveries", ready: true, key: "d" },
+      { href: "/kept-items", label: "Kept items", ready: true },
     ],
   },
   {
