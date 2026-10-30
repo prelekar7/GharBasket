@@ -8,7 +8,6 @@ import { HttpResponse, http } from "msw";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { caller } from "./handlers.js";
 import { HUB_ID } from "./packer.js";
-import { mockPdfUrl } from "./pdf.js";
 import { ROUTE_ID } from "./tracking.js";
 
 // Endpoints shared with other roles (handover, doors, earnings) answer here only for a rider.
@@ -1000,11 +999,4 @@ export const logisticsHandlers = [
           ],
         }),
   ),
-
-  // Income certificate (M8 US-7, a PDF). Real: a short-lived signed URL; mock: a tiny local PDF.
-  http.get("*/v1/earnings/certificate", ({ request }) => {
-    if (otherRole(request)) return undefined;
-    const url = mockPdfUrl("GharBasket income certificate - mock");
-    return HttpResponse.json({ url, expires_in: 300 });
-  }),
 ];

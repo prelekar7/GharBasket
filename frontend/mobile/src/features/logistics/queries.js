@@ -322,7 +322,3 @@ export function useEarnings() {
     queryFn: () => /** @type {Promise<Earnings>} */ (request("/v1/earnings")),
   });
 }
-
-/** A short-lived link to the income certificate PDF (GET /v1/earnings/certificate, M8 US-7). */
-export const certificateUrl = async () =>
-  /** @type {{ url: string }} */ (await request("/v1/earnings/certificate")).url;

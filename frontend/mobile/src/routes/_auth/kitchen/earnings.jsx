@@ -8,7 +8,7 @@ import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLabel } from "@/features/kitchen/format.js";
 import { useEarnings, usePartnerMe } from "@/features/kitchen/queries.js";
 import { Muted, Row } from "@/features/kitchen/ui.jsx";
-import { request } from "@/lib/api.js";
+import { openCertificate } from "@/features/partners/certificate.js";
 
 /** Earnings: this week from the ledger, rating, payouts and the income certificate (design KitchenEarnings; M8 §3.6). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -34,17 +34,11 @@ function KitchenEarnings() {
   }
   const e = earnings.data;
 
-  // GET /v1/earnings/certificate (not in M8 §3.7 yet) answers with a short-lived link to the PDF.
+  // GET /v1/earnings/certificate (M8 §3.7) answers with a short-lived link to the PDF.
   const download = async () => {
     setDownloading(true);
     try {
-      const { url, filename } = /** @type {{ url: string, filename: string }} */ (
-        await request("/v1/earnings/certificate")
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.click();
+      await openCertificate();
     } catch {
       toast(t("kitchen.earnings.certFailed"));
     } finally {

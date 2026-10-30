@@ -9,7 +9,6 @@
 import { HttpResponse, http } from "msw";
 import { applyAction, bagQr, countFlats, isTiffinStop } from "@/features/captain/day.js";
 import { HUB_ID } from "./packer.js";
-import { mockPdfUrl } from "./pdf.js";
 
 const KEY = "gb-mock-captain-v3";
 const DATE = "2026-10-06";
@@ -450,17 +449,6 @@ export const captainHandlers = [
       entries,
       payouts: [],
       generated_at: new Date().toISOString(),
-    });
-  }),
-
-  // The income certificate as a short-lived link; here a one-line PDF made on the spot. Its
-  // endpoint is not in M8 §3.7 (an outline) yet.
-  http.get("*/v1/earnings/certificate", ({ request }) => {
-    if (!isCaptain(request)) return undefined;
-    const text = "GharBasket income certificate (example) - Meena Jadhav, Society Captain";
-    return HttpResponse.json({
-      url: mockPdfUrl(text),
-      filename: "gharbasket-income-certificate.pdf",
     });
   }),
 ];
