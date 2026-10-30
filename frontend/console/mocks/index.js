@@ -25,6 +25,7 @@ import { procurementHandlers } from "./procurement.js";
 import { publicHandlers } from "./public.js";
 import { receivingHandlers } from "./receiving.js";
 import { teamHandlers } from "./team.js";
+import { tiffinBoardHandlers } from "./tiffin-board.js";
 import { vendorsHandlers } from "./vendors.js";
 import { wasteHandlers } from "./waste.js";
 
@@ -46,6 +47,7 @@ export const handlers = [
   ...ordersHandlers,
   ...orderIssuesHandlers,
   ...partnersHandlers,
+  ...tiffinBoardHandlers,
   ...payoutsHandlers,
   ...plansHandlers,
   ...pricesHandlers,

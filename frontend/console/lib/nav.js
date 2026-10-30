@@ -130,6 +130,7 @@ export const NAV = [
       { href: "/partners", label: "Partners and KYC", ready: true },
       { href: "/partners/[id]", label: "Partner", hidden: true, ready: true },
       { href: "/fairness", label: "Fairness", ready: true },
+      { href: "/tiffin-board", label: "Tiffin board", ready: true, roles: ADMIN_AND_HUB },
     ],
   },
   {
