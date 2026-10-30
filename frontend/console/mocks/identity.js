@@ -8,7 +8,13 @@ import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { fieldError, idempotent, mockStore, mockUuid, problem } from "./util.js";
 
 /** Roles an admin may give here; the others come from Partners and KYC (M8). */
-export const STAFF_ROLES = ["admin", "hub_manager", "franchise_owner", "ngo_coordinator"];
+export const STAFF_ROLES = [
+  "admin",
+  "hub_manager",
+  "franchise_owner",
+  "ngo_coordinator",
+  "catalog_editor",
+];
 
 /** The contract's role enum (RoleGrantIn), and the place each role is tied to (`scope_type`). */
 const ROLE_SCOPE = /** @type {Record<string, "hub" | "society" | "ngo" | null>} */ ({
@@ -20,6 +26,7 @@ const ROLE_SCOPE = /** @type {Record<string, "hub" | "society" | "ngo" | null>} 
   franchise_owner: "hub",
   ngo_coordinator: "ngo",
   admin: null,
+  catalog_editor: null,
 });
 
 /**

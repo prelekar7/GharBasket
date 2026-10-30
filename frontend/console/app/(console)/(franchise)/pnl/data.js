@@ -2,6 +2,7 @@ import { apiGet } from "@/lib/api.js";
 import { apiSource, parseSource } from "@/lib/data-source.js";
 import { currentHub } from "@/lib/hub.js";
 import { isOffered, monthOptions } from "@/lib/months.js";
+import { orNotShipped } from "@/lib/proposal.js";
 
 /**
  * A line of the P&L. `basis` says how the amount was worked out, so the view words it:
@@ -27,14 +28,17 @@ import { isOffered, monthOptions } from "@/lib/months.js";
  * The month list is the console's (any of the last 24 months); the statement defaults to the last full month.
  * @param {string | undefined} period "2026-09"
  * @param {string | undefined} source "simulator" (default) or "pilot" (from the URL)
- * @returns {Promise<Pnl & { periods: { value: string, label: string }[] }>}
+ * @returns {Promise<(Pnl & { periods: { value: string, label: string }[] }) | null>} null while GET /v1/analytics/pnl has not shipped
  */
 export async function loadPnl(period, source) {
   const hub = await currentHub();
   const periods = monthOptions(Date.now());
   const chosen = isOffered(period, periods) ? /** @type {string} */ (period) : periods[1].value;
-  const pnl = await apiGet("/v1/analytics/pnl", {
-    searchParams: { hub_id: hub.id, period: chosen, data_source: apiSource(parseSource(source)) },
-  });
+  const pnl = await orNotShipped(
+    apiGet("/v1/analytics/pnl", {
+      searchParams: { hub_id: hub.id, period: chosen, data_source: apiSource(parseSource(source)) },
+    }),
+  );
+  if (!pnl) return null;
   return { ...pnl, periods };
 }

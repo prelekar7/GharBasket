@@ -6,7 +6,8 @@
 import { HttpResponse, http } from "msw";
 import { chargeBox } from "./billing.js";
 import { PRODUCTS } from "./catalog.js";
-import { bookedTiffins, TIFFIN_OFFER } from "./orders.js";
+import { bookedTiffins, menuDishes, TIFFIN_OFFER, tiffinMenuId } from "./orders.js";
+import { HUB_ID, SOCIETY_ID } from "./packer.js";
 
 const STATE_KEY = "gb-mock-cycle"; // status and version survive reloads, like a server's
 const NO_CYCLE_KEY = "gb-mock-no-cycle"; // "1": a new household, before the first generation
@@ -559,8 +560,8 @@ function failedOrder() {
     status: "payment_failed",
     cycle_id: c.id,
     household_id: c.household_id,
-    hub_id: uid("hub-kharghar"),
-    society_id: uid("society-sunrise-towers"),
+    hub_id: HUB_ID,
+    society_id: SOCIETY_ID,
     delivery_date: c.delivery_date,
     slot: c.slot,
     cutoff_at: c.cutoff_at,
@@ -661,9 +662,9 @@ export const subscriptionHandlers = [
     return HttpResponse.json(cycle(langOf(request)));
   }),
 
-  // PATCH meals: { date, slot } with If-Match: swaps that meal for the next alternative (our
-  // proposal for M3; the spec has no meal edits).
-  http.patch("*/v1/cycles/:id/meals", async ({ request }) => {
+  // PUT meals: { date, slot } with If-Match: swaps that meal for the next alternative (M3; the
+  // API's default `set: "next"`).
+  http.put("*/v1/cycles/:id/meals", async ({ request }) => {
     const state = loadState();
     if (versionOf(request.headers.get("if-match")) !== state.version)
       return problem(412, "subscriptions.version_conflict", "The plan changed; reload it");
@@ -684,22 +685,28 @@ export const subscriptionHandlers = [
   // The first week for onboarding: from the household's rules and today's prices, nothing saved.
   http.get("*/v1/cycles/preview", ({ request }) => HttpResponse.json(cycle(langOf(request), true))),
 
-  // @proposal (not in the contract yet) GET /v1/tiffin-offers?from=&to=: a home kitchen's lunch
-  // tiffin for each day that is still cooked at home (designs Core-W2, HcTiffin).
-  http.get("*/v1/tiffin-offers", ({ request }) => {
+  // GET /v1/tiffin-menus?date=&meal= (M4 §3.5): the approved menus of the caller's hub still open to
+  // book, here a home kitchen's lunch for each day that is still cooked at home (designs Core-W2,
+  // HcTiffin). A day with a tiffin booked has no open menu for that meal any more.
+  http.get("*/v1/tiffin-menus", ({ request }) => {
     const lang = langOf(request);
-    const url = new URL(request.url);
-    const [from, to] = [url.searchParams.get("from") ?? "", url.searchParams.get("to") ?? "~"];
+    const q = new URL(request.url).searchParams;
+    const [date, meal] = [q.get("date"), q.get("meal")];
     const items = DISHES.map((_, i) => `2026-10-${String(5 + i).padStart(2, "0")}`)
-      .filter((date, i) => i !== TIFFIN_DAY && date >= from && date <= to)
-      .filter((date) => !bookedTiffins().some((b) => b.delivery_date === date))
-      .map((date) => ({
-        date,
-        slot: TIFFIN_OFFER.slot,
-        kitchen_id: TIFFIN_OFFER.kitchen_id,
-        cook: { name: pick(TIFFIN_OFFER.cook, lang) },
-        dish: { name: pick(TIFFIN_OFFER.dish, lang), items: pick(TIFFIN_OFFER.items, lang) },
+      .filter((d, i) => i !== TIFFIN_DAY && (!date || d === date) && (!meal || meal === "lunch"))
+      .filter((d) => !bookedTiffins().some((b) => b.delivery_date === d))
+      .map((d) => ({
+        id: tiffinMenuId(d),
+        date: d,
+        meal: TIFFIN_OFFER.slot,
+        hub_id: HUB_ID,
+        dishes: menuDishes(lang),
         price_paise: TIFFIN_OFFER.price_paise,
+        kitchen: {
+          partner_id: TIFFIN_OFFER.kitchen_id,
+          display_name: pick(TIFFIN_OFFER.cook, lang),
+          photo_url: null,
+        },
         order_by: "2026-10-05T15:30:00Z",
       }));
     return HttpResponse.json({ items });

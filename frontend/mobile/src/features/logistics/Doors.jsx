@@ -10,6 +10,7 @@ const FAILS = /** @type {const} */ (["not_home", "refused", "wrong_address", "da
 /**
  * The last metres at a rider-mode stop: each bag with "Delivered" (the customer's code or a photo
  * of the bag at the door) and "Couldn't deliver" (a reason). M7 §3.4; a captain does this herself.
+ * A tiffin (§3.7) shows the label to match, and a tiffin that can't be delivered is refunded at once.
  * @param {{ stopId: string }} props
  */
 export function Doors({ stopId }) {
@@ -30,10 +31,21 @@ export function Doors({ stopId }) {
             key={d.order_id}
             className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface px-3.5 py-2.5"
           >
-            <strong className="tabular-nums">{d.flat_label}</strong>
+            <strong className="tabular-nums">
+              {d.flat_label}
+              {d.short_code && (
+                <span className="font-normal text-fg-secondary"> · {d.short_code}</span>
+              )}
+            </strong>
             {d.status === "delivered" || d.status === "undelivered" ? (
               <StatusPill status={d.status === "delivered" ? "delivered" : "issue"}>
-                {t(d.status === "delivered" ? "rider.stop.delivered" : "rider.stop.notDelivered")}
+                {t(
+                  d.status === "delivered"
+                    ? "rider.stop.delivered"
+                    : d.kind === "tiffin"
+                      ? "rider.tiffin.refunded"
+                      : "rider.stop.notDelivered",
+                )}
               </StatusPill>
             ) : (
               <span className="flex gap-2">
@@ -62,6 +74,11 @@ export function Doors({ stopId }) {
         title={t("rider.stop.failTitle")}
       >
         <div className="flex flex-col gap-2">
+          {asking?.door.kind === "tiffin" && (
+            <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
+              {t("rider.tiffin.failNote")}
+            </p>
+          )}
           {FAILS.map((reason) => (
             <Button
               key={reason}
@@ -114,7 +131,11 @@ function ProofSheet({ door, onClose, onProof }) {
       <div className="flex flex-col gap-2.5">
         <TextField
           label={t("rider.stop.doorCode")}
-          description={t("rider.stop.doorCodeHelp")}
+          description={
+            door.kind === "tiffin"
+              ? t("rider.tiffin.doorCodeHelp", { code: door.short_code ?? "" })
+              : t("rider.stop.doorCodeHelp")
+          }
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={4}
