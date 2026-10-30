@@ -25,7 +25,7 @@ import {
 } from "@/features/community/queries.js";
 import { ShareSheet } from "@/features/community/ShareSheet.jsx";
 import { UnlockCelebration } from "@/features/community/UnlockCelebration.jsx";
-import { shortDate, todayIst, weekdayName } from "@/features/subscriptions/format.js";
+import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
 
 /**
  * Your society: unlock progress or, once live, delivery days, the captain, the invite link and
@@ -46,7 +46,7 @@ function Society() {
   const { data: s, isPending, isError, refetch } = useSociety(societyId);
   const unlockQuery = useSocietyUnlock(s?.id);
   const deliveryQuery = useDeliveryDays(s?.id);
-  const impact = useImpact(s?.status === "live" ? s.id : undefined, todayIst().slice(0, 7));
+  const impact = useImpact(s?.status === "live" ? s.id : undefined);
   const record = useRecordInvite();
   const [sharing, setSharing] = useState(false);
   const [seen, setSeen] = useState(() => {
@@ -195,10 +195,10 @@ function Society() {
               <strong>{t("society.impact.title", { society: s.name })}</strong>
               <p className="text-sm leading-5 text-fg-secondary">
                 {t("society.impact.body", {
-                  kg: impact.data.hub.food_saved_kg,
+                  kg: impact.data.hub?.food_saved_kg ?? 0,
                   n: impact.data.items_donated,
                 })}
-                {impact.data.hub.partners_earned_paise != null && (
+                {impact.data.hub?.partners_earned_paise != null && (
                   <>
                     {" "}
                     <MoneyText paise={impact.data.hub.partners_earned_paise} />{" "}

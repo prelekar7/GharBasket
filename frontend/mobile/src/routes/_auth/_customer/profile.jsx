@@ -30,6 +30,7 @@ import { useInbox } from "@/features/notifications/queries.js";
 import { shortDate } from "@/features/subscriptions/format.js";
 import { LOCALES } from "@/i18n.js";
 import { ApiError } from "@/lib/api.js";
+import { AUTOPAY } from "@/lib/features.js";
 import { useSession } from "@/lib/session.js";
 
 /** Profile: who you are, senior mode, and the way to everything about your account (design HcProfile, M1). */
@@ -110,12 +111,16 @@ function Profile() {
         : undefined,
       onPress: () => navigate({ to: "/budget" }),
     },
-    {
-      key: "autopay",
-      label: t("autopay.title"),
-      value: mandate.data ? t("autopay.on") : undefined,
-      onPress: () => navigate({ to: "/autopay" }),
-    },
+    ...(AUTOPAY
+      ? [
+          {
+            key: "autopay",
+            label: t("autopay.title"),
+            value: mandate.data ? t("autopay.on") : undefined,
+            onPress: () => navigate({ to: "/autopay" }),
+          },
+        ]
+      : []),
     ...(society
       ? [
           {

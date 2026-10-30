@@ -30,13 +30,14 @@ const ROLE_LABEL = /** @type {Record<string, string>} */ ({
   hub_manager: "Hub manager",
   franchise_owner: "Franchise owner",
   ngo_coordinator: "NGO coordinator",
+  catalog_editor: "Catalog editor",
   captain: "Captain",
   kitchen_partner: "Kitchen partner",
   rider: "Rider",
   packer: "Packer",
 });
 /** The roles an admin gives and removes here; the rest come through Partners and KYC. */
-const STAFF = ["admin", "hub_manager", "franchise_owner", "ngo_coordinator"];
+const STAFF = ["admin", "hub_manager", "franchise_owner", "ngo_coordinator", "catalog_editor"];
 const ROLE_OPTIONS = STAFF.map((value) => ({ value, label: ROLE_LABEL[value] }));
 const NEEDS_HUB = ["hub_manager", "franchise_owner"];
 
@@ -47,6 +48,8 @@ function effect(role, hub) {
     return `They'll see the Hub pages for ${hub} from their next sign-in.`;
   if (role === "franchise_owner")
     return `They'll see the Franchise pages for ${hub} from their next sign-in.`;
+  if (role === "catalog_editor")
+    return "They'll see the Catalog and Prices pages from their next sign-in.";
   return "They'll see the NGO hand-offs from their next sign-in.";
 }
 

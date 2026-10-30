@@ -13,7 +13,7 @@
     "format": "biome format --write .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "prepare": "lefthook install"
+    "prepare": "[ -n \"$VERCEL\" ] || lefthook install"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

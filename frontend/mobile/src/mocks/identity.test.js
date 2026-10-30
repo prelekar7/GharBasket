@@ -34,7 +34,7 @@ const member = (/** @type {object} */ extra = {}) => ({
   ...extra,
 });
 const body = (/** @type {object} */ extra = {}) => ({
-  society_id: "sunrise-towers",
+  society_id: "0199a000-0000-7000-8000-00000000b001",
   address: { tower_id: "b", flat: "B-402", location: null },
   diet: "veg",
   cuisine_tags: ["maharashtrian"],
@@ -115,7 +115,7 @@ describe("POST /v1/households (onboarding in one call, M1)", () => {
   it("is what the onboarding draft turns into", async () => {
     await signIn(NEW_PHONE);
     const draft = /** @type {any} */ ({
-      societyId: "sunrise-towers",
+      societyId: "0199a000-0000-7000-8000-00000000b001",
       towerId: "b",
       flat: " 402 ",
       household: {

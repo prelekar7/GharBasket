@@ -5,6 +5,12 @@ import { ApiError, openStream, request } from "@/lib/api.js";
 // The customer's side of M7: the delivery card (§3.5) and the van's position stream (§3.3).
 // The customer never sees the rider, other societies or exact coordinates (the server rounds
 // positions to 4 decimals and sends one at most every 15 s).
+//
+// A tiffin (M7 §3.7) uses the same card and stream: its `status` is `scheduled` until collected,
+// then `on_route`, `with_captain`, `delivered`, `refunded` or `triage`; `delivery_code` shows while
+// it is on the way (every tiffin needs the household's code or a photo); `captain` is null where
+// the rider delivers; `hold_until` and `redelivery` are always null. Its stream carries `position:
+// null` while the rider is near a kitchen, so the screen shows "on the way" and the ETA then.
 
 /**
  * @typedef {"scheduled" | "on_route" | "with_captain" | "held" | "delivered" | "undelivered" |
@@ -17,6 +23,17 @@ import { ApiError, openStream, request } from "@/lib/api.js";
  */
 
 const LIVE_MS = 5000;
+
+/**
+ * How far a tiffin has got, for the steps: 0 cooking or not collected, 1 with the rider, 2 with the
+ * captain, 3 delivered (a refund or triage stays at 1: it never reached the door).
+ * @param {DeliveryStatus} status
+ */
+export function tiffinLeg(status) {
+  if (status === "delivered") return 3;
+  if (status === "with_captain") return 2;
+  return status === "scheduled" ? 0 : 1;
+}
 
 /**
  * The delivery card of an order (GET /v1/deliveries/{order_id}): the window is the promise, `eta`
@@ -86,7 +103,7 @@ export function foldEvent(live, { event, data }) {
       position: data.position && { ...data.position, received: Date.now() },
       stop: data.stops?.[0] ?? null,
     };
-  if (event === "position") return { ...live, position: { ...data, received: Date.now() } };
+  if (event === "position" && data) return { ...live, position: { ...data, received: Date.now() } };
   if (event === "stop") return { ...live, stop: { ...live.stop, ...data } };
   if (event === "end") return { ...live, ended: data.reason };
   return live;

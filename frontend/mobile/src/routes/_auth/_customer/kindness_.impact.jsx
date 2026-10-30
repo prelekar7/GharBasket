@@ -7,9 +7,8 @@ import { describeItems } from "@/features/community/kindness.js";
 import { useImpact, useMyImpact, useSociety } from "@/features/community/queries.js";
 import { ShareSheet } from "@/features/community/ShareSheet.jsx";
 import { useMyHousehold } from "@/features/identity/profile.js";
-import { todayIst } from "@/features/subscriptions/format.js";
 
-/** Our impact: your family so far, or your society this month, your share, and how it is counted (design HcImpact, M9). */
+/** Our impact: your family or your society, all time, your share, and how it is counted (design HcImpact, M9). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/kindness_/impact")({ component: Impact });
 
@@ -20,23 +19,15 @@ function Impact() {
   const [sharing, setSharing] = useState(false);
   const household = useMyHousehold();
   const society = useSociety(household.data?.society_id);
-  const ours = useImpact(household.data?.society_id, todayIst().slice(0, 7));
+  const ours = useImpact(household.data?.society_id);
   const mine = useMyImpact();
 
   const s = society.data;
   const d = scope === "me" ? mine.data : ours.data;
-  const month =
-    scope === "me"
-      ? t("impact.allTime")
-      : ours.data
-        ? new Intl.DateTimeFormat(lang, { month: "long", timeZone: "UTC" }).format(
-            new Date(`${ours.data.period}-15T00:00:00Z`),
-          )
-        : "";
   const header = (
     <header className="flex flex-col">
       <span className="min-h-[18px] text-xs leading-[18px] font-semibold tracking-[0.04em] text-fg-secondary uppercase">
-        {[s?.name, month].filter(Boolean).join(" · ")}
+        {[s?.name, t("impact.allTime")].filter(Boolean).join(" · ")}
       </span>
       <h1 className="font-display text-[28px] leading-[34px] font-semibold">{t("impact.title")}</h1>
     </header>
@@ -74,10 +65,13 @@ function Impact() {
           [String(d.homes_invited), t("impact.stats.me.homes")],
         ]
       : [
-          [t("impact.kg", { kg: d.hub.food_saved_kg }), t("impact.stats.society.food")],
+          [
+            d.hub ? t("impact.kg", { kg: d.hub.food_saved_kg }) : "—",
+            t("impact.stats.society.food"),
+          ],
           [n(d.items_donated), t("impact.stats.society.items")],
           [
-            d.hub.partners_earned_paise == null ? "—" : formatPaise(d.hub.partners_earned_paise),
+            d.hub?.partners_earned_paise == null ? "—" : formatPaise(d.hub.partners_earned_paise),
             t("impact.stats.society.cooks"),
           ],
           [n(d.homes_joined), t("impact.stats.society.homes")],
@@ -137,7 +131,7 @@ function Impact() {
             message={(link) =>
               t("impact.shareMessage", {
                 society: s.name,
-                kg: ours.data?.hub.food_saved_kg ?? 0,
+                kg: ours.data?.hub?.food_saved_kg ?? 0,
                 n: ours.data?.items_donated ?? 0,
                 link,
               })

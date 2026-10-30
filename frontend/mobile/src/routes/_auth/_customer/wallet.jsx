@@ -22,6 +22,7 @@ import { useKindness, useWallet } from "@/features/billing/queries.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { shortDate, weekdayOf } from "@/features/subscriptions/format.js";
 import { useCurrentCycle } from "@/features/subscriptions/queries.js";
+import { AUTOPAY } from "@/lib/features.js";
 
 const QUICK_RUPEES = [500, 1000, 2000];
 
@@ -130,12 +131,14 @@ function Wallet() {
         )}
       </section>
       <p className="text-sm leading-[22px] text-fg-secondary">{t("wallet.rules")}</p>
-      <Link
-        to="/autopay"
-        className="flex min-h-12 items-center font-semibold text-link underline underline-offset-3 outline-none focus-visible:shadow-focus"
-      >
-        {t("autopay.walletLink")}
-      </Link>
+      {AUTOPAY && (
+        <Link
+          to="/autopay"
+          className="flex min-h-12 items-center font-semibold text-link underline underline-offset-3 outline-none focus-visible:shadow-focus"
+        >
+          {t("autopay.walletLink")}
+        </Link>
+      )}
       <Sheet
         open={open}
         onOpenChange={setOpen}

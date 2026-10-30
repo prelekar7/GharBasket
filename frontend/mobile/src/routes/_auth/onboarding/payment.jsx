@@ -7,11 +7,15 @@ import { createMandate } from "@/features/billing/queries.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { nextStep } from "@/features/onboarding/draft.js";
 import { ApiError, request } from "@/lib/api.js";
+import { AUTOPAY } from "@/lib/features.js";
 import { waitForCredit } from "@/lib/payments.js";
 
 const QUICK_RUPEES = [1000, 2000, 3000];
 
-/** How do you want to pay? Wallet with a first UPI top-up, or UPI Autopay (design Hf14, M5). */
+/**
+ * How do you want to pay? Wallet with a first UPI top-up, or UPI Autopay (design Hf14, M5). Autopay is
+ * pilot only (lib/features.js): without it the wallet is the one way to pay and the choice is not shown.
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/onboarding/payment")({ component: Payment });
 
@@ -53,7 +57,7 @@ function Payment() {
         // Already subscribed (a first try that went through): carry on to the payment.
         if (!(e instanceof ApiError && e.code === "subscriptions.exists")) throw e;
       });
-      if (mode === "autopay") {
+      if (AUTOPAY && mode === "autopay") {
         await createMandate({ key: crypto.randomUUID() });
         return done();
       }
@@ -98,28 +102,34 @@ function Payment() {
     >
       <div className="flex flex-col gap-2">
         <h1 className="font-display text-[28px] leading-[34px] font-semibold">
-          {t("onboarding.payment.title")}
+          {t(AUTOPAY ? "onboarding.payment.title" : "onboarding.payment.titleWallet")}
         </h1>
         <p className="text-fg-secondary">{t("onboarding.payment.sub")}</p>
       </div>
-      <RadioCards
-        label={t("onboarding.payment.title")}
-        value={mode}
-        onChange={setMode}
-        options={[
-          {
-            value: "wallet",
-            title: t("onboarding.payment.wallet"),
-            badge: t("onboarding.payment.recommended"),
-            description: t("onboarding.payment.walletDesc"),
-          },
-          {
-            value: "autopay",
-            title: t("onboarding.payment.autopay"),
-            description: t("onboarding.payment.autopayDesc"),
-          },
-        ]}
-      />
+      {AUTOPAY ? (
+        <RadioCards
+          label={t("onboarding.payment.title")}
+          value={mode}
+          onChange={setMode}
+          options={[
+            {
+              value: "wallet",
+              title: t("onboarding.payment.wallet"),
+              badge: t("onboarding.payment.recommended"),
+              description: t("onboarding.payment.walletDesc"),
+            },
+            {
+              value: "autopay",
+              title: t("onboarding.payment.autopay"),
+              description: t("onboarding.payment.autopayDesc"),
+            },
+          ]}
+        />
+      ) : (
+        <p className="rounded-md bg-surface px-4 py-3.5 text-sm leading-5 text-fg-secondary">
+          {t("onboarding.payment.walletDesc")}
+        </p>
+      )}
       {mode === "wallet" && (
         <section className="flex flex-col gap-2">
           <span className="text-sm leading-5 font-semibold">{t("onboarding.payment.first")}</span>
