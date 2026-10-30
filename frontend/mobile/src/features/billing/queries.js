@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { ApiError, request } from "@/lib/api.js";
+import { AUTOPAY } from "@/lib/features.js";
 
 /**
  * One line of the wallet ledger, signed (+ into the wallet). `kind` may be one the app doesn't know
@@ -124,27 +125,39 @@ export function useStatement(period) {
  * /v1/mandates, M5). Shared by onboarding (Hf14) and the UPI Autopay screen (HcAutopay).
  * @param {{ key: string, maxPaise?: number }} v
  */
-export const createMandate = ({ key, maxPaise }) =>
-  /** @type {Promise<Mandate>} */ (
+export const createMandate = ({ key, maxPaise }) => {
+  if (!AUTOPAY) return Promise.reject(new Error("UPI Autopay is off in this build"));
+  return /** @type {Promise<Mandate>} */ (
     request("/v1/mandates", {
       method: "POST",
       headers: { "idempotency-key": key },
       body: maxPaise ? { max_paise: maxPaise } : {},
     })
   );
+};
+
+/** The live mandate, or null: when there is none (404) and always when Autopay is off in this build. */
+export async function fetchMandate() {
+  if (!AUTOPAY) return null;
+  try {
+    return /** @type {Mandate} */ (await request("/v1/mandates/current"));
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+/** @param {string} id */
+export const cancelMandate = (id) => {
+  if (!AUTOPAY) return Promise.reject(new Error("UPI Autopay is off in this build"));
+  return request(`/v1/mandates/${id}`, { method: "DELETE" });
+};
 
 /** Your UPI Autopay mandate, or null when boxes are paid from the wallet (GET /v1/mandates/current). */
 export function useMandate() {
   return useQuery({
     queryKey: ["mandate"],
-    queryFn: async () => {
-      try {
-        return /** @type {Mandate} */ (await request("/v1/mandates/current"));
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 404) return null;
-        throw e;
-      }
-    },
+    queryFn: fetchMandate,
   });
 }
 
@@ -168,7 +181,7 @@ export function useCreateMandate() {
 export function useCancelMandate() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (/** @type {string} */ id) => request(`/v1/mandates/${id}`, { method: "DELETE" }),
+    mutationFn: cancelMandate,
     onSuccess: () => client.setQueryData(["mandate"], null),
   });
 }

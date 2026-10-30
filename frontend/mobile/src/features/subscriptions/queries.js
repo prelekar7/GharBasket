@@ -307,50 +307,22 @@ export function useBudgetLock() {
   });
 }
 
-/**
- * @typedef {"swap" | "trim" | "ask"} WhenOver what Autopilot does when a week would go over
- */
-
-/**
- * What Autopilot does when a week would go over the limit (design HcBudget).
- * @proposal (not in the contract yet) GET and PUT /v1/budget-lock/preferences ↔ { when_over: "swap" | "trim" | "ask" }.
- * M3 only describes the "swap to cheaper" behaviour; the designs let a family pick two more. While
- * the endpoint is missing the question is not shown and Budget Lock works as the spec says.
- */
-export function useBudgetPreferences() {
-  return useQuery({
-    queryKey: ["budget-lock", "preferences"],
-    queryFn: () =>
-      /** @type {Promise<{ when_over: WhenOver }>} */ (request("/v1/budget-lock/preferences")),
-    retry: false,
-  });
-}
-
-/**
- * Set or turn off the monthly limit (PUT /v1/budget-lock, M3) and, when given, what happens when a
- * week would go over (the proposed preferences). Retrying the same change reuses its Idempotency-Key.
- */
+/** Set or turn off the monthly limit (PUT /v1/budget-lock, M3). Retrying the same change reuses its Idempotency-Key. */
 export function useSaveBudgetLock() {
   const client = useQueryClient();
   const keys = useRef(/** @type {Record<string, string>} */ ({}));
   return useMutation({
-    mutationFn: async (
-      /** @type {{ budget_paise: number | null, when_over?: WhenOver }} */ {
-        budget_paise,
-        when_over,
-      },
-    ) => {
+    mutationFn: async (/** @type {{ budget_paise: number | null }} */ { budget_paise }) => {
       const body = { month: istDate().slice(0, 7), budget_paise };
       const id = JSON.stringify(body);
       keys.current[id] ??= crypto.randomUUID();
-      const saved = await request("/v1/budget-lock", {
-        method: "PUT",
-        body,
-        headers: { "idempotency-key": keys.current[id] },
-      });
-      if (when_over)
-        await request("/v1/budget-lock/preferences", { method: "PUT", body: { when_over } });
-      return /** @type {BudgetLock} */ (saved);
+      return /** @type {BudgetLock} */ (
+        await request("/v1/budget-lock", {
+          method: "PUT",
+          body,
+          headers: { "idempotency-key": keys.current[id] },
+        })
+      );
     },
     onSuccess: () => {
       keys.current = {};

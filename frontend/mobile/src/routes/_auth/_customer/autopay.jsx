@@ -1,18 +1,25 @@
 import { Badge, Button, Dialog, formatPaise, IconButton, Skeleton, toast } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { useCancelMandate, useCreateMandate, useMandate } from "@/features/billing/queries.js";
 import { useBudgetLock } from "@/features/subscriptions/queries.js";
+import { AUTOPAY } from "@/lib/features.js";
 
 /** Without a Budget Lock, the mandate's monthly ceiling (our proposal; M5 mandates.max_paise). */
 const DEFAULT_MAX_PAISE = 500000;
 
 /** UPI Autopay: what it means, set it up or keep the wallet, cancel any time (design HcAutopay, M5 US-3). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
-export const Route = createFileRoute("/_auth/_customer/autopay")({ component: Autopay });
+export const Route = createFileRoute("/_auth/_customer/autopay")({
+  // Pilot only (lib/features.js): without the flag the screen does not exist.
+  beforeLoad: () => {
+    if (!AUTOPAY) throw redirect({ to: "/profile" });
+  },
+  component: Autopay,
+});
 
 function Autopay() {
   const { t } = useTranslation();

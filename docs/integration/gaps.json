@@ -95,23 +95,11 @@
       "owner": "yash",
       "note": "Dropped (M5 §3.8, owner 2026-10-25): refunds are automatic (M5 §3.3); disputes are M4's issue triage (M4 §3.6). The Refunds page becomes a read-only list."
     },
-    "GET /v1/budget-lock/preferences": {
-      "app": "mobile",
-      "class": "drop",
-      "owner": "yash",
-      "note": "Dropped (M3 §11, owner 2026-10-25): the planner only swaps to cheaper (M3 §3.1); the app already hides the question. Remove useBudgetPreferences and the when_over PUT."
-    },
-    "PUT /v1/budget-lock/preferences": {
-      "app": "mobile",
-      "class": "drop",
-      "owner": "yash",
-      "note": "As GET /v1/budget-lock/preferences."
-    },
     "POST /v1/mandates": {
       "app": "mobile",
       "class": "drop",
       "owner": "yash",
-      "note": "UPI Autopay is not in this phase; M5 §3.7 keeps /v1/mandates out of openapi.json. Hide the Autopay choice behind a flag."
+      "note": "UPI Autopay is not in this phase; M5 §3.7 keeps /v1/mandates out of openapi.json. Done: hidden behind VITE_FEATURE_AUTOPAY (off by default); with it off the app makes no mandate call. The pilot switches the flag on."
     },
     "GET /v1/mandates/current": {
       "app": "mobile",
