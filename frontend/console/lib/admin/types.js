@@ -6,7 +6,7 @@
 /** @typedef {import("../../mocks/adminCommunity.js").SocietyRequest} SocietyRequest */
 /** @typedef {import("../../mocks/identity.js").AdminUser} AdminUser */
 /** @typedef {import("../../mocks/identity.js").UserRole} UserRole */
-/** @typedef {import("../../mocks/tiffin.js").TiffinDish} TiffinDish */
+/** @typedef {import("../../mocks/tiffin.js").TiffinMenuReview} TiffinMenuReview */
 /** @typedef {import("../../mocks/hubs.js").HubDetail} AdminHub */
 
 export {};

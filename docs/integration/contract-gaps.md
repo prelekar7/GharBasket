@@ -9,9 +9,9 @@ The classes come from `docs/integration/gaps.json`, which is edited by hand.
 | App | Call sites | Found | Wrong method | Missing | Unresolved | Wrapped (not shipped / @proposal) |
 |---|--:|--:|--:|--:|--:|--:|
 | mobile | 115 | 106 | 0 | 5 | 4 | 4 |
-| console | 175 | 165 | 0 | 8 | 2 | 18 |
+| console | 173 | 163 | 0 | 8 | 2 | 15 |
 
-Distinct endpoints called: mobile 97, console 134. A call site is one `request(`/`apiGet(` … in the source.
+Distinct endpoints called: mobile 97, console 133. A call site is one `request(`/`apiGet(` … in the source.
 
 ## Gaps by class
 

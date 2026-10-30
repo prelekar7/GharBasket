@@ -216,6 +216,22 @@ test("delivery days: weekday 0 is Monday, 1 to 3 items, the response carries eac
     [0, 3],
   );
   const hub = await call("GET", `/v1/hubs/${KHARGHAR_HUB_ID}/delivery-days`);
+  // M3 §3.5: every society of the hub with its status (live, unlocking, prospect), no not_live list
+  assert.deepEqual(keys(hub.body), ["hub_id", "items"]);
+  assert.equal(hub.body.hub_id, KHARGHAR_HUB_ID);
+  assert.deepEqual(keys(hub.body.items[0]), ["area", "items", "name", "society_id", "status"]);
+  assert.deepEqual(
+    hub.body.items.map((/** @type {{ status: string }} */ s) => s.status),
+    ["live", "live", "unlocking", "unlocking", "prospect"],
+  );
+  const bare = hub.body.items.find(
+    (/** @type {{ name: string }} */ s) => s.name === "Panchavati Residency",
+  );
+  assert.deepEqual(bare.items, []);
+  assert.equal(
+    (await call("GET", `/v1/hubs/${KHARGHAR_HUB_ID}/delivery-days`, { role: "customer" })).status,
+    403,
+  );
   assert.deepEqual(
     hub.body.items
       .find(

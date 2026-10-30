@@ -28,10 +28,15 @@ const MESSAGES = /** @type {Record<string, string>} */ ({
   "identity.cannot_remove_own_admin": "You can't remove your own admin role.",
   "hub_ops.slug_taken": "A hub with that name already exists.",
   "hubs.not_found": "That hub is no longer on the list. Reload the page.",
+  "catalog.menu_not_found": "That menu is no longer on the list. Reload the page.",
+  "catalog.menu_not_submitted": "This menu was already handled. Reload the page.",
+  "catalog.menu_not_decided": "This menu is already waiting for approval. Reload the page.",
+  "catalog.menu_closed":
+    "The order-by time for this menu has passed, so it can no longer be changed.",
+  "catalog.menu_invalid":
+    "This menu cannot be approved: its product or a recipe is switched off, or its price is not above 0.",
   "hub_ops.hub_not_found": "That hub is no longer on the list. Reload the page.",
   "request.version_mismatch": "Someone changed this hub. Reload the page and try again.",
-  "tiffin.not_found": "That dish is no longer on the list. Reload the page.",
-  "tiffin.not_waiting": "This dish was already handled. Reload the page.",
   "request.idempotency_mismatch": "That did not go through. Try again.",
 });
 
