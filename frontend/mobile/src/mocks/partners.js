@@ -5,6 +5,7 @@
 import { HttpResponse, http } from "msw";
 import { caller, isNewUser, rolesFor, userFor } from "./handlers.js";
 import { HUB_ID } from "./packer.js";
+import { mockPdfUrl } from "./pdf.js";
 import { uid } from "./subscriptions.js";
 import { progressOf, REQUIRED, SEED_PARTNERS } from "./trainingModules.js";
 
@@ -395,17 +396,70 @@ function weekOf(ms) {
   return `${year}-W${String(n).padStart(2, "0")}`;
 }
 
+/** Every kind the person is a partner of: the seed's, the approved applications and the sign-in roles. @param {string} phone */
+const partnerKinds = (phone) => [
+  ...new Set([
+    ...(SEED_PARTNERS[phone] ? [SEED_PARTNERS[phone]] : []),
+    ...(load()[phone]?.partners.map((x) => x.kind) ?? []),
+    ...rolesFor(phone).flatMap((r) => ROLE_KIND[r.role] ?? []),
+  ]),
+];
+
+/** A month "YYYY-MM" as a count of months, so months can be added and compared. @param {string} m */
+const monthIndex = (m) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5)) - 1;
+/** The month `at` months in, the inverse of `monthIndex`. @param {number} at */
+const monthAt = (at) => `${Math.floor(at / 12)}-${String((at % 12) + 1).padStart(2, "0")}`;
+
+/**
+ * GET /v1/earnings/certificate?from=&to= (M8 §3.7, US-12) for every kind of partner the caller is,
+ * so the captain, kitchen, rider and packer screens share this one answer: a 5-minute link to a PDF.
+ * The months follow the frozen rules: YYYY-MM, from ≤ to, to not after this month, at most 12;
+ * neither is the six ending with this month, only `to` the six ending with it, only `from` up to
+ * this month. A person who is no partner has no certificate (404).
+ */
+function incomeCertificate(/** @type {Request} */ request) {
+  const phone = caller(request);
+  if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
+  const kinds = partnerKinds(phone);
+  if (kinds.length === 0) return problem(404, "partners.partner_not_found", "No such partner");
+  const query = new URL(request.url).searchParams;
+  const thisMonth = istDate(Date.now()).slice(0, 7);
+  const to = query.get("to") ?? thisMonth;
+  const from = query.get("from") ?? monthAt(monthIndex(to) - 5);
+  const valid = [from, to].every((m) => /^\d{4}-(0[1-9]|1[0-2])$/.test(m));
+  if (
+    !valid ||
+    monthIndex(from) > monthIndex(to) ||
+    monthIndex(to) > monthIndex(thisMonth) ||
+    monthIndex(to) - monthIndex(from) >= 12
+  )
+    return problem(
+      422,
+      "partners.certificate_period_invalid",
+      "Pick months like 2026-05 to 2026-10, at most 12, none in the future",
+      { max_months: 12 },
+    );
+  const name = userFor(phone).name ?? "Partner";
+  return HttpResponse.json(
+    {
+      reference: `GBIC-MOCK-${uid(`certificate:${phone}`).slice(-4).toUpperCase()}`,
+      from,
+      to,
+      url: mockPdfUrl(
+        `GharBasket income certificate (example) - ${name}, ${kinds.join(" and ")}, ${from} to ${to}`,
+      ),
+      filename: `gharbasket-income-certificate-${from}-to-${to}.pdf`,
+      expires_at: new Date(Date.now() + 5 * 60_000).toISOString().replace(/\.\d+Z$/, "Z"),
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
+}
+
 /** GET /v1/earnings?week=YYYY-Www for every kind the caller is a partner of; no week = this week. */
 function earningsWeek(/** @type {Request} */ request) {
   const phone = caller(request);
   if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
-  const kinds = [
-    ...new Set([
-      ...(SEED_PARTNERS[phone] ? [SEED_PARTNERS[phone]] : []),
-      ...(load()[phone]?.partners.map((x) => x.kind) ?? []),
-      ...rolesFor(phone).flatMap((r) => ROLE_KIND[r.role] ?? []),
-    ]),
-  ];
+  const kinds = partnerKinds(phone);
   if (kinds.length === 0) return problem(403, "auth.forbidden", "Only partners have earnings");
   const today = Date.parse(`${istDate(Date.now())}T00:00:00Z`);
   const week = new URL(request.url).searchParams.get("week") ?? weekOf(today);
@@ -486,6 +540,9 @@ export const partnerHandlers = [
   http.get("*/v1/earnings", ({ request }) =>
     new URL(request.url).searchParams.has("week") ? earningsWeek(request) : undefined,
   ),
+
+  // GET /v1/earnings/certificate (M8 §3.7): one mock for the captain, kitchen, rider and packer.
+  http.get("*/v1/earnings/certificate", ({ request }) => incomeCertificate(request)),
 
   // GET /v1/partners/{id}/card: the Know your cook card, never the phone, address or KYC details.
   http.get("*/v1/partners/:id/card", ({ request, params }) => {

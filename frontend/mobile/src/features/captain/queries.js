@@ -71,33 +71,60 @@ export function useCaptainWrite() {
 }
 
 /**
- * The handover is sent at once, because the server checks the code the captain typed and the counts
- * (422 `logistics.code_invalid`, 409 `logistics.count_mismatch`…) and she must hear it at the gate.
- * Only without signal is it kept in the outbox, to be checked when the phone is online again.
- * Throws the server's ApiError when it refuses.
+ * Sends a write at once, because the server checks something she typed (the handover code, the
+ * family's code) and she must hear it at the door. Only without signal is it kept in the outbox,
+ * to be checked when the phone is online again. Throws the server's ApiError when it refuses.
+ * @param {import("@tanstack/react-query").QueryClient} client @param {import("./day.js").Action} action
+ */
+async function sendNow(client, action) {
+  /** @type {any} */
+  let answer = null;
+  const show = (/** @type {import("./day.js").Action} */ a = action) =>
+    client.setQueryData(DAY, (/** @type {import("./day.js").CaptainDay | undefined} */ d) =>
+      d ? applyAction(d, a) : d,
+    );
+  try {
+    answer = await request(action.path, {
+      method: "POST",
+      body: action.body,
+      headers: { "idempotency-key": crypto.randomUUID() },
+    });
+    // A tiffin drop moves only the tiffins the rider had collected (`with_captain`).
+    show(
+      answer?.with_captain
+        ? { ...action, body: { ...action.body, with_captain: answer.with_captain } }
+        : action,
+    );
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    show();
+    await enqueue({ method: "POST", ...action });
+  }
+}
+
+/**
+ * The handover (M7 §3.4; a tiffin drop by count with `bags` = the tiffins, §3.7), sent at once:
+ * 422 `logistics.code_invalid`, 409 `logistics.count_mismatch`, `logistics.nothing_to_hand_over`…
  */
 export function useHandover() {
   const client = useQueryClient();
   return useCallback(
-    async (/** @type {string} */ stopId, /** @type {Record<string, unknown>} */ body) => {
-      const action = { path: `/v1/stops/${stopId}/handover`, body };
-      const show = () =>
-        client.setQueryData(DAY, (/** @type {import("./day.js").CaptainDay | undefined} */ d) =>
-          d ? applyAction(d, action) : d,
-        );
-      try {
-        await request(action.path, {
-          method: "POST",
-          body,
-          headers: { "idempotency-key": crypto.randomUUID() },
-        });
-        show();
-      } catch (e) {
-        if (e instanceof ApiError) throw e;
-        show();
-        await enqueue({ method: "POST", ...action });
-      }
-    },
+    (/** @type {string} */ stopId, /** @type {Record<string, unknown>} */ body) =>
+      sendNow(client, { path: `/v1/stops/${stopId}/handover`, body }),
+    [client],
+  );
+}
+
+/**
+ * A tiffin proved at the door (M7 §3.7): `{ short_code, proof: "otp", delivery_code }` or
+ * `{ short_code, proof: "photo", photo_key }`, sent at once (422 `logistics.code_invalid`, 429
+ * `logistics.code_attempts_exceeded` and only a photo after that).
+ */
+export function useTiffinProof() {
+  const client = useQueryClient();
+  return useCallback(
+    (/** @type {string} */ orderId, /** @type {Record<string, unknown>} */ body) =>
+      sendNow(client, { path: `/v1/deliveries/${orderId}/proof`, body }),
     [client],
   );
 }
@@ -160,13 +187,4 @@ export function useEarnings() {
       return earnings;
     },
   });
-}
-
-/** Downloads the income certificate PDF (GET /v1/earnings/certificate → a short-lived link). */
-export async function downloadCertificate() {
-  const { url, filename } = /** @type {{ url: string, filename: string }} */ (
-    await request("/v1/earnings/certificate")
-  );
-  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
-  a.click();
 }

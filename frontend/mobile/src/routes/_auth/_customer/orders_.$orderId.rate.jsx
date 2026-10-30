@@ -1,6 +1,5 @@
 import {
   Button,
-  Chip,
   EmptyState,
   IconButton,
   SegmentedControl,
@@ -19,47 +18,31 @@ import {
   useDeliveryPlace,
   useOrder,
   useOrders,
-  useRateDelivery,
+  useRateTiffin,
   useRating,
   useTiffinInfo,
 } from "@/features/orders/queries.js";
 import { shortDate, weekdayOf } from "@/features/subscriptions/format.js";
 
-/** "How was today?": rate the delivered box and the tiffin that came with it (design HcRate; M4, M8). */
+/** "How was today?": rate the home-cooked tiffin that came (design HcRate; M8 §3.5 rates tiffins only, no box and no tags). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/orders_/$orderId/rate")({
   component: Rate,
 });
 
 const STARS = ["1", "2", "3", "4", "5"].map((v) => ({ value: v, label: v }));
-const TAGS = {
-  box: ["fresh", "on_time", "packed_well", "missing"],
-  tiffin: ["tasty", "hot", "portion", "oily"],
-};
 
 /**
- * One thing to rate: 1 to 5 and a few chips.
- * @param {{ title: string, by?: string, kind: "box" | "tiffin", score: string, onScore: (v: string) => void, tags: string[], onTags: (update: (tags: string[]) => string[]) => void }} props
+ * One thing to rate: 1 to 5.
+ * @param {{ title: string, by?: string, score: string, onScore: (v: string) => void }} props
  */
-function RateCard({ title, by, kind, score, onScore, tags, onTags }) {
-  const { t } = useTranslation();
+function RateCard({ title, by, score, onScore }) {
   return (
     <section aria-label={title} className="flex flex-col gap-2.5 rounded-md bg-surface px-4 py-3.5">
       <h2 className="text-lg leading-[26px] font-bold">{title}</h2>
       {by && <span className="-mt-2 text-sm leading-5 text-fg-secondary">{by}</span>}
       <div>
         <SegmentedControl label={title} options={STARS} value={score} onChange={onScore} />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {TAGS[kind].map((tag) => (
-          <Chip
-            key={tag}
-            isSelected={tags.includes(tag)}
-            onChange={(on) => onTags((now) => (on ? [...now, tag] : now.filter((x) => x !== tag)))}
-          >
-            {t(`rate.tags.${kind}.${tag}`)}
-          </Chip>
-        ))}
       </div>
     </section>
   );
@@ -74,23 +57,22 @@ function Rate() {
   const order = useOrder(orderId, lang);
   const list = useOrders(lang);
   const place = useDeliveryPlace();
-  const rate = useRateDelivery();
-  const [boxScore, setBoxScore] = useState("");
-  const [boxTags, setBoxTags] = useState(/** @type {string[]} */ ([]));
-  const [tiffinScore, setTiffinScore] = useState("");
-  const [tiffinTags, setTiffinTags] = useState(/** @type {string[]} */ ([]));
+  const rate = useRateTiffin();
+  const [score, setScore] = useState("");
   const [comment, setComment] = useState("");
   const [reporting, setReporting] = useState(false);
   const o = order.data;
-  // The tiffin that came the same day, if there was one.
-  const sameDay =
+  // What is rated is the tiffin: this order, or the one that came with the box the same day.
+  const tiffin =
     o &&
-    (list.data ?? []).find(
-      (x) => x.kind === "tiffin" && x.delivery_date === o.delivery_date && x.status === "delivered",
-    );
-  const boxRating = useRating(o?.id);
-  const tiffinRating = useRating(sameDay?.id);
-  const tiffinInfo = useTiffinInfo(sameDay?.id, lang);
+    (o.kind === "tiffin"
+      ? o
+      : (list.data ?? []).find(
+          (x) =>
+            x.kind === "tiffin" && x.delivery_date === o.delivery_date && x.status === "delivered",
+        ));
+  const tiffinRating = useRating(tiffin?.id);
+  const tiffinInfo = useTiffinInfo(tiffin?.id, lang);
 
   const header = (
     <header className="-ml-3 flex items-center gap-1">
@@ -114,14 +96,14 @@ function Rate() {
     </header>
   );
 
-  if (order.isPending || list.isPending || boxRating.isLoading || tiffinRating.isLoading)
+  if (order.isPending || list.isPending || tiffinRating.isLoading)
     return (
       <div className="flex flex-col gap-4">
         {header}
         <Skeleton lines={10} />
       </div>
     );
-  if (order.isError || list.isError || boxRating.isError || !o)
+  if (order.isError || list.isError || tiffinRating.isError || !o)
     return (
       <div className="flex flex-col gap-4">
         {header}
@@ -129,97 +111,84 @@ function Rate() {
           onRetry={() => {
             order.refetch();
             list.refetch();
-            boxRating.refetch();
+            tiffinRating.refetch();
           }}
         />
       </div>
     );
-  if (o.status !== "delivered" || boxRating.data)
+  // Nothing to rate: not delivered yet, rated already, or a box that came without a tiffin.
+  const empty = !tiffin
+    ? o.status === "delivered"
+      ? "none"
+      : "notYet"
+    : tiffin.status !== "delivered"
+      ? "notYet"
+      : tiffinRating.data
+        ? "done"
+        : null;
+  if (empty || !tiffin)
     return (
       <div className="flex flex-col gap-4">
         {header}
         <EmptyState
           illustration={<TiffinSteam className="h-auto w-28" />}
-          title={t(boxRating.data ? "rate.doneTitle" : "rate.notYetTitle")}
-          body={t(boxRating.data ? "rate.doneBody" : "rate.notYetBody")}
+          title={t(`rate.${empty}Title`)}
+          body={t(`rate.${empty}Body`)}
           action={t("rate.backToOrders")}
           onAction={() => navigate({ to: "/orders" })}
         />
       </div>
     );
 
-  // ...and it is not rated yet.
-  const tiffin = sameDay && !tiffinRating.data ? sameDay : undefined;
   const cook = tiffinInfo.data?.cook.name;
   const captain = place.captain;
   const send = () => {
-    /** @type {import("@/features/orders/queries.js").Rating[]} */
-    const ratings = [];
-    if (boxScore) ratings.push({ orderId: o.id, score: Number(boxScore), tags: boxTags });
-    if (tiffin && tiffinScore)
-      ratings.push({ orderId: tiffin.id, score: Number(tiffinScore), tags: tiffinTags });
-    // The words go with the first rating sent.
-    if (ratings[0]) ratings[0].comment = comment.trim();
-    rate.mutate(ratings, {
-      onSuccess: () => {
-        toast(t("rate.thanks"));
-        navigate({ to: "/orders" });
+    rate.mutate(
+      { orderId: tiffin.id, score: Number(score), comment: comment.trim() },
+      {
+        onSuccess: () => {
+          toast(t("rate.thanks"));
+          navigate({ to: "/orders" });
+        },
+        onError: () => toast(t("rate.failed")),
       },
-      onError: () => toast(t("rate.failed")),
-    });
+    );
   };
 
   return (
     <div className="flex min-h-[calc(100dvh-180px)] flex-col gap-3">
       {header}
       <RateCard
-        title={t("rate.box")}
-        kind="box"
-        score={boxScore}
-        onScore={setBoxScore}
-        tags={boxTags}
-        onTags={setBoxTags}
+        title={t("rate.tiffin", { slot: tiffinInfo.data?.meal ?? "lunch" })}
+        by={
+          tiffinInfo.data
+            ? t("rate.tiffinBy", {
+                dish: tiffinInfo.data.dish.name,
+                cook: tiffinInfo.data.cook.name,
+              })
+            : undefined
+        }
+        score={score}
+        onScore={setScore}
       />
-      {tiffin && (
-        <RateCard
-          title={t("rate.tiffin", { slot: tiffinInfo.data?.meal ?? "lunch" })}
-          by={
-            tiffinInfo.data
-              ? t("rate.tiffinBy", {
-                  dish: tiffinInfo.data.dish.name,
-                  cook: tiffinInfo.data.cook.name,
-                })
-              : undefined
-          }
-          kind="tiffin"
-          score={tiffinScore}
-          onScore={setTiffinScore}
-          tags={tiffinTags}
-          onTags={setTiffinTags}
-        />
-      )}
       <TextField
         label={t("rate.more")}
         placeholder={t("rate.morePh")}
         value={comment}
         onChange={setComment}
-        maxLength={500}
+        maxLength={300}
       />
       <p className="text-sm leading-5 text-fg-secondary">
-        {tiffin
-          ? captain
-            ? t("rate.privacy", { cook: cook ?? "", captain })
-            : t("rate.privacyNoCaptain", { cook: cook ?? "" })
-          : captain
-            ? t("rate.privacyBox", { captain })
-            : t("rate.privacyBoxNoCaptain")}
+        {captain
+          ? t("rate.privacy", { cook: cook ?? "", captain })
+          : t("rate.privacyNoCaptain", { cook: cook ?? "" })}
       </p>
       <div className="mt-auto flex flex-col">
         <Button
           variant="primary"
           size="lg"
           block
-          isDisabled={!boxScore && !(tiffin && tiffinScore)}
+          isDisabled={!score}
           isPending={rate.isPending}
           onPress={send}
         >

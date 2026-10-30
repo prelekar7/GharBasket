@@ -28,6 +28,37 @@ export function useMarkRead() {
   });
 }
 
+/**
+ * Mark the whole inbox read (POST /v1/notifications/read-all, 204; no Idempotency-Key: it moves no
+ * money or orders and repeating it changes nothing). The cached lists and the unread count update
+ * at once and go back if the call fails.
+ */
+export function useMarkAllRead() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => request("/v1/notifications/read-all", { method: "POST" }),
+    onMutate: async () => {
+      await client.cancelQueries({ queryKey: ["notifications"] });
+      const before = client.getQueriesData({ queryKey: ["notifications"] });
+      const at = new Date().toISOString();
+      client.setQueriesData(
+        { queryKey: ["notifications"] },
+        (/** @type {{ items: Message[], unread: number } | undefined} */ old) =>
+          old && {
+            ...old,
+            unread: 0,
+            items: old.items.map((m) => (m.read_at ? m : { ...m, read_at: at })),
+          },
+      );
+      return { before };
+    },
+    onError: (_e, _v, ctx) => {
+      for (const [key, data] of ctx?.before ?? []) client.setQueryData(key, data);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+}
+
 /** What the person wants to hear about, on which channel (GET/PUT /v1/notifications/preferences). */
 export function usePrefs() {
   return useQuery({
