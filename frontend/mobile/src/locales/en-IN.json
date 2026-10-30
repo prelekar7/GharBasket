@@ -754,7 +754,36 @@
     "emptyBody": "Your first box shows here once your society unlocks and you approve the week.",
     "track": "Track live",
     "rate": "How was today?",
-    "rated": "Thanks for rating today’s delivery."
+    "rated": "Thanks for rating today’s delivery.",
+    "addons": {
+      "open": "Add-ons",
+      "title": "Add-ons",
+      "lead": "Add, change or remove items until {cutoff}. They are paid with your box at the cut-off.",
+      "none": "No add-ons yet. Search below to add something to this box.",
+      "removed": "Will be removed",
+      "listed": "Added",
+      "save": "Save add-ons",
+      "saved": "Add-ons saved.",
+      "closed": "The cut-off has passed, so this box can no longer be changed.",
+      "changed": "Your order changed. We have loaded it again, please check and save once more.",
+      "unavailable": "One of these isn’t available at your hub right now. Remove it and try again.",
+      "limits": "Choose 1 to 20 of an item, and at most 20 different add-ons.",
+      "failed": "We couldn’t save the add-ons. Check your internet and try again."
+    },
+    "feedback": {
+      "open": "Was it enough?",
+      "title": "How did the week go?",
+      "lead": "For each item, tell us if it ran out, was wasted, or was just right. Next week’s box gets better.",
+      "ran_out": "Ran out",
+      "wasted": "Wasted",
+      "just_right": "Just right",
+      "send": "Send",
+      "sent": "Thank you. We will use this for next week’s box.",
+      "thanks": "Thanks for telling us how the week went.",
+      "closed": "Feedback is open for 14 days after delivery, and that time is over.",
+      "unknown": "One of these items was not in this box. Please close and open this again.",
+      "failed": "We couldn’t send it. Check your internet and try again."
+    }
   },
   "kindness": {
     "title": "Your gullak",

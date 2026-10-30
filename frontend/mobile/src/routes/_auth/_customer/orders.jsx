@@ -12,6 +12,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { AddonsEntry } from "@/features/orders/AddonsSheet.jsx";
 import { hhmm, istDate } from "@/features/orders/format.js";
 import { ProblemSheet } from "@/features/orders/ProblemSheet.jsx";
 import {
@@ -34,6 +35,7 @@ import {
   TIFFIN_STAGES,
   TRACKABLE,
 } from "@/features/orders/status.js";
+import { FeedbackEntry } from "@/features/subscriptions/FeedbackSheet.jsx";
 import {
   clockTime,
   istClock,
@@ -260,6 +262,7 @@ function Orders() {
                 {t("orders.track")}
               </Button>
             )}
+            {current.status === "delivered" && <FeedbackEntry order={current} />}
             <Button variant="secondary" onPress={() => setReporting(true)}>
               {t("orders.problem")}
             </Button>
@@ -316,12 +319,13 @@ function OrderRow({ order, lang, day }) {
   const tiffin = useTiffinInfo(order.kind === "tiffin" ? order.id : undefined, lang);
   return (
     <>
-      <span>
+      <span className="flex flex-col items-start gap-2">
         {order.kind === "tiffin"
           ? tiffin.data
             ? t("orders.tiffin", { day, cook: tiffin.data.cook.name, dish: tiffin.data.dish.name })
             : t("orders.tiffinOn", { day })
           : t("orders.boxOn", { day })}
+        <AddonsEntry order={order} />
       </span>
       {order.status === "payment_failed" ? (
         <span className="whitespace-nowrap text-fg-secondary">{t(statusKey(order))}</span>
