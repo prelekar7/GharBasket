@@ -20,7 +20,7 @@ const otherRole = (/** @type {Request} */ request) => {
 const KEY = "gb-mock-logistics-v3";
 /** Mock-only switch for the "route didn't load" state: localStorage[FAIL_KEY] = "1". */
 export const FAIL_KEY = "gb-mock-routes-fail";
-/** The rider at hub-thane-1 (98000 00003) has no route today: the empty state. */
+/** The dev rider +919800000003 has no route today: the empty state. */
 const NO_ROUTE_RIDER = "+919800000003";
 /** The rider of today's lunch (tiffin) route, M7 §3.7; every other rider has the box route. */
 export const TIFFIN_RIDER = "+919800000006";

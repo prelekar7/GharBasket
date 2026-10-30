@@ -8,8 +8,8 @@ involved: `lib/api.js` builds a `Request` and resolves it with `getResponse(hand
 
 ## Real mode
 
-`GB_API_MOCK=false GB_API_URL=http://localhost:8010 pnpm exec next dev --port 3160` (the API must allow the port in
-`WEB_ORIGINS`, or be a dev API, which allows 3000). Sign in with the dev buttons (they call `POST /v1/auth/exchange`
+`GB_API_MOCK=false GB_API_URL=http://localhost:8000 pnpm dev` (the API on :8000, the console on :3000; a dev API
+allows that origin, any other port must be in the API's `WEB_ORIGINS`). Sign in with the dev buttons (they call `POST /v1/auth/exchange`
 with `dev_phone`, so the API needs `APP_ENV=dev`) or the phone form with the code 123456.
 
 - **Session:** the API's cookies `__Host-gb_at` (access, 15 min, Path=/) and `gb_rt` (refresh, Path=/v1/auth) are relayed to the
@@ -19,7 +19,9 @@ with `dev_phone`, so the API needs `APP_ENV=dev`) or the phone form with the cod
   refreshes and returns. `SessionKeeper` refreshes every 12 minutes while a tab is open.
 - **Who is signed in:** `GET /v1/me` (`lib/auth.js`). Someone with no staff role sees `/not-staff`.
 - **Every API call** carries `X-Active-Role: <role>[:<scope id>]` (`hub_manager:<hub uuid>`; `admin` alone).
-- **Hubs:** from the `/v1/me` roles; admins get the proposed `GET /v1/hubs` or, while it 404s, the seed hub (`lib/hub.js`).
+- **Hubs:** `GET /v1/hubs` (the hubs the caller works in; an admin gets every hub), narrowed to the hubs of the
+  role's own grants in `/v1/me`. `ngo_coordinator` and `catalog_editor` do not hold `hubs:read` (403), so they get the
+  seed hub (`lib/hub.js`). The Hubs page adds `GET /v1/hubs/{id}` for each hub.
 - Pages for endpoints that have not shipped show their error screen (404), as designed.
 
 ## Calling the API from a page
@@ -83,24 +85,23 @@ missing route.
 
 | File | Endpoints |
 |---|---|
-| `hubs.js` | `GET /v1/hubs`, `GET /v1/hubs/{id}` (one hub, Kharghar; admins would see all) |
+| `hubs.js` | The real `GET /v1/hubs` (HubsOut: id, slug, name, status) and `GET /v1/hubs/{id}` (HubOut: address, location, service area, timings, version); Kharghar for everyone, admins also see Taloja; 403 for `ngo_coordinator` and `catalog_editor` |
 | `catalog.js` | `GET /v1/products`, `/v1/products/{id}`, `/v1/search` (frozen S1 contract, 68 seed products with made-up Kharghar prices in paise; ids are uuids) and the admin product proposals |
-| `admin.js` | One list of the admin pages' mocks: `community.js` (the real `GET /v1/societies` (SocietySummary), `GET /v1/societies/{id}` (SocietyOut) and `/unlock`; the proposed `GET`, `POST` and `PATCH /v1/admin/societies` with the boundary, hub, threshold and towers, and `GET /v1/admin/society-requests` with its `accept`, `duplicate` and `PATCH` steps), `identity.js` (the real `POST /v1/admin/user-roles` with `{ phone_e164, role, scope_id? }`; the proposed `GET /v1/admin/users` and `DELETE /v1/admin/user-roles/{id}`), `tiffin.js` (`GET /v1/hubs/{hub}/tiffin-menus`, `POST /v1/tiffin-menus/{id}/approve`, `send-back`, `reopen`) and `hubadmin.js` (`GET|POST /v1/admin/hubs`, `PATCH /v1/admin/hubs/{id}`). Paths the module specs name are used; the rest are proposals (`@proposal`), which a page treats as "not available yet" when the real API answers 404 (`lib/proposal.js`). They check the caller's role (`x-gb-role`) the way the API will. |
+| `admin.js` | One list of the admin pages' mocks: `community.js` (the real `GET /v1/societies` (SocietySummary), `GET /v1/societies/{id}` (SocietyOut) and `/unlock`; the proposed `GET`, `POST` and `PATCH /v1/admin/societies` with the boundary, hub, threshold and towers, and `GET /v1/admin/society-requests` with its `accept`, `duplicate` and `PATCH` steps), `identity.js` (the real `POST /v1/admin/user-roles` with `{ phone_e164, role, scope_id? }`; the proposed `GET /v1/admin/users` and `DELETE /v1/admin/user-roles/{id}`), `tiffin.js` (`GET /v1/hubs/{hub}/tiffin-menus`, `POST /v1/tiffin-menus/{id}/approve`, `send-back`, `reopen`) and `hubadmin.js` (`POST /v1/admin/hubs` and `PATCH /v1/admin/hubs/{id}` (admin, `If-Match`, HubPatch; 412, 428, `hub_ops.timings_invalid`); both write to the store `hubs.js` reads). Paths the module specs name are used; the rest are proposals (`@proposal`), which a page treats as "not available yet" when the real API answers 404 (`lib/proposal.js`). They check the caller's role (`x-gb-role`) the way the API will. |
 
 | `notifications.js` | The real M11 §3.2: `GET` and `PUT /v1/admin/notification-templates` (`{ kinds, items }`; the PUT is collection-level and adds the next active version in en-IN, hi-IN and mr-IN; 422 `notifications.template_invalid`), `POST …/preview` (sample values, nothing saved) and `GET /v1/admin/notifications?user_id&cursor&limit` (the delivery log with each message's deliveries; admin and hub_manager). Seeds the copy of six kinds, so the other kinds show as new in the editor. The log is by user id: the Delivery log page turns a mobile number into one with the proposed `GET /v1/admin/users?phone=` (or takes the id typed in). |
 | `prices.js` | `GET /v1/prices` (PriceListOut), `POST /v1/hubs/{id}/price-lists` (whole list, PriceListCreated) and the proposed `GET /v1/hubs/{id}/price-lists` |
-| `orders.js` | `GET /v1/orders` (OrderSummaryOut, paged by `cursor`, `from` and `to`), `GET /v1/slots` (SlotsOut), `POST /v1/admin/slots`, `PATCH /v1/admin/slots/{id}`, and the proposed `GET /v1/hubs/{id}/delivery-dates`, `GET /v1/hubs/{id}/cutoff`, `POST /v1/hubs/{id}/cutoff/run` |
+| `orders.js` | `GET /v1/orders` (OrderSummaryOut, paged by `cursor`, `from` and `to`), `GET /v1/slots` (SlotsOut), `POST /v1/admin/slots`, `PATCH /v1/admin/slots/{id}`, and the proposed `GET /v1/hubs/{id}/delivery-dates` and `GET /v1/hubs/{id}/cutoff` |
 | `cycles.js` | `GET` and `PUT /v1/societies/{id}/delivery-days` (weekday 0 = Monday, 1 to 3 items) and the proposed `GET /v1/hubs/{id}/delivery-days` |
 | `plans.js` | `GET /v1/plans` (PlanOut), and the proposed `GET /v1/admin/plans`, `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` |
-| `festivals.js` | `GET /v1/festivals` (FestivalOut, one row per date), and the proposed `POST /v1/admin/festivals`, `PATCH /v1/admin/festivals/{id}` |
+| `festivals.js` | The real M2 calendar, one row per date: `GET /v1/festivals` (FestivalOut), `POST /v1/admin/festivals` (FestivalIn with `names` en, hi and mr; 409 `catalog.festival_exists`), `PATCH` and `DELETE /v1/admin/festivals/{day}/{code}/{region}` (a day that has started: 409 `catalog.festival_past`). The console saves a run as one call per day (`planFestivalSave` in `lib/festivals.js`) |
 | `partners.js` | The real M8: `GET /v1/hubs/{id}/partners` and `GET /v1/partners/{id}` (PartnerStaff), `POST …/suspend` (`reason_code`, `note`) and `…/reinstate`, `GET /v1/partners/{id}/card`, `GET /v1/hubs/{id}/partner-applications` (ApplicationReview, `status` defaults to `kyc_pending`), `POST /v1/partner-applications/{id}/decision` (approve, resubmit, reject), `POST /v1/kyc-documents/{id}/file-links`, `POST /v1/kitchens/{id}/inspection`, `GET /v1/hubs/{id}/partner-rates`; the proposed fairness dashboard (`GET /v1/hubs/{id}/fairness`, `PUT …/fairness-weight`) stays here. Seed partner ids are in `partner-ids.js`. |
 | `payouts.js` | The real M5 §3.5: `GET /v1/admin/payouts?week=&status=&hub_id=` (ISO weeks relative to today; admin and hub_manager) and `POST /v1/admin/payouts/{id}/retry` (admin, a held or failed payout goes to `pending`) |
 | `logistics.js` | The real M7 (nothing is built yet, so the spec text): `GET` and `POST /v1/hubs/{id}/vehicles`, `GET` and `POST /v1/hubs/{id}/route-plans` (202, polled through `GET /v1/route-plans/{id}`), `POST /v1/route-plans/{id}/publish`, `GET /v1/hubs/{id}/routes`, `GET /v1/routes/{id}` (ETag), `GET /v1/routes/{id}/live` (a one-event SSE stream the console reads with `lib/sse.js`), `GET /v1/hubs/{id}/deliveries` and `POST /v1/deliveries/{order_id}/resolve`. Dates are today and tomorrow in IST. |
 
 Proposals (marked `@proposal (not in the contract yet)` in the mocks; in real mode they 404 and the page says "not available yet",
 see `lib/proposal.js`): `GET /v1/admin/products` (`?active=false`), `GET /v1/admin/products/{id}`, `POST/PATCH /v1/admin/products`,
-`GET /v1/hubs/{id}/price-lists`, `GET /v1/admin/plans` and its writes, and `POST/PATCH /v1/admin/festivals` (the id of a run is
-`code:region:starts_on`). The real contract has no category list, no `q` or `include_inactive` on products, and no `active` on
+`GET /v1/hubs/{id}/price-lists`, `GET /v1/admin/plans` and its writes. The real contract has no category list, no `q` or `include_inactive` on products, and no `active` on
 a product: pages derive categories from the products, filter in the browser, and treat a missing `active` as active.
 Slots, societies and orders have uuids too (`ids.js`, `mockUuid`); the real order has no flat, society name or item summary, so the Orders board shows the society (named from `GET /v1/societies`), the kind and the slot. Product ids are uuids (`mockUuid` in `util.js`); the slug is in `slug`.
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { productUuid } from "./catalog.js";
 import { isNewUser } from "./handlers.js";
 import { mockFetch } from "./index.js";
+import { tiffinMenuId } from "./orders.js";
 import { uid } from "./subscriptions.js";
 
 const post = (/** @type {string} */ path, /** @type {object} */ body, key = "key-1") =>
@@ -176,16 +177,16 @@ describe("weekly cycle lifecycle", () => {
 describe("week day: meal swap and tiffin", () => {
   const cycleNow = async () =>
     (await mockFetch(new Request("http://localhost/v1/cycles/current"))).json();
-  // @proposal GET /v1/tiffin-offers: the day's tiffin comes from its own read, not from the cycle.
-  const offers = async (/** @type {string} */ from, /** @type {string} */ to) =>
+  // GET /v1/tiffin-menus?date=&meal=: the day's tiffin comes from its own read, not from the cycle.
+  const menus = async (/** @type {string} */ date, meal = "lunch") =>
     (
-      await mockFetch(new Request(`http://localhost/v1/tiffin-offers?from=${from}&to=${to}`))
+      await mockFetch(new Request(`http://localhost/v1/tiffin-menus?date=${date}&meal=${meal}`))
     ).json();
 
   it("swaps a meal and remembers it as the person's choice", async () => {
     const res = await mockFetch(
       new Request("http://localhost/v1/cycles/cyc-2026-10-05/meals", {
-        method: "PATCH",
+        method: "PUT",
         headers: { "content-type": "application/json", "if-match": "1" },
         body: JSON.stringify({ date: "2026-10-06", slot: "dinner" }),
       }),
@@ -195,39 +196,39 @@ describe("week day: meal swap and tiffin", () => {
   });
 
   it("books a tiffin once per key and per meal, then shows it on the week", async () => {
-    const body = {
-      kind: "tiffin",
-      delivery_date: "2026-10-06",
-      slot: "dinner",
-      kitchen_id: "kit-lata",
-    };
+    const body = { kind: "tiffin", menu_id: tiffinMenuId("2026-10-06") };
     const a = await post("/v1/orders", body, "tif-1");
     const again = await post("/v1/orders", body, "tif-1");
     expect(a.status).toBe(201);
     expect((await again.json()).id).toBe((await a.json()).id);
     expect((await post("/v1/orders", body, "tif-2")).status).toBe(409);
     const day = (await cycleNow()).meal_plan.days[1];
-    expect(day.meals[2].tiffin).toBe(true);
-    expect((await offers("2026-10-06", "2026-10-06")).items).toEqual([]);
+    expect(day.meals[1].tiffin).toBe(true);
+    expect((await menus("2026-10-06")).items).toEqual([]);
   });
 
   it("books several tiffins for a meal and prices them by count (HcTiffin)", async () => {
-    const [offer] = (await offers("2026-10-08", "2026-10-08")).items;
-    expect(offer).toMatchObject({
+    const { items } = await menus("2026-10-08");
+    expect(items).toHaveLength(1);
+    // TiffinMenuOut: the menu fixes the date, meal, price and cook; dishes are recipes.
+    expect(items[0]).toMatchObject({
+      id: tiffinMenuId("2026-10-08"),
       date: "2026-10-08",
-      slot: "lunch",
-      kitchen_id: "kit-lata",
+      meal: "lunch",
       price_paise: 11000,
+      kitchen: { partner_id: "kit-lata", display_name: "Lata tai", photo_url: null },
     });
-    const body = {
-      kind: "tiffin",
-      delivery_date: "2026-10-08",
-      slot: "lunch",
-      kitchen_id: "kit-lata",
-    };
-    const res = await post("/v1/orders", { ...body, qty: 2 }, "tif-3");
-    expect(await res.json()).toMatchObject({ qty: 2, total_paise: 22000 });
-    expect((await post("/v1/orders", { ...body, qty: 9 }, "tif-4")).status).toBe(422);
+    expect(items[0].dishes.map((/** @type {{ name: string }} */ d) => d.name)).toEqual([
+      "Chapati",
+      "Bhaji",
+      "Dal",
+      "Rice",
+    ]);
+    expect((await menus("2026-10-08", "dinner")).items).toEqual([]);
+    const body = { kind: "tiffin", menu_id: items[0].id };
+    const res = await post("/v1/orders", { ...body, portions: 2 }, "tif-3");
+    expect(await res.json()).toMatchObject({ kind: "tiffin", total_paise: 22000 });
+    expect((await post("/v1/orders", { ...body, portions: 13 }, "tif-4")).status).toBe(422);
     const cook = await (
       await mockFetch(new Request("http://localhost/v1/partners/kit-lata/card"))
     ).json();

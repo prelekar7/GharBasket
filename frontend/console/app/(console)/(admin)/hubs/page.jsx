@@ -9,39 +9,14 @@ export const metadata = { title: "Hubs" };
 
 export default async function Page() {
   try {
-    const [hubs, societies, current, listed] = await Promise.all([
-      // @proposal (not in the contract yet): GET /v1/admin/hubs, with address, people, slots and service area
-      orNotShipped(apiGet("/v1/admin/hubs")),
+    const [hubs, current] = await Promise.all([listHubs(), currentHub()]);
+    const [details, societies] = await Promise.all([
+      // GET /v1/hubs lists the hubs by name; each one's address, service area and timings come from GET /v1/hubs/{hub_id}
+      Promise.all(hubs.map((h) => apiGet(`/v1/hubs/${encodeURIComponent(h.id)}`))),
       // @proposal (not in the contract yet): GET /v1/admin/societies, the only list that says which hub a society is on
       orNotShipped(apiGet("/v1/admin/societies")),
-      currentHub(),
-      listHubs(),
     ]);
-    // Without the admin list, the hubs the person may use (their roles, `GET /v1/hubs` or the seed hub) with only a name.
-    const items =
-      hubs?.items ??
-      listed.map((h) => ({
-        id: h.id,
-        slug: h.slug ?? "",
-        name: h.name,
-        city: "",
-        status: /** @type {const} */ ("active"),
-        address: "",
-        franchise_owner: null,
-        hub_manager: null,
-        slots: [],
-        cutoff: "",
-        service_area: null,
-        version: 0,
-      }));
-    return (
-      <HubsView
-        hubs={items}
-        societies={societies?.items ?? null}
-        currentId={current.id}
-        limited={!hubs}
-      />
-    );
+    return <HubsView hubs={details} societies={societies?.items ?? null} currentId={current.id} />;
   } catch (error) {
     if (isForbidden(error)) return <NoAccess title="Hubs" />;
     throw error;

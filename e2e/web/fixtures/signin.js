@@ -27,7 +27,13 @@ const webHeaders = (origin) => ({
 });
 
 /** The console shows staff by their best role first (frontend/console/lib/session.js STAFF_ROLES). */
-const STAFF_ROLES = ["admin", "hub_manager", "franchise_owner", "ngo_coordinator"];
+const STAFF_ROLES = [
+  "admin",
+  "hub_manager",
+  "franchise_owner",
+  "ngo_coordinator",
+  "catalog_editor",
+];
 
 /** Make the mobile app skip the language picker it shows on a first visit. @param {import("@playwright/test").Page} page */
 export async function skipWelcome(page) {

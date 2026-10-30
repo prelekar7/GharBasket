@@ -208,7 +208,7 @@ describe("rider mode: handover and the doors (M7 §3.4)", () => {
       "/v1/stops/01995000-0000-7000-8000-000000000001/handover", // the captain mock's stop
       {},
       {
-        "x-active-role": "captain:0199e000-0000-7000-8000-000000000001",
+        "x-active-role": "captain:0199a000-0000-7000-8000-00000000b001",
         "idempotency-key": "k1",
       },
     );

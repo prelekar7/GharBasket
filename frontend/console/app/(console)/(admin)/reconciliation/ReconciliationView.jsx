@@ -1,20 +1,14 @@
 "use client";
 
-import {
-  Badge,
-  Button,
-  Dialog,
-  EmptyState,
-  formatPaise,
-  MoneyText,
-  Sheet,
-  toast,
-} from "@gharbasket/ui";
+import { Button, EmptyState, MoneyText, Sheet, TextField, toast } from "@gharbasket/ui";
 import { useState, useTransition } from "react";
 import { PageHead } from "@/components/ops/PageHead.jsx";
 import { StatTile } from "@/components/ops/StatTile.jsx";
 import { clockLabel, dayLabel, istDay, whenLabel } from "@/lib/when.js";
-import { checkNow, creditWallet, markInvestigating } from "./actions.js";
+import { resolveMismatch } from "./actions.js";
+
+/** The note's length in the contract (ResolveIn): 1 to 500 characters. */
+const NOTE_MAX = 500;
 
 const th = "border-b border-line-strong px-3 py-2.5 font-semibold whitespace-nowrap";
 
@@ -26,33 +20,36 @@ export function ReconciliationView({ report }) {
   const { counts, items } = report;
   const lastCheck = `${istDay(report.checked_at) === istDay(report.as_of) ? "today" : dayLabel(istDay(report.checked_at))}, ${clockLabel(report.checked_at)}`;
   const [pending, startTransition] = useTransition();
-  // The mismatch being confirmed or looked at, with one Idempotency-Key per confirmation.
-  const [credit, setCredit] = useState(
-    /** @type {{ item: import("./page.jsx").Mismatch, key: string } | null} */ (null),
-  );
+  // The item being resolved, and the note for it. Not saved until "Resolve with note".
   const [look, setLook] = useState(/** @type {import("./page.jsx").Mismatch | null} */ (null));
+  const [note, setNote] = useState("");
+  const [problem, setProblem] = useState("");
 
-  /** @param {() => Promise<{ ok: true } | { ok: false, message: string }>} run @param {string} done */
-  function run(run, done) {
+  /** @param {import("./page.jsx").Mismatch | null} item */
+  function open(item) {
+    setLook(item);
+    setNote("");
+    setProblem("");
+  }
+
+  function resolve() {
+    if (!look) return;
+    const item = look;
+    const text = note.trim();
+    if (!text) return setProblem("Write what you decided. It is saved in the audit log.");
+    if (text.length > NOTE_MAX) return setProblem(`Keep the note under ${NOTE_MAX} characters.`);
     startTransition(async () => {
-      const r = await run();
-      toast(r.ok ? done : r.message);
+      const r = await resolveMismatch(item.id, text);
+      if (r.ok) {
+        toast(`${item.provider_ref} is resolved.`);
+        open(null);
+      } else setProblem(r.fields.note ?? r.message);
     });
   }
 
   return (
     <>
-      <PageHead
-        title="Reconciliation with Razorpay"
-        action={
-          <Button
-            isDisabled={pending}
-            onPress={() => run(() => checkNow(crypto.randomUUID()), "Checked just now.")}
-          >
-            Check now
-          </Button>
-        }
-      >
+      <PageHead title="Reconciliation with Razorpay">
         Every hour, each Razorpay payment is matched to a wallet entry in our ledger. Last check{" "}
         {lastCheck}, for the last {report.window_hours} hours.
       </PageHead>
@@ -127,21 +124,9 @@ export function ReconciliationView({ report }) {
                       <MoneyText paise={m.ledger_paise} size="sm" />
                     )}
                   </td>
-                  <td className="px-3 py-2.5">
-                    {m.note} {m.investigating && <Badge tone="outline">Investigating</Badge>}
-                  </td>
+                  <td className="px-3 py-2.5">{m.note}</td>
                   <td className="px-3 py-2.5 text-right">
-                    {m.kind === "no_wallet_entry" ? (
-                      <Button
-                        variant="primary"
-                        isDisabled={pending}
-                        onPress={() => setCredit({ item: m, key: crypto.randomUUID() })}
-                      >
-                        Credit wallet
-                      </Button>
-                    ) : (
-                      <Button onPress={() => setLook(m)}>Investigate</Button>
-                    )}
+                    <Button onPress={() => open(m)}>Resolve</Button>
                   </td>
                 </tr>
               ))}
@@ -151,37 +136,27 @@ export function ReconciliationView({ report }) {
       )}
 
       <p className="text-sm leading-5 text-fg-secondary">
-        Fixes post a correcting ledger entry; nothing is edited or deleted. Each fix is saved to the
-        audit log with your name.
+        Resolving closes an item with your note and moves no money. A money correction is a
+        separate, manual adjustment entry; nothing in the ledger is edited or deleted. Each
+        resolution is saved to the audit log with your name.
       </p>
 
-      <Dialog
-        title={credit ? `Credit ${formatPaise(credit.item.razorpay_paise)} to the wallet?` : ""}
-        confirmLabel={credit ? `Credit ${formatPaise(credit.item.razorpay_paise)}` : ""}
-        cancelLabel="Cancel"
-        isOpen={credit !== null}
-        onOpenChange={(o) => !o && setCredit(null)}
-        onConfirm={() => {
-          if (!credit) return;
-          const { item, key } = credit;
-          run(
-            () => creditWallet(item.id, key),
-            `Credited ${formatPaise(item.razorpay_paise)} to ${item.payer}.`,
-          );
-        }}
-      >
-        {credit &&
-          `${credit.item.provider_ref} (${credit.item.payer}) was captured at Razorpay but never reached the wallet. A correcting ledger entry credits it, and they get a notification. It is saved to the audit log with your name.`}
-      </Dialog>
-
       <Sheet
-        title="Amounts differ"
+        title="Resolve this item"
         description={look ? `${look.provider_ref} · ${look.payer}` : undefined}
         open={look !== null}
-        onOpenChange={(o) => !o && setLook(null)}
+        onOpenChange={(o) => !o && open(null)}
       >
         {look && (
-          <div className="flex flex-col gap-3">
+          <form
+            aria-label="Resolve with a note"
+            onSubmit={(e) => {
+              e.preventDefault();
+              resolve();
+            }}
+            className="flex flex-col gap-3"
+          >
+            <p className="text-sm leading-5">{look.note}</p>
             <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm leading-5">
               <dt className="text-fg-secondary">At Razorpay</dt>
               <dd className="m-0 text-right">
@@ -197,26 +172,27 @@ export function ReconciliationView({ report }) {
               </dd>
             </dl>
             <p className="text-sm leading-5 text-fg-secondary">
-              Check this payment in the Razorpay dashboard and the wallet’s journal entries. A
-              mismatch is only fixed by a correcting entry, never by editing the old one.
+              Check this payment in the Razorpay dashboard and the wallet’s journal entries first.
+              Resolving does not credit or change anything: if the wallet needs a correction, make
+              it as a manual adjustment entry.
             </p>
-            <Button
-              variant="primary"
-              size="lg"
-              block
-              isDisabled={pending || look.investigating}
-              onPress={() => {
-                const id = look.id;
-                setLook(null);
-                run(
-                  () => markInvestigating(id, crypto.randomUUID()),
-                  "Marked as being investigated.",
-                );
+            <TextField
+              label="What you decided"
+              description="Required, up to 500 characters. Kept in the audit log."
+              value={note}
+              onChange={(v) => {
+                setNote(v);
+                setProblem("");
               }}
-            >
-              {look.investigating ? "Already being investigated" : "Mark as investigating"}
+              maxLength={NOTE_MAX}
+              isInvalid={!!problem}
+              errorMessage={problem}
+              className="max-w-none"
+            />
+            <Button type="submit" variant="primary" size="lg" block isDisabled={pending}>
+              Resolve with note
             </Button>
-          </div>
+          </form>
         )}
       </Sheet>
     </>
