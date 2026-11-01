@@ -89,7 +89,7 @@ flowchart TB
 | PWA and console | Vercel | Static PWA build and the Next.js console | `/v1/*` rewrites to the API, so browser cookies are same-origin; preview deployment per PR |
 | ml + OSRM | Hugging Face Space (free CPU, Docker; ADR-0025) | Planners, the pantry twin, routing, forecasts' serving | One container: uvicorn on 7860 and `osrm-routed` with the MMR network baked in; `deploy-ml.yml` mirrors `backend/ml` with dependencies exported from `uv.lock` after CI on `main` (no commit, so no rebuild, when nothing changed); `start.sh` exits when either process dies, so the Space restarts; UptimeRobot keeps it awake; the API's fallbacks cover cold starts |
 | training and data jobs | GitHub Actions (`training-jobs.yml`, `backend/training`) | Data collection, training, forecasts, snapshots | Reads Neon (read-only role) and R2; hands results to the API's internal endpoints with `JOBS_TOKEN` |
-| models and lake | Cloudflare R2 (`gb-lake`, `gb-mlflow`) | Snapshots, external data, model versions with a `latest.json` pointer per model | Promotion is manual (`just promote`, D25); the Space polls `latest.json` every 10 minutes |
+| models and lake | Cloudflare R2 (`gb-lake`, `gb-mlflow`) | Snapshots, external data, model versions with a `latest.json` pointer per model | Promotion is manual (`just promote`, D25); the ML service on Render follows `latest.json` every 10 minutes with a read-only token (`S3_*` on `gharbasket-ml`) |
 | MLflow | Local only (Docker Compose) | Experiment tracking | Never hosted (D25) |
 | worker | None until the pilot | — | No broker for now (D21): the outbox relay and the job endpoints do the work. Taskiq returns when a paid worker exists |
 

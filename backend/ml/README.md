@@ -35,7 +35,16 @@ the bundled road network; `/health/ai` reports `ok`, `down` or `not_configured`)
 (a local stand-in for the R2 registry pointer), `MODELS_DIR` (the learned models' folder in the registry
 layout, `<name>/latest.json` and `<name>/<version>/model.txt`; unset: the fallbacks answer),
 `MODELS_RELOAD_S` (how often the models are re-read, default 600: a promotion is served within ten
-minutes, and a bad pointer or model keeps the last good one or the fallback, never a 500), `ANTHROPIC_API_KEY`
+minutes, and a bad pointer or model keeps the last good one or the fallback, never a 500),
+`S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION` (default `auto`) and `S3_BUCKET_MLFLOW`
+(default `gb-mlflow`): with the first three set and `MODELS_DIR` unset, `model_sync.py` follows the R2
+registry's pointers (`models/<name>/latest.json`) in the background at startup and every `MODELS_RELOAD_S`,
+GET and HEAD only (a separate read-only R2 token on `gb-mlflow`), and downloads a newly promoted (or
+overwritten) version into `MODELS_CACHE_DIR` (default `<tmp>/gharbasket-models`) before it moves the
+local pointer, so a half-download is never served; R2 being down never delays startup or `/health` (the
+synced model keeps serving, or the fallback; a fresh instance has an empty cache until its first sync),
+it only shows in `/health/ai`'s `registry_sync`
+(`MODELS_SYNC_TIMEOUT_S`, default 10 per request; `MODELS_SYNC_DEADLINE_S`, default 120 per sync), `ANTHROPIC_API_KEY`
 (a service secret; Ghar Saathi's `POST /assistant/turn` answers 503 without it), `ASSISTANT_MODEL`
 (`claude-opus-5-5` until the S8 evaluation, ADR-0013), `ASSISTANT_REQUEST_TIMEOUT_S` (default 12, one
 retry) and `ASSISTANT_TURN_TIMEOUT_S` (default 25, below the API's 30 s; 504 `ml.assistant_timeout`).
