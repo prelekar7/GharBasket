@@ -164,6 +164,24 @@ export function refresh() {
   return refreshing;
 }
 
+/** True while the session is being ended (sign-out), see `setSigningOut`. */
+let signingOut = false;
+/** The only calls a sign-out itself makes. */
+const SIGN_OUT_PATHS = new Set(["/v1/auth/logout", "/v1/auth/logout-all", "/v1/me/push-token"]);
+
+/**
+ * While signing out, screens that were still refetching must not hit the API with a session that
+ * is being ended: their calls are refused here without a request, and a 401 that was already in
+ * flight is neither refreshed nor reported as an expired session.
+ * @param {boolean} on
+ */
+export function setSigningOut(on) {
+  signingOut = on;
+}
+
+/** @param {string} path */
+const isSilenced = (path) => signingOut && !SIGN_OUT_PATHS.has(path);
+
 /** Calls that must never trigger a refresh: they are how a session starts or renews. */
 const NO_RETRY = new Set(["/v1/auth/exchange", "/v1/auth/refresh"]);
 
@@ -175,9 +193,10 @@ const NO_RETRY = new Set(["/v1/auth/exchange", "/v1/auth/refresh"]);
  * @param {RequestOptions} [init]
  */
 export async function request(path, init) {
+  if (isSilenced(path)) throw new ApiError({ status: 0, code: "auth.signing_out" });
   const started = epoch;
   let res = await send(path, init);
-  if (res.status === 401 && !NO_RETRY.has(path)) {
+  if (res.status === 401 && !NO_RETRY.has(path) && !isSilenced(path)) {
     if (epoch !== started) {
       // Sent under the old session, answered after a new sign-in: just send it again.
       res = await send(path, init);
@@ -198,9 +217,12 @@ export async function request(path, init) {
  */
 export async function openStream(path, signal) {
   const init = { headers: { accept: "text/event-stream" }, signal };
+  if (isSilenced(path)) throw new ApiError({ status: 0, code: "auth.signing_out" });
   let res = await send(path, init);
-  if (res.status === 401 && (await refresh())) res = await send(path, init);
-  if (res.status === 401) onExpired();
+  if (res.status === 401 && !isSilenced(path)) {
+    if (await refresh()) res = await send(path, init);
+    if (res.status === 401) onExpired();
+  }
   if (!res.ok) throw await ApiError.from(res);
   return res;
 }

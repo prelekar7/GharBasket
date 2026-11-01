@@ -43,7 +43,9 @@ export class OtpError extends Error {
   }
 }
 
-const toOtpError = (/** @type {any} */ e) => new OtpError(e?.code ?? codeFromMessage(e?.message));
+// A generic `auth/internal-error` hides the real reason in its message (BILLING_NOT_ENABLED).
+const toOtpError = (/** @type {any} */ e) =>
+  new OtpError(e?.code && e.code !== "auth/internal-error" ? e.code : codeFromMessage(e?.message));
 
 /**
  * The native `phoneVerificationFailed` event carries only the Android SDK's English message, no
@@ -52,6 +54,8 @@ const toOtpError = (/** @type {any} */ e) => new OtpError(e?.code ?? codeFromMes
  */
 export function codeFromMessage(message) {
   const m = String(message ?? "").toLowerCase();
+  // "An internal error has occurred. [ BILLING_NOT_ENABLED ]": real SMS needs the Blaze plan.
+  if (/billing_not_enabled|billing not enabled/.test(m)) return "auth/billing-not-enabled";
   if (/region|operation is not allowed/.test(m)) return "auth/operation-not-allowed";
   if (/blocked all requests|unusual activity|too many/.test(m)) return "auth/too-many-requests";
   if (/quota/.test(m)) return "auth/quota-exceeded";
@@ -76,6 +80,7 @@ const KEYS = /** @type {Record<string, string>} */ ({
   "auth/missing-phone-number": "otp.badPhone",
   "auth/network-request-failed": "otp.network",
   "auth/app-not-authorized": "otp.notAuthorized",
+  "auth/billing-not-enabled": "otp.smsOff",
 });
 
 /**

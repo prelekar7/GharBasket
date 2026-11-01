@@ -150,6 +150,7 @@
     "keepConfirm": "Keep my account",
     "keepCancel": "Cancel",
     "welcomeBack": "Welcome back. Your account is kept and won’t be deleted.",
+    "smsOff": "SMS sign-in isn’t switched on yet. Use a test number, or try again later.",
     "badPhone": "That phone number doesn’t look right. Check it and try again.",
     "network": "No internet connection. Check your network and try again.",
     "notAuthorized": "This app version can’t verify phone numbers yet. Update the app or contact support.",

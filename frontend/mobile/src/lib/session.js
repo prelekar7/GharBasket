@@ -5,9 +5,10 @@ import {
   stopPushToken,
   syncPushToken,
 } from "@/features/notifications/pushToken.js";
-import { logout, logoutAll, me, refresh, setActiveRoleHeader } from "@/lib/api.js";
+import { logout, logoutAll, me, refresh, setActiveRoleHeader, setSigningOut } from "@/lib/api.js";
 import { NATIVE } from "@/lib/env.js";
 import { clearLocalData } from "@/lib/localData.js";
+import { queryClient } from "@/lib/queryClient.js";
 import { tokens } from "@/lib/tokens.js";
 
 /** @typedef {import("./api.js").FieldRole} FieldRole */
@@ -88,10 +89,18 @@ export const useSession = create(
           return restoring;
         },
         signOut: async ({ everywhere = false } = {}) => {
-          await releasePushToken();
-          await (everywhere ? logoutAll() : logout()).catch(() => {});
-          await clearLocalData();
-          get().clear();
+          // Screens may still be refetching: stop them first, so no request goes out (or reports
+          // an expired session) while the old session is being ended.
+          setSigningOut(true);
+          try {
+            await queryClient.cancelQueries();
+            await releasePushToken();
+            await (everywhere ? logoutAll() : logout()).catch(() => {});
+            await clearLocalData();
+            get().clear();
+          } finally {
+            setSigningOut(false);
+          }
         },
         clear: () => {
           stopPushToken();
