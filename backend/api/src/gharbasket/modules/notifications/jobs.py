@@ -66,8 +66,8 @@ async def on_event(session: AsyncSession, event: OutboxEvent) -> None:
             error=type(exc).__name__,
         )
         return
-    if route is not None:
-        await service.record(session, event, route)
+    for one in [] if route is None else route if isinstance(route, list) else [route]:
+        await service.record(session, event, one)
 
 
 for _event_type in routes.ROUTES:

@@ -3,13 +3,15 @@ templates may use. A message names one of these keys; the key is the event type,
 type plus a variant when one event reads differently by outcome (an issue credited or rejected).
 
 Placeholder types decide how a raw value from the event is shown: `money` (paise → ₹1,234),
-`weekday` (an ISO date → "Monday"), `time` (an ISO timestamp → "9 PM", in IST).
+`weekday` (an ISO date → "Monday"), `time` (an ISO timestamp → "9 PM", in IST), `clock` (an IST
+"HH:MM" → "6:30 AM"), `number` (a count or points → 1,200) and `meal` (lunch or dinner → the
+word in the reader's language).
 """
 
 from dataclasses import dataclass, field
 from typing import Literal
 
-PlaceholderType = Literal["money", "weekday", "time"]
+PlaceholderType = Literal["money", "weekday", "time", "clock", "number", "meal"]
 
 # The order the preferences screen lists them in (§3.1).
 CATEGORIES = ("weekly_box", "delivery", "money", "kindness", "offers")
@@ -74,4 +76,47 @@ KINDS: dict[str, Kind] = {
         for kind in PARTNER_KINDS
     },
     "community.captain_assigned": Kind("community.captain_assigned", ACCOUNT, "/captain"),
+    # Kindness messages are a preference like money: they can be turned off.
+    "billing.points_credited": Kind(
+        "billing.points_credited", "kindness", "/kindness", {"points": "number"}
+    ),
+    "community.donation_verified": Kind(
+        "community.donation_verified", "kindness", "/kindness", {"points": "number"}
+    ),
+    "community.society_live": Kind("community.society_live", "kindness", "/society"),
+    # Partner work messages are account messages like the verified ones. A route reads differently
+    # to its rider and to a captain, and for a tiffin run (M7 §3.7).
+    "logistics.route_published.rider": Kind(
+        "logistics.route_published",
+        ACCOUNT,
+        "/rider",
+        {"day": "weekday", "stops": "number", "depart": "clock"},
+    ),
+    "logistics.route_published.rider_tiffin": Kind(
+        "logistics.route_published",
+        ACCOUNT,
+        "/rider",
+        {"day": "weekday", "kitchens": "number", "societies": "number", "first_pickup": "clock"},
+    ),
+    "logistics.route_published.captain": Kind(
+        "logistics.route_published",
+        ACCOUNT,
+        "/captain",
+        {"day": "weekday", "bags": "number", "eta": "clock"},
+    ),
+    "logistics.route_published.captain_tiffin": Kind(
+        "logistics.route_published",
+        ACCOUNT,
+        "/captain",
+        {"day": "weekday", "bags": "number", "eta": "clock"},
+    ),
+    # An offer lapses at `respond_by` (T-1 22:30), inside quiet hours: held until morning it
+    # would arrive too late, so it skips them like the delivery-critical messages.
+    "partners.assignment_created": Kind(
+        "partners.assignment_created",
+        ACCOUNT,
+        "/kitchen",
+        {"portions": "number", "meal": "meal", "day": "weekday", "respond_by": "time"},
+        critical=True,
+    ),
 }

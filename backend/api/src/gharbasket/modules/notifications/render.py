@@ -55,6 +55,24 @@ def clock(moment: datetime, lang: Language) -> str:
     return f"{part} {shown} बजे" if lang == "hi" else f"{part} {shown}"
 
 
+MEALS: dict[Language, dict[str, str]] = {
+    "en": {"lunch": "lunch", "dinner": "dinner"},
+    "hi": {"lunch": "दोपहर का खाना", "dinner": "रात का खाना"},
+    "mr": {"lunch": "दुपारचे जेवण", "dinner": "रात्रीचे जेवण"},
+}
+
+
+def number(count: int) -> str:
+    """A whole number with Indian digit grouping (12,34,567)."""
+    return money(count * 100).replace("₹", "")
+
+
+def clock_of_day(text: str, lang: Language) -> str:
+    """An IST 'HH:MM' shown as `clock` shows a moment: '6:30 AM'."""
+    hour, minute = text.split(":")
+    return clock(datetime(2000, 1, 1, int(hour), int(minute), tzinfo=IST), lang)
+
+
 def format_value(kind: PlaceholderType, raw: Any, lang: Language) -> str:
     """One raw value for the reader; ValueError or TypeError when it is not that type."""
     match kind:
@@ -70,6 +88,12 @@ def format_value(kind: PlaceholderType, raw: Any, lang: Language) -> str:
             return WEEKDAYS[lang][day.weekday()]
         case "time":
             return clock(datetime.fromisoformat(str(raw)), lang)
+        case "clock":  # an IST 'HH:MM', as M7 publishes departures and ETAs
+            return clock_of_day(str(raw), lang)
+        case "number":
+            return number(int(raw))
+        case "meal":
+            return MEALS[lang][str(raw)]  # KeyError for anything but lunch and dinner
 
 
 def render(text: str, kind: Kind, params: dict[str, Any], lang: Language) -> str:

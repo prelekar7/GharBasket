@@ -30,6 +30,7 @@ RENAMED: dict[str, tuple[str, ...]] = {
     "refund_paise": ("refund",),
     "credit_paise": ("credit",),
     "amount_paise": ("amount",),
+    "points": ("points",),
 }
 
 
@@ -38,19 +39,29 @@ class Route:
     kind: str  # a key of kinds.KINDS
     user_ids: list[uuid.UUID]
     params: dict[str, Any]
+    # Not sent when the person got this very message (same kind and values) in the last two
+    # days from another event: for an event that M7 may publish again without a marker.
+    skip_repeat: bool = False
 
 
-RouteFn = Callable[[AsyncSession, dict[str, Any]], Awaitable[Route | None]]
+# One event may tell several kinds of people, each in its own words.
+RouteFn = Callable[[AsyncSession, dict[str, Any]], Awaitable[Route | list[Route] | None]]
 
 
-def params_for(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """The kind's placeholders from the payload; each must be there and readable."""
-    renamed = {new: value for old, value in payload.items() for new in RENAMED.get(old, ())}
+def checked(kind: str, values: dict[str, Any]) -> dict[str, Any]:
+    """The kind's placeholders from `values`; each must be there and readable."""
     placeholders = KINDS[kind].placeholders
-    params = {name: renamed[name] for name in placeholders}  # KeyError when one is missing
+    params = {name: values[name] for name in placeholders}  # KeyError when one is missing
     for name, value in params.items():
         format_value(placeholders[name], value, "en")  # fails now rather than on every read
     return params
+
+
+def params_for(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """The kind's placeholders from the payload's fields, renamed as `RENAMED` says."""
+    return checked(
+        kind, {new: value for old, value in payload.items() for new in RENAMED.get(old, ())}
+    )
 
 
 async def _to_owner(session: AsyncSession, kind: str, payload: dict[str, Any]) -> Route | None:
@@ -122,6 +133,92 @@ async def captain_assigned(session: AsyncSession, payload: dict[str, Any]) -> Ro
     return _to_user("community.captain_assigned", payload)
 
 
+async def points_credited(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """Points from a referral or any later source (M5 §3.6). A donation's points are told once, by
+    `community.donation_verified`, which also says what was counted (M9 §3.4)."""
+    if payload["source_type"] == "donation":
+        return None
+    return _to_user("billing.points_credited", payload)
+
+
+async def donation_verified(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """To the donor, with the points the hub awarded (M9 §3.4)."""
+    return _to_user("community.donation_verified", payload)
+
+
+async def society_live(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """Delivery is free now: to the owner of each household in the society (M9 §3.6). The hub
+    managers' "set delivery days" console task is not a message."""
+    society_id = uuid.UUID(str(payload["society_id"]))
+    owners = await identity_api.society_owners(session, society_id)
+    return Route("community.society_live", sorted(owners), {}) if owners else None
+
+
+async def assignment_created(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """The offer to the kitchen, with what is asked and until when it can answer (M8 §3.4)."""
+    kind = "partners.assignment_created"
+    values = {
+        "portions": payload["portions"],
+        "meal": payload["meal"],
+        "day": payload["date"],
+        "respond_by": payload["respond_by"],
+    }
+    return Route(kind, [uuid.UUID(str(payload["user_id"]))], checked(kind, values))
+
+
+async def route_published(session: AsyncSession, payload: dict[str, Any]) -> list[Route] | None:
+    """The rider gets the route, and each captain whose society it drops at gets her bags and
+    the van's time (M7 §5; the tiffin run has its own words, M7 §3.7).
+
+    M7 sends the event again when a hub manager changes the rider, with `previous_rider_user_id`
+    set when there was one: then only the new rider is told, the route is what it was for the
+    captains. The first rider assigned to a route that had none looks like a first publication,
+    so a captain whose identical message arrived in the last two days is not told twice. The
+    rider who lost the route is told nothing: M7's `route_cancelled` is for a route that is gone.
+    """
+    tiffin = {"box": False, "tiffin": True}[payload["kind"]]
+    stops: list[dict[str, Any]] = payload["stops"]
+    day = payload["delivery_date"]
+    drops = [s for s in stops if s["kind"] == "drop"]
+    suffix = "_tiffin" if tiffin else ""
+    routes: list[Route] = []
+
+    rider_id = (
+        None if payload["rider_user_id"] is None else uuid.UUID(str(payload["rider_user_id"]))
+    )
+    if rider_id is not None:
+        if tiffin:
+            kitchens = [s for s in stops if s["kind"] == "kitchen"]
+            values: dict[str, Any] = {
+                "day": day,
+                "kitchens": len({s["partner_id"] for s in kitchens}),
+                "societies": len({s["society_id"] for s in drops}),
+                "first_pickup": min(s["eta"] for s in kitchens),
+            }
+        else:
+            values = {"day": day, "stops": len(drops), "depart": payload["depart"]}
+        kind = f"logistics.route_published.rider{suffix}"
+        routes.append(Route(kind, [rider_id], checked(kind, values)))
+
+    if payload.get("previous_rider_user_id") is not None:
+        return routes or None
+    kind = f"logistics.route_published.captain{suffix}"
+    by_captain: dict[uuid.UUID, list[dict[str, Any]]] = {}
+    for stop in drops:
+        if stop["captain_user_id"] is not None:
+            by_captain.setdefault(uuid.UUID(str(stop["captain_user_id"])), []).append(stop)
+    for captain_id, theirs in sorted(by_captain.items()):
+        if captain_id == rider_id:
+            continue  # one message per (event, person): the rider's own words come first
+        values = {
+            "day": day,
+            "bags": sum(int(s["bags"]) for s in theirs),
+            "eta": min(s["eta"] for s in theirs),
+        }
+        routes.append(Route(kind, [captain_id], checked(kind, values), skip_repeat=True))
+    return routes or None
+
+
 ROUTES: dict[str, RouteFn] = {
     "subscriptions.box_ready": to_owner("subscriptions.box_ready"),
     "subscriptions.cutoff_reminder": to_owner("subscriptions.cutoff_reminder"),
@@ -139,4 +236,9 @@ ROUTES: dict[str, RouteFn] = {
     "identity.data_export_ready": data_export_ready,
     "partners.verified": partner_verified,
     "community.captain_assigned": captain_assigned,
+    "billing.points_credited": points_credited,
+    "community.donation_verified": donation_verified,
+    "community.society_live": society_live,
+    "logistics.route_published": route_published,
+    "partners.assignment_created": assignment_created,
 }
