@@ -1171,6 +1171,12 @@
       "pickups": "Pickups",
       "earnings": "Earnings"
     },
+    "location": {
+      "notificationTitle": "Delivering for GharBasket",
+      "notificationBody": "Sharing your location while the route is in progress",
+      "denied": "Location is off, so the hub can’t see your van. Allow it in Settings.",
+      "openSettings": "Open settings"
+    },
     "title": "Your route",
     "when": "{day} · {slot} slot · van {plate}",
     "map": {

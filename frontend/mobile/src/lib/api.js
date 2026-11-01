@@ -83,6 +83,23 @@ export function onSessionExpired(/** @type {() => void} */ fn) {
 }
 
 /**
+ * The sign-in headers of every call: the active role, and the Bearer token (native) or the web
+ * client marker. Exported for the rider's background pings, which go through CapacitorHttp.
+ * @returns {Record<string, string>}
+ */
+export function authHeaders() {
+  /** @type {Record<string, string>} */
+  const headers = {};
+  if (activeRole) headers["x-active-role"] = activeRole;
+  if (NATIVE) {
+    if (tokens.access) headers.authorization = `Bearer ${tokens.access}`;
+  } else {
+    headers["x-gb-client"] = "web";
+  }
+  return headers;
+}
+
+/**
  * @param {string} path
  * @param {RequestOptions} [init]
  */
@@ -90,12 +107,7 @@ async function send(path, { method = "GET", body, headers: extra, signal } = {})
   /** @type {Record<string, string>} */
   const headers = { accept: "application/json", "accept-language": i18n.language, ...extra };
   if (body !== undefined) headers["content-type"] = "application/json";
-  if (activeRole) headers["x-active-role"] = activeRole;
-  if (NATIVE) {
-    if (tokens.access) headers.authorization = `Bearer ${tokens.access}`;
-  } else {
-    headers["x-gb-client"] = "web";
-  }
+  Object.assign(headers, authHeaders());
   const request = new Request(new URL(BASE + path, location.href), {
     method,
     headers,
