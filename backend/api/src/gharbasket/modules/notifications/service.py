@@ -3,7 +3,7 @@ and its deliveries that an event leaves behind (§3.1 rules)."""
 
 import re
 import uuid
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -37,6 +37,9 @@ LOCALE: dict[Language, str] = {"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN"}
 FALLBACK_LOCALE = "en-IN"
 QUIET_DEFAULT = (time(22), time(7))
 CLOCK = re.compile(r"([01]\d|2[0-3]):(00|15|30|45)")
+
+
+REPEAT_WINDOW = timedelta(days=2)  # how long a `Route.skip_repeat` message counts as sent
 
 
 def now() -> datetime:
@@ -249,12 +252,32 @@ async def channels_for(
     return channels
 
 
+async def _told_already(
+    session: AsyncSession, event: OutboxEvent, user_id: uuid.UUID, route: Route
+) -> bool:
+    """The same message (kind and values) from another event within `REPEAT_WINDOW`."""
+    found = await session.scalar(
+        select(Message.id)
+        .where(
+            Message.user_id == user_id,
+            Message.kind == route.kind,
+            Message.params == route.params,
+            Message.event_id != event.id,
+            Message.created_at > func.now() - REPEAT_WINDOW,
+        )
+        .limit(1)
+    )
+    return found is not None
+
+
 async def record(session: AsyncSession, event: OutboxEvent, route: Route) -> int:
     """The message for each recipient, and a delivery per channel for a new one only, so an event
     delivered twice changes nothing. Returns the number of new messages."""
     kind = KINDS[route.kind]
     created = 0
     for user_id in route.user_ids:
+        if route.skip_repeat and await _told_already(session, event, user_id, route):
+            continue
         message_id = await session.scalar(
             insert(Message)
             .values(
@@ -264,7 +287,7 @@ async def record(session: AsyncSession, event: OutboxEvent, route: Route) -> int
                 kind=route.kind,
                 category=kind.category,
                 params=route.params,
-                link=kind.link,
+                link=route.link or kind.link,
             )
             .on_conflict_do_nothing(index_elements=["event_id", "user_id"])
             .returning(Message.id)

@@ -36,6 +36,9 @@ SAMPLES: dict[PlaceholderType, Any] = {
     "money": 69_000,  # ₹690
     "weekday": "2026-10-13",  # a Tuesday
     "time": "2026-10-12T15:30:00Z",  # 9 PM IST
+    "clock": "06:30",
+    "number": 12,
+    "meal": "lunch",
 }
 LANGUAGE: dict[str, Language] = {locale: lang for lang, locale in service.LOCALE.items()}
 

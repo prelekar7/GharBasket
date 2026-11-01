@@ -314,10 +314,12 @@ async def routed_events_have_their_message(
     first: dict[str, str] = {}
     for event in events:
         try:
-            route = await ROUTES[event.event_type](session, event.payload)
+            found = await ROUTES[event.event_type](session, event.payload)
         except (KeyError, ValueError, TypeError):
             continue
-        for user_id in route.user_ids if route else []:
+        routes = [] if found is None else found if isinstance(found, list) else [found]
+        # A message a route marks `skip_repeat` may be left out as a repeat of an earlier one.
+        for user_id in (u for r in routes if not r.skip_repeat for u in r.user_ids):
             if (event.id, user_id) not in have:
                 missing[event.event_type] = missing.get(event.event_type, 0) + 1
                 first.setdefault(event.event_type, f"event {event.id} → user {user_id}")
