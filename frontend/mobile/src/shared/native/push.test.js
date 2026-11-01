@@ -223,6 +223,30 @@ describe("sign-in", () => {
 });
 
 describe("token refresh", () => {
+  it("registers a token once when getToken and tokenReceived report the same one", async () => {
+    permission = "granted";
+    const { session } = await load(true);
+    session.set(true);
+    await vi.waitFor(() => expect(registerPushToken).toHaveBeenCalledWith("fcm-1"));
+    handlers.tokenReceived({ token: "fcm-1" }); // what the plugin does right after getToken
+    await tick();
+    expect(registerPushToken).toHaveBeenCalledOnce();
+    handlers.tokenReceived({ token: "fcm-2" });
+    expect(registerPushToken).toHaveBeenCalledTimes(2);
+    expect(registerPushToken).toHaveBeenLastCalledWith("fcm-2");
+  });
+
+  it("registers the same token again for the next session", async () => {
+    permission = "granted";
+    const { session } = await load(true);
+    session.set(true);
+    await vi.waitFor(() => expect(registerPushToken).toHaveBeenCalledTimes(1));
+    session.set(false);
+    await vi.waitFor(() => expect(messaging.deleteToken).toHaveBeenCalled());
+    handlers.tokenReceived({ token: "fcm-1" });
+    expect(registerPushToken).toHaveBeenCalledTimes(2);
+  });
+
   it("registers the new token", async () => {
     const { session } = await load(true);
     session.set(true);

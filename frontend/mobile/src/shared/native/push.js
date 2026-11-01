@@ -86,6 +86,21 @@ let running = null;
 /** Whether this session's start-up has finished, so the permission and token are not asked twice. */
 let enabled = false;
 
+/** @type {string | null} The token handed to pushToken.js in this session (reset at sign-out). */
+let lastToken = null;
+
+/**
+ * Hands a token to pushToken.js unless it is the one already handed over in this session:
+ * `getToken()` and `tokenReceived` report the same token right after sign-in, and one PUT is enough.
+ * A failed PUT is not retried here: pushToken.js holds the token and sends it at the next sign-in.
+ * @param {string} token
+ */
+async function register(token) {
+  if (token === lastToken) return;
+  lastToken = token;
+  await registerPushToken(token);
+}
+
 /**
  * After sign-in: channel, permission, token. Single flight: the app opening signed in and the
  * session store flipping to signed in both ask for it, and the second call joins the first (or
@@ -109,7 +124,7 @@ function enable() {
       .catch(() => {}); // a channel that exists already, or Android 7, is not a problem
     if (!(await mayNotify(messaging)) || !current()) return;
     const { token } = await messaging.getToken();
-    if (current()) await registerPushToken(token);
+    if (current()) await register(token);
   })
     .catch(() => {})
     .then(() => {
@@ -125,6 +140,7 @@ async function disable() {
   generation++;
   running = null;
   enabled = false;
+  lastToken = null;
   await clearPushToken();
   await withPlugin(loadMessaging, async ({ FirebaseMessaging: messaging }) => {
     await messaging.deleteToken();
@@ -151,7 +167,7 @@ function listen(router, client) {
   });
   return withPlugin(loadMessaging, async ({ FirebaseMessaging: messaging }) => {
     await messaging.addListener("tokenReceived", ({ token }) => {
-      if (!wasDenied()) void registerPushToken(token);
+      if (!wasDenied()) void register(token);
     });
     await messaging.addListener("notificationActionPerformed", ({ notification }) => {
       const link = safeLink(
