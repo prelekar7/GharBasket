@@ -4,10 +4,12 @@ import {
   bagQr,
   currentStop,
   findFlat,
+  flatText,
   isHandedOver,
   nextFlat,
   tally,
   tiffinStop,
+  towerOf,
 } from "@/features/captain/day.js";
 import { tiffinsRiding } from "./captain.js";
 import { mockFetch } from "./index.js";
@@ -407,5 +409,38 @@ describe("her tiffins (M7 §3.7 mocks)", () => {
       { path: `/v1/deliveries/${a.order_id}/undelivered`, body: { reason: "not_home" } },
     );
     expect(shown.flats.find((f) => f.order_id === a.order_id)?.status).toBe("undelivered");
+  });
+});
+
+describe("a flat with no label (CaptainFlat.flat_label may be null)", () => {
+  const flat = (/** @type {object} */ over) => ({
+    order_id: "0199a000-0000-7000-8000-00000000f001",
+    flat_label: null,
+    kind: "box",
+    short_code: null,
+    bags: 1,
+    redelivery: false,
+    status: "with_you",
+    hold_until: null,
+    ...over,
+  });
+
+  it("groups under a placeholder tower instead of throwing", () => {
+    expect(towerOf(/** @type {any} */ (flat({})))).toBe("-");
+    expect(towerOf(/** @type {any} */ (flat({ flat_label: "B-402" })))).toBe("B");
+  });
+
+  it("is named by its label, else its tiffin code, else nothing", () => {
+    expect(flatText(/** @type {any} */ (flat({ flat_label: "B-402" })))).toBe("B-402");
+    expect(flatText(/** @type {any} */ (flat({ kind: "tiffin", short_code: "T-07" })))).toBe(
+      "T-07",
+    );
+    expect(flatText(/** @type {any} */ (flat({})))).toBe("");
+  });
+
+  it("is still found by its bag QR, and never by a typed label", () => {
+    const f = /** @type {any} */ (flat({}));
+    expect(findFlat([f], bagQr(f.order_id))).toBe(f);
+    expect(findFlat([f], "b402")).toBeUndefined();
   });
 });

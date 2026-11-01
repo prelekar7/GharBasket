@@ -5,7 +5,14 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { bagQr, currentStop, findFlat, isHandedOver, tiffinStop } from "@/features/captain/day.js";
+import {
+  bagQr,
+  currentStop,
+  findFlat,
+  flatText,
+  isHandedOver,
+  tiffinStop,
+} from "@/features/captain/day.js";
 import { PhotoButton, ReceivedCard } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useHandover } from "@/features/captain/queries.js";
 import { Row } from "@/features/kitchen/ui.jsx";
@@ -72,7 +79,7 @@ function Handover() {
     if (flat && ok) setScanned((s) => [...s, flat.order_id]);
     setLast(
       ok
-        ? { state: "success", text: t("captain.handover.scanned", { flat: flat.flat_label }) }
+        ? { state: "success", text: t("captain.handover.scanned", { flat: flatText(flat) }) }
         : { state: "error", text: t("captain.handover.notOurs", { code: raw.trim() }) },
     );
     return ok;

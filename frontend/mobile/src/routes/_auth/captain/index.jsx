@@ -10,7 +10,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { currentStop, isHandedOver, tally, tiffinStop } from "@/features/captain/day.js";
+import { currentStop, flatText, isHandedOver, tally, tiffinStop } from "@/features/captain/day.js";
 import { clock, dayLabel, ReceivedCard } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useCaptainPartner, useDrafts } from "@/features/captain/queries.js";
 import { clockTime } from "@/features/subscriptions/format.js";
@@ -153,7 +153,7 @@ function AllDone({ day: d, name }) {
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const navigate = useNavigate();
   const n = tally(d);
-  const problems = n.problems.map((f) => f.flat_label).join(", ");
+  const problems = n.problems.map(flatText).join(", ");
   /** @type {[string, number][]} */
   const rows = [
     [t("captain.done.door"), n.door],

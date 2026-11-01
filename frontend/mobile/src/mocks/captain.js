@@ -78,10 +78,12 @@ function seedDay() {
       status: "on_the_way",
       hold_until: null,
     });
+  // Seeded flats all carry a label; the type allows null (CaptainFlat), so sort on "".
+  const label = (/** @type {{ flat_label: string | null }} */ f) => f.flat_label ?? "";
   flats.sort((a, b) =>
-    a.flat_label[0] === b.flat_label[0]
-      ? Number(a.flat_label.slice(2)) - Number(b.flat_label.slice(2))
-      : a.flat_label < b.flat_label
+    label(a)[0] === label(b)[0]
+      ? Number(label(a).slice(2)) - Number(label(b).slice(2))
+      : label(a) < label(b)
         ? -1
         : 1,
   );

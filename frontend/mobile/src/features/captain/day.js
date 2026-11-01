@@ -9,7 +9,7 @@
  * over to the captain; held = nobody home, kept for the family until `hold_until` (never a tiffin).
  * @typedef {object} Flat CaptainFlat
  * @property {string} order_id
- * @property {string} flat_label Tower label and flat: "B-402".
+ * @property {string | null} flat_label Tower label and flat: "B-402"; the contract allows null.
  * @property {"box" | "addon" | "tiffin"} kind
  * @property {string | null} short_code "T-07", the label on a tiffin's box (M7 §3.7); null otherwise.
  * @property {number} bags
@@ -44,8 +44,14 @@ export const bagQr = (orderId) => `GB1:${orderId.replaceAll("-", "")}`;
 /** A society's tiffin drop (M7 §3.7): the answer has no `kind`, but only a tiffin drop expects tiffins without crates. @param {DayStop} stop */
 export const isTiffinStop = (stop) => stop.expected.crates === 0 && stop.expected.bags > 0;
 
-/** The tower label of "B-402". @param {Flat} flat */
-export const towerOf = (flat) => flat.flat_label.split("-")[0];
+/** The tower a flat with no label (the contract allows null) is listed under. */
+export const NO_TOWER = "-";
+
+/** The tower label of "B-402"; flats with no label share `NO_TOWER`. @param {Pick<Flat, "flat_label">} flat */
+export const towerOf = (flat) => flat.flat_label?.split("-")[0] || NO_TOWER;
+
+/** What to call a flat on screen: its label, else its tiffin code, else nothing. @param {Pick<Flat, "flat_label" | "short_code">} flat */
+export const flatText = (flat) => flat.flat_label ?? flat.short_code ?? "";
 
 /** Counts of flats by status. @param {Flat[]} flats @returns {Counts} */
 export function countFlats(flats) {
