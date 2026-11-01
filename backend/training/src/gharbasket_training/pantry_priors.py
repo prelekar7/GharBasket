@@ -123,6 +123,19 @@ def _fit_product(
     prior weeks, posterior sd of log mu_c)}, or why the chain cannot be trusted (the product then
     keeps the rule table)."""
     import jax
+
+    # In float64: the tap likelihood differences small normal-CDF tails, and float32 rounding
+    # made the chain (and a cohort's posterior sd near the publication threshold) differ
+    # between x86_64 and arm64 (CI, 2 Nov 2026). One chain, a seeded key and a fixed start.
+    with jax.enable_x64(True):
+        return _fit_in_float64(observations, guess, seed=seed)
+
+
+def _fit_in_float64(
+    observations: list[Observation], guess: dict[str, float], *, seed: int = 7
+) -> dict[str, tuple[float, float, float]] | str:
+    """The NUTS fit itself (`_fit_product` runs it in float64)."""
+    import jax
     import jax.numpy as jnp
     import numpyro
     import numpyro.distributions as dist
@@ -136,16 +149,16 @@ def _fit_product(
     cohorts = sorted({o.cohort for o in observations}, key=COHORTS.index)
     c_index = {c: i for i, c in enumerate(cohorts)}
     h_cohort = jnp.array([c_index[first[h].cohort] for h in households])
-    h_log_ae = jnp.array([math.log(first[h].equivalents) for h in households], dtype=jnp.float32)
+    h_log_ae = jnp.array([math.log(first[h].equivalents) for h in households], dtype=jnp.float64)
     obs_h = jnp.array([h_index[o.household] for o in observations])
     edges = [b for o in observations if (b := o.bounds) is not None]
     log_lo = jnp.array(
         [math.log(lo) if lo > 0 else -LOG_EDGE for lo, _ in edges],
-        dtype=jnp.float32,
+        dtype=jnp.float64,
     )
     log_hi = jnp.array(
         [math.log(hi) if hi < math.inf else LOG_EDGE for _, hi in edges],
-        dtype=jnp.float32,
+        dtype=jnp.float64,
     )
     centre = jnp.log(jnp.array([max(guess.get(c, 1.0), 1e-3) for c in cohorts]))
 

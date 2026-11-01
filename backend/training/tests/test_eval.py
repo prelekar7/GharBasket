@@ -285,10 +285,29 @@ def test_the_learned_priors_reference_arm_learns_on_another_seed(
     assert cli.learned_from(5, None) == 6 and cli.learned_from(7, 7) == 11  # never itself
     assert cli.learned_from(7, 13) == 13
 
+    fits: list[pantry_priors.Fit] = []
+    fit = pantry_priors.fit
+
+    def capture(*args: Any, **kwargs: Any) -> pantry_priors.Fit:
+        fits.append(fit(*args, **kwargs))
+        return fits[-1]
+
+    monkeypatch.setattr(pantry_priors, "fit", capture)
     priors = pantry_baseline.learned_priors(11, catalog, weeks=3, start=start, adoption=0.02)
 
-    assert priors and {product for _, product in priors} <= {"milk", "curd"}
-    assert all(p.prior_mean_per_ae > 0 for p in priors.values())
+    # Three weeks of 2 % of the flats: few taps per cohort, so which cohorts the gate publishes
+    # depends on posterior spreads near its threshold, which differ between platforms (x86_64
+    # CI published none, arm64 one). What holds everywhere: every product x cohort is either
+    # published or left on the rule table with its reason, never silently dropped.
+    fitted = fits[0]
+    assert priors == fitted.by_key()
+    assert {product for _, product in priors} <= {"milk", "curd"}
+    assert all(p.prior_mean_per_ae > 0 and 0.05 <= p.prior_weeks <= 52 for p in priors.values())
+    published = {f"{p.product}/{p.cohort}" for p in fitted.priors}
+    assert published or fitted.skipped  # something was decided
+    assert not published & set(fitted.skipped)
+    reasons = ("households", "one-sided taps", "uncertain", "sampler stuck")
+    assert all(why.endswith(reasons) or why.startswith(reasons) for why in fitted.skipped.values())
     with pytest.raises(ValueError, match="another seed"):
         pantry_baseline.run_pantry(
             11, catalog, weeks=3, start=start, adoption=0.02, priors=priors, learned_from=11
@@ -298,6 +317,22 @@ def test_the_learned_priors_reference_arm_learns_on_another_seed(
     )
     assert run.learned_from == 11 and len(run.twin_learned) == 2
     assert all(0 < e < 1 for e in run.twin_learned)
+    if not priors:  # every cohort on the rule table: the reference arm is the rule-prior twin
+        assert run.twin_learned == run.twin
+
+    # The fallback x86_64 CI took, on every platform: nothing pinned down, nothing published,
+    # each cohort's reason recorded, and the reference arm is the rule-prior twin.
+    monkeypatch.setattr(pantry_priors, "MAX_LOG_MU_SD", 0.0)
+    none = pantry_baseline.learned_priors(11, catalog, weeks=3, start=start, adoption=0.02)
+    assert none == {} and fits[-1].skipped
+    assert all(
+        why.startswith(("uncertain", "one-sided taps")) or why.endswith("households")
+        for why in fits[-1].skipped.values()
+    )
+    fallback = pantry_baseline.run_pantry(
+        7, catalog, weeks=3, start=start, adoption=0.02, priors=none, learned_from=11
+    )
+    assert fallback.twin_learned == fallback.twin
 
     built = report.build([], [run], args={"weeks": 3})
     scope = built["pantry"]["twin_scope"]
