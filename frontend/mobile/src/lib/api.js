@@ -10,7 +10,8 @@ import { tokens } from "@/lib/tokens.js";
 /** @typedef {"customer" | "captain" | "kitchen_partner" | "rider" | "packer"} FieldRole */
 /** @typedef {{ role: string, scope_type: "society" | "hub" | "ngo" | null, scope_id: string | null, status: "applied" | "kyc_pending" | "verified" | "suspended" }} RoleGrant */
 /** @typedef {{ id: string, phone_e164: string, name: string | null, locale: "en-IN" | "hi-IN" | "mr-IN", senior_mode: boolean }} UserOut */
-/** @typedef {{ access_token: string | null, access_expires_in: number, refresh_token: string | null, is_new_user: boolean, user: UserOut }} ExchangeOut */
+/** @typedef {{ access_token: string | null, access_expires_in: number, refresh_token: string | null, is_new_user: boolean, deletion_cancelled?: boolean, user: UserOut }} ExchangeOut */
+/** @typedef {{ firebaseIdToken?: string, devPhone?: string, keepAccount?: boolean }} ExchangeInput */
 /** @typedef {{ access_token: string | null, access_expires_in: number, refresh_token: string | null }} TokensOut */
 /** @typedef {{ loc: (string | number)[], message: string, type: string }} FieldProblem */
 
@@ -209,7 +210,10 @@ export async function openStream(path, signal) {
  * only (never staging).
  * Single-flight: a second call while one runs gets the same answer, so a double submit never
  * creates two sessions.
- * @param {{ firebaseIdToken?: string, devPhone?: string }} input
+ * A 409 `identity.deletion_pending` (the account is in its deletion grace period; `purge_on` is in
+ * `error.extra`) is thrown as an ApiError and saves no tokens. The caller asks "Keep my account?"
+ * and only on a yes repeats the call with `keepAccount: true` (M1 §3.5).
+ * @param {ExchangeInput} input
  * @returns {Promise<ExchangeOut>}
  */
 export function exchange(input) {
@@ -222,24 +226,15 @@ export function exchange(input) {
 /** @type {Promise<ExchangeOut> | null} */
 let exchanging = null;
 
-/** @param {{ firebaseIdToken?: string, devPhone?: string }} input */
-async function doExchange({ firebaseIdToken, devPhone }) {
+/** @param {ExchangeInput} input */
+async function doExchange({ firebaseIdToken, devPhone, keepAccount }) {
   const device = { platform: NATIVE ? "android" : "web", push_token: null };
-  const body = firebaseIdToken
-    ? { firebase_id_token: firebaseIdToken, device }
-    : { dev_phone: devPhone, device };
-  /** @type {ExchangeOut} */
-  let out;
-  try {
-    out = await request("/v1/auth/exchange", { method: "POST", body });
-  } catch (e) {
-    // The account was queued for deletion: signing in again keeps it.
-    if (!(e instanceof ApiError && e.code === "identity.deletion_pending")) throw e;
-    out = await request("/v1/auth/exchange", {
-      method: "POST",
-      body: { ...body, keep_account: true },
-    });
-  }
+  const body = {
+    ...(firebaseIdToken ? { firebase_id_token: firebaseIdToken } : { dev_phone: devPhone }),
+    device,
+    ...(keepAccount ? { keep_account: true } : {}),
+  };
+  const out = await request("/v1/auth/exchange", { method: "POST", body });
   epoch++;
   await tokens.save(out);
   return out;

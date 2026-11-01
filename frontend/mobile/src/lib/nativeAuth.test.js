@@ -182,15 +182,42 @@ describe("exchange", () => {
     expect(calls[0].body.keep_account).toBeUndefined();
   });
 
-  it("sends keep_account when the account was waiting to be deleted", async () => {
-    let n = 0;
-    routes["/v1/auth/exchange"] = () =>
-      ++n === 1
-        ? reply(409, { code: "identity.deletion_pending" })
-        : reply(200, { access_token: "a1", refresh_token: "r1", user: PROFILE });
+  // M1 §3.5: a sign-in during the deletion grace period asks "Keep my account?" first.
+  const pending = () => {
+    routes["/v1/auth/exchange"] = (_req, body) =>
+      body.keep_account
+        ? reply(200, {
+            access_token: "a1",
+            refresh_token: "r1",
+            deletion_cancelled: true,
+            user: PROFILE,
+          })
+        : reply(409, { code: "identity.deletion_pending", purge_on: "2026-11-30" });
+  };
+
+  it("does not keep the account without consent: the 409 reaches the caller and saves nothing", async () => {
+    pending();
     const { api, tokens } = await load();
-    await api.exchange({ firebaseIdToken: "fb" });
-    expect(calls.map((c) => c.body.keep_account)).toEqual([undefined, true]);
+    const error = await api.exchange({ firebaseIdToken: "fb" }).catch((e) => e);
+    expect(error.code).toBe("identity.deletion_pending");
+    expect(error.extra.purge_on).toBe("2026-11-30");
+    // Cancel is "do nothing more": one request, no keep_account, no tokens.
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body.keep_account).toBeUndefined();
+    expect(store.size).toBe(0);
+    expect(tokens.access).toBeNull();
+  });
+
+  it("repeats the exchange with the same ID token and keep_account on consent", async () => {
+    pending();
+    const { api, tokens } = await load();
+    await api.exchange({ firebaseIdToken: "fb" }).catch(() => {});
+    const out = await api.exchange({ firebaseIdToken: "fb", keepAccount: true });
+    expect(out.deletion_cancelled).toBe(true);
+    expect(calls.map((c) => [c.body.firebase_id_token, c.body.keep_account])).toEqual([
+      ["fb", undefined],
+      ["fb", true],
+    ]);
     expect(await tokens.refreshToken()).toBe("r1");
   });
 });

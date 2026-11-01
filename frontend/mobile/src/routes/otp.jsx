@@ -1,11 +1,12 @@
-import { Button, IconButton, toast } from "@gharbasket/ui";
+import { Button, Dialog, IconButton, toast } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OtpBoxes } from "@/components/OtpBoxes.jsx";
 import { householdQuery } from "@/features/identity/profile.js";
-import { exchange, me } from "@/lib/api.js";
+import { shortDate } from "@/features/subscriptions/format.js";
+import { ApiError, exchange, me } from "@/lib/api.js";
 import { onAutoVerified, otpErrorKey, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { nextSearch } from "@/lib/search.js";
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/otp")({
 });
 
 function Otp() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const signIn = useSession((s) => s.signIn);
   const { next } = Route.useSearch();
@@ -43,6 +44,30 @@ function Otp() {
   // One sign-in at a time: the auto-verify listener and the Verify button must not both exchange.
   const signingIn = useRef(false);
 
+  // The account is in its deletion grace period (409): the question "Keep my account?" and what
+  // it needs to repeat the exchange. The ID token lives only here, in memory, until the answer.
+  const [keep, setKeep] = useState(
+    /** @type {{ input: import("@/lib/api.js").ExchangeInput, purgeOn: string } | null} */ (null),
+  );
+  const confirmed = useRef(false);
+
+  /** @param {import("@/lib/api.js").ExchangeInput} input */
+  const finish = async (input) => {
+    const out = await exchange(input);
+    signIn(await me());
+    // `is_new_user` only says the user row was just created. Whether a customer still has to set
+    // up a household is the customer shell's call (GET /v1/households/me is 404: onboarding).
+    queryClient.removeQueries({ queryKey: householdQuery.queryKey });
+    if (out.deletion_cancelled) toast(t("otp.welcomeBack"));
+    navigate({ to: next ?? "/" });
+  };
+
+  const failed = (/** @type {unknown} */ e) => {
+    setError(t(otpErrorKey(e)));
+    setBusy(false);
+    signingIn.current = false;
+  };
+
   const verify = async () => {
     if (signingIn.current) return;
     signingIn.current = true;
@@ -50,17 +75,41 @@ function Otp() {
     setError(null);
     try {
       const { phone: verified, idToken } = await verifyCode(code);
-      await exchange(idToken ? { firebaseIdToken: idToken } : { devPhone: verified });
-      signIn(await me());
-      // `is_new_user` only says the user row was just created. Whether a customer still has to set
-      // up a household is the customer shell's call (GET /v1/households/me is 404: onboarding).
-      queryClient.removeQueries({ queryKey: householdQuery.queryKey });
-      navigate({ to: next ?? "/" });
+      const input = idToken ? { firebaseIdToken: idToken } : { devPhone: verified };
+      try {
+        await finish(input);
+      } catch (e) {
+        if (!(e instanceof ApiError && e.code === "identity.deletion_pending")) throw e;
+        // Nothing is signed in and no token was saved; wait for the answer (signingIn stays set).
+        setBusy(false);
+        setKeep({ input, purgeOn: String(e.extra.purge_on ?? "") });
+      }
     } catch (e) {
-      setError(t(otpErrorKey(e)));
-      setBusy(false);
-      signingIn.current = false;
+      failed(e);
     }
+  };
+
+  const keepAccount = async () => {
+    if (!keep) return;
+    confirmed.current = true;
+    const input = keep.input;
+    setKeep(null);
+    setBusy(true);
+    try {
+      await finish({ ...input, keepAccount: true });
+    } catch (e) {
+      failed(e);
+    } finally {
+      confirmed.current = false;
+    }
+  };
+
+  /** No answer, or "Cancel": stay signed out; the deletion stays scheduled. */
+  const declineKeep = () => {
+    if (confirmed.current) return;
+    setKeep(null);
+    signingIn.current = false;
+    navigate({ to: "/login", search: { next } });
   };
 
   // Android can verify the number by itself (instant verification or SMS auto-retrieval); then
@@ -133,6 +182,20 @@ function Otp() {
         </div>
       </form>
       <div id="recaptcha" />
+      <Dialog
+        title={t("otp.keepTitle")}
+        confirmLabel={t("otp.keepConfirm")}
+        cancelLabel={t("otp.keepCancel")}
+        isOpen={keep !== null}
+        onOpenChange={(open) => {
+          if (!open) declineKeep();
+        }}
+        onConfirm={keepAccount}
+      >
+        {keep?.purgeOn
+          ? t("otp.keepBody", { date: shortDate(keep.purgeOn, i18n.resolvedLanguage ?? "en-IN") })
+          : t("otp.keepBodyNoDate")}
+      </Dialog>
     </main>
   );
 }
