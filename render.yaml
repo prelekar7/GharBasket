@@ -72,9 +72,12 @@ services:
       # Green slots (M10 §3.8, M3 §3.6): on in staging for the MS-D demo; the kill switch is this value.
       - key: GREEN_SLOTS_ENABLED
         value: "true"
-      # The pantry twin (M10 §3.3) stays off until the eval shows its target holds (MAE ≤ 15 %).
+      # The pantry twin (M10 §3.3): on in staging since 1 Nov 2026, when its targets held (MAE ≤ 15 %
+      # on the mean, 80 % coverage in 75-85 %; #464/#465). Rule priors only: no learned priors are
+      # promoted. Keep it off for the pilot until the app says what "Wasted" means (¼ of the box or
+      # more left), which the model assumes. The kill switch is this value.
       - key: PANTRY_TWIN_ENABLED
-        value: "false"
+        value: "true"
       # Push (M11): the Firebase service account key file's JSON as one value, from Infisical.
       # Unset: pushes are skipped and the in-app inbox still gets every message.
       - key: FCM_SERVICE_ACCOUNT

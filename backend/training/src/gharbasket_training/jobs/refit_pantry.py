@@ -1,8 +1,9 @@
 """`python -m gharbasket_training.jobs.refit_pantry` (weekly, Sun 03:03 IST on Actions; M10 §3.3
 v1, ADR-0025): refit the pantry twin's cohort priors from what the serving twin observes (each
-locked box's daily-use share of milk and curd and its tap, read-only role), one candidate per
-`data_source` (synthetic and real are never pooled), score it out-of-sample against the rule
-table and upload it to the registry as a candidate version
+locked box's daily-use share of milk and curd, its delivered quantity and its tap, read-only
+role; only the taps say how much was used), one candidate per `data_source` (synthetic and real
+are never pooled), score it out-of-sample against the rule table (the held-out taps' log score)
+and upload it to the registry as a candidate version
 (`s3://gb-mlflow/models/pantry_priors/<version>-<data_source>/priors.json`).
 
 The job does **not** promote and never touches `latest.json` or `intel.pantry_priors`: serving
@@ -49,9 +50,9 @@ METRIC_MODELS = {"learned_priors": "pantry_priors", "rule_table": "pantry_priors
 
 async def observations(session: AsyncSession) -> list[pantry_priors.Observation]:
     """Every household's locked boxes as the serving twin sees them: M3's own
-    `daily_use_history` (the daily-use share of each twin product and the tap), with the
-    household's adult equivalents and the cycle's data source. The step is the product's, the
-    one M3 sends the twin with these observations."""
+    `daily_use_history` (the daily-use share of each twin product, the delivered quantity and
+    the tap), with the household's adult equivalents and the cycle's data source. The step is
+    the product's, the one M3 sends the twin with these observations."""
     catalog = await catalog_api.plan_catalog(session, None)
     households = (
         await session.execute(
@@ -81,6 +82,7 @@ async def observations(session: AsyncSession) -> list[pantry_priors.Observation]
                     row.signal,
                     product.step_qty * BASE_FACTOR[product.step_unit],
                     row.data_source,
+                    row.delivered,
                 )
             )
     return out
@@ -119,17 +121,19 @@ async def push_metrics(
         {
             "model_name": METRIC_MODELS[name],
             "version": document["version"],
-            "metric": "mae_pct",
-            "value": scores["mae_pct"],
+            "metric": pantry_priors.METRIC,
+            "value": scores[pantry_priors.METRIC],
             "split": "holdout",
             "data_source": METRICS_SOURCE.get(document["data_source"], document["data_source"]),
             "details": {
                 "households_weeks": scores["households_weeks"],
-                "holdout": "each household's last observed week, refit without it",
+                "holdout": "each household's last tapped week, refit without it",
+                "higher_is_better": True,
             },
         }
         for name, scores in document["metrics"].items()
-        if scores["mae_pct"] == scores["mae_pct"]  # not NaN
+        if name in METRIC_MODELS
+        and scores[pantry_priors.METRIC] == scores[pantry_priors.METRIC]  # not NaN
     ]
     if not metrics:
         return 0

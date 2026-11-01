@@ -62,7 +62,8 @@ def learned_priors(
     seed: int, catalog: Catalog, *, weeks: int, start: date, adoption: float | None
 ) -> Priors:
     """Cohort priors (per adult equivalent) fitted on seed `seed`'s households over the run's
-    weeks, from what the app would see (each box's daily-use share and tap)."""
+    weeks, from what the app would see (each box's daily-use share, delivered quantity and
+    tap; the fit learns from the taps)."""
     households = sample(seed, config.load(), catalog, adoption)
     plan = cached(PLANNERS["rules"])
     observed: list[pantry_priors.Observation] = []
@@ -80,8 +81,9 @@ def learned_priors(
                     share,
                     signal,
                     catalog.products[slug].step,
+                    delivered=delivered,
                 )
-                for week, share, signal, _ in boxes
+                for week, share, signal, delivered in boxes
             )
     return pantry_priors.fit(observed, f"seed-{seed}", seed=seed).by_key()
 

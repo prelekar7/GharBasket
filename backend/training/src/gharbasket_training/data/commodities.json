@@ -1,6 +1,6 @@
 {
   "about": "Agmarknet (data.gov.in) commodity names → GharBasket product slugs. Names are matched case-insensitively after trimming. Verified against the API's own spelling on the dates in `verified`; an unmapped name is logged by the collector, never guessed.",
-  "verified": [],
+  "verified": ["2026-11-01"],
   "map": {
     "Tomato": "tomato",
     "Onion": "onion",
@@ -55,6 +55,13 @@
     "Groundnut": "groundnuts",
     "Turmeric": "turmeric",
     "Sugar": "sugar",
-    "Gur(Jaggery)": "jaggery"
+    "Gur(Jaggery)": "jaggery",
+    "Beans": "french-beans",
+    "Guar": "cluster-beans",
+    "Lime": "lemon",
+    "Onion Green": "spring-onion",
+    "Peas Wet": "green-peas",
+    "Sweet Pumpkin": "red-pumpkin",
+    "Seetapal": "custard-apple"
   }
 }
