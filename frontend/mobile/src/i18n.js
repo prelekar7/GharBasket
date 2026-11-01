@@ -48,7 +48,11 @@ i18next.on("languageChanged", (lng) => {
   localStorage.setItem("gb-locale", lng);
 });
 
-/** Resolves once the saved language's strings are in; main.jsx renders after it (instant for en-IN). */
-export const i18nReady = loadLocale(saved);
+/**
+ * Resolves once the saved language's strings are in; main.jsx renders after it (instant for en-IN).
+ * Never rejects: if the chunk cannot load (offline, flaky network), the app opens in English
+ * (the fallback) rather than not at all.
+ */
+export const i18nReady = loadLocale(saved).catch(() => {});
 
 export default i18next;
