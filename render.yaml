@@ -125,11 +125,11 @@ services:
       # ANTHROPIC_API_KEY is deliberately absent: the assistant is not enabled on staging, so
       # POST /assistant/turn answers 503.
       # The learned models (the basket ranker) come from the R2 registry: with these set and
-      # MODELS_DIR unset, the service follows models/<name>/latest.json in gb-mlflow at startup
+      # MODELS_DIR unset, the service follows models/<name>/latest.json in gb-staging-mlflow at startup
       # and every MODELS_RELOAD_S (600 s) in the background and caches the versions under /tmp.
       # While R2 is down the synced model keeps serving; without these settings, or until the
       # first sync after a wake (a free instance starts with an empty /tmp), the rule fallback
-      # answers. The key pair is its own R2 API token, "Object Read only" on gb-mlflow alone
+      # answers. The key pair is its own R2 API token, "Object Read only" on gb-staging-mlflow alone
       # (the service only GETs and HEADs), not the training jobs' read-write keys: stored in
       # Infisical `staging` as ML_S3_ACCESS_KEY / ML_S3_SECRET_KEY and entered here as
       # S3_ACCESS_KEY / S3_SECRET_KEY.
@@ -142,7 +142,7 @@ services:
       - key: S3_REGION
         value: auto
       - key: S3_BUCKET_MLFLOW # gitleaks:allow (a bucket name, not a secret)
-        value: gb-mlflow
+        value: gb-staging-mlflow
 
   - type: keyvalue
     name: gharbasket-valkey
