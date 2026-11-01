@@ -43,3 +43,4 @@ Each ADR records one significant decision: the context, what we decided, the alt
 | [0031](0031-uncommitted-demand-is-add-on-lines-and-tiffins.md) | Uncommitted demand is add-on lines (wherever they ride) plus tiffin orders: one `demand_kind` for the forecast, drift monitor, procurement and eval | Accepted |
 | [0032](0032-scheduled-jobs-from-the-oracle-vm.md) | Staging's minute-level jobs are called from the Oracle VM in Mumbai (`scripts/jobs_scheduler.py`), not cron-job.org, whose calls Render's edge turned away | Accepted |
 | [0033](0033-ops-alerts-healthchecks-and-uptimerobot.md) | Ops alerts: healthchecks.io checks (scheduler, cut-off, ops) to Telegram and email, UptimeRobot on `/v1/health`, an `ops_check` watchdog job with module probes | Accepted |
+| [0034](0034-free-android-plugins.md) | Free Capacitor plugins for Android: ML Kit `scan()` and community background geolocation replace the paid Capawesome ones; SystemBars and Firebase messaging | Proposed |

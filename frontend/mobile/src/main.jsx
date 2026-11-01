@@ -10,6 +10,7 @@ import { clearLocalData } from "@/lib/localData.js";
 import { startOutbox } from "@/lib/outbox.js";
 import { persistOptions, queryClient } from "@/lib/queryClient.js";
 import { useSession } from "@/lib/session.js";
+import { startNative } from "@/shared/native/platform.js";
 import { startPwa } from "./pwa.js";
 import { routeTree } from "./routeTree.gen.js";
 
@@ -42,3 +43,5 @@ createRoot(/** @type {HTMLElement} */ (document.getElementById("root"))).render(
     </PersistQueryClientProvider>
   </StrictMode>,
 );
+
+startNative(router);

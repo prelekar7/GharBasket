@@ -13,7 +13,8 @@ Everyone installs the same toolchain so `just up && just dev` works on every lap
 | uv | latest | `brew install uv` | `winget install astral-sh.uv` |
 | just | latest | `brew install just` | `winget install Casey.Just` |
 | Docker Desktop | latest | Docker Desktop for Mac | Docker Desktop (WSL 2 backend) |
-| Android Studio | latest | Android Studio + SDK + one emulator (API 34+) | same |
+| Android Studio | 2025.2.1 (Otter) or newer | Android Studio + SDK Platform 36 + one emulator from a **Google Play** image (push and the scanner need Play services) | same |
+| JDK 21 (Android builds) | 21 | any JDK 21 (e.g. Temurin); set it as Android Studio's Gradle JDK and `export JAVA_HOME=$(/usr/libexec/java_home -v 21)`. Gradle 8.14 does not run on JDK 25+ | same, `JAVA_HOME` in System settings |
 | gitleaks (optional locally; CI always runs it) | latest | `brew install gitleaks` | `winget install gitleaks` |
 | GitHub CLI | latest | `brew install gh && gh auth login` | `winget install GitHub.cli` |
 
