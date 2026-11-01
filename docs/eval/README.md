@@ -37,17 +37,20 @@ What a report holds (v0, October 2026):
   below 5 paired seeds.
 
 - **M-F — van routing** (`eval/routing.py`, added 2 Nov 2026; protocol §7, 2026-11-02): per seed
-  and size (50 societies, the headline; 100 and 200 for scale; `--routing-sizes`), a seeded delivery
-  morning in spike S-3's layout on haversine distances (no OSRM), sent as M7 builds the request.
-  Production's `routing.plan()` with M7's 20 s for both waves against production's
-  `routing.nearest_neighbour()`, both replayed by `routing.check()`: on-time share, ₹ and km an
-  order, vans, late minutes, wall seconds a wave; the plan against nearest neighbour as the per-seed
-  paired cost ratio − 1. The M-F target holds at a size when the on-time CI lower bound is ≥ 0.95,
-  the paired cost CI upper bound ≤ −0.10, and every plan is the solver's with no checker problem; the
-  guardrail (≤ 10 s a wave) is judged on the largest wall time a wave; no verdict below 5 seeds.
-  OR-Tools routing stops on wall time, so plans depend on the machine. `--no-routing` skips it
-  (about 5 minutes at the defaults); `python -m gharbasket_training.eval.routing --out <dir>` runs
-  it alone and writes `routing-<date>-<commit>.json` and `.html` there.
+  and size (50 societies, the headline and the default; `--routing-sizes 50 100 200` adds scale), a
+  seeded delivery morning in spike S-3's layout on haversine distances (no OSRM; S-3's hub), sent as
+  M7 builds the request. Production's `routing.plan()` with M7's 20 s for both waves against
+  production's `routing.nearest_neighbour()`, both replayed by `routing.check()`: on-time share, ₹
+  and km an order, vans, late minutes, wall seconds a wave; the plan against nearest neighbour as
+  the per-seed paired cost ratio − 1. The M-F target holds at a size when the on-time CI lower bound
+  is ≥ 0.95, the paired cost CI upper bound ≤ −0.10, and every plan is the solver's with no checker
+  problem; no verdict below 5 seeds. The guardrail (≤ 10 s a wave) is judged on the setting (the
+  solver always spends its budget), with the overhead reported; the plan is also solved at 2 s a
+  wave (`--routing-short-limit`, reference only) to show the budget is enough. OR-Tools routing
+  stops on wall time, so plans depend on the machine (recorded in the settings) and vary between
+  runs. `--no-routing` skips it (about 2 minutes at the defaults);
+  `python -m gharbasket_training.eval.routing --out <dir>` runs it alone and writes
+  `routing-<date>-<commit>.json` and `.html` there.
 
 `just eval-assistant` (M13) is separate: it scores Ghar Saathi on `data/eval/assistant_utterances.jsonl` per
 candidate model (intent accuracy, slot F1, no write on injection fixtures, cost a turn with cache reads
@@ -60,6 +63,16 @@ v1 − v0 paired by seed) and, when a basket-ranker run's `explanations.json` is
 `--ranker-explanations`, **ranker explanations** (global mean |SHAP| per feature and sampled decisions).
 
 ## Published reports
+
+### routing-2026-11-01-624eb159 (M-F alone, 2 Nov 2026 IST)
+
+`python -m gharbasket_training.eval.routing --sizes 50` at commit `624eb159` (PR #475 after its review), the
+protocol's five seeds, 20 s for both waves and the 2 s-a-wave reference row, on an arm64 Mac (8 CPUs,
+Python 3.13.2), 120 s. The plan costs ₹6.05 ± 0.40 an order against nearest neighbour's ₹8.54 ± 0.18
+(paired −29.2 % ± 5.6 %, upper bound −23.6 %), 100 % on time against 95.6 %, 7.0 against 9.6 vans: **the
+M-F target holds**; at 2 s a wave −27.1 % ± 5.9 %, still holding. Until the next full `just eval`, this is
+the M-F reference; the protocol's change log (2 Nov) has the cost split, the opt-in sizes and the
+reviewer's sensitivity runs.
 
 ### 2026-10-28-77bf7d87 (MS-C)
 
