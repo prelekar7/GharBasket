@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug only (see src/debug/AndroidManifest.xml). Cleartext is allowed for localhost and nothing
+     else: the WebView already may call http://localhost from https://localhost, but native HTTP
+     (CapacitorHttp, used for the rider's GPS pings) needs this to reach a local API. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>
