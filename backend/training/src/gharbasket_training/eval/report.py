@@ -199,14 +199,23 @@ def build(
 
 
 def _forecast(runs: list[forecast_ab.ForecastRun]) -> dict[str, Any]:
-    """RQ3: each arm's metrics over the seeds, and v1 - v0 paired by seed."""
+    """RQ3: each arm's metrics over the seeds, v1 - v0 and the champion - each baseline paired
+    by seed, the per-day split's own error, and the M-E verdict."""
     if not runs:
         return {}
     summary = forecast_ab.summarise(runs)
+    splits = [r.split_wape for r in runs if r.split_wape is not None]
     return {
         "assumptions": forecast_ab.assumptions(),
         "arms": {arm: {m: e.as_dict() for m, e in ms.items()} for arm, ms in summary.items()},
         "v1_minus_v0": {m: e.as_dict() for m, e in forecast_ab.paired(runs).items()},
+        # baseline arm → metric: the champion minus the baseline, per seed, mean ± 95 % t-CI.
+        "champion_minus": {
+            base: {m: e.as_dict() for m, e in ms.items()}
+            for base, ms in forecast_ab.against_baselines(runs).items()
+        },
+        "split_wape": estimate(splits).as_dict(),
+        "targets": forecast_ab.against_target(runs),
         "picks": [
             {"seed": r.seed, "v0": r.v0_model, "champion": r.champion, "windows": r.windows}
             for r in runs
@@ -336,6 +345,17 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     forecast = report.get("forecast", {})
+
+    def forecast_per_seed(arm: str, metric: str, base: str | None = None) -> dict[str, float]:
+        out = {}
+        for r in runs.get("forecast", []):
+            ms = r["metrics"]
+            if metric not in ms.get(arm, {}) or (base and metric not in ms.get(base, {})):
+                continue
+            value = ms[arm][metric] - (ms[base][metric] if base else 0.0)
+            out[str(r["seed"])] = round(value, 4)
+        return out
+
     for arm, metrics in forecast.get("arms", {}).items():
         for metric, e in metrics.items():
             if e["n"]:
@@ -347,7 +367,32 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
                         "value": e["mean"],
                         "split": "backtest",
                         "data_source": "synthetic",
-                        "details": {**details, "ci95": e["ci95"], "picks": forecast["picks"]},
+                        "details": {
+                            **details,
+                            "ci95": e["ci95"],
+                            "picks": forecast["picks"],
+                            "per_seed": forecast_per_seed(arm, metric),
+                        },
+                    }
+                )
+    # The champion against each baseline, paired by seed (the M-E verdict's inputs).
+    for base, metrics in forecast.get("champion_minus", {}).items():
+        for metric, e in metrics.items():
+            if e["n"]:
+                rows.append(
+                    {
+                        "model_name": f"forecast_eval_champion_minus_{base}",
+                        "version": report["commit"],
+                        "metric": metric,
+                        "value": e["mean"],
+                        "split": "backtest",
+                        "data_source": "synthetic",
+                        "details": {
+                            **details,
+                            "ci95": e["ci95"],
+                            "per_seed": forecast_per_seed("champion", metric, base),
+                            "m_e_verdict": forecast["targets"]["holds"],
+                        },
                     }
                 )
     for k, e in enumerate(report["pantry"]["cold_start_mae"], start=1):
@@ -674,28 +719,87 @@ def _forecast_html(report: dict[str, Any]) -> str:
     if not forecast:
         return ""
     arms, diff = forecast["arms"], forecast["v1_minus_v0"]
+    against = forecast.get("champion_minus", {})
     cell = lambda e: _cell(e) if e and e["n"] else "—"  # noqa: E731
     table = _table(
         "RQ3 — forecast of the uncommitted demand (rolling origin, an origin a week, a 2-week "
         "horizon; q_tau at tau = C_u / (C_u + C_o)): per seed, then mean ± 95 % t-CI; lower is "
-        "better except coverage, which should sit near tau",
-        ["metric", "v0 (best StatsForecast)", "v1 (LightGBM)", "champion", "v1 - v0 (paired)"],
+        "better except coverage, which should sit near tau. daily_*: the weekly q50 and q_tau "
+        "split over the days by weekday shares as of the origin, against the daily orders",
         [
-            [m, *(cell(arms[a].get(m)) for a in forecast_ab.ARMS), cell(diff.get(m))]
+            "metric",
+            "v0 (best StatsForecast)",
+            "v1 (LightGBM)",
+            "champion",
+            "seasonal naive",
+            "naive (buy last week)",
+            "v1 - v0 (paired)",
+            *(f"champion - {b.replace('_', ' ')} (paired)" for b in forecast_ab.BASELINES),
+        ],
+        [
+            [
+                m,
+                *(cell(arms[a].get(m)) for a in forecast_ab.ARMS),
+                cell(diff.get(m)),
+                *(cell(against.get(b, {}).get(m)) for b in forecast_ab.BASELINES),
+            ]
             for m in forecast_ab.METRICS
         ],
     )
     picks = ", ".join(f"{p['seed']}: {p['v0']} / {p['champion']}" for p in forecast["picks"])
     a = forecast["assumptions"]
-    return table + (
+    note = (
         '<p class="note">Synthetic uncommitted demand derived from the simulator for the harness '
         f"only: a shortfall becomes an add-on with probability {a['addon_take']} x price "
         f"multiplier^-{a['price_elasticity']} x (1 + {a['festival_lift_per_day']} per festival "
         f"day), a no-cook slot a tiffin with probability {a['tiffin_take']} "
         "(eval/forecast_ab.py). Newsvendor cost = C_o x waste + C_u x stock-out per unit of "
-        f"demand (C_u {a['costs']['underage']}, C_o {a['costs']['overage']}). v0 and the champion "
-        "are picked on the windows they are scored on (optimistic); v1 is fixed. Seed: v0 / "
-        f"champion: {html.escape(picks)}.</p>"
+        f"demand (C_u {a['costs']['underage']}, C_o {a['costs']['overage']}). v0 and the "
+        "champion are picked on the windows they are scored on (optimistic); v1 is fixed; the "
+        "baselines get the same conformal q_tau as the models. The per-day split's own error "
+        "(the actual weekly quantity split by the same shares, against the days): WAPE "
+        f"{cell(forecast.get('split_wape'))}. Seed: v0 / champion: {html.escape(picks)}.</p>"
+    )
+    return table + _forecast_verdict_html(forecast) + note
+
+
+def _forecast_verdict_html(forecast: dict[str, Any]) -> str:
+    """The M-E hypothesis checks and verdict (eval protocol §4, §7 2026-11-02)."""
+    target = forecast.get("targets")
+    if not target:
+        return ""
+    table = _table(
+        "M-E hypothesis: the champion's WAPE ≤ 0.25 and ≥ 10 points better than seasonal naive "
+        "(registered), newsvendor cost below both baselines (§7, 2026-11-02); 95 % CI bounds",
+        ["check", "mean ± 95 % CI", "bound", "rule", "holds"],
+        [
+            [
+                k,
+                _cell(c["value"]),
+                f"{c['bound']:+.4f}",
+                c["rule"],
+                "no verdict" if c["holds"] is None else _verdict(c["holds"]),
+            ]
+            for k, c in target["checks"].items()
+        ]
+        + [
+            [
+                k,
+                _cell(r["value"]),
+                f"ceiling {r['ceiling']}" if "ceiling" in r else f"tau {r['tau']}",
+                "registered ceiling, not judged" if "ceiling" in r else "should sit near tau",
+                "not judged",
+            ]
+            for k, r in target["reported"].items()
+        ],
+    )
+    if target["holds"] is None:
+        verdict = f"no verdict: {target['n']} seed(s), the protocol needs {forecast_ab.MIN_SEEDS}"
+    else:
+        verdict = "holds" if target["holds"] else "does not hold"
+    return table + (
+        f'<p class="note">M-E (seeds {target["seeds"]}): {verdict}. '
+        f"{html.escape(target['note'])}</p>"
     )
 
 

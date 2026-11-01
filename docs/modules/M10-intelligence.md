@@ -248,6 +248,20 @@ Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` 
   | newsvendor cost | 0.146 ± 0.057 | 0.125 ± 0.021 | 0.146 ± 0.057 | −0.021 ± 0.052 |
 
   v1 is worse on point accuracy on every seed (WAPE +0.007 to +0.024; v0 is Croston on two seeds, AutoETS on three, and the champion is v0 on all five), so production keeps v0's models here. Its q_tau is steadier: lower newsvendor cost on three seeds of five, but the paired difference is not significant. These are results on synthetic demand, not a pilot claim.
+- **Baselines and the M-E verdict (2 Nov 2026, eval protocol §7 2026-11-02):** the protocol's baselines are arms of RQ3 too, from the same backtest (same windows, the same conformal q_tau): `seasonal_naive` (SeasonalNaive(4)) and `naive` ("buy last week"), with the champion minus each baseline paired by seed (`forecast_eval_seasonal_naive`, `forecast_eval_naive` and `forecast_eval_champion_minus_<baseline>` rows in `model_metrics`). The verdict: the champion's WAPE ≤ 0.25 (95 % CI upper bound), its paired WAPE gap to seasonal naive ≥ 0.10 (CI lower bound) and its newsvendor cost below both baselines' (paired CI upper bound < 0); no verdict below 5 seeds. Stock-out and waste are reported against their registered ceilings but not judged: at the registered costs tau = 0.375 puts q_tau below the median by design, so the registered "stock-out ≤ 3 %" contradicts them; the owner kept the costs (1 Nov 2026). Five seeds, mean ± 95 % t-CI:
+
+  | metric | champion | seasonal naive | naive | champion − seasonal naive | champion − naive |
+  |---|---|---|---|---|---|
+  | WAPE | 0.188 ± 0.007 | 0.221 ± 0.011 | 0.228 ± 0.005 | −0.033 ± 0.013 | −0.041 ± 0.009 |
+  | coverage of q_tau (tau 0.375) | 0.422 ± 0.069 | 0.630 ± 0.086 | 0.632 ± 0.034 | −0.208 ± 0.063 | −0.210 ± 0.047 |
+  | waste | 0.021 ± 0.009 | 0.103 ± 0.025 | 0.105 ± 0.006 | −0.083 ± 0.022 | −0.084 ± 0.008 |
+  | stock-out | 0.453 ± 0.203 | 0.123 ± 0.024 | 0.130 ± 0.013 | +0.331 ± 0.189 | +0.324 ± 0.201 |
+  | newsvendor cost | 0.146 ± 0.057 | 0.088 ± 0.006 | 0.091 ± 0.002 | +0.058 ± 0.058 | +0.055 ± 0.056 |
+  | daily WAPE (per-day split) | 0.503 ± 0.028 | 0.501 ± 0.035 | 0.503 ± 0.027 | +0.003 ± 0.009 | −0.000 ± 0.007 |
+  | daily newsvendor cost | 0.203 ± 0.022 | 0.197 ± 0.019 | 0.199 ± 0.011 | +0.006 ± 0.031 | +0.004 ± 0.026 |
+
+  **M-E does not hold.** WAPE holds (upper bound 0.195), but the champion is only 3.3 points better than seasonal naive (CI lower bound 0.020, 2.4–4.5 points by seed; the target is 10), and its newsvendor cost is *higher* than either baseline's: its q_tau covers 0.42 of the points (≈ tau) yet stocks out 45 % of the units, while the baselines' covers 0.63 and stocks out 12–13 %. Per-point calibration does not make the unit-weighted newsvendor cost low; choosing the procurement model by newsvendor cost (or pinball at tau) instead of WAPE is a candidate change for the job, left to the owner and not made.
+- **The per-day split, evaluated (2 Nov 2026):** the harness splits each backtest point's weekly q50 and q_tau over the days of its target week by the weekday shares as of its origin (`forecast.day_shares`, as the job does) and scores them against its daily add-on and tiffin orders (`daily_*` metrics). The daily WAPE is about 0.50 for every arm, and 0.44 ± 0.03 when the *actual* weekly quantity is split by the same shares, so the split, not the weekly model, sets the error at the day level (the harness draws an add-on's day uniformly from the week, so its weekday shares carry little signal; real orders may have a stronger weekday pattern). The champion's daily newsvendor cost is no different from the baselines'. Limitation: this is the harness's derived demand, not the simulator's; the job's reconciliation (v1) is still open.
 
 ### 3.7 `POST /basket/rank` and the ranker job (v0, M-B)
 The next-basket ranker: which candidates belong in a household's box this week. The training job (`backend/training`, `train_ranker`, weekly) learns from every household's boxes and edits; the ML service serves the model from the registry.

@@ -304,6 +304,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     for metric, e in forecast.get("v1_minus_v0", {}).items():
         if metric in ("wape", "newsvendor_cost") and e["n"]:
             print(f"forecast v1 - v0 {metric} {e['mean']:+.3f} ± {e['ci95']:.3f}")
+    for base, metrics in forecast.get("champion_minus", {}).items():
+        for metric in ("wape", "newsvendor_cost", "daily_wape"):
+            e = metrics.get(metric)
+            if e and e["n"]:
+                print(f"forecast champion - {base} {metric} {e['mean']:+.3f} ± {e['ci95']:.3f}")
+    if forecast.get("split_wape", {}).get("n"):
+        e = forecast["split_wape"]
+        print(f"forecast per-day split alone (actual week x shares) WAPE {e['mean']:.3f}")
+    if "targets" in forecast:
+        targets = forecast["targets"]
+        for name, check in targets["checks"].items():
+            print(
+                f"M-E {name}: {check['value']['mean']:+.3f} ± {check['value']['ci95']:.3f} "
+                f"(bound {check['bound']:+.3f}; {check['holds']})"
+            )
+        holds = targets["holds"]
+        verdict = (
+            f"no verdict: {targets['n']} seed(s)"
+            if holds is None
+            else ("holds" if holds else "does not hold")
+        )
+        print(f"M-E verdict: {verdict} (stock-out and waste reported, not judged)")
     print(f"report: {html_path} ({json_path.name})")
     if args.push:
         settings = Settings()
