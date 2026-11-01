@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { clockTime, istClock, shortDate, weekdayName } from "@/features/subscriptions/format.js";
 import { ApiError } from "@/lib/api.js";
-import { uploadFile } from "@/lib/upload.js";
+import { NATIVE } from "@/lib/env.js";
+import { UploadTooLargeError, uploadFile } from "@/lib/upload.js";
+import { takePhoto } from "@/shared/native/camera.js";
 import { bagQr } from "./day.js";
 import { useTiffinProof } from "./queries.js";
 
@@ -125,14 +127,23 @@ export const issueAction = (flat, issue) => ({
 
 /**
  * Takes the photo with the phone's camera and uploads it at once (purpose `delivery_photo`, M7
- * §3.4); only the key is kept.
+ * §3.4); only the key is kept. In the Android app the camera plugin takes it (a proof photo is
+ * live, never from the gallery); on the web the hidden file input does.
  * @param {{ added: boolean, label: string, doneLabel: string, onKey: (key: string) => void }} props
  */
 export function PhotoButton({ added, label, doneLabel, onKey }) {
   const { t } = useTranslation();
   const input = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(/** @type {unknown} */ (null));
+  /** @param {File | Blob} file */
+  const send = async (file) => {
+    setBusy(true);
+    setFailed(null);
+    await uploadFile(file, "delivery_photo")
+      .then(onKey, setFailed)
+      .finally(() => setBusy(false));
+  };
   return (
     <>
       <input
@@ -141,17 +152,21 @@ export function PhotoButton({ added, label, doneLabel, onKey }) {
         accept="image/*"
         capture="environment"
         hidden
-        onChange={async (e) => {
+        onChange={(e) => {
           const file = e.target.files?.[0];
-          if (!file) return;
-          setBusy(true);
-          setFailed(false);
-          await uploadFile(file, "delivery_photo")
-            .then(onKey, () => setFailed(true))
-            .finally(() => setBusy(false));
+          if (file) send(file);
         }}
       />
-      <Button block isPending={busy} onPress={() => input.current?.click()}>
+      <Button
+        block
+        isPending={busy}
+        onPress={async () => {
+          if (!NATIVE) return input.current?.click();
+          setFailed(null);
+          const photo = await takePhoto().catch(setFailed);
+          if (photo) await send(photo.blob);
+        }}
+      >
         {added ? (
           <CheckIcon aria-hidden size={20} weight="bold" />
         ) : (
@@ -159,9 +174,11 @@ export function PhotoButton({ added, label, doneLabel, onKey }) {
         )}
         {added ? doneLabel : label}
       </Button>
-      {failed && (
+      {!!failed && (
         <p role="alert" className="m-0 text-sm font-semibold text-danger">
-          {t("captain.exceptions.photoFailed")}
+          {failed instanceof UploadTooLargeError
+            ? t("photo.tooLarge", { mb: failed.limitMb })
+            : t("captain.exceptions.photoFailed")}
         </p>
       )}
     </>
