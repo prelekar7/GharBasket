@@ -806,3 +806,74 @@ class _Stop(Exception):
 
 def _stop(built: dict[str, Any], out: Path) -> NoReturn:
     raise _Stop(built)
+
+
+def test_the_twin_sees_the_share_m3_computes_after_a_meal_swap() -> None:
+    """M3 stores a swapped meal in the cycle's meal plan and redraws the box for it (`set_meal`),
+    so the daily-use share it sends the twin subtracts the swapped-in dish's need. Before 1 Nov
+    2026 the harness subtracted the planned dish's need instead (288 of 798 milk and curd weeks
+    on seed 7 differed)."""
+    ing = SimpleNamespace
+    catalog = SimpleNamespace(
+        ingredients={
+            "kheer": [ing(product="milk", qty=300.0, optional=False)],
+            "poha": [ing(product="milk", qty=50.0, optional=True)],
+        }
+    )
+    h = SimpleNamespace(key="h1", adult_equivalents=2.0)
+    rows = Rows([], [], [])
+    rows.meals.append({"household": "h1", "week": 0, "planned": "poha", "final": "kheer"})
+    rows.meals.append({"household": "h1", "week": 1, "planned": "kheer", "final": "poha"})
+    for week, delivered, signal in ((0, 3500.0, "ran_out"), (1, 3000.0, None)):
+        rows.pantry.append(
+            {
+                "household": "h1",
+                "week": week,
+                "product": "milk",
+                "delivered": delivered,
+                "signal": signal,
+            }
+        )
+    seen = pantry_baseline._twin_observations(h, catalog, rows, ["milk"])  # pyright: ignore[reportPrivateUsage, reportArgumentType]
+    # Week 0: the swapped-in kheer took 600 ml of the 3500; week 1: poha's milk is optional.
+    assert seen["milk"] == [(0, 2900.0, "ran_out", 3500.0), (1, 3000.0, None, 3000.0)]
+
+
+def test_the_pantry_sensitivity_runs_change_only_the_simulators_taps() -> None:
+    """The robustness check (protocol change log, 1 Nov 2026): the first scenario is the
+    harness as it runs; the others change what the simulator means by "wasted" or how often
+    it taps, never the twin, and restore the simulator afterwards."""
+    import gharbasket_sim.pantry as pantry_sim
+    from gharbasket_training.eval import pantry_grid
+
+    catalog = from_seed_files()
+    start = date(2026, 10, 5)
+    plain = pantry_baseline.run_pantry(7, catalog, weeks=3, start=start, adoption=0.02)
+    lines: list[str] = []
+    results = pantry_grid.sensitivity([7], catalog, adoption=0.02, weeks=3, out=lines.append)
+    assert list(results) == list(pantry_grid.SCENARIOS) and len(lines) == 2 + len(results)
+    first = next(iter(results.values()))
+    assert first["mae"] == pytest.approx(plain.twin) and len(first["coverage"]) == 2
+    assert pantry_sim.TAP_WASTED_SHARE == 0.25 and pantry_sim.consume.__module__ == (
+        "gharbasket_sim.pantry"
+    )
+
+
+def test_the_pantry_grid_picks_sigma_by_coverage_and_the_weight_by_mae() -> None:
+    """The 1 Nov grid on seeds 23/29/31 (MAE after 4 weeks, coverage after 4 weeks): the rule
+    stated first (lowest MAE, coverage breaking ties) picks 0.05 / 0.125, whose interval is far
+    too narrow; the corrected rule takes sigma_w from coverage and the weight from MAE."""
+    from gharbasket_training.eval import pantry_grid
+
+    cells = {
+        (0.05, 0.125): (0.136, 0.557),
+        (0.05, 0.25): (0.140, 0.477),
+        (0.1, 0.125): (0.143, 0.854),
+        (0.1, 0.25): (0.137, 0.801),
+        (0.1, 0.5): (0.139, 0.718),
+        (0.15, 1.0): (0.143, 0.835),
+        (0.2, 2.0): (0.152, 0.893),
+    }
+    rows = [(mae, abs(cov - 0.8), sigma, w) for (sigma, w), (mae, cov) in cells.items()]
+    first, chosen = pantry_grid.select(rows)
+    assert first[2:] == (0.05, 0.125) and chosen[2:] == (0.1, 0.25)

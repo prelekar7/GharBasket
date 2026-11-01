@@ -1,0 +1,3687 @@
+{
+  "generated_at": "2026-11-01T16:57:52+00:00",
+  "commit": "a5c3472c",
+  "args": {
+    "weeks": 5,
+    "start": "2026-10-05",
+    "planners": [
+      "cpsat",
+      "cpsat_v2",
+      "greedy",
+      "random",
+      "rules"
+    ],
+    "adoption": null,
+    "shocks": true,
+    "smoke": false,
+    "no_assignment": false,
+    "learned_from": {
+      "7": 11,
+      "11": 13,
+      "13": 17,
+      "17": 19,
+      "19": 7
+    },
+    "forecast_weeks": 20,
+    "forecast_start": "2026-09-07"
+  },
+  "provenance": {
+    "simulator_version": "0.1.0",
+    "simulator_source_sha256": "4e1165b47bb19895e7d6ac50aba6705dd9e842fc965b24d777d2bb184b647f8d",
+    "cohorts_sha256": "e5b0ceedce05e3cae6e0d7c87fbdb528fdfd008d6cf0627b6f7f8eb3a847993f",
+    "shocks_sha256": "1e49d7a4e09c0bcf717d27f3a531c4894c5a0b3af68a5687c583deada716ea50",
+    "catalog_sha256": {
+      "README.md": "bac0e8da4a49ea3210fdbd9fd3e9c543e2a91d42584755e756a1e25b3669a181",
+      "categories.json": "d53665465b7f5581de310eb08cf8febd4a216d3c2e6a84b3872dde3790b2a5f6",
+      "festivals.json": "f00e19d6a17ebe681bae1ab0dadce571b10d045e223c930b6f62c8424af3e80c",
+      "nutrition.json": "357dddc2a812dcafa2851efa2c7ee7cfd1198631986c1039afe4713b37e98ad5",
+      "prices.json": "16594700220e6aef6c8245deb2dca2cb9171a220e047aa11060ff19624bc3b7c",
+      "products.json": "bb424975d093094d27e00ba857f598b6502c2a00a80fce88f4a42bd6c35ba3eb",
+      "recipes.json": "7a62150fd8657efbff96de7350611f45eff1750373532e59eeef091219e5a5f1"
+    },
+    "assignment": {
+      "lambdas": [
+        0.0,
+        100.0,
+        200.0,
+        300.0,
+        500.0,
+        700.0,
+        1000.0,
+        2000.0
+      ],
+      "kitchens": 6,
+      "hub": [
+        19.03,
+        73.069
+      ],
+      "evenings": 7,
+      "weekday_tiffin_share": 0.5,
+      "kitchen_capacity": "max(8, the evening's portions // 3)",
+      "max_km": 8.0,
+      "time_limit_s": 2.0,
+      "deterministic": true,
+      "paise_per_portion": 6000,
+      "quality_paise_per_star": 500,
+      "rider_paise_per_portion_km": 300,
+      "rating_floor": 3.8,
+      "max_kitchens_per_order": 15,
+      "model": "assignment-cpsat-v0",
+      "baseline": "greedy-v0",
+      "ortools_version": "9.15.6755",
+      "societies_source": "gharbasket.tools.seed.SOCIETIES",
+      "societies_sha256": "3d4069b21c11715a384d06f0f14f081522337beddc9ebb157cda9b60559f60b7",
+      "gini_population": "kitchens eligible on at least one evening of the week"
+    }
+  },
+  "seeds": [
+    7,
+    11,
+    13,
+    17,
+    19
+  ],
+  "planner": {
+    "cpsat": {
+      "acceptance": {
+        "mean": 0.7964,
+        "ci95": 0.0147,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.8625,
+        "ci95": 0.0506,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 3.7306,
+        "ci95": 0.4259,
+        "n": 5
+      },
+      "variety": {
+        "mean": 20.314,
+        "ci95": 0.2413,
+        "n": 5
+      },
+      "preference": {
+        "mean": 15.7775,
+        "ci95": 0.8909,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 83974.9425,
+        "ci95": 6768.8981,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "cpsat_v2": {
+      "acceptance": {
+        "mean": 0.8123,
+        "ci95": 0.0155,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.869,
+        "ci95": 0.0657,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 3.7683,
+        "ci95": 0.3886,
+        "n": 5
+      },
+      "variety": {
+        "mean": 19.8037,
+        "ci95": 0.3614,
+        "n": 5
+      },
+      "preference": {
+        "mean": 16.2395,
+        "ci95": 0.8453,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 83955.263,
+        "ci95": 6908.7258,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "greedy": {
+      "acceptance": {
+        "mean": 0.829,
+        "ci95": 0.0177,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.6552,
+        "ci95": 0.0516,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 6.2345,
+        "ci95": 0.1018,
+        "n": 5
+      },
+      "variety": {
+        "mean": 9.3416,
+        "ci95": 0.1191,
+        "n": 5
+      },
+      "preference": {
+        "mean": 18.3991,
+        "ci95": 0.8631,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0198,
+        "ci95": 0.0077,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 63078.5798,
+        "ci95": 5294.522,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "random": {
+      "acceptance": {
+        "mean": 0.7073,
+        "ci95": 0.0114,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.7894,
+        "ci95": 0.0409,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 11.2441,
+        "ci95": 0.3405,
+        "n": 5
+      },
+      "variety": {
+        "mean": 18.4832,
+        "ci95": 0.2475,
+        "n": 5
+      },
+      "preference": {
+        "mean": 7.8359,
+        "ci95": 0.548,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0294,
+        "ci95": 0.0145,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 91643.7471,
+        "ci95": 6369.9157,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "rules": {
+      "acceptance": {
+        "mean": 0.8269,
+        "ci95": 0.0168,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 1.6317,
+        "ci95": 0.0804,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 5.9154,
+        "ci95": 0.1171,
+        "n": 5
+      },
+      "variety": {
+        "mean": 8.3218,
+        "ci95": 0.0993,
+        "n": 5
+      },
+      "preference": {
+        "mean": 18.4179,
+        "ci95": 0.8638,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 61647.7526,
+        "ci95": 4961.3767,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    }
+  },
+  "planner_paired": {
+    "cpsat": {
+      "greedy": {
+        "acceptance": {
+          "mean": -0.0326,
+          "ci95": 0.0087,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": 0.2074,
+          "ci95": 0.0498,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": -2.5039,
+          "ci95": 0.3327,
+          "n": 5
+        },
+        "variety": {
+          "mean": 10.9724,
+          "ci95": 0.1839,
+          "n": 5
+        },
+        "preference": {
+          "mean": -2.6216,
+          "ci95": 0.2338,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": -0.0129,
+          "ci95": 0.0074,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": 20896.3628,
+          "ci95": 1817.9663,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": 0.4021,
+          "ci95": 0.0592,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": 0.7411,
+          "ci95": 0.0352,
+          "n": 5
+        }
+      },
+      "random": {
+        "acceptance": {
+          "mean": 0.0892,
+          "ci95": 0.0085,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": 0.0731,
+          "ci95": 0.0607,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": -7.5136,
+          "ci95": 0.3446,
+          "n": 5
+        },
+        "variety": {
+          "mean": 1.8308,
+          "ci95": 0.0516,
+          "n": 5
+        },
+        "preference": {
+          "mean": 7.9416,
+          "ci95": 0.5123,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": -0.0225,
+          "ci95": 0.0147,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": -7668.8046,
+          "ci95": 1118.8085,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": 0.6684,
+          "ci95": 0.0325,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": 0.8885,
+          "ci95": 0.0254,
+          "n": 5
+        }
+      }
+    },
+    "rules": {
+      "greedy": {
+        "acceptance": {
+          "mean": -0.0021,
+          "ci95": 0.0049,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": -0.0234,
+          "ci95": 0.0334,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": -0.3191,
+          "ci95": 0.0759,
+          "n": 5
+        },
+        "variety": {
+          "mean": -1.0198,
+          "ci95": 0.1228,
+          "n": 5
+        },
+        "preference": {
+          "mean": 0.0189,
+          "ci95": 0.1054,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": -0.0129,
+          "ci95": 0.0074,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": -1430.8271,
+          "ci95": 358.5689,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": 0.0512,
+          "ci95": 0.0121,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": -0.0489,
+          "ci95": 0.0096,
+          "n": 5
+        }
+      },
+      "random": {
+        "acceptance": {
+          "mean": 0.1197,
+          "ci95": 0.0103,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": -0.1577,
+          "ci95": 0.1164,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": -5.3287,
+          "ci95": 0.3064,
+          "n": 5
+        },
+        "variety": {
+          "mean": -10.1614,
+          "ci95": 0.1657,
+          "n": 5
+        },
+        "preference": {
+          "mean": 10.5821,
+          "ci95": 0.3757,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": -0.0225,
+          "ci95": 0.0147,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": -29995.9945,
+          "ci95": 1953.226,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": 0.4737,
+          "ci95": 0.0147,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": 0.0319,
+          "ci95": 0.0305,
+          "n": 5
+        }
+      }
+    },
+    "cpsat_v2": {
+      "cpsat": {
+        "acceptance": {
+          "mean": 0.0159,
+          "ci95": 0.006,
+          "n": 5
+        },
+        "edits_per_box": {
+          "mean": 0.0064,
+          "ci95": 0.0644,
+          "n": 5
+        },
+        "distinct_perishables": {
+          "mean": 0.0377,
+          "ci95": 0.0515,
+          "n": 5
+        },
+        "variety": {
+          "mean": -0.5103,
+          "ci95": 0.1255,
+          "n": 5
+        },
+        "preference": {
+          "mean": 0.4621,
+          "ci95": 0.1104,
+          "n": 5
+        },
+        "relaxed_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "infeasible_share": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "cost_paise": {
+          "mean": -19.6795,
+          "ci95": 170.985,
+          "n": 5
+        },
+        "hard_rule_violations": {
+          "mean": 0.0,
+          "ci95": 0.0,
+          "n": 5
+        },
+        "perishables_fewer": {
+          "mean": -0.0108,
+          "ci95": 0.0155,
+          "n": 5
+        },
+        "score_gain": {
+          "mean": -0.0098,
+          "ci95": 0.0017,
+          "n": 5
+        }
+      }
+    }
+  },
+  "planner_paired_later": {
+    "from_week": 2,
+    "pairs": {
+      "cpsat_v2": {
+        "cpsat": {
+          "acceptance": {
+            "mean": 0.0265,
+            "ci95": 0.01,
+            "n": 5
+          },
+          "edits_per_box": {
+            "mean": 0.0107,
+            "ci95": 0.1073,
+            "n": 5
+          },
+          "distinct_perishables": {
+            "mean": 0.0628,
+            "ci95": 0.0859,
+            "n": 5
+          },
+          "variety": {
+            "mean": -0.8506,
+            "ci95": 0.2092,
+            "n": 5
+          },
+          "preference": {
+            "mean": 0.7701,
+            "ci95": 0.184,
+            "n": 5
+          },
+          "relaxed_share": {
+            "mean": 0.0,
+            "ci95": 0.0,
+            "n": 5
+          },
+          "infeasible_share": {
+            "mean": 0.0,
+            "ci95": 0.0,
+            "n": 5
+          },
+          "cost_paise": {
+            "mean": -32.7992,
+            "ci95": 284.9749,
+            "n": 5
+          },
+          "hard_rule_violations": {
+            "mean": 0.0,
+            "ci95": 0.0,
+            "n": 5
+          },
+          "perishables_fewer": {
+            "mean": -0.0186,
+            "ci95": 0.0269,
+            "n": 5
+          },
+          "score_gain": {
+            "mean": -0.0162,
+            "ci95": 0.0027,
+            "n": 5
+          }
+        }
+      }
+    }
+  },
+  "planner_targets": {
+    "acceptance_ge_70pct": {
+      "value": 0.7964250289060757,
+      "ci95": 0.014658830968166902,
+      "n": 5,
+      "holds": true,
+      "rule": "mean acceptance \u2265 0.70"
+    },
+    "acceptance_over_greedy": {
+      "value": -0.03259577555351849,
+      "ci95": 0.008738429003181926,
+      "n": 5,
+      "holds": false,
+      "rule": "paired difference vs greedy: 95 % CI above 0"
+    },
+    "acceptance_over_random": {
+      "value": 0.08916632537634746,
+      "ci95": 0.008530962629314978,
+      "n": 5,
+      "holds": true,
+      "rule": "paired difference vs random: 95 % CI above 0"
+    },
+    "hard_rules_100pct": {
+      "value": 0.0,
+      "ci95": 0.0,
+      "n": 5,
+      "holds": true,
+      "rule": "no violation in any seed"
+    },
+    "perishables_25pct_fewer_than_greedy": {
+      "value": 0.4020805437663821,
+      "ci95": 0.059196964374834224,
+      "n": 5,
+      "holds": true,
+      "rule": "mean per-seed share fewer \u2265 0.25"
+    },
+    "score_30pct_over_greedy": {
+      "value": 0.741103053600241,
+      "ci95": 0.03517750163966762,
+      "n": 5,
+      "holds": true,
+      "rule": "mean per-seed objective gain \u2265 0.30"
+    },
+    "verdict": {
+      "hypothesis": "M-C on its primary metric",
+      "holds": false,
+      "rule": "acceptance \u2265 0.70 and above greedy and random (paired CI), hard rules kept"
+    },
+    "v2_acceptance_over_v1_all_weeks": {
+      "value": 0.015921621879895008,
+      "ci95": 0.005978482653380983,
+      "n": 5,
+      "holds": null,
+      "rule": "reference: weeks < 2 are identical by construction"
+    },
+    "v2_acceptance_over_v1": {
+      "value": 0.02653603646649172,
+      "ci95": 0.009964137755634948,
+      "n": 5,
+      "holds": true,
+      "rule": "paired difference vs cpsat, weeks \u2265 2: 95 % CI lower bound \u2265 0"
+    },
+    "v2_hard_rules_100pct": {
+      "value": 0.0,
+      "ci95": 0.0,
+      "n": 5,
+      "holds": true,
+      "rule": "no violation in any seed"
+    },
+    "v2_perishables_within_1_of_v1": {
+      "value": 0.06283524904214559,
+      "ci95": 0.08585577093029123,
+      "n": 5,
+      "holds": true,
+      "rule": "mean paired difference in distinct perishables, weeks \u2265 2: \u2264 +1"
+    },
+    "v2_verdict": {
+      "hypothesis": "planner v2 (liking) against v1",
+      "holds": true,
+      "rule": "acceptance not below v1 (paired CI lower bound \u2265 0, weeks \u2265 2), hard rules kept, perishables \u2264 v1 + 1; no verdict below 5 paired seeds"
+    }
+  },
+  "pantry": {
+    "metric": "quantity MAE as a share of weekly quantity (sum |error| / sum actual per household item, zero weeks kept; mean over items)",
+    "rule_table_mae": {
+      "mean": 0.294,
+      "ci95": 0.0035,
+      "n": 5
+    },
+    "cold_start_mae": [
+      {
+        "mean": 0.1265,
+        "ci95": 0.0061,
+        "n": 5
+      },
+      {
+        "mean": 0.1,
+        "ci95": 0.0034,
+        "n": 5
+      },
+      {
+        "mean": 0.0907,
+        "ci95": 0.005,
+        "n": 5
+      },
+      {
+        "mean": 0.0868,
+        "ci95": 0.0049,
+        "n": 5
+      }
+    ],
+    "twin_scope": {
+      "rule_table_mae": {
+        "mean": 0.194,
+        "ci95": 0.0048,
+        "n": 5
+      },
+      "running_mean_mae": [
+        {
+          "mean": 0.1155,
+          "ci95": 0.0055,
+          "n": 5
+        },
+        {
+          "mean": 0.0966,
+          "ci95": 0.0089,
+          "n": 5
+        },
+        {
+          "mean": 0.0853,
+          "ci95": 0.0051,
+          "n": 5
+        },
+        {
+          "mean": 0.0895,
+          "ci95": 0.0078,
+          "n": 5
+        }
+      ],
+      "twin_mae": [
+        {
+          "mean": 0.1783,
+          "ci95": 0.0089,
+          "n": 5
+        },
+        {
+          "mean": 0.1614,
+          "ci95": 0.0118,
+          "n": 5
+        },
+        {
+          "mean": 0.1422,
+          "ci95": 0.0116,
+          "n": 5
+        },
+        {
+          "mean": 0.1394,
+          "ci95": 0.0147,
+          "n": 5
+        }
+      ],
+      "twin_coverage_80": [
+        {
+          "mean": 0.7736,
+          "ci95": 0.0297,
+          "n": 5
+        },
+        {
+          "mean": 0.7862,
+          "ci95": 0.0216,
+          "n": 5
+        },
+        {
+          "mean": 0.7989,
+          "ci95": 0.0443,
+          "n": 5
+        },
+        {
+          "mean": 0.7782,
+          "ci95": 0.0572,
+          "n": 5
+        }
+      ],
+      "twin_learned_mae": [
+        {
+          "mean": 0.3062,
+          "ci95": 0.0188,
+          "n": 5
+        },
+        {
+          "mean": 0.3037,
+          "ci95": 0.0225,
+          "n": 5
+        },
+        {
+          "mean": 0.2896,
+          "ci95": 0.0171,
+          "n": 5
+        },
+        {
+          "mean": 0.284,
+          "ci95": 0.023,
+          "n": 5
+        }
+      ],
+      "learned_from": {
+        "7": 11,
+        "11": 13,
+        "13": 17,
+        "17": 19,
+        "19": 7
+      }
+    },
+    "target_mae_le_15pct_after_4_weeks": {
+      "estimator": "pantry_twin_v0 (twin scope)",
+      "value": 0.13941574791648334,
+      "holds": true,
+      "reference_running_mean": 0.08682623316073226
+    },
+    "cold_start_lt_4_weeks": {
+      "estimator": "running_mean (reference only)",
+      "value": 1,
+      "per_seed": {
+        "7": 1,
+        "11": 1,
+        "13": 1,
+        "17": 1,
+        "19": 1
+      },
+      "holds": null
+    }
+  },
+  "assignment": {
+    "greedy": {
+      "gini": {
+        "mean": 0.42,
+        "ci95": 0.0557,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.42,
+        "ci95": 0.0557,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 945.658,
+        "ci95": 240.5467,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 611.622,
+        "ci95": 190.9286,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 2.0404,
+        "ci95": 0.6365,
+        "n": 5
+      }
+    },
+    "0": {
+      "gini": {
+        "mean": 0.435,
+        "ci95": 0.0493,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.435,
+        "ci95": 0.0493,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 906.226,
+        "ci95": 248.5712,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 579.666,
+        "ci95": 188.005,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.9338,
+        "ci95": 0.6265,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0436,
+        "ci95": 0.0299,
+        "n": 5
+      }
+    },
+    "100": {
+      "gini": {
+        "mean": 0.4268,
+        "ci95": 0.0271,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.4268,
+        "ci95": 0.0271,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 906.738,
+        "ci95": 249.9102,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 581.63,
+        "ci95": 192.7307,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.9404,
+        "ci95": 0.6424,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0432,
+        "ci95": 0.0306,
+        "n": 5
+      }
+    },
+    "200": {
+      "gini": {
+        "mean": 0.4226,
+        "ci95": 0.0163,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.4226,
+        "ci95": 0.0163,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 907.32,
+        "ci95": 251.4334,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 582.676,
+        "ci95": 195.263,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.9438,
+        "ci95": 0.6507,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0427,
+        "ci95": 0.0313,
+        "n": 5
+      }
+    },
+    "300": {
+      "gini": {
+        "mean": 0.419,
+        "ci95": 0.0176,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.419,
+        "ci95": 0.0176,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 908.206,
+        "ci95": 250.9402,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 582.958,
+        "ci95": 194.7501,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.9448,
+        "ci95": 0.6493,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0417,
+        "ci95": 0.0304,
+        "n": 5
+      }
+    },
+    "500": {
+      "gini": {
+        "mean": 0.3956,
+        "ci95": 0.0301,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.3956,
+        "ci95": 0.0301,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 915.634,
+        "ci95": 258.4084,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 592.02,
+        "ci95": 205.1742,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 1.975,
+        "ci95": 0.6842,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": -0.0344,
+        "ci95": 0.0329,
+        "n": 5
+      }
+    },
+    "700": {
+      "gini": {
+        "mean": 0.2616,
+        "ci95": 0.1894,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.2616,
+        "ci95": 0.1894,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 970.548,
+        "ci95": 273.3848,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 659.638,
+        "ci95": 238.5997,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 2.2002,
+        "ci95": 0.7953,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": 0.0254,
+        "ci95": 0.0886,
+        "n": 5
+      }
+    },
+    "1000": {
+      "gini": {
+        "mean": 0.2014,
+        "ci95": 0.2053,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.2014,
+        "ci95": 0.2053,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 1009.802,
+        "ci95": 293.4135,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 697.912,
+        "ci95": 270.5827,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 2.328,
+        "ci95": 0.902,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": 0.0654,
+        "ci95": 0.083,
+        "n": 5
+      }
+    },
+    "2000": {
+      "gini": {
+        "mean": 0.0294,
+        "ci95": 0.0616,
+        "n": 5
+      },
+      "gini_all": {
+        "mean": 0.0294,
+        "ci95": 0.0616,
+        "n": 5
+      },
+      "cost_paise_per_portion": {
+        "mean": 1161.78,
+        "ci95": 254.6249,
+        "n": 5
+      },
+      "rider_paise_per_portion": {
+        "mean": 831.08,
+        "ci95": 219.9725,
+        "n": 5
+      },
+      "km_per_portion": {
+        "mean": 2.7718,
+        "ci95": 0.7331,
+        "n": 5
+      },
+      "extra_cost": {
+        "mean": 0.235,
+        "ci95": 0.1142,
+        "n": 5
+      }
+    }
+  },
+  "assignment_targets": {
+    "gini_le_0_25_at_le_5pct_cost": {
+      "rule": "per-seed paired: 95 % CI upper bounds of cost_\u03bb / cost_greedy - 1 \u2264 0.05 and of the weekly Gini \u2264 0.25, \u03bb > 0",
+      "holds": false,
+      "lambda": null,
+      "n": 5,
+      "seeds": [
+        7,
+        11,
+        13,
+        17,
+        19
+      ],
+      "dropped_seeds": [],
+      "greedy_gini": {
+        "mean": 0.42,
+        "ci95": 0.0557,
+        "n": 5
+      },
+      "per_lambda": {
+        "0": {
+          "extra_cost": {
+            "mean": -0.0436,
+            "ci95": 0.0299,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0137,
+          "gini": {
+            "mean": 0.435,
+            "ci95": 0.0493,
+            "n": 5
+          },
+          "gini_upper": 0.4843,
+          "eligible": false,
+          "holds": false
+        },
+        "100": {
+          "extra_cost": {
+            "mean": -0.0432,
+            "ci95": 0.0306,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0126,
+          "gini": {
+            "mean": 0.4268,
+            "ci95": 0.0271,
+            "n": 5
+          },
+          "gini_upper": 0.4539,
+          "eligible": true,
+          "holds": false
+        },
+        "200": {
+          "extra_cost": {
+            "mean": -0.0427,
+            "ci95": 0.0313,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0114,
+          "gini": {
+            "mean": 0.4226,
+            "ci95": 0.0163,
+            "n": 5
+          },
+          "gini_upper": 0.4389,
+          "eligible": true,
+          "holds": false
+        },
+        "300": {
+          "extra_cost": {
+            "mean": -0.0417,
+            "ci95": 0.0304,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0114,
+          "gini": {
+            "mean": 0.419,
+            "ci95": 0.0176,
+            "n": 5
+          },
+          "gini_upper": 0.4366,
+          "eligible": true,
+          "holds": false
+        },
+        "500": {
+          "extra_cost": {
+            "mean": -0.0344,
+            "ci95": 0.0329,
+            "n": 5
+          },
+          "extra_cost_upper": -0.0015,
+          "gini": {
+            "mean": 0.3956,
+            "ci95": 0.0301,
+            "n": 5
+          },
+          "gini_upper": 0.4257,
+          "eligible": true,
+          "holds": false
+        },
+        "700": {
+          "extra_cost": {
+            "mean": 0.0254,
+            "ci95": 0.0886,
+            "n": 5
+          },
+          "extra_cost_upper": 0.1141,
+          "gini": {
+            "mean": 0.2616,
+            "ci95": 0.1894,
+            "n": 5
+          },
+          "gini_upper": 0.451,
+          "eligible": true,
+          "holds": false
+        },
+        "1000": {
+          "extra_cost": {
+            "mean": 0.0654,
+            "ci95": 0.083,
+            "n": 5
+          },
+          "extra_cost_upper": 0.1484,
+          "gini": {
+            "mean": 0.2014,
+            "ci95": 0.2053,
+            "n": 5
+          },
+          "gini_upper": 0.4067,
+          "eligible": true,
+          "holds": false
+        },
+        "2000": {
+          "extra_cost": {
+            "mean": 0.235,
+            "ci95": 0.1142,
+            "n": 5
+          },
+          "extra_cost_upper": 0.3492,
+          "gini": {
+            "mean": 0.0294,
+            "ci95": 0.0616,
+            "n": 5
+          },
+          "gini_upper": 0.091,
+          "eligible": true,
+          "holds": false
+        }
+      }
+    }
+  },
+  "forecast": {
+    "assumptions": {
+      "addon_take": 0.5,
+      "price_elasticity": 1.0,
+      "festival_lift_per_day": 0.1,
+      "tiffin_take": 0.7,
+      "planner": "rules",
+      "costs": {
+        "underage": 0.3,
+        "overage": 0.5
+      }
+    },
+    "arms": {
+      "v0": {
+        "wape": {
+          "mean": 0.1878,
+          "ci95": 0.0073,
+          "n": 5
+        },
+        "mase": {
+          "mean": 1.0011,
+          "ci95": 0.3456,
+          "n": 5
+        },
+        "pinball_q50": {
+          "mean": 1.1941,
+          "ci95": 0.1549,
+          "n": 5
+        },
+        "pinball_qtau": {
+          "mean": 2.3488,
+          "ci95": 0.9247,
+          "n": 5
+        },
+        "coverage_qtau": {
+          "mean": 0.422,
+          "ci95": 0.0693,
+          "n": 5
+        },
+        "waste": {
+          "mean": 0.0207,
+          "ci95": 0.0091,
+          "n": 5
+        },
+        "stockout": {
+          "mean": 0.4531,
+          "ci95": 0.2025,
+          "n": 5
+        },
+        "newsvendor_cost": {
+          "mean": 0.1463,
+          "ci95": 0.0566,
+          "n": 5
+        }
+      },
+      "v1": {
+        "wape": {
+          "mean": 0.203,
+          "ci95": 0.0135,
+          "n": 5
+        },
+        "mase": {
+          "mean": 1.0144,
+          "ci95": 0.1727,
+          "n": 5
+        },
+        "pinball_q50": {
+          "mean": 1.2951,
+          "ci95": 0.1507,
+          "n": 5
+        },
+        "pinball_qtau": {
+          "mean": 1.989,
+          "ci95": 0.208,
+          "n": 5
+        },
+        "coverage_qtau": {
+          "mean": 0.4386,
+          "ci95": 0.0321,
+          "n": 5
+        },
+        "waste": {
+          "mean": 0.0246,
+          "ci95": 0.0094,
+          "n": 5
+        },
+        "stockout": {
+          "mean": 0.3763,
+          "ci95": 0.0831,
+          "n": 5
+        },
+        "newsvendor_cost": {
+          "mean": 0.1252,
+          "ci95": 0.0209,
+          "n": 5
+        }
+      },
+      "champion": {
+        "wape": {
+          "mean": 0.1878,
+          "ci95": 0.0073,
+          "n": 5
+        },
+        "mase": {
+          "mean": 1.0011,
+          "ci95": 0.3456,
+          "n": 5
+        },
+        "pinball_q50": {
+          "mean": 1.1941,
+          "ci95": 0.1549,
+          "n": 5
+        },
+        "pinball_qtau": {
+          "mean": 2.3488,
+          "ci95": 0.9247,
+          "n": 5
+        },
+        "coverage_qtau": {
+          "mean": 0.422,
+          "ci95": 0.0693,
+          "n": 5
+        },
+        "waste": {
+          "mean": 0.0207,
+          "ci95": 0.0091,
+          "n": 5
+        },
+        "stockout": {
+          "mean": 0.4531,
+          "ci95": 0.2025,
+          "n": 5
+        },
+        "newsvendor_cost": {
+          "mean": 0.1463,
+          "ci95": 0.0566,
+          "n": 5
+        }
+      }
+    },
+    "v1_minus_v0": {
+      "wape": {
+        "mean": 0.0151,
+        "ci95": 0.0081,
+        "n": 5
+      },
+      "mase": {
+        "mean": 0.0133,
+        "ci95": 0.2883,
+        "n": 5
+      },
+      "pinball_q50": {
+        "mean": 0.101,
+        "ci95": 0.0751,
+        "n": 5
+      },
+      "pinball_qtau": {
+        "mean": -0.3597,
+        "ci95": 0.8263,
+        "n": 5
+      },
+      "coverage_qtau": {
+        "mean": 0.0167,
+        "ci95": 0.0384,
+        "n": 5
+      },
+      "waste": {
+        "mean": 0.0039,
+        "ci95": 0.0099,
+        "n": 5
+      },
+      "stockout": {
+        "mean": -0.0769,
+        "ci95": 0.1823,
+        "n": 5
+      },
+      "newsvendor_cost": {
+        "mean": -0.0211,
+        "ci95": 0.0518,
+        "n": 5
+      }
+    },
+    "picks": [
+      {
+        "seed": 7,
+        "v0": "CrostonOptimized",
+        "champion": "CrostonOptimized",
+        "windows": 8
+      },
+      {
+        "seed": 11,
+        "v0": "CrostonOptimized",
+        "champion": "CrostonOptimized",
+        "windows": 8
+      },
+      {
+        "seed": 13,
+        "v0": "AutoETS",
+        "champion": "AutoETS",
+        "windows": 8
+      },
+      {
+        "seed": 17,
+        "v0": "AutoETS",
+        "champion": "AutoETS",
+        "windows": 8
+      },
+      {
+        "seed": 19,
+        "v0": "AutoETS",
+        "champion": "AutoETS",
+        "windows": 8
+      }
+    ]
+  },
+  "ranker_explanations": null,
+  "runs": {
+    "planner": [
+      {
+        "planner": "cpsat",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8039660056657224,
+          "edits_per_box": 1.8436781609195403,
+          "distinct_perishables": 3.7701149425287355,
+          "variety": 20.089655172413792,
+          "preference": 15.425287356321839,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79702.83448275863,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8081208687440982,
+          "edits_per_box": 2.6934865900383143,
+          "distinct_perishables": 3.6743295019157087,
+          "variety": 20.1455938697318,
+          "preference": 15.735632183908047,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79381.52490421456,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8120603015075377,
+          "edits_per_box": 1.8482758620689654,
+          "distinct_perishables": 4.206896551724138,
+          "variety": 20.317241379310346,
+          "preference": 16.8183908045977,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77922.56781609195,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8110924995347106,
+          "edits_per_box": 2.689655172413793,
+          "distinct_perishables": 4.114942528735632,
+          "variety": 20.340996168582375,
+          "preference": 17.126436781609197,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77574.16475095786,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7956545961002786,
+          "edits_per_box": 1.825287356321839,
+          "distinct_perishables": 3.4873563218390804,
+          "variety": 20.57471264367816,
+          "preference": 16.108045977011493,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 86280.69425287357,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7959145775301765,
+          "edits_per_box": 2.6436781609195403,
+          "distinct_perishables": 3.4061302681992336,
+          "variety": 20.620689655172413,
+          "preference": 16.32183908045977,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 85908.99616858238,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7867638810992709,
+          "edits_per_box": 1.9310344827586208,
+          "distinct_perishables": 3.3241379310344827,
+          "variety": 20.420689655172414,
+          "preference": 15.602298850574712,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91628.7356321839,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7911759207328473,
+          "edits_per_box": 2.7662835249042144,
+          "distinct_perishables": 3.203065134099617,
+          "variety": 20.478927203065133,
+          "preference": 15.900383141762452,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91251.86206896552,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7836803601575689,
+          "edits_per_box": 1.8643678160919541,
+          "distinct_perishables": 3.864367816091954,
+          "variety": 20.167816091954023,
+          "preference": 14.933333333333334,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 84339.88045977011,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7829675483023822,
+          "edits_per_box": 2.7279693486590038,
+          "distinct_perishables": 3.7279693486590038,
+          "variety": 20.195402298850574,
+          "preference": 15.199233716475096,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 83983.1724137931,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8202832861189802,
+          "edits_per_box": 1.839080459770115,
+          "distinct_perishables": 3.767816091954023,
+          "variety": 19.45287356321839,
+          "preference": 15.979310344827587,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79551.94482758621,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8353163361661945,
+          "edits_per_box": 2.685823754789272,
+          "distinct_perishables": 3.6704980842911876,
+          "variety": 19.084291187739463,
+          "preference": 16.659003831417625,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79130.04214559386,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.829034059184813,
+          "edits_per_box": 1.9402298850574713,
+          "distinct_perishables": 4.213793103448276,
+          "variety": 19.795402298850576,
+          "preference": 17.275862068965516,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77824.21379310345,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8393820956635027,
+          "edits_per_box": 2.842911877394636,
+          "distinct_perishables": 4.126436781609195,
+          "variety": 19.471264367816094,
+          "preference": 17.88888888888889,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77410.24137931035,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8085793871866295,
+          "edits_per_box": 1.8,
+          "distinct_perishables": 3.5264367816091955,
+          "variety": 20.15632183908046,
+          "preference": 16.49425287356322,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 86418.81379310344,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8174558960074281,
+          "edits_per_box": 2.6015325670498086,
+          "distinct_perishables": 3.471264367816092,
+          "variety": 19.92337164750958,
+          "preference": 16.96551724137931,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 86139.19540229885,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7970835670218732,
+          "edits_per_box": 1.889655172413793,
+          "distinct_perishables": 3.4275862068965517,
+          "variety": 20.020689655172415,
+          "preference": 15.96551724137931,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91749.58390804597,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8083753972705179,
+          "edits_per_box": 2.6973180076628354,
+          "distinct_perishables": 3.375478927203065,
+          "variety": 19.81226053639847,
+          "preference": 16.50574712643678,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91453.27586206897,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat_v2",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8067529544175577,
+          "edits_per_box": 1.8758620689655172,
+          "distinct_perishables": 3.905747126436782,
+          "variety": 19.593103448275862,
+          "preference": 15.482758620689655,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 84231.75862068965,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8214218720690302,
+          "edits_per_box": 2.7471264367816093,
+          "distinct_perishables": 3.796934865900383,
+          "variety": 19.237547892720308,
+          "preference": 16.114942528735632,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 83802.969348659,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8392067988668556,
+          "edits_per_box": 1.645977011494253,
+          "distinct_perishables": 6.266666666666667,
+          "variety": 9.358620689655172,
+          "preference": 18.363218390804597,
+          "relaxed_share": 0.020689655172413793,
+          "infeasible_share": 0.0,
+          "cost_paise": 60168.558620689655,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8381491973559962,
+          "edits_per_box": 2.4022988505747125,
+          "distinct_perishables": 6.2796934865900385,
+          "variety": 9.452107279693486,
+          "preference": 18.50191570881226,
+          "relaxed_share": 0.01532567049808429,
+          "infeasible_share": 0.0,
+          "cost_paise": 60052.89655172414,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.844891122278057,
+          "edits_per_box": 1.6413793103448275,
+          "distinct_perishables": 6.342528735632184,
+          "variety": 9.266666666666667,
+          "preference": 19.413793103448278,
+          "relaxed_share": 0.02528735632183908,
+          "infeasible_share": 0.0,
+          "cost_paise": 58441.58620689655,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8479434208077424,
+          "edits_per_box": 2.413793103448276,
+          "distinct_perishables": 6.35632183908046,
+          "variety": 9.344827586206897,
+          "preference": 19.486590038314176,
+          "relaxed_share": 0.022988505747126436,
+          "infeasible_share": 0.0,
+          "cost_paise": 58240.38697318007,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8230640668523677,
+          "edits_per_box": 1.6022988505747127,
+          "distinct_perishables": 6.213793103448276,
+          "variety": 9.462068965517242,
+          "preference": 18.542528735632185,
+          "relaxed_share": 0.009195402298850575,
+          "infeasible_share": 0.0,
+          "cost_paise": 63556.39770114943,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8310120705663882,
+          "edits_per_box": 2.3333333333333335,
+          "distinct_perishables": 6.210727969348659,
+          "variety": 9.559386973180077,
+          "preference": 18.662835249042146,
+          "relaxed_share": 0.007662835249042145,
+          "infeasible_share": 0.0,
+          "cost_paise": 63505.93103448276,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8295008412787437,
+          "edits_per_box": 1.671264367816092,
+          "distinct_perishables": 6.117241379310345,
+          "variety": 9.395402298850575,
+          "preference": 18.193103448275863,
+          "relaxed_share": 0.022988505747126436,
+          "infeasible_share": 0.0,
+          "cost_paise": 69576.86896551723,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8317442512619181,
+          "edits_per_box": 2.4444444444444446,
+          "distinct_perishables": 6.130268199233717,
+          "variety": 9.521072796934867,
+          "preference": 18.34865900383142,
+          "relaxed_share": 0.01532567049808429,
+          "infeasible_share": 0.0,
+          "cost_paise": 69546.25670498084,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8084411930219471,
+          "edits_per_box": 1.7149425287356321,
+          "distinct_perishables": 6.232183908045977,
+          "variety": 9.22528735632184,
+          "preference": 17.482758620689655,
+          "relaxed_share": 0.020689655172413793,
+          "infeasible_share": 0.0,
+          "cost_paise": 63649.48735632184,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8077283811667605,
+          "edits_per_box": 2.5057471264367814,
+          "distinct_perishables": 6.245210727969349,
+          "variety": 9.32183908045977,
+          "preference": 17.597701149425287,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 63629.48275862069,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7159206798866855,
+          "edits_per_box": 1.793103448275862,
+          "distinct_perishables": 11.427586206896551,
+          "variety": 18.25057471264368,
+          "preference": 7.974712643678161,
+          "relaxed_share": 0.02528735632183908,
+          "infeasible_share": 0.0,
+          "cost_paise": 88146.09425287356,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7121813031161474,
+          "edits_per_box": 2.6551724137931036,
+          "distinct_perishables": 11.455938697318008,
+          "variety": 18.344827586206897,
+          "preference": 8.015325670498084,
+          "relaxed_share": 0.019157088122605363,
+          "infeasible_share": 0.0,
+          "cost_paise": 88243.63218390805,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7117811278615299,
+          "edits_per_box": 1.7862068965517242,
+          "distinct_perishables": 11.613793103448275,
+          "variety": 18.517241379310345,
+          "preference": 8.450574712643679,
+          "relaxed_share": 0.0367816091954023,
+          "infeasible_share": 0.0,
+          "cost_paise": 86335.94712643677,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.718034617532105,
+          "edits_per_box": 2.628352490421456,
+          "distinct_perishables": 11.71264367816092,
+          "variety": 18.624521072796934,
+          "preference": 8.46360153256705,
+          "relaxed_share": 0.034482758620689655,
+          "infeasible_share": 0.0,
+          "cost_paise": 86405.65900383142,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7138718662952647,
+          "edits_per_box": 1.8160919540229885,
+          "distinct_perishables": 10.986206896551725,
+          "variety": 18.698850574712644,
+          "preference": 7.942528735632184,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 93858.35402298851,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7132776230269267,
+          "edits_per_box": 2.6551724137931036,
+          "distinct_perishables": 11.026819923371647,
+          "variety": 18.79310344827586,
+          "preference": 7.904214559386973,
+          "relaxed_share": 0.0038314176245210726,
+          "infeasible_share": 0.0,
+          "cost_paise": 93884.9846743295,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.6971396522714526,
+          "edits_per_box": 1.8160919540229885,
+          "distinct_perishables": 11.197701149425287,
+          "variety": 18.64367816091954,
+          "preference": 7.427586206896552,
+          "relaxed_share": 0.041379310344827586,
+          "infeasible_share": 0.0,
+          "cost_paise": 99313.91954022988,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.7001308655823518,
+          "edits_per_box": 2.7164750957854404,
+          "distinct_perishables": 11.210727969348659,
+          "variety": 18.727969348659006,
+          "preference": 7.4559386973180075,
+          "relaxed_share": 0.02681992337164751,
+          "infeasible_share": 0.0,
+          "cost_paise": 99013.32183908045,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.6975801913337085,
+          "edits_per_box": 1.735632183908046,
+          "distinct_perishables": 10.995402298850575,
+          "variety": 18.30574712643678,
+          "preference": 7.3839080459770114,
+          "relaxed_share": 0.03218390804597701,
+          "infeasible_share": 0.0,
+          "cost_paise": 90564.42068965518,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.6991183642843745,
+          "edits_per_box": 2.5517241379310347,
+          "distinct_perishables": 11.049808429118775,
+          "variety": 18.455938697318008,
+          "preference": 7.467432950191571,
+          "relaxed_share": 0.022988505747126436,
+          "infeasible_share": 0.0,
+          "cost_paise": 90459.38697318008,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8379603399433427,
+          "edits_per_box": 1.5931034482758621,
+          "distinct_perishables": 5.880459770114943,
+          "variety": 8.222988505747127,
+          "preference": 18.39080459770115,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 58939.76551724138,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8358829084041549,
+          "edits_per_box": 2.3371647509578546,
+          "distinct_perishables": 5.850574712643678,
+          "variety": 8.210727969348659,
+          "preference": 18.551724137931036,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 58612.15325670498,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.840536013400335,
+          "edits_per_box": 1.6229885057471265,
+          "distinct_perishables": 6.048275862068966,
+          "variety": 8.351724137931035,
+          "preference": 19.46896551724138,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 57183.77931034483,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8442211055276382,
+          "edits_per_box": 2.421455938697318,
+          "distinct_perishables": 6.038314176245211,
+          "variety": 8.32567049808429,
+          "preference": 19.555555555555557,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 56870.164750957854,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.826740947075209,
+          "edits_per_box": 1.5632183908045978,
+          "distinct_perishables": 5.974712643678161,
+          "variety": 8.34712643678161,
+          "preference": 18.570114942528736,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 62187.56091954023,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8323119777158774,
+          "edits_per_box": 2.2796934865900385,
+          "distinct_perishables": 5.954022988505747,
+          "variety": 8.360153256704981,
+          "preference": 18.731800766283524,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 61988.877394636016,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.822546270330903,
+          "edits_per_box": 1.645977011494253,
+          "distinct_perishables": 5.816091954022989,
+          "variety": 8.425287356321839,
+          "preference": 18.07126436781609,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 67641.52643678161,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8244531688166012,
+          "edits_per_box": 2.3946360153256707,
+          "distinct_perishables": 5.800766283524904,
+          "variety": 8.409961685823754,
+          "preference": 18.237547892720308,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 67261.11111111111,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8068655036578503,
+          "edits_per_box": 1.7333333333333334,
+          "distinct_perishables": 5.857471264367816,
+          "variety": 8.26206896551724,
+          "preference": 17.588505747126437,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 62286.13103448276,
+          "hard_rule_violations": 0.0
+        },
+        "later": {
+          "acceptance": 0.8077283811667605,
+          "edits_per_box": 2.521072796934866,
+          "distinct_perishables": 5.831417624521073,
+          "variety": 8.241379310344827,
+          "preference": 17.78544061302682,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 62091.42911877394,
+          "hard_rule_violations": 0.0
+        }
+      }
+    ],
+    "pantry": [
+      {
+        "seed": 7,
+        "households": 87,
+        "rule_table_mae": 0.291304873894542,
+        "cold_start": [
+          0.1295678481193672,
+          0.09884392531063663,
+          0.08948581102780186,
+          0.08250375938997109
+        ],
+        "twin_rule_mae": 0.19411403499370442,
+        "twin_running_mean": [
+          0.12025936464571949,
+          0.09919428244765578,
+          0.08319303436623851,
+          0.09234553185271727
+        ],
+        "twin": [
+          0.1796967642032174,
+          0.1549280514882184,
+          0.14252856873585473,
+          0.14497524334920417
+        ],
+        "twin_coverage": [
+          0.7471264367816092,
+          0.7873563218390804,
+          0.7586206896551724,
+          0.7816091954022989
+        ],
+        "twin_learned": [
+          0.3049828199455161,
+          0.3067097546699518,
+          0.2847085374605872,
+          0.29099811672984893
+        ],
+        "learned_from": 11
+      },
+      {
+        "seed": 11,
+        "households": 87,
+        "rule_table_mae": 0.29488357933810944,
+        "cold_start": [
+          0.11809204876935483,
+          0.09782194052128962,
+          0.08764217530439054,
+          0.08766682667379902
+        ],
+        "twin_rule_mae": 0.1923343724941896,
+        "twin_running_mean": [
+          0.11446701173563047,
+          0.10451747776988943,
+          0.07937974615382198,
+          0.08662213110149214
+        ],
+        "twin": [
+          0.17285701439640366,
+          0.1741224155976759,
+          0.14522452173898018,
+          0.13794429209513587
+        ],
+        "twin_coverage": [
+          0.8103448275862069,
+          0.7758620689655172,
+          0.7873563218390804,
+          0.7586206896551724
+        ],
+        "twin_learned": [
+          0.313081447812956,
+          0.32326063966064994,
+          0.30593199746451294,
+          0.28495519216451626
+        ],
+        "learned_from": 13
+      },
+      {
+        "seed": 13,
+        "households": 87,
+        "rule_table_mae": 0.2950848641686269,
+        "cold_start": [
+          0.12672539833514848,
+          0.10472847450737455,
+          0.08661077317252724,
+          0.09273084464073003
+        ],
+        "twin_rule_mae": 0.1886468322399027,
+        "twin_running_mean": [
+          0.11032077356703099,
+          0.09802362239552634,
+          0.08702086786654992,
+          0.09902856064122532
+        ],
+        "twin": [
+          0.17430145282367077,
+          0.1584201968212805,
+          0.1333491468422575,
+          0.14502938305004165
+        ],
+        "twin_coverage": [
+          0.7816091954022989,
+          0.7931034482758621,
+          0.8390804597701149,
+          0.7528735632183908
+        ],
+        "twin_learned": [
+          0.31077688310812945,
+          0.29218334877297014,
+          0.2902916562787156,
+          0.29396168365958797
+        ],
+        "learned_from": 17
+      },
+      {
+        "seed": 17,
+        "households": 87,
+        "rule_table_mae": 0.2976153881114856,
+        "cold_start": [
+          0.13010686737594648,
+          0.09867220942023665,
+          0.09521727201909046,
+          0.08400958238574811
+        ],
+        "twin_rule_mae": 0.1955817615201208,
+        "twin_running_mean": [
+          0.119887826808957,
+          0.08494247186106592,
+          0.08705467861286852,
+          0.08291063394445934
+        ],
+        "twin": [
+          0.17430158989317593,
+          0.15131578311681795,
+          0.13400155061505653,
+          0.11951760664327035
+        ],
+        "twin_coverage": [
+          0.764367816091954,
+          0.8103448275862069,
+          0.8333333333333334,
+          0.8563218390804598
+        ],
+        "twin_learned": [
+          0.28106125757208145,
+          0.27914448661225927,
+          0.2695055539335596,
+          0.2519583381238647
+        ],
+        "learned_from": 19
+      },
+      {
+        "seed": 19,
+        "households": 87,
+        "rule_table_mae": 0.2908922733881273,
+        "cold_start": [
+          0.12795167542506208,
+          0.09975608298890855,
+          0.09465637430467035,
+          0.08722015271341309
+        ],
+        "twin_rule_mae": 0.19917692786096747,
+        "twin_running_mean": [
+          0.11261144893263358,
+          0.09622309695575307,
+          0.08987799838059032,
+          0.08668723162040673
+        ],
+        "twin": [
+          0.1902375295827391,
+          0.1681073783232106,
+          0.15607694439062617,
+          0.14961221444476475
+        ],
+        "twin_coverage": [
+          0.764367816091954,
+          0.764367816091954,
+          0.7758620689655172,
+          0.7413793103448276
+        ],
+        "twin_learned": [
+          0.32096709134548,
+          0.31734434746742496,
+          0.2977640921183335,
+          0.2982479394505006
+        ],
+        "learned_from": 7
+      }
+    ],
+    "assignment": [
+      {
+        "seed": 7,
+        "evenings": 7,
+        "orders": 122,
+        "portions": 362,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.389,
+            "gini_all": 0.389,
+            "cost_paise_per_portion": 795.08,
+            "rider_paise_per_portion": 490.24,
+            "km_per_portion": 1.636,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.03,
+            "gini": 0.425,
+            "gini_all": 0.425,
+            "cost_paise_per_portion": 741.52,
+            "rider_paise_per_portion": 465.97,
+            "km_per_portion": 1.555,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.032,
+            "gini": 0.425,
+            "gini_all": 0.425,
+            "cost_paise_per_portion": 741.52,
+            "rider_paise_per_portion": 465.97,
+            "km_per_portion": 1.555,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.034,
+            "gini": 0.425,
+            "gini_all": 0.425,
+            "cost_paise_per_portion": 741.52,
+            "rider_paise_per_portion": 465.97,
+            "km_per_portion": 1.555,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.033,
+            "gini": 0.417,
+            "gini_all": 0.417,
+            "cost_paise_per_portion": 744.41,
+            "rider_paise_per_portion": 468.72,
+            "km_per_portion": 1.564,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.048,
+            "gini": 0.378,
+            "gini_all": 0.378,
+            "cost_paise_per_portion": 759.39,
+            "rider_paise_per_portion": 486.19,
+            "km_per_portion": 1.622,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.124,
+            "gini": 0.041,
+            "gini_all": 0.041,
+            "cost_paise_per_portion": 899.33,
+            "rider_paise_per_portion": 635.24,
+            "km_per_portion": 2.119,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.354,
+            "gini": 0.006,
+            "gini_all": 0.006,
+            "cost_paise_per_portion": 916.94,
+            "rider_paise_per_portion": 658.38,
+            "km_per_portion": 2.196,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.123,
+            "gini": 0.004,
+            "gini_all": 0.004,
+            "cost_paise_per_portion": 920.46,
+            "rider_paise_per_portion": 661.9,
+            "km_per_portion": 2.208,
+            "kitchens_used": 6
+          }
+        ]
+      },
+      {
+        "seed": 11,
+        "evenings": 7,
+        "orders": 73,
+        "portions": 239,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.391,
+            "gini_all": 0.391,
+            "cost_paise_per_portion": 965.15,
+            "rider_paise_per_portion": 671.84,
+            "km_per_portion": 2.241,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.016,
+            "gini": 0.407,
+            "gini_all": 0.407,
+            "cost_paise_per_portion": 923.08,
+            "rider_paise_per_portion": 636.05,
+            "km_per_portion": 2.122,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.407,
+            "gini_all": 0.407,
+            "cost_paise_per_portion": 923.08,
+            "rider_paise_per_portion": 636.05,
+            "km_per_portion": 2.122,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.023,
+            "gini": 0.407,
+            "gini_all": 0.407,
+            "cost_paise_per_portion": 923.08,
+            "rider_paise_per_portion": 636.05,
+            "km_per_portion": 2.122,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.4,
+            "gini_all": 0.4,
+            "cost_paise_per_portion": 924.22,
+            "rider_paise_per_portion": 634.05,
+            "km_per_portion": 2.115,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.023,
+            "gini": 0.397,
+            "gini_all": 0.397,
+            "cost_paise_per_portion": 925.35,
+            "rider_paise_per_portion": 633.09,
+            "km_per_portion": 2.112,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.026,
+            "gini": 0.384,
+            "gini_all": 0.384,
+            "cost_paise_per_portion": 934.69,
+            "rider_paise_per_portion": 643.06,
+            "km_per_portion": 2.145,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.033,
+            "gini": 0.345,
+            "gini_all": 0.345,
+            "cost_paise_per_portion": 968.69,
+            "rider_paise_per_portion": 671.41,
+            "km_per_portion": 2.24,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.15,
+            "gini": 0.009,
+            "gini_all": 0.009,
+            "cost_paise_per_portion": 1245.66,
+            "rider_paise_per_portion": 897.33,
+            "km_per_portion": 2.993,
+            "kitchens_used": 6
+          }
+        ]
+      },
+      {
+        "seed": 13,
+        "evenings": 7,
+        "orders": 62,
+        "portions": 193,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.498,
+            "gini_all": 0.498,
+            "cost_paise_per_portion": 1268.52,
+            "rider_paise_per_portion": 839.77,
+            "km_per_portion": 2.801,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.014,
+            "gini": 0.505,
+            "gini_all": 0.505,
+            "cost_paise_per_portion": 1243.55,
+            "rider_paise_per_portion": 813.5,
+            "km_per_portion": 2.713,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.019,
+            "gini": 0.464,
+            "gini_all": 0.464,
+            "cost_paise_per_portion": 1246.11,
+            "rider_paise_per_portion": 823.32,
+            "km_per_portion": 2.746,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.021,
+            "gini": 0.443,
+            "gini_all": 0.443,
+            "cost_paise_per_portion": 1249.02,
+            "rider_paise_per_portion": 828.55,
+            "km_per_portion": 2.763,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.023,
+            "gini": 0.44,
+            "gini_all": 0.44,
+            "cost_paise_per_portion": 1249.42,
+            "rider_paise_per_portion": 829.21,
+            "km_per_portion": 2.766,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.046,
+            "gini": 0.365,
+            "gini_all": 0.365,
+            "cost_paise_per_portion": 1270.45,
+            "rider_paise_per_portion": 858.01,
+            "km_per_portion": 2.862,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.048,
+            "gini": 0.18,
+            "gini_all": 0.18,
+            "cost_paise_per_portion": 1353.45,
+            "rider_paise_per_portion": 971.32,
+            "km_per_portion": 3.239,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.046,
+            "gini": 0.054,
+            "gini_all": 0.054,
+            "cost_paise_per_portion": 1421.43,
+            "rider_paise_per_portion": 1056.4,
+            "km_per_portion": 3.523,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.108,
+            "gini": 0.011,
+            "gini_all": 0.011,
+            "cost_paise_per_portion": 1465.38,
+            "rider_paise_per_portion": 1106.32,
+            "km_per_portion": 3.689,
+            "kitchens_used": 6
+          }
+        ]
+      },
+      {
+        "seed": 17,
+        "evenings": 7,
+        "orders": 102,
+        "portions": 315,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.413,
+            "gini_all": 0.413,
+            "cost_paise_per_portion": 802.39,
+            "rider_paise_per_portion": 456.52,
+            "km_per_portion": 1.523,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.02,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.027,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.027,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.028,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.031,
+            "gini": 0.42,
+            "gini_all": 0.42,
+            "cost_paise_per_portion": 786.9,
+            "rider_paise_per_portion": 439.59,
+            "km_per_portion": 1.467,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.05,
+            "gini": 0.409,
+            "gini_all": 0.409,
+            "cost_paise_per_portion": 794.16,
+            "rider_paise_per_portion": 443.37,
+            "km_per_portion": 1.479,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.035,
+            "gini": 0.368,
+            "gini_all": 0.368,
+            "cost_paise_per_portion": 820.29,
+            "rider_paise_per_portion": 460.93,
+            "km_per_portion": 1.538,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.109,
+            "gini": 0.005,
+            "gini_all": 0.005,
+            "cost_paise_per_portion": 1097.04,
+            "rider_paise_per_portion": 713.55,
+            "km_per_portion": 2.38,
+            "kitchens_used": 6
+          }
+        ]
+      },
+      {
+        "seed": 19,
+        "evenings": 7,
+        "orders": 102,
+        "portions": 308,
+        "points": [
+          {
+            "fairness_lambda": null,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 7,
+            "seconds": 0.0,
+            "gini": 0.409,
+            "gini_all": 0.409,
+            "cost_paise_per_portion": 897.15,
+            "rider_paise_per_portion": 599.74,
+            "km_per_portion": 2.001,
+            "kitchens_used": 5
+          },
+          {
+            "fairness_lambda": 0.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.02,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 100.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 200.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 300.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 500.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.418,
+            "gini_all": 0.418,
+            "cost_paise_per_portion": 836.08,
+            "rider_paise_per_portion": 543.22,
+            "km_per_portion": 1.812,
+            "kitchens_used": 4
+          },
+          {
+            "fairness_lambda": 700.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.025,
+            "gini": 0.294,
+            "gini_all": 0.294,
+            "cost_paise_per_portion": 871.11,
+            "rider_paise_per_portion": 605.2,
+            "km_per_portion": 2.019,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 1000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.031,
+            "gini": 0.234,
+            "gini_all": 0.234,
+            "cost_paise_per_portion": 921.66,
+            "rider_paise_per_portion": 642.44,
+            "km_per_portion": 2.143,
+            "kitchens_used": 6
+          },
+          {
+            "fairness_lambda": 2000.0,
+            "status": "solved",
+            "evening_status": [
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved",
+              "solved"
+            ],
+            "greedy_evenings": 0,
+            "seconds": 0.069,
+            "gini": 0.118,
+            "gini_all": 0.118,
+            "cost_paise_per_portion": 1080.36,
+            "rider_paise_per_portion": 776.3,
+            "km_per_portion": 2.589,
+            "kitchens_used": 6
+          }
+        ]
+      }
+    ],
+    "forecast": [
+      {
+        "seed": 7,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 47,
+        "windows": 8,
+        "eval_points": 592,
+        "v0_model": "CrostonOptimized",
+        "champion": "CrostonOptimized",
+        "wape": {
+          "Naive": 0.2271,
+          "SeasonalNaive": 0.2068,
+          "CrostonOptimized": 0.183,
+          "AutoETS": 0.1831,
+          "LightGBM": 0.1973
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.183,
+            "mase": 0.958,
+            "pinball_q50": 1.3947,
+            "pinball_qtau": 2.7163,
+            "coverage_qtau": 0.3682,
+            "waste": 0.0221,
+            "stockout": 0.4473,
+            "newsvendor_cost": 0.1452
+          },
+          "v1": {
+            "wape": 0.1973,
+            "mase": 0.8644,
+            "pinball_q50": 1.4516,
+            "pinball_qtau": 1.8383,
+            "coverage_qtau": 0.4139,
+            "waste": 0.0357,
+            "stockout": 0.2682,
+            "newsvendor_cost": 0.0983
+          },
+          "champion": {
+            "wape": 0.183,
+            "mase": 0.958,
+            "pinball_q50": 1.3947,
+            "pinball_qtau": 2.7163,
+            "coverage_qtau": 0.3682,
+            "waste": 0.0221,
+            "stockout": 0.4473,
+            "newsvendor_cost": 0.1452
+          }
+        }
+      },
+      {
+        "seed": 11,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 52,
+        "windows": 8,
+        "eval_points": 661,
+        "v0_model": "CrostonOptimized",
+        "champion": "CrostonOptimized",
+        "wape": {
+          "Naive": 0.2323,
+          "SeasonalNaive": 0.2284,
+          "CrostonOptimized": 0.184,
+          "AutoETS": 0.1847,
+          "LightGBM": 0.2014
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.184,
+            "mase": 1.4902,
+            "pinball_q50": 1.1064,
+            "pinball_qtau": 3.245,
+            "coverage_qtau": 0.3722,
+            "waste": 0.0145,
+            "stockout": 0.6709,
+            "newsvendor_cost": 0.2085
+          },
+          "v1": {
+            "wape": 0.2014,
+            "mase": 1.178,
+            "pinball_q50": 1.2274,
+            "pinball_qtau": 2.1418,
+            "coverage_qtau": 0.416,
+            "waste": 0.0154,
+            "stockout": 0.4331,
+            "newsvendor_cost": 0.1376
+          },
+          "champion": {
+            "wape": 0.184,
+            "mase": 1.4902,
+            "pinball_q50": 1.1064,
+            "pinball_qtau": 3.245,
+            "coverage_qtau": 0.3722,
+            "waste": 0.0145,
+            "stockout": 0.6709,
+            "newsvendor_cost": 0.2085
+          }
+        }
+      },
+      {
+        "seed": 13,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 58,
+        "windows": 8,
+        "eval_points": 744,
+        "v0_model": "AutoETS",
+        "champion": "AutoETS",
+        "wape": {
+          "Naive": 0.2323,
+          "SeasonalNaive": 0.2206,
+          "CrostonOptimized": 0.1955,
+          "AutoETS": 0.194,
+          "LightGBM": 0.2069
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.194,
+            "mase": 0.8917,
+            "pinball_q50": 1.0885,
+            "pinball_qtau": 1.3588,
+            "coverage_qtau": 0.504,
+            "waste": 0.0296,
+            "stockout": 0.2692,
+            "newsvendor_cost": 0.0956
+          },
+          "v1": {
+            "wape": 0.2069,
+            "mase": 1.0116,
+            "pinball_q50": 1.1317,
+            "pinball_qtau": 1.7806,
+            "coverage_qtau": 0.4772,
+            "waste": 0.0275,
+            "stockout": 0.3716,
+            "newsvendor_cost": 0.1252
+          },
+          "champion": {
+            "wape": 0.194,
+            "mase": 0.8917,
+            "pinball_q50": 1.0885,
+            "pinball_qtau": 1.3588,
+            "coverage_qtau": 0.504,
+            "waste": 0.0296,
+            "stockout": 0.2692,
+            "newsvendor_cost": 0.0956
+          }
+        }
+      },
+      {
+        "seed": 17,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 55,
+        "windows": 8,
+        "eval_points": 714,
+        "v0_model": "AutoETS",
+        "champion": "AutoETS",
+        "wape": {
+          "Naive": 0.2255,
+          "SeasonalNaive": 0.2286,
+          "CrostonOptimized": 0.1857,
+          "AutoETS": 0.1836,
+          "LightGBM": 0.1902
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.1836,
+            "mase": 0.8448,
+            "pinball_q50": 1.2301,
+            "pinball_qtau": 1.849,
+            "coverage_qtau": 0.4412,
+            "waste": 0.0252,
+            "stockout": 0.3279,
+            "newsvendor_cost": 0.111
+          },
+          "v1": {
+            "wape": 0.1902,
+            "mase": 0.8906,
+            "pinball_q50": 1.3194,
+            "pinball_qtau": 2.0644,
+            "coverage_qtau": 0.4398,
+            "waste": 0.0213,
+            "stockout": 0.3774,
+            "newsvendor_cost": 0.1239
+          },
+          "champion": {
+            "wape": 0.1836,
+            "mase": 0.8448,
+            "pinball_q50": 1.2301,
+            "pinball_qtau": 1.849,
+            "coverage_qtau": 0.4412,
+            "waste": 0.0252,
+            "stockout": 0.3279,
+            "newsvendor_cost": 0.111
+          }
+        }
+      },
+      {
+        "seed": 19,
+        "hub_id": "0199a000-0000-7000-8000-00000000a001",
+        "households": 87,
+        "series": 56,
+        "windows": 8,
+        "eval_points": 726,
+        "v0_model": "AutoETS",
+        "champion": "AutoETS",
+        "wape": {
+          "Naive": 0.2244,
+          "SeasonalNaive": 0.2203,
+          "CrostonOptimized": 0.1982,
+          "AutoETS": 0.1946,
+          "LightGBM": 0.219
+        },
+        "metrics": {
+          "v0": {
+            "wape": 0.1946,
+            "mase": 0.8209,
+            "pinball_q50": 1.1508,
+            "pinball_qtau": 2.5747,
+            "coverage_qtau": 0.4242,
+            "waste": 0.0121,
+            "stockout": 0.5504,
+            "newsvendor_cost": 0.1712
+          },
+          "v1": {
+            "wape": 0.219,
+            "mase": 1.1274,
+            "pinball_q50": 1.3456,
+            "pinball_qtau": 2.12,
+            "coverage_qtau": 0.4463,
+            "waste": 0.0233,
+            "stockout": 0.4311,
+            "newsvendor_cost": 0.141
+          },
+          "champion": {
+            "wape": 0.1946,
+            "mase": 0.8209,
+            "pinball_q50": 1.1508,
+            "pinball_qtau": 2.5747,
+            "coverage_qtau": 0.4242,
+            "waste": 0.0121,
+            "stockout": 0.5504,
+            "newsvendor_cost": 0.1712
+          }
+        }
+      }
+    ]
+  }
+}

@@ -20,6 +20,11 @@ DAILY_USE_PER_ADULT_WEEK: dict[str, float] = {
     "groundnut-oil": 120,  # ml
     "salt": 35,  # g
 }
+# The rule table's weight as the pantry twin's prior, in observed weeks (M10 §3.3): the prior's
+# spread on the household's factor is the week's spread / sqrt(weeks). Chosen by the lowest MAE
+# after 4 weeks at the twin's week spread, on simulator seeds 23, 29 and 31 (eval protocol change
+# log, 1 Nov 2026).
+RULE_PRIOR_WEEKS = 0.25
 # Fruit: one basket a week, split over whatever is in season (g per adult equivalent).
 FRUIT_PER_ADULT_WEEK_G = 700
 FRUIT_KINDS = 2  # how many different fruits a box carries

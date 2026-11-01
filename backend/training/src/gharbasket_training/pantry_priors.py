@@ -34,7 +34,6 @@ from statistics import median
 from typing import Any
 
 import numpy as np
-from gharbasket_ml.pantry import TAP_FACTOR
 
 from gharbasket.modules.subscriptions import rules
 
@@ -43,7 +42,10 @@ COHORTS = ("small", "medium", "large")  # by adult equivalents: < 2, 2 to < 3.5,
 MIN_HOUSEHOLDS = 3  # per product and per cohort, before a learned prior is kept
 WARMUP, SAMPLES = 300, 300
 MIN_ACCEPT = 0.5  # NUTS adapts towards 0.8; a chain far below it did not explore the posterior
-RULE_PRIOR_WEEKS = 2.0  # M3's weight on the rule table (subscriptions.service.RULE_PRIOR_WEEKS)
+RULE_PRIOR_WEEKS = rules.RULE_PRIOR_WEEKS  # M3's weight on the rule table
+# The v1 fit still reads a tap as a point value of the box's share (the serving twin no longer
+# does since 1 Nov 2026; the refit moves to the serving twin's tap likelihood next).
+TAP_FACTOR = {"ran_out": 1.3, "wasted": 0.7, "just_right": 1.0, None: 1.0}
 OBSERVED_WEEKS = 12  # M3's window (subscriptions.service.OBSERVED_WEEKS)
 
 

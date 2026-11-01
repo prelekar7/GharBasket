@@ -6,6 +6,8 @@ from datetime import date
 
 import httpx2
 import pytest
+from gharbasket_ml import pantry as ml_pantry
+from gharbasket_ml.schemas import PantryRequest as MlPantryRequest
 from gharbasket_ml.schemas import RouteRequest as MlRouteRequest
 from gharbasket_ml.settings import Settings as MlSettings
 from pydantic import ValidationError
@@ -13,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import api, fallback
 from gharbasket.modules.intel_gateway.schemas import PantryItem, PantryObservation, PantryRequest
+from gharbasket.modules.subscriptions import rules
 
 from ..conftest import make_settings
 from .test_plan_week import TOKEN, ml_transport
@@ -33,14 +36,57 @@ def request(*observations: tuple[float, str | None]) -> PantryRequest:
     )
 
 
-def test_the_fallback_gives_the_same_mean_as_the_service() -> None:
-    answer = fallback.pantry_quantities(request((2000, "ran_out"), (1800, None)))
-    item = answer.items[0]
-    assert answer.source == "fallback" and item.weeks_observed == 2
-    # alpha = 2·1400/500 + (2000·1.3 + 1800)/500 = 5.6 + 8.8 = 14.4; beta = 4 → mean 1800
-    assert (item.alpha, item.beta, item.mean) == (14.4, 4.0, 1800.0)
-    assert item.p10 < item.mean < item.p90
-    assert fallback.pantry_quantities(request()).items[0].mean == 1400.0
+CASES: list[list[tuple[float, str | None, float | None]]] = [
+    [],
+    [(2000, None, None)] * 6,
+    [(2000, "ran_out", None), (1800, None, None)],
+    [(1500, "wasted", 2500), (1500, "just_right", 2500), (1500, "ran_out", 2500)],
+    [(1500, "ran_out", None)] * 10,
+    [(0, "just_right", 900), (600, "wasted", 600)],
+    [(0, "ran_out", 800), (1400, "ran_out", 1400)],
+    [(6000, "ran_out", 6000)] * 8,  # far above the prior: the grid widens
+    [(150, "wasted", 200)] * 8,  # far below it
+]
+
+
+@pytest.mark.parametrize("observations", CASES)
+@pytest.mark.parametrize("prior_weeks", [0.25, 2.0, 20.0])
+def test_the_fallback_gives_the_services_answer(
+    observations: list[tuple[float, str | None, float | None]], prior_weeks: float
+) -> None:
+    """The fallback runs the service's own computation (pure arithmetic on both sides), so a
+    customer gets the same quantity and interval whether or not the ML service answers."""
+    req = PantryRequest(
+        items=[
+            PantryItem(
+                product="milk",
+                step=500,
+                prior_mean=1400,
+                prior_weeks=prior_weeks,
+                observations=[
+                    PantryObservation(qty=q, signal=s, delivered=d)  # pyright: ignore[reportArgumentType]
+                    for q, s, d in observations
+                ],
+            )
+        ]
+    )
+    ours = fallback.pantry_quantities(req)
+    theirs = ml_pantry.quantities(MlPantryRequest.model_validate(req.model_dump(mode="json")))
+    assert ours.source == "fallback" and ours.model == theirs.model
+    assert [i.model_dump() for i in ours.items] == [i.model_dump() for i in theirs.items]
+
+
+def test_the_fallbacks_constants_are_the_services() -> None:
+    assert fallback.PANTRY_WEEK_SIGMA == ml_pantry.WEEK_SIGMA
+    assert fallback.PANTRY_WASTED_SHARE == ml_pantry.WASTED_SHARE
+    assert (fallback.PANTRY_GRID, fallback.PANTRY_SPAN) == (ml_pantry.GRID, ml_pantry.SPAN)
+    assert fallback.PANTRY_MIN_PRIOR_WEEKS == ml_pantry.MIN_PRIOR_WEEKS
+    assert fallback.PANTRY_BISECT == ml_pantry.BISECT
+    assert (fallback.PANTRY_EDGE_MASS, fallback.PANTRY_MAX_LOG_SPAN) == (
+        ml_pantry.EDGE_MASS,
+        ml_pantry.MAX_LOG_SPAN,
+    )
+    assert PantryItem(product="m", step=1, prior_mean=1).prior_weeks == rules.RULE_PRIOR_WEEKS
 
 
 async def test_the_service_answers_and_the_prediction_is_recorded(
@@ -57,7 +103,7 @@ async def test_the_service_answers_and_the_prediction_is_recorded(
             household_id=household,
             for_date=date(2026, 10, 13),
         )
-    assert answer.source == "ml" and answer.model == "pantry-gamma-poisson-v0"
+    assert answer.source == "ml" and answer.model == "pantry-tap-censored-v0.2"
     assert answer.items[0].mean == fallback.pantry_quantities(request((2000, None))).items[0].mean
     kept = await api.latest_prediction(
         db_session, kind="pantry", subject_id=household, for_date=date(2026, 10, 13)
@@ -91,16 +137,6 @@ async def test_any_ml_failure_falls_back_to_the_closed_form(failure: str) -> Non
         answer = await api.pantry_quantities(http, settings, req)
 
     assert answer == fallback.pantry_quantities(req)
-
-
-def test_the_fallback_interval_is_for_next_weeks_use() -> None:
-    """A normal approximation to the Negative Binomial predictive: wider than the posterior of
-    the rate alone, and close to the service's exact percentiles."""
-    item = fallback.pantry_quantities(request(*[(1500, None)] * 10)).items[0]
-    # alpha = 5.6 + 30 = 35.6, beta = 12: predictive sd = sqrt(35.6 * 13) / 12 steps
-    sd = (35.6 * 13) ** 0.5 / 12 * 500
-    assert item.p90 - item.mean == pytest.approx(1.2816 * sd, abs=0.02)
-    assert item.p90 - item.p10 > 2 * 1.2816 * (35.6**0.5 / 12 * 500)  # not the rate's interval
 
 
 # --- /route/solve through the gateway (M10 §3.4) ------------------------------------------------

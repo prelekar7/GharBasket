@@ -226,7 +226,7 @@ Staging runs on free tiers (ADR-0020): the API is a Render free web service (Sin
 | Serving | FastAPI; long jobs run in the service or offline until a paid worker exists (Taskiq queue `ml` at the pilot, ADR-0021) |
 | Data | Polars, DuckDB (reads Postgres via its `postgres` extension; writes Parquet to S3-API object storage) |
 | Classical ML | scikit-learn, LightGBM (LambdaRank, churn), SHAP |
-| Bayesian | NumPyro (CPU); SciPy closed-form Gamma–Poisson online updates |
+| Bayesian | NumPyro (CPU); online pantry-twin updates in plain Python (tap-censored lognormal on a grid, M10 §3.3) |
 | Forecasting | StatsForecast ✓ (AutoETS, CrostonOptimized/TSB/ADIDA, conformal intervals ✓), LightGBM ✓ (native booster, direct multi-step; mlforecast needs pandas < 3), HierarchicalForecast (MinT), Chronos-2 ✓ (CPU, covariates, quantiles) |
 | Optimisation | OR-Tools ✓ — routing (CVRPTW + pickup-and-delivery ✓) and CP-SAT |
 | Embeddings | sentence-transformers with BAAI bge-m3 (multilingual), batch on CPU → pgvector (validate in S7 spike) |
