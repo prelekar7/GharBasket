@@ -37,6 +37,7 @@ from gharbasket.modules.hub_ops.schemas import (
     ProcurementPlanOut,
     Ref,
 )
+from gharbasket.modules.intel_gateway import api as intel_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
@@ -118,10 +119,15 @@ def quantities(
     shelf_life_h: int | None,
     on_hand: Decimal,
     unit: str,
+    placed_addons: Decimal = ZERO,
 ) -> tuple[str, Decimal, Decimal]:
-    """(basis, buffer_qty, suggested_qty) of one line, by §3.3's rules."""
+    """(basis, buffer_qty, suggested_qty) of one line, by §3.3's rules. `placed_addons` is the
+    part of `committed` that came from add-on orders: M10's uncommitted demand counts those orders
+    too, so the forecast buffer is only what is still expected beyond them."""
     basis, buffer = (
-        ("buffer", committed * buffer_pct / 100) if qtau is None else ("forecast", max(ZERO, qtau))
+        ("buffer", committed * buffer_pct / 100)
+        if qtau is None
+        else ("forecast", max(ZERO, qtau - placed_addons))
     )
     if shelf_life_h is not None and shelf_life_h <= SHORT_LIFE_H:
         buffer = min(buffer, committed * min(buffer_pct, SHORT_LIFE_PCT) / 100)
@@ -147,11 +153,24 @@ def check_qty(value: float, unit: str) -> Decimal:
 async def _forecast_for(
     session: AsyncSession, hub_id: uuid.UUID, delivery_date: date
 ) -> dict[str, Any] | None:
-    """M10's stored forecast for the hub and date, in the shape of `intel_gateway.api.
-    hub_forecast` (`{"model", "items": [{"product_id", "uncommitted_q50", "uncommitted_qtau"}]}`,
-    in steps), or None when there is none. It is wired to that facade when M10's forecast PRs
-    (#118/#122) land; until then there is no forecast and every line uses the hub's buffer."""
-    return None
+    """M10's stored forecast for the hub and date through `intel_gateway.api.hub_forecast`
+    (`{"model", "items": [{"product_id", "uncommitted_q50", "uncommitted_qtau"}]}`, in steps), or
+    None when there is none: the job has not run for the date, or it has no usable item for it
+    (an item for another delivery day or without a product or quantities is dropped). Every line
+    then uses the hub's buffer (§3.3)."""
+    forecast = await intel_api.hub_forecast(session, hub_id, delivery_date)
+    if not forecast:
+        return None
+    items = [
+        item
+        for item in forecast.get("items") or []
+        if isinstance(item, dict)
+        and item.get("product_id") is not None
+        and str(item.get("for_date") or delivery_date.isoformat()) == delivery_date.isoformat()
+        and isinstance(item.get("uncommitted_q50"), int | float)
+        and isinstance(item.get("uncommitted_qtau"), int | float)
+    ]
+    return {"model": forecast.get("model"), "items": items} if items else None
 
 
 async def _on_hand_for(
@@ -201,17 +220,30 @@ async def _last_costs(
 # --- building ------------------------------------------------------------------------------------
 
 
-async def _demand(
+async def _demand_by_kind(
     session: AsyncSession, hub_id: uuid.UUID, day: date, statuses: tuple[str, ...]
-) -> dict[uuid.UUID, Decimal]:
-    """Steps not short of each line's current product (a substitute counts as itself)."""
-    found: dict[uuid.UUID, Decimal] = defaultdict(Decimal)
+) -> dict[str, dict[uuid.UUID, Decimal]]:
+    """Steps not short of each line's current product (a substitute counts as itself), by the
+    order's kind."""
+    found: dict[str, dict[uuid.UUID, Decimal]] = {
+        kind: defaultdict(Decimal) for kind in ORDER_KINDS
+    }
     for order in await orders_api.orders_for_delivery(session, hub_id, day, statuses, ORDER_KINDS):
         for line in order.lines:
             steps = line.qty - (line.shortage_qty or 0)
             if steps > 0:
-                found[line.product_id] += to_ops(steps, line.step_qty, line.step_unit)
+                found[order.order.kind][line.product_id] += to_ops(
+                    steps, line.step_qty, line.step_unit
+                )
     return found
+
+
+def _sum_demand(by_kind: dict[str, dict[uuid.UUID, Decimal]]) -> dict[uuid.UUID, Decimal]:
+    total: dict[uuid.UUID, Decimal] = defaultdict(Decimal)
+    for found in by_kind.values():
+        for product_id, qty in found.items():
+            total[product_id] += qty
+    return total
 
 
 async def ordered(session: AsyncSession, plan_id: uuid.UUID) -> dict[uuid.UUID, PurchaseOrder]:
@@ -293,8 +325,10 @@ async def build(
         return None, "none"
     if plan is not None and plan.status == "closed":
         return plan, "closed"
-    committed = await _demand(session, hub.id, day, COMMITTED)
-    at_risk = await _demand(session, hub.id, day, AT_RISK)
+    committed_by_kind = await _demand_by_kind(session, hub.id, day, COMMITTED)
+    committed = _sum_demand(committed_by_kind)
+    placed_addons = committed_by_kind["addon"]  # also in M10's uncommitted demand, so not twice
+    at_risk = _sum_demand(await _demand_by_kind(session, hub.id, day, AT_RISK))
     forecast = await _forecast_for(session, hub.id, day)
     items = {uuid.UUID(str(i["product_id"])): i for i in (forecast or {}).get("items", [])}
     wanted = {*committed, *at_risk}
@@ -355,6 +389,7 @@ async def build(
             product.shelf_life_h,
             on_hand.get(product_id, ZERO),
             line.unit,
+            placed_addons.get(product_id, ZERO),
         )
         line.on_hand_qty = on_hand.get(product_id, ZERO)
         if not line.edited and product_id not in sent:

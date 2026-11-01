@@ -4,8 +4,9 @@ the prefix, as `train_ranker --out` and `refit_pantry --out` write it). The same
 back to an older version.
 
 Champion/challenger: a version is promoted only when its card says it beats its baseline out of
-sample (the basket ranker: NDCG@10 above both baselines; the pantry priors: MAE below the rule
-table's on the held-out weeks); `--force` promotes anyway and records it in the pointer.
+sample (the basket ranker: NDCG@10 above both baselines; the pantry priors: a held-out tap log
+score above the rule table's on the same held-out taps); `--force` promotes anyway and records it
+in the pointer.
 
 How serving follows the pointer:
 - `basket_ranker`: the Space re-reads `basket_ranker/latest.json` every `MODELS_RELOAD_S`.

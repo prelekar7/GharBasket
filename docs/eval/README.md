@@ -57,9 +57,15 @@ candidate model (intent accuracy, slot F1, no write on injection fixtures, cost 
 and writes priced apart) and writes
 `assistant-<date>.json` here; it needs `ANTHROPIC_API_KEY` and costs real tokens.
 
-Also in a report: **RQ3 — forecast v0 vs v1** (the M-E backtest on simulated demand: the statistical v0, the
-LightGBM v1 and the per-seed champion; WAPE, MASE, pinball, coverage, waste, stock-out and newsvendor cost,
-v1 − v0 paired by seed) and, when a basket-ranker run's `explanations.json` is passed with
+Also in a report: **RQ3 — forecast** (the M-E backtest on simulated demand: the statistical v0, the
+LightGBM v1, the per-seed champion and the protocol's baselines, seasonal naive and "buy last week", all from
+the same backtest; WAPE, MASE, pinball, coverage, waste, stock-out and newsvendor cost, and the same at the
+day level after the weekly forecast is split over the days by weekday shares (`daily_*`); v1 − v0 and the
+champion − each baseline paired by seed; the M-E target as registered: WAPE ≤ 0.25 on the CI upper bound and
+the gap to seasonal naive ≥ 0.10 on the paired CI lower bound, none below 5 seeds; beside it, not part of it,
+RQ3's newsvendor cost against both baselines; stock-out and waste reported against their ceilings, not judged,
+eval protocol §7, 2 Nov) and, when a
+basket-ranker run's `explanations.json` is passed with
 `--ranker-explanations`, **ranker explanations** (global mean |SHAP| per feature and sampled decisions).
 
 ## Published reports
@@ -91,7 +97,7 @@ seeds. The run took roughly 4 CPU-hours on a laptop. The assistant eval (M13) wa
 | RQ1 pantry twin v0 (milk, curd), MAE after 4 weeks | 0.227 (rule table 0.194, running mean 0.089; 80 % interval covers 98.5 %); twin from learned priors 0.300 (reference) | ≤ 0.15 | **No**: keep `PANTRY_TWIN_ENABLED` off |
 | RQ1 pantry, all daily-use items | rule table 0.294; running mean 0.127 → 0.087 over weeks 1–4 | reference only | no verdict |
 | RQ4 fair assignment | Gini: greedy 0.420, λ=0 0.435, λ=500 0.396, λ=700 0.262 ± 0.189 (cost +2.5 % ± 8.9 %), λ=1000 0.201 ± 0.205 (+6.5 % ± 8.3 %), λ=2000 0.029 (+23.5 % ± 11.4 %) | Gini ≤ 0.25 at ≤ +5 % cost | **No**: no λ has both upper bounds inside the target |
-| RQ3 forecast v1 − v0 | WAPE +0.015 ± 0.008 (v0 0.188, v1 0.203); newsvendor cost −0.021 ± 0.052 (v0 0.146, v1 0.125); stock-out 0.453 → 0.376; q_τ coverage 0.42 / 0.44; waste 0.021 / 0.025 | M-E: WAPE ≤ 25 %, stock-out ≤ 3 %, waste ≤ 5 %, WAPE ≥ 10 points better than seasonal naive | WAPE and waste are under their ceilings for both, stock-out is far over (38–45 %); the report has no seasonal-naive or buy-last-week arm yet, so no M-E verdict; v1 is not more accurate than v0 on WAPE, and its cost and stock-out gains are within noise |
+| RQ3 forecast v1 − v0 | WAPE +0.015 ± 0.008 (v0 0.188, v1 0.203); newsvendor cost −0.021 ± 0.052 (v0 0.146, v1 0.125); stock-out 0.453 → 0.376; q_τ coverage 0.42 / 0.44; waste 0.021 / 0.025 | M-E: WAPE ≤ 25 %, stock-out ≤ 3 %, waste ≤ 5 %, WAPE ≥ 10 points better than seasonal naive | WAPE and waste are under their ceilings for both, stock-out is far over (38–45 %); v1 is not more accurate than v0 on WAPE, and its cost and stock-out gains are within noise. This report had no baseline arm; the M-E verdict came on 2 Nov (below) |
 | Ranker, top features (mean \|SHAP\| share) | `drafted` 32.8 %, `popularity` 30.5 %, `price_paise` 25.9 %, `weeks_since` 5.4 %, `frequency` 4.9 %, `removed_last` 0.5 % | none | descriptive |
 
 Limits: all data is synthetic (ADR-0008) and the simulator's households accept dishes and use milk by rules
@@ -114,6 +120,31 @@ nothing) and its hyperparameter rule was corrected, leaving σ_w 0.1 and prior w
 runs since give the same 0.139 after 4 weeks (95 % CI upper bound 0.154) and coverage 0.78 (eval protocol
 change log, 1 Nov 2026). The
 next full report, at the final eval, replaces this one as the reference.
+
+### 2 Nov 2026: the M-E verdict (forecast part only; no report committed)
+
+The baseline arms (eval protocol §7, 2026-11-02) run on the protocol's five seeds with the forecast settings
+above (20 weeks from 2026-09-07, default adoption, shocks on), through
+`python -m gharbasket_training.eval --planners rules --weeks 1 --no-assignment --no-learned --out <scratch>`
+(44 s on a laptop). The forecast section is the 28 Oct one's plus the new arms; the planner and pantry
+sections of that run are a one-week stub and were not kept. The next full report carries it all.
+
+| Check (mean ± 95 % CI over 5 seeds) | Value | Rule | Holds |
+|---|---|---|---|
+| champion WAPE | 0.188 ± 0.007 (seasonal naive 0.221, naive 0.228) | CI upper bound ≤ 0.25 | yes (0.195) |
+| seasonal naive − champion WAPE (paired) | 0.033 ± 0.013 | CI lower bound ≥ 0.10 | **no** (0.020) |
+| *RQ3, not the target:* champion − seasonal naive newsvendor cost (paired) | +0.058 ± 0.058 (0.146 vs 0.088) | lower when CI upper bound < 0 | not lower |
+| *RQ3, not the target:* champion − naive newsvendor cost (paired) | +0.055 ± 0.056 (0.146 vs 0.091) | lower when CI upper bound < 0 | not lower |
+| stock-out / waste (champion) | 0.453 / 0.021 | ceilings 0.03 / 0.05 | not judged (tau = 0.375) |
+| daily WAPE after the per-day split | ≈ 0.50 for every arm; the split of the actual week alone 0.44 | reported | — |
+
+**The M-E target does not hold**: the champion is the most accurate point forecast but not 10 points better
+than seasonal naive (at most 4.5 points on any seed). Its q_tau also costs more than the baselines' (it stocks
+out 45 % of the units, theirs 12–13 %), but that is the calibration, not the model: the conformal margin is
+an unweighted quantile of scaled residuals, strongly negative for a smooth forecast of sparse add-on series
+and ≈ 0 for the baselines, which repeat past values (their 0.63 coverage comes from ties at zero demand).
+The newsvendor cost counts units, so its optimal margin is a scale-weighted quantile (eval protocol §7,
+2026-11-02; the follow-up change fixes it).
 
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
 check (one seed, one week, no CP-SAT planner arm, the λ sweep on that seed's small week, routing on

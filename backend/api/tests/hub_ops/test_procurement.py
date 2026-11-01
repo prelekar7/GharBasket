@@ -18,6 +18,7 @@ from gharbasket.modules.catalog.models import Product
 from gharbasket.modules.hub_ops import jobs, procurement
 from gharbasket.modules.hub_ops.models import ProcurementPlan, Vendor
 from gharbasket.modules.identity.models import User, UserRole
+from gharbasket.modules.intel_gateway import service as intel_service
 from gharbasket.modules.orders import service as order_service
 from gharbasket.modules.orders.models import Order, OrderLine
 from gharbasket.platform.jobs import run_job
@@ -252,6 +253,163 @@ async def test_a_forecast_changes_the_basis_of_the_lines_it_covers(
     palak = next(x for x in lines.values() if x.unit == "bunch")  # not in the forecast
     assert (palak.basis, palak.forecast_q50, palak.buffer_qty) == ("buffer", None, Decimal("0.3"))
     assert ids["jaggery"] not in lines
+
+
+async def store_forecast(
+    db: AsyncSession, items: dict[str, tuple[float, float]], *, day: date = DELIVERY
+) -> None:
+    """What M10's forecast job pushes: one stored forecast of `day` (slug -> q50, qtau in steps),
+    with `intel.forecast_ready` in the outbox."""
+    ids = await catalog_api.product_ids_by_slug(db, list(items))
+    await intel_service.record_forecasts(
+        db,
+        hub_id=SEED_HUB_ID,
+        model_name="AutoETS",
+        data_source="synthetic",
+        items=[
+            {
+                "product_id": str(ids[slug]),
+                "for_date": day.isoformat(),
+                "committed": 0.0,
+                "uncommitted_q50": q50,
+                "uncommitted_qtau": qtau,
+                "order_qty": qtau,
+                "model": "AutoETS",
+            }
+            for slug, (q50, qtau) in items.items()
+        ],
+    )
+    await db.commit()
+
+
+async def plan_lines(db: AsyncSession, plan: ProcurementPlan | None) -> dict[str, Any]:
+    """The plan's lines by product slug."""
+    assert plan is not None
+    rows = await procurement.lines_of(db, plan.id)
+    by_id = dict((await db.execute(select(Product.id, Product.slug))).all())
+    return {by_id[line.product_id]: line for line in rows}
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_the_stored_forecast_replaces_the_buffer_for_its_own_delivery_day(
+    db_session: AsyncSession,
+) -> None:
+    await order(db_session, "locked", {"tomato": 4, "palak": 10})
+    # Tomato 500 g steps: 2.5 steps = 1.25 kg. Another day's forecast must not leak in.
+    await store_forecast(db_session, {"tomato": (1, 2.5)})
+    await store_forecast(db_session, {"palak": (9, 9)}, day=date(2026, 10, 14))
+
+    plan, _ = await procurement.build(db_session, SEED_HUB_ID, DELIVERY)
+
+    assert plan is not None and (plan.source, plan.model) == ("ml", "AutoETS")
+    lines = await plan_lines(db_session, plan)
+    tomato, palak = lines["tomato"], lines["palak"]
+    assert (tomato.basis, tomato.forecast_qtau, tomato.buffer_qty) == (
+        "forecast",
+        Decimal("1.25"),
+        Decimal("1.25"),
+    )
+    assert tomato.suggested_qty == Decimal("3.3")  # 2 kg committed + 1.25 kg, up to 0.1
+    # Palak is not in this day's forecast: the buffer, capped at 5 % for its 48 h shelf life.
+    assert (palak.basis, palak.forecast_qtau, palak.buffer_qty) == ("buffer", None, Decimal("0.5"))
+
+    other, _ = await procurement.build(db_session, SEED_HUB_ID, date(2026, 10, 14))
+    assert other is not None and other.source == "ml"
+    assert (await plan_lines(db_session, other))["palak"].basis == "forecast"
+    nothing, _ = await procurement.build(db_session, SEED_HUB_ID, date(2026, 10, 12))
+    assert nothing is not None and nothing.source == "fallback"
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_forecast_with_nothing_usable_for_the_day_leaves_the_buffer(
+    db_session: AsyncSession,
+) -> None:
+    await order(db_session, "locked", {"tomato": 4})
+    ids = await catalog_api.product_ids_by_slug(db_session, ["tomato"])
+    stale = {"product_id": str(ids["tomato"]), "uncommitted_q50": 1, "uncommitted_qtau": 2}
+    await intel_service.record_prediction(
+        db_session,
+        kind="forecast",
+        subject_type="hub",
+        subject_id=SEED_HUB_ID,
+        for_date=DELIVERY,
+        source="ml",
+        payload={
+            "items": [{**stale, "for_date": "2026-10-06"}, {"uncommitted_qtau": 1}],
+            "data_source": "synthetic",
+        },
+        model_name="AutoETS",
+    )
+    await db_session.commit()
+
+    plan, _ = await procurement.build(db_session, SEED_HUB_ID, DELIVERY)
+
+    assert plan is not None and (plan.source, plan.model) == ("fallback", None)
+    tomato = (await plan_lines(db_session, plan))["tomato"]
+    assert (tomato.basis, tomato.forecast_qtau, tomato.buffer_qty) == (
+        "buffer",
+        None,
+        Decimal("0.2"),
+    )
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_add_on_orders_already_placed_are_counted_once(db_session: AsyncSession) -> None:
+    # Tomato (500 g steps): boxes 4 steps (2 kg) and an add-on order of 2 steps (1 kg) = 3 kg.
+    # Onion (1 kg steps): add-on orders only (2 steps), and 8 steps of a failed payment (at risk).
+    await order(db_session, "locked", {"tomato": 4})
+    await order(db_session, "packed", {"tomato": 2, "onion": 2}, kind="addon")
+    await order(db_session, "payment_failed", {"onion": 8}, kind="addon")
+    await store_forecast(db_session, {"tomato": (3, 5), "onion": (1, 1), "carrot": (1, 2)})
+
+    plan, _ = await procurement.build(db_session, SEED_HUB_ID, DELIVERY)
+
+    lines = await plan_lines(db_session, plan)
+    tomato, onion, carrot = lines["tomato"], lines["onion"], lines["carrot"]
+    assert tomato.committed_qty == 3  # boxes and the placed add-on order
+    # Forecast 5 steps = 2.5 kg, of which the placed 1 kg is already in `committed`: 1.5 kg left.
+    assert (tomato.forecast_qtau, tomato.buffer_qty, tomato.suggested_qty) == (
+        Decimal("2.5"),
+        Decimal("1.5"),
+        Decimal("4.5"),
+    )
+    # Placed add-ons (2 steps) cover the forecast (1 step): no extra buffer, none dropped.
+    assert (onion.committed_qty, onion.at_risk_qty) == (2, 8)
+    assert (onion.basis, onion.buffer_qty, onion.suggested_qty) == ("forecast", 0, 2)
+    # No add-on orders for carrot: the whole forecast (2 steps = 1 kg) is the buffer.
+    assert (carrot.committed_qty, carrot.buffer_qty, carrot.suggested_qty) == (0, 1, 1)
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_new_forecast_rebuilds_the_open_plan_and_not_a_closed_one(
+    db_session: AsyncSession,
+) -> None:
+    await order(db_session, "locked", {"tomato": 4})
+    open_plan, _ = await procurement.build(db_session, SEED_HUB_ID, DELIVERY)
+    closed, _ = await procurement.build(db_session, SEED_HUB_ID, date(2026, 10, 14))
+    assert open_plan is not None and closed is not None
+    assert (open_plan.source, open_plan.version) == ("fallback", 1)
+    closed.status = "closed"
+    await db_session.commit()
+    await store_forecast(db_session, {"tomato": (1, 2)})
+    await store_forecast(db_session, {"tomato": (1, 2)}, day=date(2026, 10, 14))
+    event = (
+        await db_session.scalars(
+            select(OutboxEvent).where(OutboxEvent.event_type == "intel.forecast_ready")
+        )
+    ).first()
+    assert event is not None
+
+    await jobs.on_forecast_ready(db_session, event)
+    await db_session.commit()
+    await jobs.on_forecast_ready(db_session, event)  # a replay changes nothing
+    await db_session.commit()
+    await db_session.refresh(open_plan)
+    await db_session.refresh(closed)
+
+    assert (open_plan.source, open_plan.model, open_plan.version) == ("ml", "AutoETS", 2)
+    assert (await plan_lines(db_session, open_plan))["tomato"].basis == "forecast"
+    assert (closed.source, closed.version) == ("fallback", 1)
 
 
 # --- rebuilding and editing ----------------------------------------------------------------------
