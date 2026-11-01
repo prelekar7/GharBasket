@@ -27,3 +27,18 @@ describe("lazy locales", () => {
     expect(localStorage.getItem("gb-locale")).toBe("hi-IN");
   });
 });
+
+describe("a language chunk that cannot load", () => {
+  it("still lets the app render, in English", async () => {
+    vi.resetModules();
+    localStorage.setItem("gb-locale", "mr-IN");
+    vi.doMock("@/locales/mr-IN.json", () => {
+      throw new Error("chunk failed to load");
+    });
+    const { default: i18n, i18nReady } = await import("@/i18n.js");
+    await expect(i18nReady).resolves.toBeUndefined();
+    expect(i18n.t("welcome.title")).not.toBe("welcome.title");
+    vi.doUnmock("@/locales/mr-IN.json");
+    localStorage.removeItem("gb-locale");
+  });
+});
