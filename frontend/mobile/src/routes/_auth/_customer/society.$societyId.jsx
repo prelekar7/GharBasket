@@ -19,7 +19,6 @@ import {
   sawUnlocking,
   useDeliveryDays,
   useImpact,
-  useRecordInvite,
   useSociety,
   useSocietyUnlock,
 } from "@/features/community/queries.js";
@@ -47,7 +46,6 @@ function Society() {
   const unlockQuery = useSocietyUnlock(s?.id);
   const deliveryQuery = useDeliveryDays(s?.id);
   const impact = useImpact(s?.status === "live" ? s.id : undefined);
-  const record = useRecordInvite();
   const [sharing, setSharing] = useState(false);
   const [seen, setSeen] = useState(() => {
     try {
@@ -75,7 +73,6 @@ function Society() {
     } catch {
       toast(t("society.share.copyFailed"));
     }
-    record.mutate({ societyId: s.id, channel: "copy" });
   };
 
   if (justUnlocked)

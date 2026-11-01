@@ -148,34 +148,6 @@ const REQUESTS_KEY = "gb-mock-society-requests";
 const REQUESTS_PER_DAY = 5;
 
 export const communityHandlers = [
-  // @proposal (not in the contract yet): POST /v1/referrals (M9, Idempotency-Key): an invite sent from the share sheet. The mock
-  // pretends each invited neighbour joins at once, so a society can be unlocked in a demo.
-  http.post("*/v1/referrals", async ({ request }) => {
-    const key = request.headers.get("idempotency-key");
-    if (!key)
-      return HttpResponse.json(
-        {
-          type: "about:blank",
-          title: "Idempotency-Key header is required",
-          status: 400,
-          code: "request.idempotency_key_required",
-        },
-        { status: 400, headers: { "content-type": "application/problem+json" } },
-      );
-    const { society_id: id, channel = "link" } = /** @type {any} */ (await request.json());
-    const all = joinedExtra();
-    if (!all[`key:${key}`]) {
-      const s = find(String(id));
-      if (s && s.status !== "live") all[s.id] = (all[s.id] ?? 0) + 1;
-      all[`key:${key}`] = true;
-      localStorage.setItem(JOINED_KEY, JSON.stringify(all));
-    }
-    return HttpResponse.json(
-      { id: `ref-${key.slice(0, 8)}`, society_id: id, channel, status: "sent" },
-      { status: 201 },
-    );
-  }),
-
   // GET /v1/impact?scope=me|society (M9 §3.7). Society numbers are k-anonymous: null until at
   // least 5 households of the society have contributed. The mock does not check residency (403).
   http.get("*/v1/impact", ({ request }) => {
