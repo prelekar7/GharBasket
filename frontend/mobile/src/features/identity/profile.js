@@ -112,17 +112,69 @@ export function useRevokeDevice() {
 }
 
 /**
- * Ask for a copy of your data; the link comes as a notification (GET /v1/me/data-export, M1).
- * @proposal (not in the contract yet)
+ * Your latest data export (M1 §3.3, DPDP right of access). `download` is set only while `ready`,
+ * and is a fresh 5-minute link on every GET.
+ * @typedef {{ id: string, status: "queued" | "building" | "ready" | "failed" | "expired",
+ *   requested_at: string, ready_at: string | null, expires_at: string | null,
+ *   ready_within_hours: number,
+ *   download: { url: string, expires_at: string, size_bytes: number } | null }} DataExport
  */
-export function useDataExport() {
-  return useMutation({
-    mutationFn: () =>
-      /** @type {Promise<{ status: string, ready_within_hours: number }>} */ (
-        request("/v1/me/data-export")
-      ),
+
+/** The latest export, or null while none was ever asked for (GET /v1/me/data-export: 404 identity.export_not_found). */
+export const dataExportQuery = {
+  queryKey: ["me", "data-export"],
+  queryFn: async () => {
+    try {
+      return /** @type {DataExport} */ (await request("/v1/me/data-export"));
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "identity.export_not_found") return null;
+      throw e;
+    }
+  },
+  retry: false,
+};
+
+/** Where an export is for the screen: nothing asked (or a spent one), being built, or ready to download. @param {DataExport | null | undefined} x */
+export function exportStage(x) {
+  if (!x || x.status === "expired") return "none";
+  if (x.status === "failed") return "failed";
+  return x.status === "ready" && x.download ? "ready" : "preparing";
+}
+
+/** The export's status; while it is being built the app polls every 10 s (M1 §3.3). @param {boolean} enabled the sheet is open */
+export function useDataExportStatus(enabled) {
+  return useQuery({
+    ...dataExportQuery,
+    enabled,
+    refetchInterval: (q) => (exportStage(q.state.data) === "preparing" ? 10_000 : false),
   });
 }
+
+/**
+ * Ask for a copy of your data (POST /v1/me/data-export: no body and no Idempotency-Key, since the
+ * IST day is the key; 202 with the DataExport, the same day's one if asked again).
+ */
+export function useRequestDataExport() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      /** @type {Promise<DataExport>} */ (request("/v1/me/data-export", { method: "POST" })),
+    onSuccess: (x) => client.setQueryData(dataExportQuery.queryKey, x),
+  });
+}
+
+/** A fresh download link for the ready export: the one in an older answer may have expired. */
+export async function freshExportUrl() {
+  const x = /** @type {DataExport} */ (await request("/v1/me/data-export"));
+  if (!x.download) throw new Error("The export is not ready");
+  return x.download.url;
+}
+
+/** "48 KB" or "1.2 MB" for a file size. @param {number} bytes */
+export const fileSize = (bytes) =>
+  bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 /**
  * Delete the account after a grace period (DELETE /v1/me, M1, DPDP).
