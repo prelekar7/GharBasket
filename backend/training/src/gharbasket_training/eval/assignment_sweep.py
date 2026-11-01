@@ -18,8 +18,10 @@ window.
 
 Per seed, the greedy nearest kitchen and the CP-SAT model at every λ live the same weeks; the
 scored week is judged by the Gini of the kitchens' earnings in that week and the cost a portion
-(distance + quality penalty) over all its portions, the preferred cooks' included. A seed is the
-pair: the M-G target (Gini ≤ 0.25 at ≤ +5 % cost against greedy) is judged on the per-seed
+(distance + quality penalty) over all its assigned portions, the preferred cooks' included. An
+order no kitchen in reach has room for is left out, as production refunds it (ADR-0027), and the
+share left out is reported. A seed is the pair (dropped when CP-SAT fell back to greedy on any
+evening): the M-G target (Gini ≤ 0.25 at ≤ +5 % cost against greedy) is judged on the per-seed
 cost_λ / cost_greedy - 1 and Gini_λ, mean ± 95 % t-CI.
 """
 
@@ -100,12 +102,14 @@ class Weeks:
 @dataclass(frozen=True)
 class SweepPoint:
     fairness_lambda: float | None  # None = greedy nearest kitchen
-    # "solved" when every evening's plan assigned every order and, for a λ, came from CP-SAT
-    # (or every order went to its preferred cook); otherwise the first other evening status
-    # ("partial", "fallback", "infeasible"). Over every evening, the warm-up weeks included.
+    # Every evening's status, the warm-up weeks included ("solved" also when every order went to
+    # its preferred cook), and the first that is not "solved" ("partial": some order no kitchen in
+    # reach had room for, left out as production refunds it; "infeasible": none of the rest).
     status: str
     evening_status: list[str]
-    greedy_evenings: int  # evenings greedy answered (for a λ: CP-SAT fell back)
+    # Evenings greedy answered although some kitchen could take an order (for a λ: CP-SAT fell
+    # back); an evening whose rest no kitchen can take has nothing to solve and is not counted.
+    greedy_evenings: int
     seconds: float  # the solve time over every evening
     gini: float  # of the scored week's earnings, over the kitchens eligible on some evening of it
     gini_all: float  # of the scored week's earnings, over every kitchen
@@ -115,10 +119,14 @@ class SweepPoint:
     kitchens_used: int
     preferred_share: float = 0.0  # the scored week's portions the preferred cooks took first
     gini_rolling: float = 0.0  # of the 28-day earnings after the last evening (what λ balances)
+    unassigned_share: float = 0.0  # of the scored week's ordered portions, left out
 
     @property
     def solved(self) -> bool:
-        return self.status == "solved"
+        """For a λ: CP-SAT answered every evening it had something to solve. Orders left out
+        for want of a kitchen in reach with room are not a solver failure: they are reported
+        (`unassigned_share`), and the per-portion figures count the assigned portions."""
+        return self.fairness_lambda is None or self.greedy_evenings == 0
 
 
 @dataclass(frozen=True)
@@ -176,7 +184,11 @@ def settings(cfg: SweepConfig | None = None) -> dict[str, Any]:
         "societies_source": "gharbasket.tools.seed.SOCIETIES",
         "societies_sha256": hashlib.sha256(seed_file.read_bytes()).hexdigest(),
         "gini_population": "kitchens eligible on at least one evening of the scored week",
-        "cost_population": "every portion of the scored week, the preferred cooks' included",
+        "cost_population": "every assigned portion of the scored week, the preferred cooks' "
+        "included",
+        "pairing": "a seed is dropped when CP-SAT fell back to greedy on any evening of any week "
+        "at any λ; orders no kitchen in reach has room for are left out in every arm, as "
+        "production refunds them (ADR-0027), and reported as unassigned_share",
     }
 
 
@@ -268,7 +280,7 @@ class Evening:
     preferred: int  # portions the preferred cooks took
     eligible: set[str]  # kitchens that could take at least one of tonight's orders
     status: str
-    greedy: bool  # greedy answered the rest
+    greedy: bool  # greedy answered although some kitchen could take an order
     seconds: float
 
 
@@ -338,9 +350,8 @@ def evening(
     if fairness_lambda is None and status == "fallback":
         status = "solved"  # greedy is the baseline's own answer, every order assigned
     matches += [(a.order_id, a.kitchen_id, a.portions) for a in answer.assignments]
-    return Evening(
-        matches, preferred, eligible, status, answer.model == assignment.GREEDY, answer.seconds
-    )
+    greedy = answer.model == assignment.GREEDY and bool(assignment.candidates(req))
+    return Evening(matches, preferred, eligible, status, greedy, answer.seconds)
 
 
 def run_weeks(weeks: Weeks, fairness_lambda: float | None) -> SweepPoint:
@@ -355,7 +366,7 @@ def run_weeks(weeks: Weeks, fairness_lambda: float | None) -> SweepPoint:
     statuses: list[str] = []
     greedy_evenings = 0
     seconds = 0.0
-    portions = preferred = cost = rider = metres = 0
+    ordered = portions = preferred = cost = rider = metres = 0
     for day, orders in enumerate(weeks.evenings):
         earned = dict.fromkeys(ids, 0)
         daily.append(earned)
@@ -374,6 +385,7 @@ def run_weeks(weeks: Weeks, fairness_lambda: float | None) -> SweepPoint:
             continue
         eligible |= night.eligible
         preferred += night.preferred
+        ordered += sum(o["portions"] for o in orders)
         for order_id, kitchen_id, n in night.matches:
             m, c = _cost(by_order[order_id], by_id[kitchen_id])
             portions += n
@@ -398,6 +410,7 @@ def run_weeks(weeks: Weeks, fairness_lambda: float | None) -> SweepPoint:
         kitchens_used=len(used),
         preferred_share=round(preferred / each, 4),
         gini_rolling=assignment.gini(list(last.values())),
+        unassigned_share=round(1 - portions / ordered, 4) if ordered else 0.0,
     )
 
 
@@ -421,6 +434,7 @@ METRICS = (
     "rider_paise_per_portion",
     "km_per_portion",
     "preferred_share",
+    "unassigned_share",
 )
 
 

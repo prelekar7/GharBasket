@@ -479,7 +479,7 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
   4. **One request per meal** for the left-over orders to `intel_gateway.api.assign_kitchens` (M10 §3.5):
      - `orders[]`: `{id: order_id, lat, lng: the society point, portions, skills}`;
      - `kitchens[]`: `{id: partner_id, lat, lng, max_portions: capacity left, skills, rating, earnings_paise}`;
-     - `fairness_lambda` from `PARTNERS_FAIRNESS_LAMBDA` (default 300, M10's knee);
+     - `fairness_lambda` from `PARTNERS_FAIRNESS_LAMBDA` (default 900, the knee of the eval harness's λ sweep, M10 §3.5; was 300 until 1 Nov 2026);
      - `rating_floor: 3.8`, `max_km: 5`, `time_limit_s: 5`;
      - `paise_per_portion` from the hub's kitchen `tiffin_portion` rate (§3.6).
   5. **Greedy fallback** when the gateway returns `None` (the service is down, slow or not configured). M8 assigns the left-over orders itself, largest portions first, then by order id. Each order goes to the eligible kitchen with the least `(km, rolling earnings, partner_id)`. Haversine distances; `source: fallback`, model `greedy-m8`. The result is deterministic, so tests pin it. ML's own greedy (`status: fallback` in the response) is still `source: ml`.
@@ -777,7 +777,7 @@ GET /v1/hubs/{hub_id}/fairness?runs=28
     hub_manager, franchise_owner (hub); admin (partners:read). Cache-Control: no-store
     runs: 1 to 100, default 28 (two weeks of lunch and dinner)
   200 { "hub_id",
-        "lambda_paise": 300,         PARTNERS_FAIRNESS_LAMBDA now: paise of cost per portion of
+        "lambda_paise": 900,         PARTNERS_FAIRNESS_LAMBDA now: paise of cost per portion of
                                      earnings imbalance (M10 §3.5); 0 = cost only; one value for
                                      every hub
         "fallback_active": false,    the newest run's model is greedy-m8 (the ML service did not answer)
@@ -797,14 +797,14 @@ GET /v1/hubs/{hub_id}/fairness?runs=28
 
 | Mock today (`mocks/partners.js`) | Contract |
 |---|---|
-| `lambda` from 0 to 1 (0.3) | `lambda_paise` (default 300), M10's unit |
+| `lambda` from 0 to 1 (0.3) | `lambda_paise` (default 900 since 1 Nov 2026, was 300), M10's unit |
 | `lambda_changed_by`, `lambda_changed_at` | Not in the contract: λ changes with a deploy |
 | `PUT /v1/hubs/{id}/fairness-weight` (admin) | Dropped; the page's "Change" control goes |
 | `gini`, `gini_trend`, `gini_change` (the page takes them from M12 already) | Unchanged: M12's weekly `gini_bp`; each run's own `gini` is here |
 | `fallback_active` | Same name, from the newest run |
 | `week_start`, `kitchens[]`, `top_share_pct`, `top_share_change_pts`, `kitchens_under_half` | Not in the contract: the runs carry dates; per-kitchen numbers are the tiffin board's (§3.4) and M12 §3.5's |
 
-**As built (the read, `assignment_router.py`).** `lambda_paise` is `PARTNERS_FAIRNESS_LAMBDA` as it is, rounded to a whole number: the setting, the `fairness_lambda` of M10's request and `AssignRequest` are all "paise of cost per portion of earnings imbalance" (the solver scales it to tenths of a paisa inside), so 300 means 300 and no conversion applies. A run records `summary.fairness_lambda` when the round built a solver request, whether the ML service answered or M8's greedy took over; a round with nothing to solve (every order went to its preferred cook, or no kitchen has room) sends none and reads `lambda_paise: null`, like runs from before this change. `portions` is the run's column, `kitchens_used`, `gini`, `gini_eligible` and `km_per_portion` come from `summary` (0 and null when a summary lacks them), and `unassigned` is the length of the run's list. Runs are newest first by `at`, then id; `fallback_active` is the newest run's model being `greedy-m8` (false with no runs). `runs` outside 1 to 100 is 422 `request.invalid`.
+**As built (the read, `assignment_router.py`).** `lambda_paise` is `PARTNERS_FAIRNESS_LAMBDA` as it is, rounded to a whole number: the setting, the `fairness_lambda` of M10's request and `AssignRequest` are all "paise of cost per portion of earnings imbalance" (the solver scales it to tenths of a paisa inside), so 900 means 900 and no conversion applies. A run records `summary.fairness_lambda` when the round built a solver request, whether the ML service answered or M8's greedy took over; a round with nothing to solve (every order went to its preferred cook, or no kitchen has room) sends none and reads `lambda_paise: null`, like runs from before this change. `portions` is the run's column, `kitchens_used`, `gini`, `gini_eligible` and `km_per_portion` come from `summary` (0 and null when a summary lacks them), and `unassigned` is the length of the run's list. Runs are newest first by `at`, then id; `fallback_active` is the newest run's model being `greedy-m8` (false with no runs). `runs` outside 1 to 100 is 422 `request.invalid`.
 
 ### Facade for other modules (`gharbasket.modules.partners.api`)
 - `get_partner(session, partner_id) -> PartnerRef | None` — `{ id, user_id, kind, hub_id, status, display_name }` (M9 appointments, M7).

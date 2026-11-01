@@ -608,6 +608,7 @@ def _sweep_html(report: dict[str, Any]) -> str:
                 "rider ₹ a portion",
                 "km a portion",
                 "share of portions to the preferred cook",
+                "share of ordered portions left out (no kitchen in reach with room)",
                 "cost vs greedy (per-seed ratio - 1)",
             ],
             [
@@ -619,6 +620,7 @@ def _sweep_html(report: dict[str, Any]) -> str:
                     _rupees(m["rider_paise_per_portion"]),
                     _cell(m["km_per_portion"]),
                     _cell(m["preferred_share"]),
+                    _cell(m["unassigned_share"]),
                     _cell(m["extra_cost"]) if "extra_cost" in m else "—",
                 ]
                 for key, m in sweep.items()
@@ -646,7 +648,7 @@ def _sweep_html(report: dict[str, Any]) -> str:
     note = (
         f'<p class="note">M-G target (greedy Gini {_cell(target["greedy_gini"])}): {verdict}. '
         f"Paired seeds {target['seeds']}"
-        + (f"; dropped (a point did not solve): {dropped}" if dropped else "")
+        + (f"; dropped (CP-SAT fell back to greedy): {dropped}" if dropped else "")
         + ". Production λ: "
         + ("none (no verdict)" if chosen is None else f"{chosen:g}")
         + f" ({html.escape(target['production_rule'])}).</p>"

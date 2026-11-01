@@ -351,7 +351,7 @@ def _week_point(lam: float | None, gini: float, cost: float, status: str = "solv
         fairness_lambda=lam,
         status=status,
         evening_status=[status] * 7,
-        greedy_evenings=7 if lam is None else 0,
+        greedy_evenings=7 if lam is None or status == "fallback" else 0,
         seconds=0.1,
         gini=gini,
         gini_all=gini,
@@ -516,6 +516,22 @@ def test_the_preferred_cook_takes_her_orders_before_the_solver(
     assert not sent and night.status == "solved" and night.preferred == 3
 
 
+def test_an_order_out_of_every_kitchens_reach_is_left_out_not_a_solver_failure() -> None:
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import Weeks
+
+    near, far = _kitchen("near", SOCIETY[0]), _kitchen("far", 19.0450)
+    remote = {**_order("remote", portions=2), "lat": 19.1200}  # 10 km: no kitchen reaches it
+    # Evening 1: one plain order and the remote one; evening 2: only the remote one.
+    evenings = [[_order("o1", portions=2), remote], [{**remote, "id": _order("r2")["id"]}]]
+    point = assignment_sweep.run_weeks(Weeks(evenings, [near, far]), 300.0)
+
+    assert point.evening_status == ["partial", "infeasible"] and point.status == "partial"
+    assert point.greedy_evenings == 0 and point.solved  # CP-SAT never fell back
+    assert point.unassigned_share == round(4 / 6, 4)  # 4 of the 6 ordered portions
+    assert point.cost_paise_per_portion > 0  # over the 2 assigned portions
+
+
 def test_the_harness_uses_the_production_numbers() -> None:
     from gharbasket_training.eval import assignment_sweep
 
@@ -611,9 +627,12 @@ def test_the_m_g_target_needs_both_upper_bounds_five_seeds_and_a_positive_lambda
     assert few["production_lambda"] is None
     assert all(v["holds"] is None for v in few["per_lambda"].values())
 
-    # A seed where one point did not solve is dropped for every λ, and named.
+    # A seed where CP-SAT fell back to greedy at one λ is dropped for every λ, and named; one
+    # where it left out an order no kitchen in reach had room for is not.
     runs = seeds(1020.0)
-    runs[2] = _sweep_run(2, {None: (0.6, 1000.0)}, **{"700.0": "partial"})
+    runs[3] = _sweep_run(3, {None: (0.6, 1000.0)}, **{"700.0": "partial"})
+    assert target(runs)["dropped_seeds"] == []
+    runs[2] = _sweep_run(2, {None: (0.6, 1000.0)}, **{"700.0": "fallback"})
     dropped = target(runs)
     assert dropped["dropped_seeds"] == [2] and dropped["n"] == 4 and dropped["holds"] is None
     summary = assignment_sweep.summarise(runs)

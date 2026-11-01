@@ -110,7 +110,7 @@ async def test_the_read_lists_the_runs_newest_first_with_the_lambda_in_use(
     body = read.json()
     assert body["hub_id"] == str(SEED_HUB_ID)
     # Paise of cost per portion of imbalance: the setting as it is, not scaled (M10 §3.5).
-    assert body["lambda_paise"] == round(get_settings().partners_fairness_lambda) == 300
+    assert body["lambda_paise"] == round(get_settings().partners_fairness_lambda) == 900
     assert body["fallback_active"] is False
     assert [r["run_id"] for r in body["runs"]] == [str(new.id), str(old.id)]
     first, second = body["runs"]
@@ -167,7 +167,7 @@ async def test_a_hub_with_no_runs_gets_an_empty_list(
 
     body = (await api.get(URL, headers=vikram)).json()
 
-    assert body["runs"] == [] and body["fallback_active"] is False and body["lambda_paise"] == 300
+    assert body["runs"] == [] and body["fallback_active"] is False and body["lambda_paise"] == 900
 
 
 async def test_runs_bounds_the_list_from_1_to_100(
@@ -237,7 +237,7 @@ async def test_a_round_records_the_lambda_it_sent_and_the_read_shows_it(
     assert ran.status_code == 200, ran.text
     # No ML service in this test: M8's greedy answered, after the request with the λ was built.
     (only,) = read["runs"]
-    assert (only["model"], only["source"], only["lambda_paise"]) == ("greedy-m8", "fallback", 300)
+    assert (only["model"], only["source"], only["lambda_paise"]) == ("greedy-m8", "fallback", 900)
     assert only["gini"] is not None and only["kitchens_used"] == 1
     assert read["fallback_active"] is True
 
@@ -276,7 +276,7 @@ async def test_an_ml_run_without_a_summary_still_records_the_lambda(
     read = (await api.get(URL, headers=vikram)).json()
     assert ran.status_code == 200, ran.text
     (only,) = read["runs"]
-    assert (only["source"], only["model"], only["lambda_paise"]) == ("ml", "cp-sat-v1", 300)
+    assert (only["source"], only["model"], only["lambda_paise"]) == ("ml", "cp-sat-v1", 900)
     assert read["fallback_active"] is False
 
 
