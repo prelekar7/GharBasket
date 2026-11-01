@@ -283,7 +283,8 @@ async def draft(
     """A box for the week of `delivery_date`: (draft, plan source, prediction id).
     `preview=True` (the customer-facing preview) skips the ranker (no learned liking) and keeps
     the rule table for daily use (no pantry twin), so the preview waits on at most one ML call
-    (the planner's, bounded by `ml_timeout_s`)."""
+    (the planner's, bounded by `ml_timeout_s`). Otherwise this is the generation job's draft, where
+    no customer waits: its ML calls get `ml_job_timeout_s` and ignore an open circuit breaker."""
     monday = monday_of(delivery_date)
     festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
     price_index = await intel_api.price_spikes(session, list(catalog.products), monday)
@@ -291,7 +292,14 @@ async def draft(
         None
         if preview
         else await learned_preferences(
-            session, http, settings, profile, catalog, delivery_date, record_for=record_for
+            session,
+            http,
+            settings,
+            profile,
+            catalog,
+            delivery_date,
+            record_for=record_for,
+            job=True,
         )
     )
     request = planning.plan_request(
@@ -304,12 +312,20 @@ async def draft(
         session=session if record_for else None,
         household_id=record_for,
         week_monday=monday,
+        job=not preview,
     )
     meals = [m.model_dump() for m in plan.plan] if plan.plan else None
     bought = await bought_recently(session, profile.id, delivery_date, catalog)
     quantities = (
         await twin_quantities(
-            session, http, settings, profile, catalog, delivery_date, record_for=record_for
+            session,
+            http,
+            settings,
+            profile,
+            catalog,
+            delivery_date,
+            record_for=record_for,
+            job=True,
         )
         if not preview
         else {}
@@ -467,6 +483,7 @@ async def learned_preferences(
     delivery_date: date,
     *,
     record_for: uuid.UUID | None,
+    job: bool = False,
 ) -> dict[str, float] | None:
     """v2: the ranker's score per product the household has kept before, turned into a
     liking per dish for the planner (`planning.recipe_preferences`). None for new households.
@@ -486,6 +503,7 @@ async def learned_preferences(
         session=session if record_for else None,
         household_id=record_for,
         week_monday=monday_of(delivery_date),
+        job=job,
     )
     by_slug = {p.slug: p.id for p in catalog.products.values()}
     scores = {by_slug[r.product]: r.score for r in ranked.ranked if r.product in by_slug}
@@ -606,6 +624,7 @@ async def twin_quantities(
     delivery_date: date,
     *,
     record_for: uuid.UUID | None,
+    job: bool = False,
 ) -> dict[uuid.UUID, tuple[float, dict[str, Any]]]:
     """The pantry twin's weekly daily use for the perishable daily-use items (M10 §3.3): the
     cohort prior is the promoted learned prior per adult equivalent times the household's
@@ -653,6 +672,7 @@ async def twin_quantities(
         session=session if record_for else None,
         household_id=record_for,
         for_date=delivery_date,
+        job=job,
     )
     by_slug = {item.product: item for item in answer.items}
     return {

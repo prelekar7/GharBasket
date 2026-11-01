@@ -39,6 +39,25 @@ def test_deployed_environments_refuse_to_start_without_a_jobs_token() -> None:
         make_settings(**{**DEPLOYED_SECRETS, "jobs_token": None}, app_env="staging")
 
 
+def test_deployed_environments_need_the_ml_token_when_they_call_the_ml_service() -> None:
+    url = "https://gharbasket-ml.example"
+    for env in ("staging", "prod"):
+        with pytest.raises(ValidationError, match="ML_SERVICE_TOKEN required"):
+            make_settings(**DEPLOYED_SECRETS, app_env=env, ml_service_url=url)
+        make_settings(**DEPLOYED_SECRETS, app_env=env)  # no ML service: the fallbacks answer
+        make_settings(
+            **DEPLOYED_SECRETS, app_env=env, ml_service_url=url, ml_service_token="m" * 32
+        )
+    make_settings(ml_service_url="http://localhost:8100")  # local development needs no token
+
+
+def test_deployed_environments_refuse_a_short_ml_token() -> None:
+    for env in ("staging", "prod"):
+        with pytest.raises(ValidationError, match="ML_SERVICE_TOKEN must be at least 32 bytes"):
+            make_settings(**DEPLOYED_SECRETS, app_env=env, ml_service_token="m" * 31)
+    make_settings(ml_service_token="short")  # local development stays lax
+
+
 def test_secrets_never_appear_in_the_settings_repr() -> None:
     settings = make_settings(
         database_url="postgresql://app:s3cr3t@db.example/gb", jobs_token="op-token-123"

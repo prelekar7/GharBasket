@@ -7,6 +7,8 @@ from typing import Literal, Self
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+MIN_TOKEN_BYTES = 32  # the same floor as the API's secrets (platform/settings.py)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
@@ -43,9 +45,19 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:
-        if self.app_env in ("staging", "prod") and self.ml_service_token is None:
+        if self.is_deployed and self.ml_service_token is None:
             raise ValueError(f"ML_SERVICE_TOKEN required when APP_ENV={self.app_env}")
+        if (
+            self.is_deployed
+            and self.ml_service_token is not None
+            and len(self.ml_service_token.get_secret_value().encode()) < MIN_TOKEN_BYTES
+        ):
+            raise ValueError(f"ML_SERVICE_TOKEN must be at least {MIN_TOKEN_BYTES} bytes")
         return self
+
+    @property
+    def is_deployed(self) -> bool:
+        return self.app_env in ("staging", "prod")
 
 
 @lru_cache

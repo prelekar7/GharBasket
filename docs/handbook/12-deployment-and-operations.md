@@ -215,7 +215,7 @@ These runbooks are not written yet. They are planned for `docs/runbooks/` and ar
 |---|---|
 | `cutoff-failed.md` | Re-run the cut-off job safely through its internal job endpoint (advisory lock, idempotent), verify ledger totals, notify the hub |
 | `razorpay-down.md` | Switch default to wallet, queue top-ups, reconcile later |
-| `ml-service-down.md` | Confirm the rule-based fallback is active; restart the Space; point `latest.json` back at the previous version if a promotion caused it |
+| `ml-service-down.md` | Confirm the rule-based fallback is active (`ml_fallback` log lines; `circuit_open` means the API's breaker is skipping the service for 60 s, handbook 08 §8.2); restart the service; point `latest.json` back at the previous version if a promotion caused it. `smoke-ml.yml` runs daily at 06:40 IST and names the endpoint that broke |
 | `route-solve-failed.md` | Fall back to the previous day's route template or nearest-neighbour; manual adjustment in the console |
 | `restore-from-backup.md` | Neon point-in-time restore steps; verification queries |
 | `rotate-secrets.md` | Rotating API keys and JWT signing keys in Infisical, then redeploying |

@@ -119,6 +119,12 @@ sequenceDiagram
 ```
 *Figure 8.4 — Online re-plan request with timeout and rule-based fallback*
 
+**Hardening of the API-to-ML path (1 Nov 2026, M10 §3.9).** Staging's ML service sleeps after 15 idle minutes, wakes in about a minute and has 0.1 CPU (ADR-0030), so the gateway does not simply retry a call that cannot succeed:
+- **Two timeouts.** A customer's call waits `ML_TIMEOUT_S` (3 s). A call from a scheduled job (the Sunday plan generation: `plan_week`, `rank_basket`, `pantry_quantities`; M9's stop costs) waits `ML_JOB_TIMEOUT_S` (30 s), and the planner's solver gets half of it, up to the planner's own 5 s limit. This is the answer to ADR-0030's note that the CP-SAT planner never fits in 3 s: the customer preview still falls back to the rules, the job's plans can be CP-SAT. The first job call after a cold start can still fall back while the service wakes; the later ones are answered.
+- **Circuit breaker.** After `ML_BREAKER_THRESHOLD` (3) failed customer-path calls in a row (a timeout, a connection error or a 5xx; a 4xx or a bad body is not one) the gateway stops calling for `ML_BREAKER_COOLDOWN_S` (60 s) and answers with the rule fallback at once (log `ml_fallback`, reason `circuit_open`; the stored prediction says `source: fallback`, as for any fallback). Then one call goes through as a probe: its success closes the breaker, its failure opens it for another cool-down. A job call never waits for the cool-down; its success closes the breaker, so a Sunday job that wakes the service also lets customers through again. The breaker is in memory, per API process.
+- **The shared token** is required on staging and prod whenever `ML_SERVICE_URL` is set, and both services refuse one under 32 bytes. The deployed ML service serves no `/docs`, `/redoc` or `/openapi.json`.
+- **Smoke.** `smoke-ml.yml` runs daily at 06:40 IST and by hand: health, models and one minimal request to each of the six solver endpoints.
+
 ---
 
 ## 8.3 Model specifications
@@ -156,7 +162,7 @@ sequenceDiagram
   - variety bonus;
   - penalty on price-spiked items.
 - **Output:** plan → aggregated ingredients × M-A quantities → `subscriptions.box_lines` with `reason_code`. Busy days → kit suggestions.
-- **Performance:** at most 5 s per household (`time_limit_s`, 1 s by default for the whole request; the gateway caps it at half its 3 s timeout); v1 warm-starts from a v0 plan (M10 §3.2); the weekly batch runs in parallel across CPU cores.
+- **Performance:** at most 5 s per household (`time_limit_s`, 1 s by default for the whole request; the gateway caps it at half the call's timeout: 3 s for a customer's preview, `ML_JOB_TIMEOUT_S` (30 s) for the generation job, so the solver gets its 5 s there); v1 warm-starts from a v0 plan (M10 §3.2); the weekly batch runs in parallel across CPU cores.
 - **Spike S-4 (4 Oct 2026, passed):** optimal week plans in 10 to 50 ms for the seed households, and 0.07 s with 126 recipes. When strict households (e.g. diabetic with 20-minute meals, or Jain during Navratri) leave too few dishes, the planner relaxes comfort rules only (repeats, then cook time, then budget), never diet, Jain, diabetic or fasting rules. See [S-4 note](../spikes/S-4-meal-plan.md).
 - **Metrics:** constraint satisfaction 100%, nutrition adherence, variety index, ingredient-reuse ratio, plan acceptance. Baselines: random valid plan, greedy.
 - **Status (5 Oct 2026, v1):** the nutrition term (ICMR-NIN targets per member, days within ±20 % of kcal and protein), the price-spike penalty from `intel.price_index`, sides paired per meal and reason codes are served; M3 sends members, nutrition and spikes. First five-seed numbers (eval harness v0, v0 objective): acceptance 0.80, 3.7 distinct perishables a week against 6.2 greedy and 11.3 random, no hard-rule violation. Pre-registered M-C primary target (acceptance above greedy) does not hold in the v0 eval (cpsat − greedy −0.031 ± 0.009); reported as a finding, no tuning (decided 8 Oct 2026).

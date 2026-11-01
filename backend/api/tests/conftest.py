@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from gharbasket.main import create_app
+from gharbasket.modules.intel_gateway.breaker import ml_breaker
 from gharbasket.modules.registry import load_modules
 from gharbasket.platform.db import (
     DbSession,
@@ -267,6 +268,15 @@ def _settings_in_use() -> Iterator[None]:
     use_settings(make_settings())
     yield
     use_settings(None)
+
+
+@pytest.fixture(autouse=True)
+def _ml_breaker_closed() -> Iterator[None]:
+    """The gateway's circuit breaker is per process: a test that made the ML service fail must
+    not make the next test's fallback come from an open breaker."""
+    ml_breaker.reset()
+    yield
+    ml_breaker.reset()
 
 
 @pytest.fixture

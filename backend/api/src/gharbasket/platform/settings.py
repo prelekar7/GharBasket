@@ -87,6 +87,18 @@ class Settings(DatabaseSettings):
     ml_service_url: str | None = None
     ml_service_token: SecretStr | None = None
     ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
+    # The same calls from a scheduled job (the Sunday plan generation: plan_week, rank_basket,
+    # pantry_quantities), where no customer waits: long enough for the free host's 0.1 CPU (the
+    # planner needs ~4 s there, ADR-0030). The solver gets half of it, at most its own 5 s limit.
+    # A cold start (~1 min) still outlasts it: the first call wakes the service, the later ones
+    # of the job are answered.
+    ml_job_timeout_s: float = Field(default=30.0, gt=0, le=120)
+    # Circuit breaker on the customer-path calls (per API process): after this many consecutive
+    # failed calls (timeout, connection error, HTTP 5xx) the gateway stops calling the ML service
+    # for ML_BREAKER_COOLDOWN_S and answers with its fallback at once; then one call probes.
+    # Scheduled-job calls ignore an open breaker. 0 turns the breaker off.
+    ml_breaker_threshold: int = Field(default=3, ge=0, le=100)
+    ml_breaker_cooldown_s: float = Field(default=60.0, gt=0, le=3600)
     # Ghar Saathi (M13): the LLM loop runs in the ML service; a turn may take longer than a
     # solver call (the service gives up after its own ASSISTANT_TURN_TIMEOUT_S, 25 s, first).
     # Tokens (uncached in + out) a user may spend a day.
@@ -182,6 +194,8 @@ class Settings(DatabaseSettings):
                 "KYC_ENCRYPTION_KEY": self.kyc_encryption_key,
                 "KYC_HASH_PEPPER": self.kyc_hash_pepper,
             }
+            if self.ml_service_url:
+                required["ML_SERVICE_TOKEN"] = self.ml_service_token
             missing = [name for name, value in required.items() if value is None]
             if missing:
                 raise ValueError(f"{', '.join(missing)} required when APP_ENV={self.app_env}")
@@ -193,6 +207,8 @@ class Settings(DatabaseSettings):
         if self.fcm_service_account is not None:
             _ = self.fcm_credentials  # a broken key fails at start, not at the first push
         for name, secret in (
+            # The ML service is public on staging and prod: its shared token must be long too.
+            *((("ML_SERVICE_TOKEN", self.ml_service_token),) if not self.is_local else ()),
             ("JWT_SIGNING_KEY", self.jwt_signing_key),
             ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
             ("KYC_ENCRYPTION_KEY", self.kyc_encryption_key),

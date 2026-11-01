@@ -70,10 +70,16 @@ async def require_service_token(
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
+    # Deployed, the service is on the public internet but is only for the API: no interactive
+    # docs and no schema listing. `settings` is None under `uvicorn --factory`, so it is read here.
+    deployed = (settings or get_settings()).is_deployed
     app = FastAPI(
         title="GharBasket ML service",
         version=__version__,
         description="Internal: called only by the GharBasket API (intel_gateway).",
+        docs_url=None if deployed else "/docs",
+        redoc_url=None if deployed else "/redoc",
+        openapi_url=None if deployed else "/openapi.json",
     )
     if settings is not None:
         app.dependency_overrides[get_settings] = lambda: settings

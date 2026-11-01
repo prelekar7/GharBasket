@@ -1104,6 +1104,16 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
   - 76 % of planned dishes accepted;
   - 8 % of boxes skipped.
 
+### 3.9 Gateway hardening for the free ML host (1 Nov 2026, work package A3)
+
+Why: on staging the ML service has 0.1 CPU and sleeps after 15 idle minutes (ADR-0030, final), so a customer-path call either waited its whole timeout or could never succeed. No ADR changes; this is the gateway's side of the "designed fallback".
+
+- **Job timeout.** `ml_job_timeout_s` (`ML_JOB_TIMEOUT_S`, default 30, at most 120). `plan_week`, `rank_basket` and `pantry_quantities` take `job: bool = False`; M3's `draft` passes `job=True` unless it is the customer preview (`preview=True`), and hands it on to `learned_preferences` and `twin_quantities`. A job call waits `ml_job_timeout_s`, and its plan request gets `time_limit_s = min(0.5 × ml_job_timeout_s, 5)` (the ML service's ceiling), where a customer's keeps `min(request.time_limit_s, 0.5 × ml_timeout_s)` (1 s). Slot prices for a customer's quote (`ml_slot_timeout_s`), `assign_kitchens` and `solve_routes` keep their own timeouts. `society_stop_costs` (M9's job) keeps `ml_timeout_s` per call but counts as a job for the breaker.
+- **Circuit breaker** (`intel_gateway/breaker.py`, one per API process, in memory, under a lock). Settings `ml_breaker_threshold` (default 3, 0 = off) and `ml_breaker_cooldown_s` (default 60). It counts consecutive failures of calls through `_post`: a timeout or connection error (`httpx2.TransportError`) and an HTTP 5xx. A 4xx or an unparsable 200 shows the service is up and resets the count. Open: a customer-path call returns the fallback without a request (`ml_fallback`, reason `circuit_open`), so the predictions it stores are `source: fallback` and ai-health counts them like any other fallback. After the cool-down exactly one call is the probe (half-open), the rest are still short-circuited; a probe that never reports is replaced after another cool-down. Job calls (`job=True`) bypass an open breaker, because they can wait for the service to wake, and still report their outcome. `assign_kitchens` and `solve_routes` (their own posts, long time limits, no rule answer to give) are not part of the breaker.
+- **Tokens.** Staging and prod refuse to start when `ML_SERVICE_URL` is set without `ML_SERVICE_TOKEN`, or when the API's or the ML service's token is shorter than 32 bytes. Local development is unchanged.
+- **Surface.** The ML service creates its app without `/docs`, `/redoc` and `/openapi.json` when `APP_ENV` is `staging` or `prod`.
+- **Smoke.** `python -m gharbasket_ml.smoke` also posts a minimal body to `/basket/rank`, `/slots/price`, `/route/solve` and `/assign/kitchens` (nine lines, all must be 200); `smoke-ml.yml` runs it daily at 06:40 IST.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
