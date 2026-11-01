@@ -144,6 +144,10 @@ class Backtest:
     eval_points: int = 0  # the points behind coverage, pinball and MASE
     # model → horizon step → every scaled residual of the backtest (the production calibration)
     calibration: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
+    # Every scored point (unique_id, ds, origin, step, y) with each model's q50 (column
+    # `<model>`) and q_tau (`<model>_qtau`, NaN where the nested calibration had no residual
+    # yet), for evaluations below the weekly level (the eval harness's per-day split).
+    points: pd.DataFrame | None = field(default=None, compare=False, repr=False)
 
     @property
     def gap_to_seasonal_naive(self) -> float | None:
@@ -335,7 +339,7 @@ def _lightgbm(train: pd.DataFrame, exog: Exog | None) -> pd.DataFrame | None:
     return pd.concat(answers, ignore_index=True)
 
 
-def _wape(actual: np.ndarray, predicted: np.ndarray) -> float:
+def wape(actual: np.ndarray, predicted: np.ndarray) -> float:
     denominator = float(np.abs(actual).sum())
     if denominator == 0:
         return 0.0 if float(np.abs(predicted).sum()) == 0 else 1.0
@@ -473,9 +477,11 @@ def backtest(
     target = pts["ds"].to_numpy()
     origin_of = pts["origin"].to_numpy()
     test = Backtest(hub_id, {}, "Naive", len(windows), len(set(pts["unique_id"])), tau)
+    kept = pd.DataFrame({c: pts[c] for c in ("unique_id", "ds", "origin", "step", "y")})
     for m in models:
         predicted = np.clip(pts[m].to_numpy(dtype=float), 0, None)
-        test.wape[m] = round(_wape(actual, predicted), 4)
+        kept[m] = predicted
+        test.wape[m] = round(wape(actual, predicted), 4)
         scaled = (actual - predicted) / scale
         test.calibration[m] = {s: scaled[steps == s] for s in range(1, HORIZON + 1)}
         # Nested calibration: each point's interval uses only residuals of the same step whose
@@ -487,6 +493,7 @@ def backtest(
                 margin = conformal_quantile(scaled[seen], tau)
                 mask = (steps == s) & (origin_of == origin)
                 qtau[mask] = np.maximum(0.0, predicted[mask] + scale[mask] * margin)
+        kept[f"{m}_qtau"] = qtau
         evaluated = ~np.isnan(qtau)
         if not evaluated.any():
             continue
@@ -504,6 +511,7 @@ def backtest(
                 float(np.mean(np.abs(actual[moved] - predicted[moved]) / mase_scale[moved])), 4
             )
     test.champion = min(MODELS, key=lambda m: test.wape.get(m, math.inf))
+    test.points = kept
     return test
 
 
