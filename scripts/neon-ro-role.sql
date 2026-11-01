@@ -11,7 +11,9 @@
 SELECT format('CREATE ROLE %I LOGIN', :'role')
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'role') \gexec
 
-ALTER ROLE :"role" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD :'password';
+-- Only LOGIN and the password: Neon's owner is not a superuser, so it may not name SUPERUSER (or
+-- the other attributes it lacks); a new role has none of them anyway.
+ALTER ROLE :"role" WITH LOGIN PASSWORD :'password';
 -- Read-only even if a grant slips: every transaction of the role starts READ ONLY.
 ALTER ROLE :"role" SET default_transaction_read_only = on;
 ALTER ROLE :"role" SET statement_timeout = '10min';
