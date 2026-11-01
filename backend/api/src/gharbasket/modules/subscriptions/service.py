@@ -505,7 +505,8 @@ class DailyUseShare:
     """One locked box's daily-use share of one twin product (M10 §3.3): what the box delivered
     minus what that week's recipes needed (the cycle's stored meal plan, swapped meals
     included), never below 0, the household's tap and the delivered quantity (the "wasted" tap
-    is against it)."""
+    is against it). Share and delivered are scaled to the household as it is today (see
+    `daily_use_history`)."""
 
     delivery_date: date
     data_source: str  # the cycle's: real | synthetic
@@ -526,7 +527,10 @@ async def daily_use_history(
     """Every locked box of the household delivered in [since, before) that carried a twin
     product (perishable daily use), oldest first, as its daily-use share and tap. The share is
     computed the way the draft computes the need (`planning.recipe_need` on the cycle's stored
-    `meal_plan`), so the twin learns daily use and never the recipes on top. The serving twin
+    `meal_plan`, for the household's size when the box was drafted), so the twin learns daily
+    use and never the recipes on top. A box drafted for a household of other adult equivalents
+    (members joined or left) is scaled to today's: its share and delivered quantity x today's
+    equivalents / the cycle's, as the rule table and the prior scale (M10 §3.3). The serving twin
     (`pantry_observations`) and the weekly refit of its cohort priors (`backend/training`,
     `refit_pantry`) both read this, so they observe the same thing."""
     query = select(WeeklyCycle).where(
@@ -560,21 +564,26 @@ async def daily_use_history(
             )
         )
     }
+    equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
     out: list[DailyUseShare] = []
     for cycle in cycles:
         need, _ = planning.recipe_need(profile, catalog, planning.plan_of(cycle.meal_plan))
+        # recipe_need is for today's size; the box was drafted for the cycle's.
+        sized = (cycle.household_size or profile.size) / max(profile.size, 1)
+        scale = equivalents / (cycle.adult_equivalents or equivalents)
         for product in products:
             units = delivered.get((cycle.id, product.id))
             if not units:
                 continue  # not in that week's box: nothing observed
+            share = max(0.0, units - need.get(product.id, 0.0) * sized)
             out.append(
                 DailyUseShare(
                     cycle.delivery_date,
                     cycle.data_source,
                     product.id,
-                    max(0.0, units - need.get(product.id, 0.0)),
+                    share * scale,
                     taps.get((cycle.id, product.id)),
-                    units,
+                    units * scale,
                 )
             )
     return out
@@ -630,7 +639,7 @@ async def twin_quantities(
             continue
         # v1: the learned prior is per adult equivalent, so it scales with the household as
         # the rule table does; without one (too few households, or before a promotion) the
-        # table and its weight of two weeks.
+        # table and its weight (rules.RULE_PRIOR_WEEKS).
         if product.id in learned:
             per_equivalent, prior_weeks = learned[product.id]
             prior_mean, prior_of[slug] = per_equivalent * equivalents, "learned"
@@ -768,6 +777,8 @@ async def generate_cycle(
         status="draft",
         generated_at=now(),
         data_source=profile.data_source,
+        household_size=profile.size,
+        adult_equivalents=rules.adult_equivalents([Member(m) for m in profile.member_age_bands]),
     )
     try:
         async with session.begin_nested():

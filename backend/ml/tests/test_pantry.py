@@ -155,3 +155,29 @@ def test_the_predictive_probability_of_a_tap_matches_the_interval() -> None:
     assert below == pytest.approx(0.5, abs=0.01) and below + above == pytest.approx(1.0)
     p10, p90 = post.predictive_quantile(0.1), post.predictive_quantile(0.9)
     assert post.probability(p10, p90) == pytest.approx(0.8, abs=0.005)
+
+
+def test_a_household_far_from_its_prior_is_not_held_at_the_grid_edge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The grid starts at +-6 prior sd (m in 0.30-3.3 for the rule prior) and widens while the
+    posterior presses against its ends. A household that ran out of boxes of 3.5 times the
+    rule table ten times is above 3.3 times: the answer matches a dense, wide reference grid
+    (the fixed grid put its mass on the edge point and stopped there)."""
+    far = item(*[(3.5 * PRIOR, "ran_out")] * 10)
+    post = pantry.posterior(far)
+    assert post.weights[0] + post.weights[-1] <= pantry.EDGE_MASS
+    assert max(post.points) > 1.2  # wider than the first grid's +-6 sd = +-1.2
+    got = answer(far)
+    assert got.mean > 3.5 * PRIOR
+
+    monkeypatch.setattr(pantry, "GRID", 4001)
+    monkeypatch.setattr(pantry, "SPAN", 40.0)
+    reference = answer(far)
+    assert got.mean == pytest.approx(reference.mean, rel=0.01)
+    assert got.p90 == pytest.approx(reference.p90, rel=0.01)
+
+
+def test_ran_out_of_an_empty_share_says_nothing() -> None:
+    assert pantry.interval(PantryObservation(qty=0, signal="ran_out", delivered=800)) is None
+    assert answer(item((0, "ran_out"))).taps == 0

@@ -158,11 +158,15 @@ def build(
             },
             # M-A's MAE target, on the twin: after four observed weeks (predicting the fifth); no
             # verdict when the run is shorter. Until it holds, PANTRY_TWIN_ENABLED stays off and
-            # M3 drafts from the rule table. The running mean's value is shown for reference.
+            # M3 drafts from the rule table. The verdict is on the mean across seeds; the 95 %
+            # CI's upper bound is reported next to it. The running mean (an oracle: it averages
+            # the true use, which the app never sees) is shown for reference.
             "target_mae_le_15pct_after_4_weeks": {
                 "estimator": "pantry_twin_v0 (twin scope)",
                 "value": twin[3].mean if len(twin) >= 4 else None,
                 "holds": twin[3].mean <= 0.15 if len(twin) >= 4 else None,
+                "judged_on": "mean",
+                "ci95_upper": twin[3].mean + twin[3].ci if len(twin) >= 4 else None,
                 "reference_running_mean": curve[3].mean if len(curve) >= 4 else None,
             },
             # M-A's cold-start target, shown on the running-mean baseline for reference only.
@@ -471,7 +475,7 @@ def to_html(report: dict[str, Any]) -> str:
         [
             "observed weeks",
             "rule table",
-            "running mean",
+            "running mean (oracle: true use)",
             "pantry twin v0",
             "80 % coverage",
             *(["twin, learned priors (reference)"] if learned else []),
@@ -501,7 +505,11 @@ def to_html(report: dict[str, Any]) -> str:
     )
     target = report["pantry"]["target_mae_le_15pct_after_4_weeks"]
     value = "n/a" if target["value"] is None else f"{target['value']:.3f}"
-    verdict = {None: "no verdict (fewer than 5 weeks)", True: "holds"}.get(
+    upper = target.get("ci95_upper")
+    holds = "holds on the mean" + (
+        f" (the 95 % CI upper bound is {upper:.3f})" if upper is not None else ""
+    )
+    verdict = {None: "no verdict (fewer than 5 weeks)", True: holds}.get(
         target["holds"], "does not hold yet"
     )
     ref = target["reference_running_mean"]
@@ -538,9 +546,10 @@ def to_html(report: dict[str, Any]) -> str:
         f'<p class="note">M-A target (the twin\'s MAE ≤ 15 % after 4 weeks): {value} → {verdict}. '
         "The twin drafts boxes (PANTRY_TWIN_ENABLED) only once it holds. For reference, the "
         f"running mean's MAE after 4 weeks is {reference}, and it takes {weeks} to beat the rule "
-        "table (cold-start target &lt; 4 weeks). With the simulator's daily-use noise as small as "
-        "it is (lognormal sigma 0.1), the 15 % target is easy for a naive baseline and is to be "
-        "revisited (protocol change log).</p>"
+        "table (cold-start target &lt; 4 weeks); the running mean is an oracle: it averages the "
+        "true daily use, which the app never sees (the twin sees boxes and taps). The twin's "
+        "tap meanings and its week-to-week spread match the simulator's own (protocol change "
+        "log, 1 Nov 2026).</p>"
         f"{sweep_table}{_forecast_html(report)}{_ranker_html(report)}</body></html>\n"
     )
 

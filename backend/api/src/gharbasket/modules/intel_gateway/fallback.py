@@ -181,10 +181,11 @@ def plan_week(req: PlanRequest) -> WeekPlan:
 # --- the pantry twin (M10 §3.3), the ML service's own computation in plain `math` ---------------
 
 PANTRY_MODEL = "pantry-tap-censored-v0.2"
-PANTRY_WEEK_SIGMA = 0.1  # gharbasket_ml.pantry.WEEK_SIGMA
+PANTRY_WEEK_SIGMA = 0.05  # gharbasket_ml.pantry.WEEK_SIGMA
 PANTRY_WASTED_SHARE = 0.25  # gharbasket_ml.pantry.WASTED_SHARE
 PANTRY_MIN_PRIOR_WEEKS = 0.05
 PANTRY_GRID, PANTRY_SPAN, PANTRY_BISECT = 161, 6.0, 50
+PANTRY_EDGE_MASS, PANTRY_MAX_LOG_SPAN = 1e-3, math.log(100.0)
 
 
 RANKER_MODEL = "frequency-v0"
@@ -226,7 +227,7 @@ def _tap_interval(o: PantryObservation) -> tuple[float, float] | None:
         lo, hi = 0.0, waste_line
     else:
         lo, hi = max(waste_line, 0.0), share
-    if hi <= 0 or hi <= lo:
+    if hi <= 0 or hi <= lo or (lo <= 0 and hi == math.inf):
         return None
     return lo, hi
 
@@ -253,20 +254,27 @@ def _pantry_item(item: PantryItem) -> PantryQuantity:
         )
     centre = math.log(item.prior_mean)
     spread = sigma / math.sqrt(max(item.prior_weeks, PANTRY_MIN_PRIOR_WEEKS))
-    points = [spread * PANTRY_SPAN * (2 * i / (PANTRY_GRID - 1) - 1) for i in range(PANTRY_GRID)]
-    logs = [-0.5 * (u / spread) ** 2 for u in points]
-    taps = 0
-    for o in item.observations:
-        bounds = _tap_interval(o)
-        if bounds is None:
-            continue
-        taps += 1
-        logs = [
-            lp + _log_prob(*bounds, centre + u, sigma) for lp, u in zip(logs, points, strict=True)
-        ]
-    top = max(logs)
-    mass = [math.exp(lp - top) for lp in logs]
-    weights = [m / sum(mass) for m in mass]
+    tapped = [b for o in item.observations if (b := _tap_interval(o)) is not None]
+
+    def grid(half: float) -> tuple[list[float], list[float]]:
+        points = [half * (2 * i / (PANTRY_GRID - 1) - 1) for i in range(PANTRY_GRID)]
+        logs = [-0.5 * (u / spread) ** 2 for u in points]
+        for bounds in tapped:
+            logs = [
+                lp + _log_prob(*bounds, centre + u, sigma)
+                for lp, u in zip(logs, points, strict=True)
+            ]
+        top = max(logs)
+        mass = [math.exp(lp - top) for lp in logs]
+        total = sum(mass)
+        return points, [m / total for m in mass]
+
+    half = min(PANTRY_SPAN * spread, PANTRY_MAX_LOG_SPAN)
+    points, weights = grid(half)
+    while weights[0] + weights[-1] > PANTRY_EDGE_MASS and half < PANTRY_MAX_LOG_SPAN:
+        half = min(2 * half, PANTRY_MAX_LOG_SPAN)
+        points, weights = grid(half)
+    taps = len(tapped)
     first = sum(w * math.exp(u) for u, w in zip(points, weights, strict=True))
     second = sum(w * math.exp(2 * u) for u, w in zip(points, weights, strict=True))
     live = [(u, w) for u, w in zip(points, weights, strict=True) if w > 1e-12]

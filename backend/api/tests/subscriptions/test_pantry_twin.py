@@ -312,3 +312,53 @@ async def test_learned_cohort_priors_replace_the_rule_table_in_the_twin(
     # No tap on the first box, so the twin keeps its prior: 3 boxes' worth, only when the
     # prior was scaled back up by the household's equivalents.
     assert milk_line.reason_params["mean"] >= milk["qty"] * 500.0 * 2.85
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_boxes_from_a_smaller_household_are_scaled_to_todays(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """A box drafted when the household was half today's size (members joined since): its
+    recipe need was for the household of then, and its share and delivered quantity are
+    scaled up to today's adult equivalents, as the prior is. Without the scaling a household
+    that doubled, tapping "just right" on its old boxes, would be drafted about half its milk
+    (the review's probe: 1356 ml against a rule table of 2800)."""
+    api = clients(pantry_twin_enabled=True)
+    first = await first_week(api, google, db_session, then_generate=False)
+    profile, catalog = await world_of(db_session, uuid.UUID(first["household_id"]))
+    milk = catalog.product_by_slug("milk")
+    assert milk is not None
+    cycle = await cycle_on(db_session, FIRST)
+    equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
+    assert cycle.household_size == profile.size and cycle.adult_equivalents == equivalents
+    same = await service.pantry_observations(db_session, profile, catalog, SECOND)
+
+    then_size = max(profile.size // 2, 1)
+    cycle.household_size = then_size
+    cycle.adult_equivalents = equivalents / 2
+    await db_session.flush()
+    scaled = await service.pantry_observations(db_session, profile, catalog, SECOND)
+
+    need, _ = planning.recipe_need(profile, catalog, planning.plan_of(cycle.meal_plan))
+    then_need = need.get(milk.id, 0.0) * then_size / profile.size
+    delivered = total(first, "milk")
+    ((share, signal, units),) = scaled[milk.id]
+    assert signal == same[milk.id][0][1] == "ran_out"
+    assert units == pytest.approx(2 * delivered)
+    assert share == pytest.approx(2 * max(0.0, delivered - then_need))
+
+    # The probe: old "just right" boxes of a household that has since doubled.
+    rule = rules.daily_use_plan(equivalents)["milk"]
+    old_box = rule / 2
+    item = PantryItem(
+        product="milk",
+        step=500,
+        prior_mean=rule,
+        prior_weeks=rules.RULE_PRIOR_WEEKS,
+        observations=[
+            PantryObservation(qty=old_box * 2, signal="just_right", delivered=old_box * 2)
+        ]
+        * 6,
+    )
+    mean = fallback.pantry_quantities(PantryRequest(items=[item])).items[0].mean
+    assert 0.8 * rule < mean < 1.05 * rule

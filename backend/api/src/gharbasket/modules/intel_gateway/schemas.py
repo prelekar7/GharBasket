@@ -169,7 +169,7 @@ class PantryItem(BaseModel):
     product: str = Field(min_length=1, max_length=80)
     step: float = Field(gt=0)
     prior_mean: float = Field(ge=0)
-    prior_weeks: float = Field(default=0.25, ge=0, le=52)  # subscriptions.rules.RULE_PRIOR_WEEKS
+    prior_weeks: float = Field(default=0.125, ge=0, le=52)  # subscriptions.rules.RULE_PRIOR_WEEKS
     observations: list[PantryObservation] = Field(default_factory=list, max_length=52)
 
 

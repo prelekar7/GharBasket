@@ -14,6 +14,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -141,6 +142,10 @@ class WeeklyCycle(Base):
         CheckConstraint(_one_of("plan_source", PLAN_SOURCES), name="plan_source"),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
         CheckConstraint("slot_saving_paise >= 0", name="slot_saving_paise"),
+        CheckConstraint("household_size IS NULL OR household_size > 0", name="household_size"),
+        CheckConstraint(
+            "adult_equivalents IS NULL OR adult_equivalents > 0", name="adult_equivalents"
+        ),
         UniqueConstraint("household_id", "delivery_date"),
         Index("ix_weekly_cycles_hub_delivery", "hub_id", "delivery_date", "status"),
         {"schema": SCHEMA},
@@ -178,6 +183,10 @@ class WeeklyCycle(Base):
     # A green-slot move (§3.6): the quote it followed and the saving it honours until the cut-off.
     slot_quote_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     slot_saving_paise: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    # The household as it was when the box was drafted (the pantry twin scales past boxes to
+    # today's household, M10 §3.3); null on cycles drafted before 1 Nov 2026.
+    household_size: Mapped[int | None] = mapped_column(SmallInteger)
+    adult_equivalents: Mapped[float | None] = mapped_column(Float)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

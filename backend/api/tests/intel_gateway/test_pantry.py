@@ -43,6 +43,9 @@ CASES: list[list[tuple[float, str | None, float | None]]] = [
     [(1500, "wasted", 2500), (1500, "just_right", 2500), (1500, "ran_out", 2500)],
     [(1500, "ran_out", None)] * 10,
     [(0, "just_right", 900), (600, "wasted", 600)],
+    [(0, "ran_out", 800), (1400, "ran_out", 1400)],
+    [(6000, "ran_out", 6000)] * 8,  # far above the prior: the grid widens
+    [(150, "wasted", 200)] * 8,  # far below it
 ]
 
 
@@ -77,6 +80,12 @@ def test_the_fallbacks_constants_are_the_services() -> None:
     assert fallback.PANTRY_WEEK_SIGMA == ml_pantry.WEEK_SIGMA
     assert fallback.PANTRY_WASTED_SHARE == ml_pantry.WASTED_SHARE
     assert (fallback.PANTRY_GRID, fallback.PANTRY_SPAN) == (ml_pantry.GRID, ml_pantry.SPAN)
+    assert fallback.PANTRY_MIN_PRIOR_WEEKS == ml_pantry.MIN_PRIOR_WEEKS
+    assert fallback.PANTRY_BISECT == ml_pantry.BISECT
+    assert (fallback.PANTRY_EDGE_MASS, fallback.PANTRY_MAX_LOG_SPAN) == (
+        ml_pantry.EDGE_MASS,
+        ml_pantry.MAX_LOG_SPAN,
+    )
     assert PantryItem(product="m", step=1, prior_mean=1).prior_weeks == rules.RULE_PRIOR_WEEKS
 
 
