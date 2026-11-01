@@ -162,7 +162,7 @@ async def test_a_society_going_live_tells_the_owner_of_every_household_in_it(
         assert (message.kind, message.category, message.link, message.params) == (
             "community.society_live",
             "kindness",
-            "/society",
+            f"/society/{household.society_id}",
             {},
         )
         assert list(await channels_of(db_session, message)) == ["push"]

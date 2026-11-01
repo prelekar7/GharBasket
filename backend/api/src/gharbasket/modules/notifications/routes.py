@@ -42,6 +42,8 @@ class Route:
     # Not sent when the person got this very message (same kind and values) in the last two
     # days from another event: for an event that M7 may publish again without a marker.
     skip_repeat: bool = False
+    # The app link when it names a record (e.g. `/society/<id>`); else the kind's own.
+    link: str | None = None
 
 
 # One event may tell several kinds of people, each in its own words.
@@ -151,7 +153,9 @@ async def society_live(session: AsyncSession, payload: dict[str, Any]) -> Route 
     managers' "set delivery days" console task is not a message."""
     society_id = uuid.UUID(str(payload["society_id"]))
     owners = await identity_api.society_owners(session, society_id)
-    return Route("community.society_live", sorted(owners), {}) if owners else None
+    if not owners:
+        return None
+    return Route("community.society_live", sorted(owners), {}, link=f"/society/{society_id}")
 
 
 async def assignment_created(session: AsyncSession, payload: dict[str, Any]) -> Route | None:

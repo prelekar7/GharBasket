@@ -83,7 +83,7 @@ KINDS: dict[str, Kind] = {
     "community.donation_verified": Kind(
         "community.donation_verified", "kindness", "/kindness", {"points": "number"}
     ),
-    "community.society_live": Kind("community.society_live", "kindness", "/society"),
+    "community.society_live": Kind("community.society_live", "kindness", "/kindness"),
     # Partner work messages are account messages like the verified ones. A route reads differently
     # to its rider and to a captain, and for a tiffin run (M7 §3.7).
     "logistics.route_published.rider": Kind(

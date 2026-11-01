@@ -287,7 +287,7 @@ async def record(session: AsyncSession, event: OutboxEvent, route: Route) -> int
                 kind=route.kind,
                 category=kind.category,
                 params=route.params,
-                link=kind.link,
+                link=route.link or kind.link,
             )
             .on_conflict_do_nothing(index_elements=["event_id", "user_id"])
             .returning(Message.id)

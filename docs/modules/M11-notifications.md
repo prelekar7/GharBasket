@@ -92,7 +92,7 @@ PUT  /v1/me/push-token    (M1)   { "push_token": "<FCM registration token>" | nu
 | `identity.data_export_ready` (new, M1 `build_data_export`) | account | `/profile` | yes | Never carries the download link |
 | `billing.points_credited` (M5 §3.6) | kindness | `/kindness` | yes | To `user_id`: "You earned 1,200 Kindness points". Nothing when `source_type` is `donation`: `community.donation_verified` tells that one (M9 §3.4) |
 | `community.donation_verified` (M9 §3.4) | kindness | `/kindness` | yes | To the donor (`user_id`) with the `points` awarded |
-| `community.society_live` (M9 §3.6) | kindness | `/society` | yes | To the owner of every household in the society (`identity.api.society_owners`): delivery is now free. The hub managers' "set delivery days" console task is not a message |
+| `community.society_live` (M9 §3.6) | kindness | `/society/<society_id>` | yes | To the owner of every household in the society (`identity.api.society_owners`): delivery is now free. The hub managers' "set delivery days" console task is not a message |
 
 `billing.refund_issued` (money) is still unmapped: M5 does not publish it (it publishes `billing.refund_to_source_settled`, M5 §3.3, which has no row here yet). It gets one when a module publishes it again. `subscriptions.cycle_generated` sends nothing: the cycle is still a draft until `box_ready`.
 
