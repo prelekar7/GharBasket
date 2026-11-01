@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme splash background: the charcoal 900 token in packages/ui tokens.css. -->
+    <color name="splash_background">#1A1714</color>
+</resources>
