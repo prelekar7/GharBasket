@@ -19,7 +19,11 @@ async function load(native) {
 
 /** A router stand-in. @param {string} pathname @param {boolean} canGoBack */
 const fakeRouter = (pathname, canGoBack) => ({
-  history: { back: vi.fn(), canGoBack: () => canGoBack },
+  history: {
+    back: vi.fn(),
+    canGoBack: () => canGoBack,
+    location: { state: { __TSR_index: canGoBack ? 3 : 0 } },
+  },
   state: { location: { pathname } },
 });
 
@@ -121,5 +125,49 @@ describe("startBackButton", () => {
     startBackButton(fakeRouter("/week", true));
     await settle();
     expect(addListener).not.toHaveBeenCalled();
+  });
+});
+
+describe("after sign-in", () => {
+  it("does not go back to the sign-in screens: the first screen of the session minimises", async () => {
+    const { startBackButton } = await load(true);
+    const { useSession } = await import("@/lib/session.js");
+    /** @type {(() => void) | undefined} */
+    let resolved;
+    const back = vi.fn();
+    const router = {
+      history: { back, canGoBack: () => true, location: { state: { __TSR_index: 2 } } },
+      state: { location: { pathname: "/otp" } },
+      subscribe: vi.fn((/** @type {string} */ _e, /** @type {() => void} */ fn) => {
+        resolved = fn;
+        return () => {};
+      }),
+    };
+    const stop = startBackButton(router);
+    await settle();
+
+    // Signed in on the code screen (index 2); home (here onboarding) opens on top, at index 3.
+    useSession.setState({ signedIn: true });
+    resolved?.(); // the code screen itself re-resolving does not count
+    router.state.location.pathname = "/onboarding/society";
+    router.history.location.state.__TSR_index = 3;
+    resolved?.();
+
+    pressBack?.();
+    await settle();
+    expect(back).not.toHaveBeenCalled();
+    expect(minimizeApp).toHaveBeenCalled();
+
+    // A screen opened from there still goes back to it.
+    minimizeApp.mockClear();
+    router.state.location.pathname = "/onboarding/flat";
+    router.history.location.state.__TSR_index = 4;
+    pressBack?.();
+    await settle();
+    expect(back).toHaveBeenCalledOnce();
+    expect(minimizeApp).not.toHaveBeenCalled();
+
+    useSession.setState({ signedIn: false });
+    stop();
   });
 });

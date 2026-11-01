@@ -1,6 +1,6 @@
 // The Android back button. Listening for it switches off the system's own behaviour (Capacitor
 // App docs), so this file decides everything: close what is open, go back, or leave the app.
-import { HOME_BY_ROLE } from "@/lib/session.js";
+import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 import { withPlugin } from "./platform.js";
 
 /** Screens where back leaves the app: sign-in, the five customer tabs and each role's home. */
@@ -43,9 +43,26 @@ export const isRootPath = (pathname) => ROOTS.has(pathname.replace(/(.)\/+$/, "$
 
 /**
  * @typedef {object} BackRouter
- * @property {{ back: () => void, canGoBack: () => boolean }} history
+ * @property {{ back: () => void, canGoBack: () => boolean, location: { state: object } }} history
  * @property {{ location: { pathname: string } }} state
+ * @property {(event: "onResolved", fn: () => void) => () => void} [subscribe]
  */
+
+/** The sign-in screens: never the first screen of a session. */
+const SIGN_IN = new Set(["/welcome", "/login", "/otp"]);
+
+/**
+ * History position of the first screen of this session. The sign-in screens are still in the
+ * history below it (the code screen opens home on top of them), so back stops here instead of
+ * showing the code screen to someone who is already signed in.
+ */
+let sessionStart = 0;
+
+/** Where this entry sits in the history (TanStack's own index, 0 for the first). @param {BackRouter} router */
+const historyIndex = (router) =>
+  Number(
+    /** @type {{ __TSR_index?: number }} */ (router.history.location?.state)?.__TSR_index ?? 0,
+  );
 
 /**
  * What one press of back does: close an overlay; on a root screen minimise the app (so the next
@@ -56,7 +73,11 @@ export const isRootPath = (pathname) => ROOTS.has(pathname.replace(/(.)\/+$/, "$
  */
 export async function handleBack(router, app) {
   if (closeOverlay()) return;
-  if (!isRootPath(router.state.location.pathname) && router.history.canGoBack()) {
+  if (
+    !isRootPath(router.state.location.pathname) &&
+    router.history.canGoBack() &&
+    historyIndex(router) > sessionStart
+  ) {
     router.history.back();
     return;
   }
@@ -72,6 +93,18 @@ export function startBackButton(router) {
   /** @type {(() => void) | undefined} */
   let remove;
   let stopped = false;
+  // A new session starts at the first screen that opens after sign-in; a sign-out starts over.
+  let signingIn = false;
+  const offSession = useSession.subscribe((s, prev) => {
+    if (s.signedIn === prev.signedIn) return;
+    signingIn = s.signedIn;
+    if (!s.signedIn) sessionStart = 0;
+  });
+  const offRouter = router.subscribe?.("onResolved", () => {
+    if (!signingIn || SIGN_IN.has(router.state.location.pathname)) return;
+    signingIn = false;
+    sessionStart = historyIndex(router);
+  });
   withPlugin(
     () => import("@capacitor/app"),
     async ({ App }) => {
@@ -86,5 +119,7 @@ export function startBackButton(router) {
   return () => {
     stopped = true;
     remove?.();
+    offSession();
+    offRouter?.();
   };
 }
