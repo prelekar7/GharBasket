@@ -165,6 +165,15 @@ One delivery slot's van routes for a hub: a stop is a society (the captain does 
   - every society and food-bank drop exactly once (`not served: …` names the ones left out, `visited twice: …` the repeats);
   - every van back by `return_by_s`, and no more vans than `vans.count`.
 - **Fallbacks:** OSRM down, slow (over `OSRM_TIMEOUT_S`, 2.5 s) or wrong-shaped → haversine distances; a pair OSRM cannot route (`null`) → that pair's haversine estimate, logged. No plan → nearest neighbour within the fleet: each trip goes to the van free first, a van goes out again only if it is back by `return_by_s`, and the societies left over are reported in `problems`. The service down → the gateway returns `None` after `time_limit_s + ML_ROUTE_OVERHEAD_S` (6 s, covering OSRM's 2.5 s) and M7 keeps the previous day's sequence (M7 §6).
+- **Evaluation (M-F, 2 Nov 2026; `backend/training` `eval/routing.py`, eval protocol §7 2026-11-02).** Per protocol seed, a delivery morning in S-3's layout on haversine distances (staging has no OSRM), sent as M7 builds the request (20 s for both waves); `routing.plan()` against `routing.nearest_neighbour()`, both replayed by `check()`. `morning(seed, size, food_bank=False)` is the reusable instance generator (the routing fixtures §3.8's evaluation expects). Result over the 5 seeds:
+
+  | Societies | Plan ₹ an order | Nearest neighbour ₹ an order | Paired cost (95 % CI upper) | On time, plan / NN | Vans, plan / NN | Max s a wave | M-F |
+  |---|---|---|---|---|---|---|---|
+  | **50 (headline)** | 6.05 ± 0.40 | 8.54 ± 0.18 | −29.1 % ± 5.6 % (−23.6 %) | 100 % / 95.6 % | 7.0 / 9.6 | 10.01 | **holds** |
+  | 100 | 5.03 ± 0.37 | 8.01 ± 0.20 | −37.2 % ± 4.3 % (−32.9 %) | 100 % / 96.8 % | 11.4 / 19.2 | 10.02 | holds |
+  | 200 | 4.73 ± 0.08 | 7.84 ± 0.17 | −39.7 % ± 1.9 % (−37.8 %) | 100 % / 99.4 % | 20.2 / 37.6 | 10.03 | holds |
+
+  The saving is the fleet and the riders' hours: km an order differ by only −3 % to −6 %. OR-Tools routing stops on wall time, so these plans depend on the machine; ₹ and km are haversine figures, not road ones.
 
 ### 3.5 `POST /assign/kitchens` (v0, M-G; greedy baseline inside)
 Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` at T-1 21:30, through `intel_gateway.api.assign_kitchens`, recorded in `intel.predictions` kind `assignment`).

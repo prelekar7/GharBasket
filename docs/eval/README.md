@@ -36,6 +36,19 @@ What a report holds (v0, October 2026):
   0.25 at ≤ +5 % cost) holds at a λ > 0 when both 95 % CI upper bounds are within it; no verdict
   below 5 paired seeds.
 
+- **M-F — van routing** (`eval/routing.py`, added 2 Nov 2026; protocol §7, 2026-11-02): per seed
+  and size (50 societies, the headline; 100 and 200 for scale; `--routing-sizes`), a seeded delivery
+  morning in spike S-3's layout on haversine distances (no OSRM), sent as M7 builds the request.
+  Production's `routing.plan()` with M7's 20 s for both waves against production's
+  `routing.nearest_neighbour()`, both replayed by `routing.check()`: on-time share, ₹ and km an
+  order, vans, late minutes, wall seconds a wave; the plan against nearest neighbour as the per-seed
+  paired cost ratio − 1. The M-F target holds at a size when the on-time CI lower bound is ≥ 0.95,
+  the paired cost CI upper bound ≤ −0.10, and every plan is the solver's with no checker problem; the
+  guardrail (≤ 10 s a wave) is judged on the largest wall time a wave; no verdict below 5 seeds.
+  OR-Tools routing stops on wall time, so plans depend on the machine. `--no-routing` skips it
+  (about 5 minutes at the defaults); `python -m gharbasket_training.eval.routing --out <dir>` runs
+  it alone and writes `routing-<date>-<commit>.json` and `.html` there.
+
 `just eval-assistant` (M13) is separate: it scores Ghar Saathi on `data/eval/assistant_utterances.jsonl` per
 candidate model (intent accuracy, slot F1, no write on injection fixtures, cost a turn with cache reads
 and writes priced apart) and writes
@@ -90,5 +103,5 @@ change log, 1 Nov 2026). The
 next full report, at the final eval, replaces this one as the reference.
 
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
-check (one seed, one week, no CP-SAT planner arm, the λ sweep on that seed's small week, under a
-minute); the committed reports come from full runs.
+check (one seed, one week, no CP-SAT planner arm, the λ sweep on that seed's small week, routing on
+one 30-society morning at 1 s, under a minute); the committed reports come from full runs.

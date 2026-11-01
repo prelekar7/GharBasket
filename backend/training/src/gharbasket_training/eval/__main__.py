@@ -20,6 +20,7 @@ from gharbasket_training.eval import (
     planner_ab,
     report,
 )
+from gharbasket_training.eval import routing as routing_eval
 from gharbasket_training.settings import Settings
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -96,6 +97,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="a basket ranker run's explanations.json (written next to its model.txt by "
         "train_ranker): adds the 'Ranker explanations' section to the report",
     )
+    # M-F routing (eval/routing.py): production's plan() against nearest neighbour.
+    parser.add_argument("--no-routing", action="store_true", help="skip the M-F routing arm")
+    parser.add_argument(
+        "--routing-sizes",
+        type=int,
+        nargs="+",
+        default=list(routing_eval.SIZES),
+        help="societies a morning (default: 50, the headline, and 100 and 200 for scale)",
+    )
+    parser.add_argument(
+        "--routing-time-limit",
+        type=float,
+        default=routing_eval.TIME_LIMIT_S,
+        help="seconds for both waves (default: what M7 sends, 20)",
+    )
     parser.add_argument(
         "--smoke",
         action="store_true",
@@ -121,6 +137,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.no_learned = True  # one week has no week to predict
         args.planners = [p for p in args.planners if not p.startswith("cpsat")]
         args.forecast_weeks = 11  # the fewest with three backtest origins
+        args.routing_sizes, args.routing_time_limit = [30], 1.0
+    routing_eval.check_args(parser, args.routing_sizes, args.routing_time_limit)
 
     catalog = from_seed_files()
     shocks = None if args.no_shocks else config.load_shocks()
@@ -181,6 +199,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 shocks=shocks,
             )
         ]
+    routing_runs = []
+    if not args.no_routing:
+        routing_runs = [
+            routing_eval.run_routing(seed, size, time_limit_s=args.routing_time_limit)
+            for size in sorted(set(args.routing_sizes))
+            for seed in args.seeds
+        ]
     built = report.build(
         planner_runs,
         pantry_runs,
@@ -205,7 +230,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             "learned_from": sources,
             "forecast_weeks": None if args.no_forecast else args.forecast_weeks,
             "forecast_start": args.forecast_start.isoformat(),
+            "routing_sizes": None if args.no_routing else sorted(set(args.routing_sizes)),
+            "routing_time_limit": args.routing_time_limit,
         },
+        routing_runs=routing_runs,
     )
     html_path, json_path = report.write(built, args.out)
     for planner, metrics in built["planner"].items():
@@ -304,6 +332,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     for metric, e in forecast.get("v1_minus_v0", {}).items():
         if metric in ("wape", "newsvendor_cost") and e["n"]:
             print(f"forecast v1 - v0 {metric} {e['mean']:+.3f} ± {e['ci95']:.3f}")
+    for line in routing_eval.lines(built):
+        print(line)
     print(f"report: {html_path} ({json_path.name})")
     if args.push:
         settings = Settings()

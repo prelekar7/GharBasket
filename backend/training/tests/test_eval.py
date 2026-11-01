@@ -767,7 +767,8 @@ def test_the_cli_passes_the_sweep_flags_and_checks_them(
     monkeypatch.setattr(cli.pantry_baseline, "run_pantry", lambda *a, **k: None)
     monkeypatch.setattr(cli.report, "build", lambda *a, **k: {"args": k["args"]})
     monkeypatch.setattr(cli.report, "write", _stop)
-    flags = ["--seeds", "7", "11", "--no-learned", "--no-forecast", "--out", str(tmp_path)]
+    flags = ["--seeds", "7", "11", "--no-learned", "--no-forecast", "--no-routing"]
+    flags += ["--out", str(tmp_path)]
     sweep = ["--assign-lambdas", "700", "0", "700", "--assign-weeks", "3"]
     sweep += ["--assign-kitchens", "8", "--assign-preferred-share", "0.5"]
     sweep += ["--assign-preferences", "nightly"]
