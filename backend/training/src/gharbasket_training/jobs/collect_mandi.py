@@ -9,6 +9,7 @@ Prices are ₹ per quintal; ₹ X per quintal is exactly X paise per kg, which i
 """
 
 import argparse
+import asyncio
 import json
 import statistics
 import sys
@@ -28,6 +29,18 @@ from gharbasket_training.settings import Settings, get_settings
 RESOURCE = "9ef84268-d588-465a-a308-a864a43d0070"
 API = f"https://api.data.gov.in/resource/{RESOURCE}"
 PAGE = 1000
+# data.gov.in's firewall answers 502 to clients that do not look like a browser.
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+    "Accept": "application/json",
+}
+
+
+class DataGovError(RuntimeError):
+    """data.gov.in refused a page. The message never holds the URL: it carries the API key."""
+
+
 PREFIX = "external/mandi"
 INDEX_WEEKS = 4
 COMMODITIES = Path(__file__).resolve().parents[1] / "data" / "commodities.json"
@@ -65,6 +78,30 @@ def _day(raw: str) -> date:
     return datetime.strptime(raw, "%d/%m/%Y").date()
 
 
+async def _page(
+    http: httpx2.AsyncClient, settings: Settings, params: dict[str, Any]
+) -> dict[str, Any]:
+    """One page of the resource. data.gov.in is often slow or briefly down: a timeout, a dropped
+    connection or a 5xx is tried again (settings.http_attempts in all, waiting retry_wait_s, then
+    twice that, ...); a 4xx (a bad key, a bad filter) fails at once."""
+    where = f"market={params.get('filters[market]')} offset={params.get('offset')}"
+    for attempt in range(1, settings.http_attempts + 1):
+        try:
+            response = await http.get(
+                API, params=params, headers=HEADERS, timeout=settings.http_timeout_s
+            )
+        except (httpx2.TimeoutException, httpx2.TransportError) as error:
+            if attempt == settings.http_attempts:
+                raise DataGovError(f"data.gov.in: {type(error).__name__} ({where})") from None
+        else:
+            if response.is_success:
+                return response.json()
+            if response.status_code < 500 or attempt == settings.http_attempts:
+                raise DataGovError(f"data.gov.in answered {response.status_code} ({where})")
+        await asyncio.sleep(settings.retry_wait_s * attempt)
+    raise AssertionError("unreachable")
+
+
 async def fetch(
     http: httpx2.AsyncClient, settings: Settings, *, state: str, market: str
 ) -> list[dict[str, Any]]:
@@ -73,9 +110,10 @@ async def fetch(
     records: list[dict[str, Any]] = []
     offset = 0
     while True:
-        response = await http.get(
-            API,
-            params={
+        page = await _page(
+            http,
+            settings,
+            {
                 "api-key": settings.data_gov_in_api_key.get_secret_value(),
                 "format": "json",
                 "limit": PAGE,
@@ -83,10 +121,7 @@ async def fetch(
                 "filters[state]": state,
                 "filters[market]": market,
             },
-            timeout=settings.http_timeout_s,
         )
-        response.raise_for_status()
-        page = response.json()
         batch = page.get("records", [])
         records.extend(batch)
         offset += len(batch)
@@ -235,8 +270,6 @@ async def run(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    import asyncio
-
     parser = argparse.ArgumentParser(description="Collect today's mandi prices into the lake.")
     parser.add_argument("--out", type=Path, default=None, help="local lake folder instead of S3")
     parser.add_argument("--today", type=date.fromisoformat, default=date.today())

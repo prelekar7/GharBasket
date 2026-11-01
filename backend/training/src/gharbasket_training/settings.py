@@ -31,7 +31,11 @@ class Settings(BaseSettings):
     database_url_ro: SecretStr | None = None
     database_url: SecretStr | None = None
 
-    http_timeout_s: float = Field(default=60.0, gt=0)
+    # data.gov.in can take minutes to answer a filtered query at busy times.
+    http_timeout_s: float = Field(default=180.0, gt=0)
+    # A slow or failing data.gov.in page is tried this many times, waiting longer each time.
+    http_attempts: int = Field(default=3, ge=1, le=10)
+    retry_wait_s: float = Field(default=20.0, ge=0)
 
     @property
     def markets(self) -> list[str]:
