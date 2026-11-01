@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { cleanName } from "@/features/partners/displayName.js";
 import { ApiError, request } from "@/lib/api.js";
 import { uploadFile } from "@/lib/upload.js";
 
@@ -34,17 +35,17 @@ export function useMyApplication() {
   });
 }
 
-/** Apply for a partner role (POST /v1/partner-applications, M8, W7); one key per role until it succeeds. The server fills the society or hub from your household. */
+/** Apply for a partner role (POST /v1/partner-applications, M8, W7); one key per role until it succeeds. The server fills the society or hub from your household; `displayName` (2 to 40 characters) is what customers see. */
 export function useApply() {
   const client = useQueryClient();
   const keys = useRef(/** @type {Record<string, string>} */ ({}));
   return useMutation({
-    mutationFn: (/** @type {{ kind: PartnerKind }} */ v) => {
+    mutationFn: (/** @type {{ kind: PartnerKind, displayName: string }} */ v) => {
       keys.current[v.kind] ??= crypto.randomUUID();
       return /** @type {Promise<Application>} */ (
         request("/v1/partner-applications", {
           method: "POST",
-          body: { kind: v.kind },
+          body: { kind: v.kind, display_name: cleanName(v.displayName) },
           headers: { "idempotency-key": keys.current[v.kind] },
         })
       );
@@ -52,6 +53,10 @@ export function useApply() {
     onSuccess: (app) => {
       keys.current = {};
       client.setQueryData(["partner-application"], app);
+    },
+    // A refused application changes with the next try (a new name), so it gets a new key.
+    onError: (e, v) => {
+      if (e instanceof ApiError && e.status < 500) delete keys.current[v.kind];
     },
   });
 }
