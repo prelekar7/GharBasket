@@ -50,6 +50,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--push", action="store_true", help="store the rows through the API")
     parser.add_argument("--no-assignment", action="store_true", help="skip the λ sweep (RQ4)")
     parser.add_argument(
+        "--assign-lambdas",
+        type=float,
+        nargs="+",
+        default=list(assignment_sweep.LAMBDAS),
+        help="the λ sweep's grid, paise a portion of imbalance (default: the protocol's)",
+    )
+    parser.add_argument(
+        "--assign-weeks",
+        type=int,
+        default=assignment_sweep.WEEKS,
+        help="consecutive weeks per seed; the last is scored (default: 4 fill the 28-day window)",
+    )
+    parser.add_argument("--assign-kitchens", type=int, default=assignment_sweep.KITCHENS)
+    parser.add_argument(
+        "--assign-preferred-share",
+        type=float,
+        default=assignment_sweep.PREFERRED_SHARE,
+        help="the share of tiffins booked with a preferred cook (default: all, as in production)",
+    )
+    parser.add_argument(
+        "--assign-preferences",
+        choices=assignment_sweep.PREFERENCES,
+        default=assignment_sweep.PREFERENCES[0],
+        help="how a household picks the menu it books: a favourite per seed (sticky), one per "
+        "order (nightly), or a favourite skewed by popularity (popular)",
+    )
+    parser.add_argument(
         "--learned-from",
         type=int,
         help="the seed the pantry reference arm learns its priors on (default: the next of the "
@@ -76,6 +103,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         "(CP-SAT assignment, small) unless --no-assignment",
     )
     args = parser.parse_args(argv)
+    if args.assign_weeks < 1 or args.assign_kitchens < 1:
+        parser.error("--assign-weeks and --assign-kitchens must be at least 1")
+    if not all(0 <= lam <= 10_000 for lam in args.assign_lambdas):
+        parser.error("--assign-lambdas must be within 0 to 10000")
+    if not 0 <= args.assign_preferred_share <= 1:
+        parser.error("--assign-preferred-share must be within 0 to 1")
+    sweep_config = assignment_sweep.SweepConfig(
+        lambdas=tuple(sorted(set(args.assign_lambdas))),
+        weeks=args.assign_weeks,
+        kitchens=args.assign_kitchens,
+        preferred_share=args.assign_preferred_share,
+        preferences=args.assign_preferences,
+    )
     if args.smoke:
         args.seeds, args.weeks, args.adoption = [7], 1, 0.02
         args.no_learned = True  # one week has no week to predict
@@ -121,7 +161,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         sweep_runs = [
             run
             for seed in args.seeds
-            if (run := assignment_sweep.run_sweep(seed, catalog, adoption=args.adoption))
+            if (
+                run := assignment_sweep.run_sweep(
+                    seed, catalog, adoption=args.adoption, cfg=sweep_config
+                )
+            )
         ]
     forecast_runs = []
     if not args.no_forecast:
@@ -153,6 +197,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "shocks": not args.no_shocks,
             "smoke": args.smoke,
             "no_assignment": args.no_assignment,
+            "assign_lambdas": list(sweep_config.lambdas),
+            "assign_weeks": sweep_config.weeks,
+            "assign_kitchens": sweep_config.kitchens,
+            "assign_preferred_share": sweep_config.preferred_share,
+            "assign_preferences": sweep_config.preferences,
             "learned_from": sources,
             "forecast_weeks": None if args.no_forecast else args.forecast_weeks,
             "forecast_start": args.forecast_start.isoformat(),
@@ -237,6 +286,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"M-G Gini <= 0.25 at <= +5 % cost: {verdict}"
             + (f" (dropped seeds {dropped})" if dropped else "")
+        )
+        chosen = sweep_target["rule_lambda"]
+        print(
+            "M-G λ by the rule fixed before the sweep: "
+            + ("none (no verdict)" if chosen is None else f"{chosen:g}")
+            + f" ({sweep_target['lambda_rule']})"
         )
     forecast = built.get("forecast", {})
     for arm, metrics in forecast.get("arms", {}).items():

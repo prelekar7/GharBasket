@@ -4,7 +4,7 @@ import json
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx2
 import pytest
@@ -351,7 +351,7 @@ def _week_point(lam: float | None, gini: float, cost: float, status: str = "solv
         fairness_lambda=lam,
         status=status,
         evening_status=[status] * 7,
-        greedy_evenings=7 if lam is None else 0,
+        greedy_evenings=7 if lam is None or status == "fallback" else 0,
         seconds=0.1,
         gini=gini,
         gini_all=gini,
@@ -379,38 +379,272 @@ def _sweep_run(seed: int, points: dict[float | None, tuple[float, float]], **sta
     )
 
 
+SOCIETY = (19.0300, 73.0690)
+
+
+def _kitchen(name: str, lat: float, skills: tuple[str, ...] = ("veg",)) -> dict[str, Any]:
+    from gharbasket_training.eval.assignment_sweep import _id
+
+    return {"id": _id(name), "lat": lat, "lng": SOCIETY[1], "skills": list(skills), "rating": 4.5}
+
+
+def _order(name: str, portions: int = 2, preferred: str | None = None) -> dict[str, Any]:
+    from gharbasket_training.eval.assignment_sweep import _id
+
+    return {
+        "id": _id(name),
+        "lat": SOCIETY[0],
+        "lng": SOCIETY[1],
+        "portions": portions,
+        "skills": [],
+        "preferred": preferred,
+    }
+
+
 def test_a_high_lambda_spreads_a_hand_built_week_over_the_kitchens() -> None:
     from gharbasket_training.eval import assignment_sweep
-    from gharbasket_training.eval.assignment_sweep import Week
+    from gharbasket_training.eval.assignment_sweep import Weeks
 
     # Two kitchens: one beside the society, one 1.7 km away. Cost alone sends every order to the
-    # near one; a high λ must hand some to the far one.
-    society = (19.0300, 73.0690)
-    evenings = [
-        [
-            {"id": f"o{d}-{i}", "lat": society[0], "lng": society[1], "portions": 2, "skills": []}
-            for i in range(2)
-        ]
-        for d in range(7)
-    ]
-    kitchens = [
-        {"id": "near", "lat": society[0], "lng": society[1], "skills": ["veg"], "rating": 4.5},
-        {"id": "far", "lat": 19.0450, "lng": society[1], "skills": ["veg"], "rating": 4.5},
-    ]
-    week = Week(evenings, kitchens)
+    # near one; a high λ must hand some to the far one. One week, no preferred cook.
+    near, far = _kitchen("near", SOCIETY[0]), _kitchen("far", 19.0450)
+    evenings = [[_order(f"o{d}-{i}") for i in range(2)] for d in range(7)]
+    week = Weeks(evenings, [near, far])
 
-    greedy = assignment_sweep.run_week(week, None)
-    cost_only = assignment_sweep.run_week(week, 0.0)
-    fair = assignment_sweep.run_week(week, 2000.0)
+    greedy = assignment_sweep.run_weeks(week, None)
+    cost_only = assignment_sweep.run_weeks(week, 0.0)
+    fair = assignment_sweep.run_weeks(week, 2000.0)
 
     assert greedy.solved and cost_only.solved and fair.solved
     assert len(fair.evening_status) == 7 and fair.greedy_evenings == 0
-    assert greedy.greedy_evenings == 7
+    assert greedy.greedy_evenings == 7 and greedy.preferred_share == 0
     assert cost_only.gini == greedy.gini == 0.5 and cost_only.kitchens_used == 1
     assert fair.gini < cost_only.gini and fair.kitchens_used == 2
     assert fair.cost_paise_per_portion > cost_only.cost_paise_per_portion
     # The quality penalty is ₹2.50 a portion (half a star below 5); the rest is the rider.
     assert cost_only.cost_paise_per_portion - cost_only.rider_paise_per_portion == 250
+
+
+def test_the_rolling_earnings_carry_over_the_weeks_and_drop_out_after_28_days(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import RATE, Evening, Weeks
+
+    # Five weeks, one 1-portion order a night, always cooked by `a`: each night sees the
+    # portions of the 28 nights before it, never more, and never tonight's.
+    a, b = _kitchen("a", SOCIETY[0]), _kitchen("b", 19.0450)
+    weeks = Weeks([[_order(f"o{d}", portions=1)] for d in range(35)], [a, b])
+    seen: list[dict[str, int]] = []
+
+    def fake(orders: list[Any], kitchens: Any, rolling: dict[str, int], lam: Any) -> Evening:
+        seen.append(rolling)
+        return Evening([(orders[0]["id"], a["id"], 1)], 0, {a["id"], b["id"]}, "solved", False, 0)
+
+    monkeypatch.setattr(assignment_sweep, "evening", fake)
+    point = assignment_sweep.run_weeks(weeks, 300.0)
+
+    assert [r[a["id"]] // RATE for r in seen] == [min(d, 28) for d in range(35)]
+    assert all(r[b["id"]] == 0 for r in seen)
+    assert point.gini == 0.5 and point.kitchens_used == 1  # the scored week: all to `a`
+    assert len(point.evening_status) == 35
+
+
+def test_the_earnings_of_the_warm_up_weeks_steer_the_scored_week() -> None:
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import Weeks
+
+    # Week 1: Jain orders only the near kitchen can cook. Week 2 (scored): plain orders. With
+    # week 1's earnings carried in, a high λ hands the far kitchen most of week 2 to catch her
+    # up, so week 2 alone is less even than without that history.
+    near = _kitchen("near", SOCIETY[0], ("veg", "jain"))
+    far = _kitchen("far", 19.0450)
+    jain = [[{**_order(f"j{d}-{i}"), "skills": ["jain"]} for i in range(2)] for d in range(7)]
+    plain = [[_order(f"p{d}-{i}") for i in range(2)] for d in range(7)]
+
+    def scored(evenings: list[Any]) -> Any:
+        point = assignment_sweep.run_weeks(Weeks(evenings, [near, far]), 2000.0)
+        assert point.solved
+        return point
+
+    alone, carried = scored(plain), scored(jain + plain)
+    assert alone.gini < 0.05  # an even split of week 2
+    assert carried.gini > alone.gini  # the far kitchen took most of it
+    assert carried.gini_rolling < scored(jain).gini_rolling  # and the 28 days are evener
+
+
+def test_the_preferred_cook_takes_her_orders_before_the_solver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gharbasket_ml import assignment
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import MAX_KM, RATE, TIME_LIMIT_S
+
+    near, far = _kitchen("near", SOCIETY[0]), _kitchen("far", 19.0450)
+    away = _kitchen("away", 19.1000)  # 7.8 km: out of reach, so her order goes to the solver
+    orders = [
+        _order("to-far", portions=3, preferred=far["id"]),
+        _order("to-away", portions=2, preferred=away["id"]),
+        _order("free", portions=2),
+    ]
+    sent: list[Any] = []
+    solve = assignment.assign
+
+    def spy(req: Any, *, deterministic: bool = True) -> Any:
+        sent.append(req)
+        return solve(req, deterministic=deterministic)
+
+    monkeypatch.setattr(assignment, "assign", spy)
+    rolling = {near["id"]: 0, far["id"]: 6000, away["id"]: 0}
+    night = assignment_sweep.evening(orders, [near, far, away], rolling, 300.0)
+
+    assert (orders[0]["id"], far["id"], 3) in night.matches and night.preferred == 3
+    assert night.eligible == {near["id"], far["id"]}  # `away` can take no order
+    (req,) = sent
+    assert sorted(o.id for o in req.orders) == sorted([orders[1]["id"], orders[2]["id"]])
+    kitchens = {k.id: k for k in req.kitchens}
+    # The preferred match lowered her room and raised her rolling earnings, as in production.
+    assert kitchens[far["id"]].max_portions == 8 - 3
+    assert kitchens[far["id"]].earnings_paise == 6000 + 3 * RATE
+    assert req.max_km == MAX_KM == 5.0 and req.time_limit_s == TIME_LIMIT_S
+    assert req.fairness_lambda == 300.0 and req.paise_per_portion == RATE
+    assert {o for o, _, _ in night.matches} == {o["id"] for o in orders}
+
+    # Every order with a preferred cook who can take it: no request at all.
+    sent.clear()
+    night = assignment_sweep.evening(orders[:1], [near, far], rolling, 300.0)
+    assert not sent and night.status == "solved" and night.preferred == 3
+
+
+def test_an_order_out_of_every_kitchens_reach_is_left_out_not_a_solver_failure() -> None:
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import Weeks
+
+    near, far = _kitchen("near", SOCIETY[0]), _kitchen("far", 19.0450)
+    remote = {**_order("remote", portions=2), "lat": 19.1200}  # 10 km: no kitchen reaches it
+    # Evening 1: one plain order and the remote one; evening 2: only the remote one.
+    evenings = [[_order("o1", portions=2), remote], [{**remote, "id": _order("r2")["id"]}]]
+    point = assignment_sweep.run_weeks(Weeks(evenings, [near, far]), 300.0)
+
+    assert point.evening_status == ["partial", "infeasible"] and point.status == "partial"
+    assert point.greedy_evenings == 0 and point.solved  # CP-SAT never fell back
+    assert point.unassigned_share == round(4 / 6, 4)  # 4 of the 6 ordered portions
+    assert point.cost_paise_per_portion > 0  # over the 2 assigned portions
+
+
+def test_the_cost_counts_only_the_orders_every_arm_assigned() -> None:
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import Weeks
+
+    # `big` (6 portions) can go to either kitchen, `south` (3) only to `near` (4.5 km; `far` is
+    # 5.5 km away). Greedy puts `big` at `near`, the cheaper, and has no room left for `south`;
+    # CP-SAT sends `big` north and `south` to `near`. So the arms leave out different orders.
+    near, far = _kitchen("near", SOCIETY[0]), _kitchen("far", 19.0390)
+    big = _order("big", portions=6)
+    south = {**_order("south", portions=3), "lat": 18.9895}
+    weeks = Weeks([[big, south]], [near, far])
+
+    alone_greedy = assignment_sweep.run_weeks(weeks, None)
+    alone_fair = assignment_sweep.run_weeks(weeks, 0.0)
+    assert alone_greedy.unassigned_share == round(3 / 9, 4) and alone_fair.unassigned_share == 0
+    # Each over its own orders, CP-SAT would look dearer only for cooking `south` at all.
+    assert alone_fair.cost_paise_per_portion > alone_greedy.cost_paise_per_portion
+
+    (greedy, fair), costed = assignment_sweep.sweep_points(weeks, (0.0,))
+    assert costed == 6  # `big` alone: the order both arms assigned
+    assert fair.solved and greedy.unassigned_share > fair.unassigned_share
+    # `big` at `far` (1 km) against `near` (beside it): CP-SAT is dearer on the same order.
+    assert greedy.km_per_portion == 0 and round(fair.km_per_portion) == 1
+    assert fair.cost_paise_per_portion - greedy.cost_paise_per_portion == pytest.approx(
+        fair.rider_paise_per_portion - greedy.rider_paise_per_portion
+    )
+
+
+def test_the_preference_models() -> None:
+    from collections import defaultdict
+
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import SweepConfig
+
+    catalog = from_seed_files()
+
+    def favourites(cfg: SweepConfig) -> tuple[dict[str, set[str | None]], list[Any]]:
+        weeks = assignment_sweep.instance(7, catalog, 0.05, cfg)
+        assert weeks is not None
+        seen: dict[str, set[str | None]] = defaultdict(set)
+        for o in (o for e in weeks.evenings for o in e):
+            seen[o["household"]].add(o["preferred"])
+        return seen, weeks.kitchens
+
+    sticky, _ = favourites(SweepConfig(weeks=2))
+    assert all(len(cooks) == 1 and None not in cooks for cooks in sticky.values())
+    nightly, _ = favourites(SweepConfig(weeks=2, preferences="nightly"))
+    assert any(len(cooks) > 1 for cooks in nightly.values())
+    none, _ = favourites(SweepConfig(weeks=2, preferred_share=0.0))
+    assert all(cooks == {None} for cooks in none.values())
+    half, _ = favourites(SweepConfig(weeks=2, preferred_share=0.5))
+    assert any(None in cooks and len(cooks) == 2 for cooks in half.values())
+    # Popular: one favourite per household, drawn with the popularity weights (not uniformly).
+    popular, _ = favourites(SweepConfig(weeks=2, preferences="popular"))
+    assert popular != sticky and set(popular) == set(sticky)
+    assert all(len(cooks) == 1 for cooks in popular.values())
+
+
+def test_the_harness_uses_the_production_numbers() -> None:
+    from gharbasket_training.eval import assignment_sweep
+
+    from gharbasket.modules.partners import api as _partners  # noqa: F401 (import order)
+    from gharbasket.modules.partners import assignments, matching
+
+    assert assignments.ROLLING.days == assignment_sweep.ROLLING_DAYS
+    assert assignment_sweep.TIME_LIMIT_S == assignments.TIME_LIMIT_S
+    assert assignment_sweep.MAX_KM == matching.MAX_KM
+    assert assignment_sweep.RATING_FLOOR == matching.RATING_FLOOR
+    assert set(assignment_sweep.PROTOCOL_LAMBDAS) <= set(assignment_sweep.LAMBDAS)
+    assert {400.0, 600.0, 800.0, 900.0, 1100.0, 1200.0} <= set(assignment_sweep.LAMBDAS)
+
+
+def test_the_production_lambda_is_the_same_everywhere() -> None:
+    from gharbasket_ml.schemas import FAIRNESS_LAMBDA, AssignRequest
+
+    from gharbasket.modules.intel_gateway.schemas import AssignRequest as GatewayRequest
+    from gharbasket.platform.settings import Settings as ApiSettings
+
+    api = ApiSettings.model_fields["partners_fairness_lambda"].default
+    gateway = GatewayRequest.model_fields["fairness_lambda"].default
+    ml = AssignRequest.model_fields["fairness_lambda"].default
+    # 600: the owner's departure from the rule's 900 (eval protocol §7, 2026-11-01).
+    assert api == gateway == ml == FAIRNESS_LAMBDA == 600.0
+
+
+def test_the_rule_lambda_follows_the_rule_fixed_before_the_sweep() -> None:
+    from gharbasket_training.eval.assignment_sweep import KEEP_LAMBDA
+    from gharbasket_training.eval.assignment_sweep import rule_lambda as production_lambda
+
+    def grid(**rows: tuple[float, bool | None]) -> dict[str, Any]:
+        return {
+            k.removeprefix("l"): {"extra_cost": {"mean": cost}, "holds": holds}
+            for k, (cost, holds) in rows.items()
+        }
+
+    # The target holds: the smallest λ > 0 that meets it, whatever the cost budget allows.
+    holding = grid(l0=(-0.04, False), l300=(0.0, False), l700=(0.02, True), l900=(0.03, True))
+    assert production_lambda(holding, True) == 700.0
+    # It does not: the last λ before the first whose mean cost is above +5 %, even when a
+    # larger λ dips below it again; λ = 0 never counts.
+    knee = grid(
+        l0=(-0.04, False),
+        l100=(-0.04, False),
+        l500=(0.01, False),
+        l600=(0.049, False),
+        l700=(0.06, False),
+        l800=(0.04, False),
+    )
+    assert production_lambda(knee, False) == 600.0
+    # Even the smallest λ > 0 costs more than +5 %: production's λ of the registration stays.
+    assert production_lambda(grid(l0=(0.0, False), l100=(0.06, False)), False) == KEEP_LAMBDA
+    assert KEEP_LAMBDA == 300.0
+    assert production_lambda(knee, None) is None  # no verdict, no pick
 
 
 def test_the_m_g_target_needs_both_upper_bounds_five_seeds_and_a_positive_lambda() -> None:
@@ -439,9 +673,12 @@ def test_the_m_g_target_needs_both_upper_bounds_five_seeds_and_a_positive_lambda
     assert holds["per_lambda"]["100"]["holds"] is False  # Gini 0.4
     assert holds["per_lambda"]["300"]["extra_cost_upper"] <= 0.05
     assert holds["dropped_seeds"] == [] and holds["greedy_gini"]["mean"] == 0.6
+    assert holds["rule_lambda"] == 300.0 and "mean-cost budget" in holds["lambda_rule"]
 
     costly = target(seeds(1100.0))  # +10 % cost
     assert costly["holds"] is False and costly["lambda"] is None
+    # The knee: 200 (a copy of greedy here) is the last λ before 300, which costs +10 %.
+    assert costly["rule_lambda"] == 200.0
 
     # λ = 0 is the cost-only plan: even a fair cost-only week does not meet the target.
     zero = target(seeds(1100.0, zero_gini=0.1))
@@ -449,11 +686,15 @@ def test_the_m_g_target_needs_both_upper_bounds_five_seeds_and_a_positive_lambda
 
     few = target(seeds(1020.0, n=3))
     assert few["holds"] is None and few["lambda"] is None
+    assert few["rule_lambda"] is None
     assert all(v["holds"] is None for v in few["per_lambda"].values())
 
-    # A seed where one point did not solve is dropped for every λ, and named.
+    # A seed where CP-SAT fell back to greedy at one λ is dropped for every λ, and named; one
+    # where it left out an order no kitchen in reach had room for is not.
     runs = seeds(1020.0)
-    runs[2] = _sweep_run(2, {None: (0.6, 1000.0)}, **{"700.0": "partial"})
+    runs[3] = _sweep_run(3, {None: (0.6, 1000.0)}, **{"700.0": "partial"})
+    assert target(runs)["dropped_seeds"] == []
+    runs[2] = _sweep_run(2, {None: (0.6, 1000.0)}, **{"700.0": "fallback"})
     dropped = target(runs)
     assert dropped["dropped_seeds"] == [2] and dropped["n"] == 4 and dropped["holds"] is None
     summary = assignment_sweep.summarise(runs)
@@ -475,28 +716,93 @@ def test_the_sweep_table_shows_rupees_not_paise() -> None:
 
 def test_the_lambda_sweep_solves_every_point_of_a_small_week() -> None:
     from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import SweepConfig
 
     catalog = from_seed_files()
-    run = assignment_sweep.run_sweep(7, catalog, adoption=0.02)
+    cfg = SweepConfig(lambdas=(0.0, 300.0, 2000.0), weeks=2)
+    run = assignment_sweep.run_sweep(7, catalog, adoption=0.02, cfg=cfg)
 
     assert run is not None and run.orders > 0 and run.portions >= run.orders
-    assert run.evenings == 7  # Sunday's no-cook households and the weekday draws
-    assert [p.fairness_lambda for p in run.points] == [None, *assignment_sweep.LAMBDAS]
-    assert all(p.solved and p.evening_status == ["solved"] * 7 for p in run.points)
+    assert run.config == cfg and 0 < run.evenings <= 7
+    assert [p.fairness_lambda for p in run.points] == [None, 0.0, 300.0, 2000.0]
+    assert all(p.solved and set(p.evening_status) == {"solved"} for p in run.points)
+    assert all(len(p.evening_status) > 7 for p in run.points)  # both weeks were lived
     assert all(p.greedy_evenings == 0 for p in run.points[1:])
     assert all(0 <= p.gini <= 1 and p.cost_paise_per_portion > 0 for p in run.points)
-    by_lambda = {p.fairness_lambda: p for p in run.points}
-    assert by_lambda[2000.0].gini < by_lambda[0.0].gini
+    # Every tiffin names its favourite cook, who takes it first whenever she can: the same
+    # orders in every arm.
+    shares = {p.preferred_share for p in run.points}
+    assert len(shares) == 1 and 0 < shares.pop() <= 1
 
     built = report.build([], [], args={"smoke": True}, sweep_runs=[run])
-    assert built["seeds"] == [7] and set(built["assignment"]) >= {"greedy", "0", "2000"}
+    assert built["seeds"] == [7] and set(built["assignment"]) == {"greedy", "0", "300", "2000"}
     prov = built["provenance"]["assignment"]
-    assert prov["lambdas"] == list(assignment_sweep.LAMBDAS) and prov["ortools_version"]
+    assert prov["lambdas"] == [0.0, 300.0, 2000.0] and prov["ortools_version"]
+    assert prov["weeks"] == 2 and prov["rolling_days"] == 28 and prov["max_km"] == 5.0
     assert prov["model"] == "assignment-cpsat-v0" and len(prov["societies_sha256"]) == 64
     target = built["assignment_targets"]["gini_le_0_25_at_le_5pct_cost"]
     assert target["holds"] is None and target["seeds"] == [7] and target["dropped_seeds"] == []
+    assert set(target["per_lambda"]) == {"0", "300", "2000"}
+    assert target["rule_lambda"] is None  # one seed: no verdict, no pick
     rows = report.metrics_rows(built)
     assert {r["model_name"] for r in rows} >= {"assignment_cpsat", "assignment_greedy"}
     extra = next(r for r in rows if r["metric"] == "extra_cost_lambda_2000")
     assert set(extra["details"]["per_seed"]) == {"7"} and extra["details"]["dropped_seeds"] == []
-    assert "λ sweep" in report.to_html(built)
+    page = report.to_html(built)
+    assert "λ sweep" in page and "preferred cook" in page and "rule fixed before" in page
+
+
+def test_the_cli_passes_the_sweep_flags_and_checks_them(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from gharbasket_training.eval import assignment_sweep
+
+    got: list[Any] = []
+
+    def fake(seed: int, catalog: Any, *, adoption: float | None, cfg: Any) -> None:
+        got.append((seed, adoption, cfg))
+
+    monkeypatch.setattr(assignment_sweep, "run_sweep", fake)
+    monkeypatch.setattr(cli.planner_ab, "run_planner", lambda *a, **k: None)
+    monkeypatch.setattr(cli.pantry_baseline, "run_pantry", lambda *a, **k: None)
+    monkeypatch.setattr(cli.report, "build", lambda *a, **k: {"args": k["args"]})
+    monkeypatch.setattr(cli.report, "write", _stop)
+    flags = ["--seeds", "7", "11", "--no-learned", "--no-forecast", "--out", str(tmp_path)]
+    sweep = ["--assign-lambdas", "700", "0", "700", "--assign-weeks", "3"]
+    sweep += ["--assign-kitchens", "8", "--assign-preferred-share", "0.5"]
+    sweep += ["--assign-preferences", "nightly"]
+    with pytest.raises(_Stop) as stop:
+        cli.main([*flags, *sweep])
+
+    cfg = assignment_sweep.SweepConfig(
+        (0.0, 700.0), weeks=3, kitchens=8, preferred_share=0.5, preferences="nightly"
+    )
+    assert got == [(7, None, cfg), (11, None, cfg)]
+    args = stop.value.args[0]["args"]
+    assert args["assign_lambdas"] == [0.0, 700.0] and args["assign_weeks"] == 3
+    assert args["assign_kitchens"] == 8 and args["assign_preferred_share"] == 0.5
+    assert args["assign_preferences"] == "nightly"
+
+    got.clear()
+    with pytest.raises(_Stop):
+        cli.main(flags)  # the defaults are the protocol's
+    assert got[0][2] == assignment_sweep.SweepConfig()
+    assert got[0][2].lambdas == assignment_sweep.LAMBDAS and got[0][2].weeks == 5
+
+    for bad in (
+        ["--assign-weeks", "0"],
+        ["--assign-kitchens", "0"],
+        ["--assign-lambdas", "-1"],
+        ["--assign-preferred-share", "1.5"],
+        ["--assign-preferences", "random"],
+    ):
+        with pytest.raises(SystemExit):
+            cli.main([*flags, *bad])
+
+
+class _Stop(Exception):
+    pass
+
+
+def _stop(built: dict[str, Any], out: Path) -> NoReturn:
+    raise _Stop(built)

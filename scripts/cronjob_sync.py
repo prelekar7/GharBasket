@@ -22,6 +22,7 @@ updates every job.
 import argparse
 import json
 import os
+import ssl
 import sys
 import time
 import urllib.error
@@ -31,6 +32,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+try:  # python.org's macOS Python has no root certificates of its own
+    import certifi
+
+    TLS = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    TLS = ssl.create_default_context()
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEDULE = ROOT / "infra" / "jobs" / "schedule.yaml"
@@ -173,7 +181,7 @@ class CronJobOrg:
             )
             self.calls += 1
             try:
-                with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+                with urllib.request.urlopen(req, timeout=30, context=TLS) as resp:  # noqa: S310
                     raw = resp.read()
                 time.sleep(PAUSE[method])
                 return json.loads(raw) if raw else {}

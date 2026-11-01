@@ -151,7 +151,7 @@ async def test_m10s_answer_is_used_with_the_specs_parameters(
 
     assert ran.json()["offers"] == 1 and ran.json()["unassigned"] == 1
     (request,) = seen
-    assert request.fairness_lambda == 300 and request.max_km == 5 and request.rating_floor == 3.8
+    assert request.fairness_lambda == 600 and request.max_km == 5 and request.rating_floor == 3.8
     assert [(k.id, k.max_portions, k.rating) for k in request.kitchens] == [(str(lata), 5, 4.5)]
     assert sorted(o.portions for o in request.orders) == [1, 2]
     run = (await db_session.execute(select(AssignmentRun))).scalar_one()

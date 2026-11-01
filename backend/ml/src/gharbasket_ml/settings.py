@@ -1,10 +1,11 @@
 """Settings of the ML service (environment variables)."""
 
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_TOKEN_BYTES = 32  # the same floor as the API's secrets (platform/settings.py)
@@ -18,12 +19,27 @@ class Settings(BaseSettings):
     ml_service_token: SecretStr | None = None
     # A local stand-in for the R2 registry pointer (tests, laptops); unset: built-in solvers only.
     models_manifest: Path | None = None
-    # The learned models' folder (`<name>/latest.json`, `<name>/<version>/model.txt`), what the
-    # training job writes to R2 and the image or a mount makes local; unset: fallbacks only.
+    # The learned models' folder (`<name>/latest.json`, `<name>/<version>/model.txt`), the
+    # registry layout without the `models/` prefix. Set: served as it is and R2 is not read.
+    # Unset: the models synced from R2 (below) when the S3 settings are set, else fallbacks only.
     models_dir: Path | None = None
-    # How often the learned models are re-read from MODELS_DIR (ADR-0025: the Space polls
-    # latest.json every 10 minutes), so a promotion after startup is served without a restart.
+    # How often the learned models are re-read from MODELS_DIR and the R2 pointers are followed
+    # (ADR-0025: every 10 minutes), so a promotion after startup is served without a restart.
     models_reload_s: float = Field(default=600.0, gt=0)
+    # The R2 model registry (`models/<name>/latest.json` and `models/<name>/<version>/` in
+    # S3_BUCKET_MLFLOW), read only, as `backend/training` writes it. All three of the endpoint
+    # and the key pair set (and MODELS_DIR unset): the served models are synced into
+    # MODELS_CACHE_DIR in the background (`model_sync.py`).
+    s3_endpoint_url: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: SecretStr | None = None
+    s3_region: str = "auto"
+    s3_bucket_mlflow: str = "gb-mlflow"
+    models_cache_dir: Path = Path(tempfile.gettempdir()) / "gharbasket-models"
+    # One registry request (connect, each read) may take this long; a whole sync at most
+    # MODELS_SYNC_DEADLINE_S, after which it gives up and the models it has keep serving.
+    models_sync_timeout_s: float = Field(default=10.0, gt=0, le=60)
+    models_sync_deadline_s: float = Field(default=120.0, gt=0, le=600)
     # The OSRM server next to this service (the Space runs it on 127.0.0.1:5000); unset: the
     # routing endpoints answer with the haversine fallback and /health/ai says "not_configured".
     osrm_url: str | None = None
@@ -42,6 +58,47 @@ class Settings(BaseSettings):
     # The same for /slots/price, shorter because a customer is waiting (M10 §3.8); the API's
     # ML_SLOT_TIMEOUT_S (2 s) covers it.
     slot_osrm_timeout_s: float = Field(default=1.0, gt=0, le=2)
+
+    @property
+    def registry_sync_enabled(self) -> bool:
+        """True when the models come from R2: the S3 settings are set and MODELS_DIR is not."""
+        return self.models_dir is None and bool(
+            self.s3_endpoint_url and self.s3_access_key and self.s3_secret_key
+        )
+
+    @property
+    def registry_sync_warning(self) -> str | None:
+        """Why a half-set registry configuration is not followed (logged once at startup)."""
+        given = [
+            name
+            for name, value in (
+                ("S3_ENDPOINT_URL", self.s3_endpoint_url),
+                ("S3_ACCESS_KEY", self.s3_access_key),
+                ("S3_SECRET_KEY", self.s3_secret_key),
+            )
+            if value
+        ]
+        if not given:
+            return None
+        if self.models_dir is not None:
+            return f"MODELS_DIR is set, so {', '.join(given)} are ignored: R2 is not read"
+        if len(given) < 3:
+            return f"only {', '.join(given)} of the three S3 settings set: R2 is not read"
+        return None
+
+    @property
+    def served_models_dir(self) -> Path | None:
+        """The folder the ranker and `/models` read: MODELS_DIR, else the R2 cache, else None."""
+        if self.models_dir is not None:
+            return self.models_dir
+        return self.models_cache_dir if self.registry_sync_enabled else None
+
+    @field_validator("s3_endpoint_url")
+    @classmethod
+    def _endpoint_is_http(cls, value: str | None) -> str | None:
+        if value and not value.lower().startswith(("http://", "https://")):
+            raise ValueError("S3_ENDPOINT_URL must be an http:// or https:// URL")
+        return value or None
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:

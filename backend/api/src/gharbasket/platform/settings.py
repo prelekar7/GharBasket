@@ -122,8 +122,10 @@ class Settings(DatabaseSettings):
     # Green slots (M10 §3.8, M3 §3.6): off, M3's slot-quote and slot-move endpoints answer 404
     # `subscriptions.green_slots_off` and nothing else changes (on in staging for MS-D).
     green_slots_enabled: bool = False
-    # The tiffin assignment's fairness weight, paise per portion (M8 §3.4; M10's knee is 300).
-    partners_fairness_lambda: float = Field(default=300.0, ge=0, le=10_000)
+    # The tiffin assignment's fairness weight, paise per portion (M8 §3.4): 600, set from the eval
+    # harness's λ sweep and its preference-model sensitivity (M10 §3.5, eval protocol §7,
+    # 2026-11-01); revisit with pilot data.
+    partners_fairness_lambda: float = Field(default=600.0, ge=0, le=10_000)
     # The issuer line of a partner's income certificate (M8 §3.7). GharBasket is a student project,
     # not a company; wording for a real pilot is confirmed with the guide (handbook 13).
     partners_certificate_issuer: str = Field(

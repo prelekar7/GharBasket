@@ -41,6 +41,8 @@ __pycache__/
 frontend/mobile/android/build/
 frontend/mobile/android/app/build/
 frontend/mobile/android/.gradle/
+# Firebase config: sent privately, the repo is public
+frontend/mobile/android/app/google-services.json
 *.keystore
 local.properties
 

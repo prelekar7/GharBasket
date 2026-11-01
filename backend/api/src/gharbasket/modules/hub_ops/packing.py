@@ -108,10 +108,10 @@ def _natural(text: str) -> tuple[Any, ...]:
 async def build(session: AsyncSession, hub_id: uuid.UUID, day: date) -> tuple[int, int]:
     """One task per locked box or add-on order of the hub and date that has none yet; returns
     (created, existing). New tasks join the end of the queue, sorted by slot start, society
-    name, tower and flat. Route order (M7's `logistics.route_published`, not built yet) will
-    re-sequence queued tasks; `route_id` and `stop_seq` stay null until then. The kept items M4
-    attached to an order (`OrderSummary.carried`, §3.5) are lines of their own with `carried`;
-    a queued task built earlier takes the ones attached since (or loses a refunded one)."""
+    name, tower and flat; when M7 has published the date's box routes, the queued tasks then
+    follow them (`follow_routes`). The kept items M4 attached to an order
+    (`OrderSummary.carried`, §3.5) are lines of their own with `carried`; a queued task built
+    earlier takes the ones attached since (or loses a refunded one)."""
     await service.get_hub(session, hub_id, for_update=True)  # one build per hub at a time
     have = (
         await session.execute(
@@ -197,7 +197,69 @@ async def build(session: AsyncSession, hub_id: uuid.UUID, day: date) -> tuple[in
         )
         await sync_carried(session, task, summary.carried)
     await session.flush()
+    await follow_routes(session, hub_id, day)
     return len(new), len(existing)
+
+
+async def follow_routes(session: AsyncSession, hub_id: uuid.UUID, day: date) -> int:
+    """Put the hub's queued tasks of the date in the published routes' loading order (§3.2,
+    M7's `logistics.route_published`); returns the tasks changed.
+
+    A task rides the drop of its society and slot (`logistics.api.published_stop_order`; a
+    society and slot is on one route only), which sets `route_id` and `stop_seq`. Queued tasks
+    take the seq numbers they already hold, in a new order: route start (departure, trip), stop
+    order, tower and flat, then the tasks on no route in their old order. Started and packed
+    tasks keep their seq, route and stop. The result depends only on the published routes, so a
+    re-publish (a new rider, the same route again) changes nothing; a task whose route was
+    cancelled with no successor loses its route and joins the tasks on no route."""
+    await service.get_hub(session, hub_id, for_update=True)  # one build or re-sequence at a time
+    queued = list(
+        await session.scalars(
+            select(PackingTask)
+            .where(
+                PackingTask.hub_id == hub_id,
+                PackingTask.delivery_date == day,
+                PackingTask.status == "queued",
+            )
+            .order_by(PackingTask.seq, PackingTask.id)
+            .with_for_update()
+        )
+    )
+    if not queued:
+        return 0
+    # Imported here, not at the top: logistics.api loads M7's solver, which reads
+    # hub_ops.api.HubRef as it loads; hub_ops.api loads this module, so that is a cycle.
+    from gharbasket.modules.logistics import api as logistics_api
+
+    stops = await logistics_api.published_stop_order(session, hub_id, day)
+    routed = [t for t in queued if (t.society_id, t.slot_id) in stops]
+    societies = await community_api.society_labels(session, list({t.society_id for t in routed}))
+
+    def place(task: PackingTask) -> tuple[Any, ...]:
+        stop = stops.get((task.society_id, task.slot_id))
+        if stop is None:
+            return (1, task.seq, task.id)
+        society = societies.get(task.society_id)
+        tower = society.towers.get(task.tower_id or "", task.tower_id or "") if society else ""
+        return (
+            0,
+            (stop.depart, stop.trip, stop.route_id, stop.stop_seq),
+            _natural(tower),
+            _natural(task.flat or ""),
+            task.order_id,
+        )
+
+    seqs = [task.seq for task in queued]  # ascending
+    changed = 0
+    for task, seq in zip(sorted(queued, key=place), seqs, strict=True):
+        stop = stops.get((task.society_id, task.slot_id))
+        route_id, stop_seq = (None, None) if stop is None else (stop.route_id, stop.stop_seq)
+        if (task.seq, task.route_id, task.stop_seq) != (seq, route_id, stop_seq):
+            task.seq, task.route_id, task.stop_seq = seq, route_id, stop_seq
+            task.version += 1
+            changed += 1
+    await session.flush()
+    return changed
 
 
 def _carried_wanted(

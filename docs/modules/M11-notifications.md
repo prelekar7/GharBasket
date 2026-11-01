@@ -16,7 +16,7 @@ Turns domain events into the right message, in the right language, on the right 
 | US-3 | As a customer, I want delivery updates so that I know when my bag reaches my captain and my door. | Pushes on `at_society` and `delivered`. |
 | US-4 | As a customer, I want quiet hours so that I'm not disturbed at night. | No pushes 22:00–07:00 except delivery-critical; held pushes go out at the end of quiet hours. |
 | US-5 | As a customer, I want to choose channels (push/WhatsApp) so that I control communication. | Preferences per category and channel; WhatsApp only after the WhatsApp consent. |
-| US-6 | As a partner, I want assignment and route notifications so that I start on time. | Sent on `assignment_created` and `route_published` (arrive with M7/M8). |
+| US-6 | As a partner, I want assignment and route notifications so that I start on time. | Sent on `partners.assignment_created` (to the kitchen) and `logistics.route_published` (to the rider and each captain); see the partner table in §3.1. |
 | US-7 | As a support person, I want a delivery log so that I can see what a user received. | Messages and delivery attempts stored with status. |
 
 ## 3. API endpoints
@@ -67,7 +67,7 @@ PUT  /v1/me/push-token    (M1)   { "push_token": "<FCM registration token>" | nu
 - **The inbox always gets the message.** Preferences only decide push and WhatsApp. `offers` is the only category whose inbox messages also need the M1 `marketing` consent (no offers are sent in v1).
 - **Account messages** (category `account`: your data export is ready; later, sign-in from a new device) are always in the inbox and pushed. They are not listed in the preferences and cannot be turned off.
 - **WhatsApp needs consent.** Saving `whatsapp: true` for any category needs the M1 consent purpose `whatsapp` (new, version `v1`); without it the PUT is refused with 403 `notifications.whatsapp_consent_required`, so the app asks for the consent first. Revoking the consent stops WhatsApp at once (checked at send time); the switches are kept.
-- **Quiet hours.** A push or WhatsApp message that falls inside the quiet window is held until `quiet_end` (IST) and then sent. Delivery-critical events skip quiet hours: `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.payment_failed` (its grace period ends at 23:00). Both times are `HH:MM` in 15-minute steps and must differ, else 422 `notifications.quiet_hours_invalid`.
+- **Quiet hours.** A push or WhatsApp message that falls inside the quiet window is held until `quiet_end` (IST) and then sent. Delivery-critical events skip quiet hours: `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.payment_failed` (its grace period ends at 23:00), `partners.assignment_created` (the offer lapses at 22:30). Both times are `HH:MM` in 15-minute steps and must differ, else 422 `notifications.quiet_hours_invalid`.
 - **Once per event.** One message per (event, recipient) and one delivery per (message, channel), however often the outbox delivers the event. Push goes to every signed-in device of the user that has a token.
 - **Push content.** Title and body in the user's saved locale (M1 `locale`), plus `{ link, message_id }` as data. No push carries a link with a token or a document; the data export push only opens the screen.
 - **Retention.** Messages are kept 180 days, then deleted by `purge_notifications`. They are part of the data export (M1 §3.3, section `notifications`: event type, category, rendered English text, dates, delivery status per channel; no push tokens).
@@ -90,8 +90,11 @@ PUT  /v1/me/push-token    (M1)   { "push_token": "<FCM registration token>" | nu
 | `orders.issue_resolved` | money | `/orders` | yes | Credited or rejected; `issue_reported` sends nothing |
 | `billing.wallet_topped_up` | money | `/wallet` | yes | |
 | `identity.data_export_ready` (new, M1 `build_data_export`) | account | `/profile` | yes | Never carries the download link |
+| `billing.points_credited` (M5 §3.6) | kindness | `/kindness` | yes | To `user_id`: "You earned 1,200 Kindness points". Nothing when `source_type` is `donation`: `community.donation_verified` tells that one (M9 §3.4) |
+| `community.donation_verified` (M9 §3.4) | kindness | `/kindness` | yes | To the donor (`user_id`) with the `points` awarded |
+| `community.society_live` (M9 §3.6) | kindness | `/society/<society_id>` | yes | To the owner of every household in the society (`identity.api.society_owners`): delivery is now free. The hub managers' "set delivery days" console task is not a message |
 
-Arrive with their modules, same rules: `billing.points_credited` (kindness), `billing.refund_issued` (money), `community.donation_verified` and `community.society_live` (kindness), `logistics.route_published`, `partners.assignment_created`, `partners.verified` (partner apps). `subscriptions.cycle_generated` sends nothing: the cycle is still a draft until `box_ready`.
+`billing.refund_issued` (money) is still unmapped: M5 does not publish it (it publishes `billing.refund_to_source_settled`, M5 §3.3, which has no row here yet). It gets one when a module publishes it again. `subscriptions.cycle_generated` sends nothing: the cycle is still a draft until `box_ready`.
 
 Partner messages (added 2026-10-10 with the first two) are category `account`: always in the inbox and pushed, not a preference. They go to the event's `user_id` and open that partner kind's home in the app.
 
@@ -99,6 +102,12 @@ Partner messages (added 2026-10-10 with the first two) are category `account`: a
 |---|---|---|---|---|
 | `partners.verified` | account | `/kitchen`, `/captain`, `/rider` or `/packer` | yes | One text per `kind`. A captain hears again on `captain_assigned` |
 | `community.captain_assigned` (M8 §10, M9 §3.2) | account | `/captain` | yes | To the captain; names no society or flat |
+| `logistics.route_published` (M7 §5), box | account | `/rider` | yes | To `rider_user_id`: "Your Tuesday route is ready: 6 stops, leave at 6:30 AM" |
+| `logistics.route_published`, box | account | `/captain` | yes | To each `captain_user_id` of a drop: the day's bags at her society (summed over her stops) and the earliest ETA |
+| `logistics.route_published`, `kind: tiffin` (M7 §3.7) | account | `/rider`, `/captain` | yes | Rider: kitchens, societies and first pickup. Captain: tiffins and ETA. Own texts, same recipients |
+| `partners.assignment_created` (M8 §3.4) | account | `/kitchen` | yes, skips quiet hours | To the kitchen's `user_id`: portions, meal, day and `respond_by` |
+
+Route messages. A route re-sent for a new rider (`previous_rider_user_id` set) tells only the new rider; the captains and the rider who lost the route are told nothing. The first rider given to a route that had none looks like a first publication, so a captain's message identical to one sent in the last two days is not sent again. A person who is both rider and captain on a route gets the rider's message only. A route with no rider tells the captains only.
 
 **Error codes**
 

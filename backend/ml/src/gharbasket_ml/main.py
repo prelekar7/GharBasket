@@ -5,7 +5,11 @@ Only the API calls it (through `intel_gateway.api`), with the shared service tok
 """
 
 import asyncio
+import contextlib
 import hmac
+import logging
+from collections.abc import AsyncIterator, Callable
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request
@@ -17,6 +21,7 @@ from gharbasket_ml import (
     __version__,
     assignment,
     assistant,
+    model_sync,
     pantry,
     ranker,
     registry,
@@ -41,6 +46,8 @@ from gharbasket_ml.schemas import (
     SlotPriceResponse,
 )
 from gharbasket_ml.settings import Settings, get_settings
+
+log = logging.getLogger(__name__)
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -69,6 +76,58 @@ async def require_service_token(
         raise Unauthorized
 
 
+def _reload_ranker(models_dir: Path, reload_s: float) -> Callable[[list[str]], None]:
+    """After a sync moved the ranker: re-read it now, in the sync's thread, so the new version
+    is served at once and no request pays the load. Forced, not cleared: a new version that
+    cannot be served keeps the last good model (ranker.load), never the fallback."""
+
+    def reload(changed: list[str]) -> None:
+        if ranker.MODEL_NAME in changed:
+            ranker.load(models_dir, reload_s=reload_s, force=True)
+
+    return reload
+
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Starts following the R2 registry in the background (when configured): startup and
+    `/health` never wait for R2, and an R2 outage only shows in `/health/ai`."""
+    settings: Settings = app.dependency_overrides.get(get_settings, get_settings)()
+    sync: model_sync.ModelSync | None = None
+    task: asyncio.Task[None] | None = None
+    if (warning := settings.registry_sync_warning) is not None:
+        log.warning("model registry: %s", warning)
+    if settings.registry_sync_enabled:
+        # A test hook: tests put a fake registry here before the app starts; unset in service.
+        reader = getattr(app.state, "registry_reader", None) or model_sync.R2Reader.from_settings(
+            settings
+        )
+        sync = model_sync.ModelSync(
+            reader,
+            settings.models_cache_dir,
+            bucket=settings.s3_bucket_mlflow,
+            deadline_s=settings.models_sync_deadline_s,
+            on_change=_reload_ranker(settings.models_cache_dir, settings.models_reload_s),
+        )
+        task = asyncio.create_task(sync.run_forever(settings.models_reload_s))
+    app.state.model_sync = sync
+    try:
+        yield
+    finally:
+        if sync is not None:
+            sync.stop()  # a running sync gives up at its next piece or request
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        if sync is not None:
+            # The worker thread outlives the cancelled task: close the client only once it is
+            # done (bounded by one request's timeouts).
+            if not await asyncio.to_thread(sync.wait_idle, settings.models_sync_timeout_s + 5):
+                log.warning("model registry: a sync was still running at shutdown")
+            sync.close()
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     # Deployed, the service is on the public internet but is only for the API: no interactive
     # docs and no schema listing. `settings` is None under `uvicorn --factory`, so it is read here.
@@ -77,10 +136,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="GharBasket ML service",
         version=__version__,
         description="Internal: called only by the GharBasket API (intel_gateway).",
+        lifespan=lifespan,
         docs_url=None if deployed else "/docs",
         redoc_url=None if deployed else "/redoc",
         openapi_url=None if deployed else "/openapi.json",
     )
+    app.state.model_sync = None
     if settings is not None:
         app.dependency_overrides[get_settings] = lambda: settings
 
@@ -140,7 +201,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def models(settings: Annotated[Settings, Depends(get_settings)]) -> list[dict[str, str]]:
         return [
             m.__dict__
-            for m in registry.served_models(settings.models_manifest, settings.models_dir)
+            for m in registry.served_models(settings.models_manifest, settings.served_models_dir)
         ]
 
     @app.get(
@@ -148,10 +209,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dependencies=[Depends(require_service_token)],
         summary="Health with the served models and the road network",
     )
-    async def health_ai(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, object]:
-        return await registry.health(
-            settings.models_manifest, settings.osrm_url, settings.models_dir
+    async def health_ai(
+        request: Request, settings: Annotated[Settings, Depends(get_settings)]
+    ) -> dict[str, object]:
+        body = await registry.health(
+            settings.models_manifest, settings.osrm_url, settings.served_models_dir
         )
+        sync: model_sync.ModelSync | None = request.app.state.model_sync
+        body["registry_sync"] = sync.status() if sync is not None else {"enabled": False}
+        return body
 
     @app.post(
         "/pantry/quantities",
@@ -194,7 +260,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def basket_rank(
         body: RankRequest, settings: Annotated[Settings, Depends(get_settings)]
     ) -> RankResponse:
-        return ranker.rank(body, settings.models_dir, settings.models_reload_s)
+        # Off the event loop: a (re)load reads the model file under the ranker's lock.
+        return await run_in_threadpool(
+            ranker.rank, body, settings.served_models_dir, settings.models_reload_s
+        )
 
     @app.post(
         "/assign/kitchens",
