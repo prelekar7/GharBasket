@@ -104,6 +104,10 @@ test:
 e2e-day *args:
     uv run --directory e2e/backend pytest {{args}}
 
+# A delivery day happening TODAY on a local backend (database gharbasket_device, API on :8000), for testing the app's field roles on a real phone: `just up up-storage` first, then `adb reverse tcp:8000 tcp:8000 && adb reverse tcp:8333 tcp:8333`; `just device-day pack --leave 3` packs the queue (see e2e/device/README.md)
+device-day *args:
+    uv run --directory e2e/backend python ../device/device_day.py {{args}}
+
 # Build the seeded template database for the browser suite (gharbasket_e2e_web_seed); it is rebuilt only when the migrations or seed files change
 e2e-web-prepare:
     uv run --directory e2e/backend python live_server.py prepare
