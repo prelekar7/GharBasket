@@ -3,6 +3,7 @@
 M1 exports and erases through it; M12 pulls `route_facts` for its analytics refresh (M12 §3.1) and
 reads `today_routes` for its today board (M12 §3.3). M9 and M6 consume `PICKUP_COMPLETED` (§3.6).
 M3's green-slot quote and M9's stop costs price a society against `tentative_day` (M10 §3.8).
+M6 consumes `ROUTE_PUBLISHED` and orders its packing queue by `published_stop_order` (M6 §3.2).
 """
 
 import uuid
@@ -11,17 +12,21 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.logistics import privacy
-from gharbasket.modules.logistics.events import PICKUP_COMPLETED
+from gharbasket.modules.logistics.drops import StopRef, published_stop_order
+from gharbasket.modules.logistics.events import PICKUP_COMPLETED, ROUTE_PUBLISHED
 from gharbasket.modules.logistics.facts import RouteFact, route_facts
 from gharbasket.modules.logistics.tentative import tentative_day
 from gharbasket.modules.logistics.today import TodayRoutes, today_routes
 
 __all__ = [
     "PICKUP_COMPLETED",
+    "ROUTE_PUBLISHED",
     "RouteFact",
+    "StopRef",
     "TodayRoutes",
     "anonymise_for_user",
     "export_for_user",
+    "published_stop_order",
     "route_facts",
     "tentative_day",
     "today_routes",
