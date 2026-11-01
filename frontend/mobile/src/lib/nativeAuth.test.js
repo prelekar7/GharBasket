@@ -19,6 +19,7 @@ vi.mock("@/features/notifications/pushToken.js", () => ({
   syncPushToken: vi.fn(),
 }));
 vi.mock("@/lib/localData.js", () => ({ clearLocalData: vi.fn(async () => {}) }));
+vi.mock("@/lib/queryClient.js", () => ({ queryClient: { cancelQueries: vi.fn(async () => {}) } }));
 
 const PROFILE = { id: "u1", phone_e164: "+919800000002", roles: [] };
 
@@ -234,6 +235,45 @@ describe("sign-out on the phone", () => {
     expect(await tokens.refreshToken()).toBeNull();
     expect(calls[0].auth).toBe("Bearer a1");
     expect(api).toBeDefined();
+  });
+
+  it("sends no more calls for the old session, and a 401 already in flight stays silent", async () => {
+    // On the vivo phone, four screens were still refetching when the person signed out; their
+    // 401s started refreshes and reported an expired session.
+    const slow = deferred();
+    const gate = deferred();
+    routes["/v1/wallet"] = async () => {
+      await slow.promise;
+      return reply(401);
+    };
+    routes["/v1/notifications"] = () => reply(200, []);
+    routes["/v1/auth/refresh"] = () => reply(200, { access_token: "a2", refresh_token: "r2" });
+    routes["/v1/auth/logout"] = async () => {
+      await gate.promise;
+      return reply(204);
+    };
+    const { api, tokens, useSession } = await load();
+    const expired = vi.fn();
+    api.onSessionExpired(expired);
+    await tokens.save({ access_token: "a1", refresh_token: "r1" });
+
+    const inFlight = api.request("/v1/wallet").catch((e) => e);
+    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    const signingOut = useSession.getState().signOut();
+    await vi.waitFor(() => expect(calls.map((c) => c.url)).toContain("/v1/auth/logout"));
+
+    const refetch = await api.request("/v1/notifications").catch((e) => e);
+    expect(refetch.code).toBe("auth.signing_out");
+    slow.resolve();
+    gate.resolve();
+    expect((await inFlight).status).toBe(401);
+    await signingOut;
+
+    expect(calls.map((c) => c.url)).toEqual(["/v1/wallet", "/v1/auth/logout"]);
+    expect(expired).not.toHaveBeenCalled();
+    expect(store.has("refresh_token")).toBe(false);
+    // Signed out: requests work again for the next sign-in.
+    expect(await api.request("/v1/notifications")).toEqual([]);
   });
 
   it("clears the tokens even when the server cannot be reached", async () => {

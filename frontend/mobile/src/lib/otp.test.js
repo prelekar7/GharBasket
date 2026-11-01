@@ -54,6 +54,7 @@ describe("codeFromMessage", () => {
       "invalid-verification-code",
     ],
     ["This app is not authorized to use Firebase Authentication.", "app-not-authorized"],
+    ["An internal error has occurred. [ BILLING_NOT_ENABLED ]", "billing-not-enabled"],
     ["Something else", "unknown"],
     [undefined, "unknown"],
   ])("%s -> %s", async (message, code) => {
@@ -92,6 +93,18 @@ describe("native phoneVerificationFailed", () => {
     const error = await sendCode("+919800000002", "recaptcha").catch((e) => e);
     expect(error.code).toBe("auth/operation-not-allowed");
     expect(otpErrorKey(error)).toBe("otp.region");
+  });
+
+  it("explains BILLING_NOT_ENABLED even when the plugin reports a generic internal error", async () => {
+    const { sendCode, otpErrorKey } = await loadNative();
+    plugin.signInWithPhoneNumber.mockRejectedValueOnce(
+      Object.assign(new Error("An internal error has occurred. [ BILLING_NOT_ENABLED ]"), {
+        code: "auth/internal-error",
+      }),
+    );
+    const error = await sendCode("+919812345678", "recaptcha").catch((e) => e);
+    expect(error.code).toBe("auth/billing-not-enabled");
+    expect(otpErrorKey(error, "login.sendFailed")).toBe("otp.smsOff");
   });
 
   it("signs in with a code after phoneCodeSent, and signs out of Firebase", async () => {
