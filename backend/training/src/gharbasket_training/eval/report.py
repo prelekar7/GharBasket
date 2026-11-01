@@ -204,7 +204,9 @@ def _forecast(runs: list[forecast_ab.ForecastRun]) -> dict[str, Any]:
     if not runs:
         return {}
     summary = forecast_ab.summarise(runs)
-    splits = [r.split_wape for r in runs if r.split_wape is not None]
+    splits = forecast_ab.per_seed(runs, lambda r: r.split_wape)
+    # The per-seed values behind every estimate (a seed's hubs averaged, as the estimates are).
+    seeds = lambda value: {str(s): v for s, v in forecast_ab.per_seed(runs, value).items()}  # noqa: E731
     return {
         "assumptions": forecast_ab.assumptions(),
         "arms": {arm: {m: e.as_dict() for m, e in ms.items()} for arm, ms in summary.items()},
@@ -214,10 +216,26 @@ def _forecast(runs: list[forecast_ab.ForecastRun]) -> dict[str, Any]:
             base: {m: e.as_dict() for m, e in ms.items()}
             for base, ms in forecast_ab.against_baselines(runs).items()
         },
-        "split_wape": estimate(splits).as_dict(),
+        "per_seed": {
+            arm: {m: seeds(forecast_ab.metric_of(arm, m)) for m in forecast_ab.METRICS}
+            for arm in forecast_ab.ARMS
+        },
+        "champion_minus_per_seed": {
+            base: {
+                m: seeds(forecast_ab.difference("champion", base, m)) for m in forecast_ab.METRICS
+            }
+            for base in forecast_ab.BASELINES
+        },
+        "split_wape": estimate(list(splits.values())).as_dict(),
         "targets": forecast_ab.against_target(runs),
         "picks": [
-            {"seed": r.seed, "v0": r.v0_model, "champion": r.champion, "windows": r.windows}
+            {
+                "seed": r.seed,
+                "hub": r.hub_id,
+                "v0": r.v0_model,
+                "champion": r.champion,
+                "windows": r.windows,
+            }
             for r in runs
         ],
     }
@@ -345,17 +363,9 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     forecast = report.get("forecast", {})
-
-    def forecast_per_seed(arm: str, metric: str, base: str | None = None) -> dict[str, float]:
-        out = {}
-        for r in runs.get("forecast", []):
-            ms = r["metrics"]
-            if metric not in ms.get(arm, {}) or (base and metric not in ms.get(base, {})):
-                continue
-            value = ms[arm][metric] - (ms[base][metric] if base else 0.0)
-            out[str(r["seed"])] = round(value, 4)
-        return out
-
+    # The per-seed values the estimates were built from (`forecast_ab.per_seed`).
+    arm_seeds = forecast.get("per_seed", {})
+    pair_seeds = forecast.get("champion_minus_per_seed", {})
     for arm, metrics in forecast.get("arms", {}).items():
         for metric, e in metrics.items():
             if e["n"]:
@@ -371,11 +381,11 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
                             **details,
                             "ci95": e["ci95"],
                             "picks": forecast["picks"],
-                            "per_seed": forecast_per_seed(arm, metric),
+                            "per_seed": arm_seeds.get(arm, {}).get(metric, {}),
                         },
                     }
                 )
-    # The champion against each baseline, paired by seed (the M-E verdict's inputs).
+    # The champion against each baseline, paired by seed (the M-E target's gap, RQ3's cost).
     for base, metrics in forecast.get("champion_minus", {}).items():
         for metric, e in metrics.items():
             if e["n"]:
@@ -390,8 +400,9 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
                         "details": {
                             **details,
                             "ci95": e["ci95"],
-                            "per_seed": forecast_per_seed("champion", metric, base),
-                            "m_e_verdict": forecast["targets"]["holds"],
+                            "per_seed": pair_seeds.get(base, {}).get(metric, {}),
+                            "m_e_target_holds": forecast["targets"]["target_holds"],
+                            "rq3_cost_below_both": forecast["targets"]["cost_below_both"],
                         },
                     }
                 )
@@ -764,23 +775,32 @@ def _forecast_html(report: dict[str, Any]) -> str:
 
 
 def _forecast_verdict_html(forecast: dict[str, Any]) -> str:
-    """The M-E hypothesis checks and verdict (eval protocol §4, §7 2026-11-02)."""
+    """The M-E target as registered and its verdict, RQ3's cost answer beside it (not part of
+    the target), and the guardrails reported, not judged (eval protocol §4, §7 2026-11-02)."""
     target = forecast.get("targets")
     if not target:
         return ""
+    judged = lambda v: "no verdict" if v is None else _verdict(v)  # noqa: E731
     table = _table(
-        "M-E hypothesis: the champion's WAPE ≤ 0.25 and ≥ 10 points better than seasonal naive "
-        "(registered), newsvendor cost below both baselines (§7, 2026-11-02); 95 % CI bounds",
+        "M-E target (registered): the champion's WAPE ≤ 0.25 and ≥ 10 points better than "
+        "seasonal naive, on 95 % CI bounds. Below it, not part of the target: RQ3's newsvendor "
+        "cost against each baseline, and the guardrails (§7, 2026-11-02)",
         ["check", "mean ± 95 % CI", "bound", "rule", "holds"],
         [
+            [k, _cell(c["value"]), f"{c['bound']:+.4f}", c["rule"], judged(c["holds"])]
+            for k, c in target["checks"].items()
+        ]
+        + [
             [
-                k,
+                f"RQ3: newsvendor cost vs {base.replace('_', ' ')}",
                 _cell(c["value"]),
                 f"{c['bound']:+.4f}",
                 c["rule"],
-                "no verdict" if c["holds"] is None else _verdict(c["holds"]),
+                "reported: " + ("lower" if c["below"] else "not lower")
+                if c["below"] is not None
+                else "no verdict",
             ]
-            for k, c in target["checks"].items()
+            for base, c in target["newsvendor_cost"].items()
         ]
         + [
             [
@@ -793,13 +813,19 @@ def _forecast_verdict_html(forecast: dict[str, Any]) -> str:
             for k, r in target["reported"].items()
         ],
     )
-    if target["holds"] is None:
+    holds, cheaper = target["target_holds"], target["cost_below_both"]
+    if holds is None:
         verdict = f"no verdict: {target['n']} seed(s), the protocol needs {forecast_ab.MIN_SEEDS}"
     else:
-        verdict = "holds" if target["holds"] else "does not hold"
+        verdict = "holds" if holds else "does not hold"
+    cost = (
+        "no answer"
+        if cheaper is None
+        else ("below both baselines" if cheaper else "not below both baselines")
+    )
     return table + (
-        f'<p class="note">M-E (seeds {target["seeds"]}): {verdict}. '
-        f"{html.escape(target['note'])}</p>"
+        f'<p class="note">M-E target (seeds {target["seeds"]}): {verdict}. RQ3, newsvendor cost '
+        f"(reported, not part of the target): {cost}. {html.escape(target['note'])}</p>"
     )
 
 

@@ -45,9 +45,10 @@ Also in a report: **RQ3 — forecast** (the M-E backtest on simulated demand: th
 LightGBM v1, the per-seed champion and the protocol's baselines, seasonal naive and "buy last week", all from
 the same backtest; WAPE, MASE, pinball, coverage, waste, stock-out and newsvendor cost, and the same at the
 day level after the weekly forecast is split over the days by weekday shares (`daily_*`); v1 − v0 and the
-champion − each baseline paired by seed; the M-E verdict: WAPE ≤ 0.25 on the CI upper bound, the gap to
-seasonal naive ≥ 0.10 on the paired CI lower bound, newsvendor cost below both baselines, none below 5 seeds;
-stock-out and waste reported against their ceilings, not judged, eval protocol §7, 2 Nov) and, when a
+champion − each baseline paired by seed; the M-E target as registered: WAPE ≤ 0.25 on the CI upper bound and
+the gap to seasonal naive ≥ 0.10 on the paired CI lower bound, none below 5 seeds; beside it, not part of it,
+RQ3's newsvendor cost against both baselines; stock-out and waste reported against their ceilings, not judged,
+eval protocol §7, 2 Nov) and, when a
 basket-ranker run's `explanations.json` is passed with
 `--ranker-explanations`, **ranker explanations** (global mean |SHAP| per feature and sampled decisions).
 
@@ -106,13 +107,18 @@ sections of that run are a one-week stub and were not kept. The next full report
 |---|---|---|---|
 | champion WAPE | 0.188 ± 0.007 (seasonal naive 0.221, naive 0.228) | CI upper bound ≤ 0.25 | yes (0.195) |
 | seasonal naive − champion WAPE (paired) | 0.033 ± 0.013 | CI lower bound ≥ 0.10 | **no** (0.020) |
-| champion − seasonal naive newsvendor cost (paired) | +0.058 ± 0.058 (0.146 vs 0.088) | CI upper bound < 0 | **no** |
-| champion − naive newsvendor cost (paired) | +0.055 ± 0.056 (0.146 vs 0.091) | CI upper bound < 0 | **no** |
+| *RQ3, not the target:* champion − seasonal naive newsvendor cost (paired) | +0.058 ± 0.058 (0.146 vs 0.088) | lower when CI upper bound < 0 | not lower |
+| *RQ3, not the target:* champion − naive newsvendor cost (paired) | +0.055 ± 0.056 (0.146 vs 0.091) | lower when CI upper bound < 0 | not lower |
 | stock-out / waste (champion) | 0.453 / 0.021 | ceilings 0.03 / 0.05 | not judged (tau = 0.375) |
 | daily WAPE after the per-day split | ≈ 0.50 for every arm; the split of the actual week alone 0.44 | reported | — |
 
-**M-E does not hold**: the champion is the most accurate point forecast but not 10 points better than
-seasonal naive, and its q_tau costs more than the baselines' (it stocks out 45 % of the units, theirs 12–13 %).
+**The M-E target does not hold**: the champion is the most accurate point forecast but not 10 points better
+than seasonal naive (at most 4.5 points on any seed). Its q_tau also costs more than the baselines' (it stocks
+out 45 % of the units, theirs 12–13 %), but that is the calibration, not the model: the conformal margin is
+an unweighted quantile of scaled residuals, strongly negative for a smooth forecast of sparse add-on series
+and ≈ 0 for the baselines, which repeat past values (their 0.63 coverage comes from ties at zero demand).
+The newsvendor cost counts units, so its optimal margin is a scale-weighted quantile (eval protocol §7,
+2026-11-02; the follow-up change fixes it).
 
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
 check (one seed, one week, no CP-SAT planner arm, the λ sweep on that seed's small week, under a

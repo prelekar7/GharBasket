@@ -36,15 +36,18 @@ point, `daily_waste` / `daily_stockout` / `daily_newsvendor_cost` on the points 
 the weekly metrics are. `split_wape` splits the *actual* weekly quantity by the same shares: the
 error of the split alone, whatever the model.
 
-**M-E verdict** (`against_target`, §7 2026-11-02): the champion's WAPE ≤ 0.25 (95 % CI upper
-bound), its paired WAPE gap to seasonal naive ≥ 0.10 (paired CI lower bound), and its newsvendor
-cost below both baselines' (paired CI upper bound < 0); stock-out and waste are reported against
-their registered ceilings but not judged (at tau = 0.375 q_tau sits below the median by design).
-No verdict below 5 seeds.
+**M-E target** (`against_target`, §7 2026-11-02), as registered: the champion's WAPE ≤ 0.25 (95 %
+CI upper bound) and its paired WAPE gap to seasonal naive ≥ 0.10 (paired CI lower bound); no
+verdict below 5 seeds. **RQ3's cost answer** is reported beside it, not part of the target: the
+champion's newsvendor cost against each baseline's, paired (below a baseline when the paired CI
+upper bound is < 0). Stock-out and waste are reported against their registered ceilings but not
+judged (at tau = 0.375 q_tau sits below the median by design). Everything is per seed: a seed with
+several hubs counts once, as the mean of its hubs.
 """
 
 import math
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, cast
@@ -89,8 +92,9 @@ CEILINGS = {"stockout": 0.03, "waste": 0.05}  # protocol §4; reported, not judg
 TAU_NOTE = (
     "Not judged (eval protocol §7, 2026-11-02): at the registered costs (C_u 0.3, C_o 0.5) tau = "
     "0.375, so q_tau sits below the median by design and about 1 - tau of the points stock out; "
-    "the registered stock-out ≤ 3 % contradicts those costs. The costs are kept; M-E is judged "
-    "on WAPE, the gap to seasonal naive and the newsvendor cost."
+    "the registered stock-out ≤ 3 % contradicts those costs. The costs are kept; the M-E target "
+    "is judged on WAPE and the gap to seasonal naive, and the newsvendor cost against both "
+    "baselines answers RQ3 beside it."
 )
 
 
@@ -341,25 +345,45 @@ def run_forecast(
     return runs
 
 
+def per_seed(
+    runs: list[ForecastRun], value: Callable[[ForecastRun], float | None]
+) -> dict[int, float]:
+    """Seed → `value` of its runs, the mean over the seed's hubs (runs where it is None are left
+    out). Every estimate and every per-seed row is built from this, so a seed counts once."""
+    values: dict[int, list[float]] = {}
+    for r in runs:
+        v = value(r)
+        if v is not None:
+            values.setdefault(r.seed, []).append(v)
+    return {seed: round(sum(vs) / len(vs), 4) for seed, vs in sorted(values.items())}
+
+
+def metric_of(arm: str, metric: str) -> Callable[[ForecastRun], float | None]:
+    return lambda r: r.metrics.get(arm, {}).get(metric)
+
+
+def difference(arm: str, base: str, metric: str) -> Callable[[ForecastRun], float | None]:
+    """`arm` - `base` in one run, when both scored the metric."""
+
+    def value(r: ForecastRun) -> float | None:
+        a, b = r.metrics.get(arm, {}).get(metric), r.metrics.get(base, {}).get(metric)
+        return None if a is None or b is None else a - b
+
+    return value
+
+
+def _over_seeds(runs: list[ForecastRun], value: Callable[[ForecastRun], float | None]) -> Estimate:
+    return estimate(list(per_seed(runs, value).values()))
+
+
 def summarise(runs: list[ForecastRun]) -> dict[str, dict[str, Estimate]]:
-    """Arm → metric → mean ± 95 % t-CI over the runs where the arm was scored."""
-    return {
-        arm: {
-            m: estimate([r.metrics[arm][m] for r in runs if m in r.metrics.get(arm, {})])
-            for m in METRICS
-        }
-        for arm in ARMS
-    }
+    """Arm → metric → mean ± 95 % t-CI over the seeds where the arm was scored."""
+    return {arm: {m: _over_seeds(runs, metric_of(arm, m)) for m in METRICS} for arm in ARMS}
 
 
 def paired(runs: list[ForecastRun], arm: str = "v1", base: str = "v0") -> dict[str, Estimate]:
-    """`arm` - `base` per run (seed), on the runs where both were scored."""
-    both = [r for r in runs if arm in r.metrics and base in r.metrics]
-    return {
-        m: estimate([r.metrics[arm][m] - r.metrics[base][m] for r in both])
-        for m in METRICS
-        if all(m in r.metrics[arm] and m in r.metrics[base] for r in both)
-    }
+    """`arm` - `base` per seed, on the seeds where both were scored."""
+    return {m: _over_seeds(runs, difference(arm, base, m)) for m in METRICS}
 
 
 def against_baselines(runs: list[ForecastRun]) -> dict[str, dict[str, Estimate]]:
@@ -376,22 +400,18 @@ def _lower(e: Estimate) -> float:
 
 
 def against_target(runs: list[ForecastRun]) -> dict[str, Any]:
-    """The M-E verdict (eval protocol §4 and §7, 2026-11-02) on the seeds where the champion
-    and both baselines were scored: the champion's WAPE ≤ 0.25 (95 % CI upper bound); its paired
-    WAPE gap to seasonal naive (seasonal naive - champion) ≥ 0.10 (paired CI lower bound); its
-    newsvendor cost below each baseline's (paired CI upper bound of champion - baseline < 0).
-    Holds when all of them do; None (no verdict) below `MIN_SEEDS` seeds. Stock-out and waste
-    are listed against their registered ceilings, not judged (`TAU_NOTE`)."""
+    """The M-E target as registered (eval protocol §4; how it is computed: §7, 2026-11-02), on
+    the seeds where the champion and both baselines were scored: the champion's WAPE ≤ 0.25
+    (95 % CI upper bound) and its paired WAPE gap to seasonal naive (seasonal naive - champion)
+    ≥ 0.10 (paired CI lower bound). `target_holds` is None (no verdict) below `MIN_SEEDS` seeds.
+    Beside it and not part of it, RQ3's cost answer: the champion's newsvendor cost minus each
+    baseline's, paired (`below` when the CI upper bound is < 0). Stock-out and waste are listed
+    against their registered ceilings, not judged (`TAU_NOTE`)."""
     scored = [r for r in runs if "champion" in r.metrics and all(b in r.metrics for b in BASELINES)]
     seeds = sorted({r.seed for r in scored})
     enough = len(seeds) >= MIN_SEEDS
-    champion = lambda m: estimate(  # noqa: E731
-        [r.metrics["champion"][m] for r in scored if m in r.metrics["champion"]]
-    )
-    wape = champion("wape")
-    gap = estimate(
-        [r.metrics["seasonal_naive"]["wape"] - r.metrics["champion"]["wape"] for r in scored]
-    )
+    wape = _over_seeds(scored, metric_of("champion", "wape"))
+    gap = _over_seeds(scored, difference("seasonal_naive", "champion", "wape"))
     tol = 1e-9  # the metrics are rounded to 4 decimals
     checks: dict[str, dict[str, Any]] = {
         "wape_le_0_25": {
@@ -407,32 +427,28 @@ def against_target(runs: list[ForecastRun]) -> dict[str, Any]:
             "holds": _lower(gap) >= forecast.PROTOCOL_GAP - tol if enough else None,
         },
     }
+    cost: dict[str, dict[str, Any]] = {}
     for base in BASELINES:
-        cost = estimate(
-            [
-                r.metrics["champion"]["newsvendor_cost"] - r.metrics[base]["newsvendor_cost"]
-                for r in scored
-                if "newsvendor_cost" in r.metrics["champion"]
-                and "newsvendor_cost" in r.metrics[base]
-            ]
-        )
-        checks[f"newsvendor_cost_below_{base}"] = {
-            "value": cost.as_dict(),
-            "bound": round(_upper(cost), 4),
+        diff = _over_seeds(scored, difference("champion", base, "newsvendor_cost"))
+        cost[base] = {
+            "value": diff.as_dict(),
+            "bound": round(_upper(diff), 4),
             "rule": f"champion - {base} newsvendor cost, paired 95 % CI upper bound < 0",
-            "holds": _upper(cost) < 0 if enough and cost.n == len(scored) else None,
+            "below": _upper(diff) < 0 if enough and diff.n == len(seeds) else None,
         }
     judged = [c["holds"] for c in checks.values()]
+    below = [c["below"] for c in cost.values()]
+    champion = lambda m: _over_seeds(scored, metric_of("champion", m)).as_dict()  # noqa: E731
     return {
         "seeds": seeds,
         "n": len(seeds),
         "checks": checks,
-        "holds": None if None in judged else all(judged),
-        "reported": {
-            m: {"value": champion(m).as_dict(), "ceiling": ceiling, "judged": False}
-            for m, ceiling in CEILINGS.items()
-        }
-        | {"coverage_qtau": {"value": champion("coverage_qtau").as_dict(), "tau": _tau()}},
+        "target_holds": None if None in judged else all(judged),
+        # RQ3: do the newsvendor buffers cost less than the baselines'? Reported, not the target.
+        "newsvendor_cost": cost,
+        "cost_below_both": None if None in below else all(below),
+        "reported": {m: {"value": champion(m), "ceiling": c} for m, c in CEILINGS.items()}
+        | {"coverage_qtau": {"value": champion("coverage_qtau"), "tau": _tau()}},
         "note": TAU_NOTE,
     }
 

@@ -133,15 +133,16 @@ def judged(
     cost: float = 0.10,
     seasonal_cost: float = 0.20,
     naive_cost: float = 0.20,
+    hub: str = "hub",
 ) -> ForecastRun:
-    """A run with only what the M-E verdict reads: WAPE and the newsvendor cost per arm."""
+    """A run with only what the M-E target and RQ3's cost read: WAPE and the newsvendor cost."""
     arm = lambda w, c: {"wape": w, "newsvendor_cost": c}  # noqa: E731
     metrics = {
         "champion": arm(champion, cost),
         "seasonal_naive": arm(seasonal, seasonal_cost),
         "naive": arm(0.5, naive_cost),
     }
-    return ForecastRun(seed, "hub", 10, 5, 8, 80, "AutoETS", "AutoETS", {}, metrics)
+    return ForecastRun(seed, hub, 10, 5, 8, 80, "AutoETS", "AutoETS", {}, metrics)
 
 
 SEEDS = (7, 11, 13, 17, 19)
@@ -159,36 +160,47 @@ def test_the_champion_is_paired_with_each_baseline_by_seed() -> None:
     assert forecast_ab.against_baselines([*runs, lone])["seasonal_naive"]["wape"].n == 3
 
 
-def test_the_m_e_verdict_holds_on_ci_bounds_over_five_seeds() -> None:
+def test_a_seed_with_two_hubs_counts_once_as_the_mean_of_its_hubs() -> None:
+    runs = [judged(7, 0.2, 0.3, hub="a"), judged(7, 0.4, 0.6, hub="b"), judged(11, 0.3, 0.4)]
+    assert forecast_ab.per_seed(runs, forecast_ab.metric_of("champion", "wape")) == {
+        7: pytest.approx(0.3),
+        11: pytest.approx(0.3),
+    }
+    gap = forecast_ab.per_seed(runs, forecast_ab.difference("seasonal_naive", "champion", "wape"))
+    assert gap == {7: pytest.approx(0.15), 11: pytest.approx(0.1)}
+    summary = forecast_ab.summarise(runs)["champion"]["wape"]
+    assert summary.n == 2 and summary.mean == pytest.approx(0.3)
+    paired = forecast_ab.against_baselines(runs)["seasonal_naive"]["wape"]
+    assert paired.n == 2 and paired.mean == pytest.approx(-0.125)
+
+
+def test_the_m_e_target_holds_on_ci_bounds_over_five_seeds() -> None:
     gaps = (0.15, 0.16, 0.14, 0.15, 0.15)
     runs = [judged(s, 0.20, 0.20 + g) for s, g in zip(SEEDS, gaps, strict=True)]
     target = forecast_ab.against_target(runs)
     assert target["n"] == 5 and target["seeds"] == list(SEEDS)
     checks = target["checks"]
-    assert set(checks) == {
-        "wape_le_0_25",
-        "gap_to_seasonal_naive_ge_0_10",
-        "newsvendor_cost_below_seasonal_naive",
-        "newsvendor_cost_below_naive",
-    }
+    # The target is the registered one: WAPE and the gap; the cost is RQ3's answer beside it.
+    assert set(checks) == {"wape_le_0_25", "gap_to_seasonal_naive_ge_0_10"}
     assert checks["wape_le_0_25"]["bound"] == pytest.approx(0.20)  # no spread: CI 0
     assert checks["gap_to_seasonal_naive_ge_0_10"]["value"]["mean"] == pytest.approx(0.15)
-    assert all(c["holds"] for c in checks.values()) and target["holds"] is True
+    assert all(c["holds"] for c in checks.values()) and target["target_holds"] is True
+    assert set(target["newsvendor_cost"]) == set(forecast_ab.BASELINES)
+    assert target["cost_below_both"] is True
     # Stock-out and waste are listed against their ceilings, never judged (§7, 2026-11-02).
     assert target["reported"]["stockout"]["ceiling"] == 0.03
-    assert not target["reported"]["stockout"]["judged"]
     assert target["reported"]["coverage_qtau"]["tau"] == pytest.approx(0.375)
     assert "0.375" in target["note"]
 
 
-def test_the_m_e_verdict_judges_the_bounds_not_the_means() -> None:
+def test_the_m_e_target_judges_the_bounds_not_the_means() -> None:
     # Gap mean 0.12 ≥ 0.10, but its paired CI lower bound is below it: no.
     wide = (0.02, 0.22, 0.12, 0.05, 0.19)
     runs = [judged(s, 0.20, 0.20 + g) for s, g in zip(SEEDS, wide, strict=True)]
     target = forecast_ab.against_target(runs)
     gap = target["checks"]["gap_to_seasonal_naive_ge_0_10"]
     assert gap["value"]["mean"] == pytest.approx(0.12) and gap["bound"] < 0.10
-    assert gap["holds"] is False and target["holds"] is False
+    assert gap["holds"] is False and target["target_holds"] is False
     assert target["checks"]["wape_le_0_25"]["holds"] is True
     # WAPE mean 0.24 ≤ 0.25 but its upper bound is over it.
     champions = (0.20, 0.28, 0.22, 0.26, 0.24)
@@ -197,25 +209,29 @@ def test_the_m_e_verdict_judges_the_bounds_not_the_means() -> None:
     assert check["value"]["mean"] == pytest.approx(0.24) and check["holds"] is False
 
 
-def test_the_m_e_verdict_needs_a_lower_newsvendor_cost_than_both_baselines() -> None:
+def test_the_newsvendor_cost_is_reported_beside_the_target_not_in_it() -> None:
     runs = [
         judged(s, 0.20, 0.35, cost=0.10, naive_cost=0.09 + 0.001 * i) for i, s in enumerate(SEEDS)
     ]
-    checks = forecast_ab.against_target(runs)["checks"]
-    assert checks["newsvendor_cost_below_seasonal_naive"]["holds"] is True
-    assert checks["newsvendor_cost_below_naive"]["holds"] is False  # the champion costs more
-    assert forecast_ab.against_target(runs)["holds"] is False
+    target = forecast_ab.against_target(runs)
+    cost = target["newsvendor_cost"]
+    assert cost["seasonal_naive"]["below"] is True
+    assert cost["naive"]["below"] is False  # the champion costs more than buy-last-week
+    assert target["cost_below_both"] is False
+    assert target["target_holds"] is True  # the cost does not decide the registered target
 
 
 def test_no_m_e_verdict_below_five_seeds() -> None:
     runs = [judged(s, 0.20, 0.35) for s in SEEDS[:4]]
     target = forecast_ab.against_target(runs)
-    assert target["n"] == 4 and target["holds"] is None
+    assert target["n"] == 4 and target["target_holds"] is None
+    assert target["cost_below_both"] is None
     assert all(c["holds"] is None for c in target["checks"].values())
+    assert all(c["below"] is None for c in target["newsvendor_cost"].values())
     # Two hubs of one seed are still one seed.
-    twice = [*runs, judged(7, 0.2, 0.35)]
-    assert forecast_ab.against_target(twice)["holds"] is None
-    assert forecast_ab.against_target([])["holds"] is None
+    twice = [*runs, judged(7, 0.2, 0.35, hub="other")]
+    assert forecast_ab.against_target(twice)["target_holds"] is None
+    assert forecast_ab.against_target([])["target_holds"] is None
 
 
 def test_the_split_spreads_each_week_over_its_days_by_the_shares_as_of_the_origin(
@@ -283,7 +299,7 @@ def test_the_report_has_the_forecast_section_and_its_metric_rows() -> None:
     assert section["arms"]["v1"]["wape"]["mean"] == pytest.approx(0.3)
     assert section["v1_minus_v0"]["wape"]["mean"] == pytest.approx(0.0)
     assert [p["seed"] for p in section["picks"]] == [7, 11] and built["seeds"] == [7, 11]
-    assert section["targets"]["holds"] is None  # two seeds: no verdict
+    assert section["targets"]["target_holds"] is None  # no seed with the baselines: no verdict
     page = report.to_html(built)
     assert "RQ3" in page and "v1 (LightGBM)" in page and "newsvendor_cost" in page
     assert "M-E" in page and "no verdict: 0 seed(s)" in page  # no baseline arms
@@ -313,10 +329,18 @@ def test_the_report_has_the_baseline_arms_the_pairs_and_the_m_e_verdict() -> Non
     assert section["arms"]["seasonal_naive"]["wape"]["mean"] == pytest.approx(0.302)
     assert section["champion_minus"]["naive"]["wape"]["mean"] == pytest.approx(-0.15)
     assert section["split_wape"]["mean"] == pytest.approx(0.4)
-    assert section["targets"]["holds"] is True
+    assert section["targets"]["target_holds"] is True
+    assert section["targets"]["cost_below_both"] is True
+    assert section["per_seed"]["champion"]["wape"] == {
+        "7": 0.18,
+        "11": 0.181,
+        "13": 0.182,
+        "17": 0.183,
+        "19": 0.184,
+    }
     page = report.to_html(built)
     assert "seasonal naive" in page and "naive (buy last week)" in page
-    assert "champion - seasonal naive (paired)" in page and "): holds." in page
+    assert "champion - seasonal naive (paired)" in page and "): holds. RQ3, newsvendor cost" in page
     names = {r["model_name"] for r in report.metrics_rows(built)}
     assert {f"forecast_eval_{a}" for a in forecast_ab.ARMS} <= names
     assert {f"forecast_eval_champion_minus_{b}" for b in forecast_ab.BASELINES} <= names
@@ -328,7 +352,8 @@ def test_the_report_has_the_baseline_arms_the_pairs_and_the_m_e_verdict() -> Non
     ]
     assert paired_rows[0]["value"] == pytest.approx(-0.12)
     assert paired_rows[0]["details"]["per_seed"]["7"] == pytest.approx(-0.12)
-    assert paired_rows[0]["details"]["m_e_verdict"] is True
+    assert paired_rows[0]["details"]["m_e_target_holds"] is True
+    assert paired_rows[0]["details"]["rq3_cost_below_both"] is True
     assert all(
         len(r["model_name"]) <= 60 and len(r["metric"]) <= 40 for r in report.metrics_rows(built)
     )

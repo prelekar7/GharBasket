@@ -319,13 +319,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"M-E {name}: {check['value']['mean']:+.3f} ± {check['value']['ci95']:.3f} "
                 f"(bound {check['bound']:+.3f}; {check['holds']})"
             )
-        holds = targets["holds"]
+        holds = targets["target_holds"]
         verdict = (
             f"no verdict: {targets['n']} seed(s)"
             if holds is None
             else ("holds" if holds else "does not hold")
         )
-        print(f"M-E verdict: {verdict} (stock-out and waste reported, not judged)")
+        print(f"M-E target: {verdict} (stock-out and waste reported, not judged)")
+        for base, c in targets["newsvendor_cost"].items():
+            print(
+                f"RQ3 newsvendor cost, champion - {base}: {c['value']['mean']:+.3f} ± "
+                f"{c['value']['ci95']:.3f} (upper {c['bound']:+.3f}; below: {c['below']}; "
+                "reported, not the target)"
+            )
     print(f"report: {html_path} ({json_path.name})")
     if args.push:
         settings = Settings()
