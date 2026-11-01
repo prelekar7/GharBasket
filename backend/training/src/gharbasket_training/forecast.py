@@ -155,6 +155,9 @@ class Backtest:
     series: int
     tau: float = 0.5
     coverage: dict[str, float] = field(default_factory=dict)  # share of actuals ≤ q_tau
+    # The same, each point weighted by its series' scale: what the scale-weighted margin aims at
+    # tau (per-point coverage need not sit at tau).
+    coverage_weighted: dict[str, float] = field(default_factory=dict)
     pinball_q50: dict[str, float] = field(default_factory=dict)
     pinball_qtau: dict[str, float] = field(default_factory=dict)
     mase: dict[str, float] = field(default_factory=dict)
@@ -385,10 +388,15 @@ def conformal_quantile(scores: np.ndarray, tau: float) -> float:
 
 def weighted_conformal_quantile(scores: np.ndarray, weights: np.ndarray, tau: float) -> float:
     """The weighted split-conformal tau-quantile: the smallest score whose cumulative weight
-    reaches tau of the total plus one more point of mean weight (the test point's), clamped to
-    the largest score. With equal weights it is `conformal_quantile` exactly (the ⌈(n+1)·tau⌉-th
-    smallest); tied scores share one value, so the order among ties does not matter. Weights must
-    be positive (the series scales are)."""
+    reaches tau x (W + W/n), W the total weight, clamped to the largest score. The test point's
+    weight is approximated by the mean weight W/n: strict weighted conformal (Tibshirani et al.
+    2019) uses the test point's own weight w_test, which would make the margin differ per series
+    (in the review of PR #476 the difference was 0.005 of the newsvendor cost on 1 of 5 seeds).
+    These weights are loss weights (the newsvendor cost counts units), not the likelihood ratios
+    of covariate-shift conformal, so the guarantee is not the point; the cost-optimal margin is.
+    With equal weights it is `conformal_quantile` exactly (the ⌈(n+1)·tau⌉-th smallest); tied
+    scores share one value, so the order among ties does not matter. Weights must be positive
+    (the series scales are)."""
     n = int(scores.size)
     if n == 0:
         return 0.0
@@ -543,6 +551,8 @@ def backtest(
         y, q50, q = actual[evaluated], predicted[evaluated], qtau[evaluated]
         test.eval_points = int(evaluated.sum())
         test.coverage[m] = round(float(np.mean(y <= q)), 4)
+        weight = scale[evaluated]
+        test.coverage_weighted[m] = round(float((weight * (y <= q)).sum() / weight.sum()), 4)
         test.pinball_q50[m] = round(_pinball(y, q50, 0.5), 4)
         test.pinball_qtau[m] = round(_pinball(y, q, tau), 4)
         demand = float(y.sum()) or 1.0

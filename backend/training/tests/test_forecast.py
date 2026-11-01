@@ -141,6 +141,17 @@ def test_the_backtest_calibrates_each_window_on_scale_weighted_residuals() -> No
     points = test.points
     assert points is not None
     for m in forecast.MODELS:
+        covered, weight = 0.0, 0.0
+        for step in (1, 2):
+            residuals = test.calibration[m][step]
+            rows = cast(pd.DataFrame, points[points["step"] == step])
+            qtau = rows[f"{m}_qtau"].to_numpy(dtype=float)
+            scored = ~np.isnan(qtau)
+            hit = rows["y"].to_numpy(dtype=float)[scored] <= qtau[scored]
+            covered += float((residuals.scale[scored] * hit).sum())
+            weight += float(residuals.scale[scored].sum())
+        # Coverage weighted by the series' scale, the quantity the weighted margin aims at tau.
+        assert test.coverage_weighted[m] == pytest.approx(covered / weight, abs=1e-4)
         for step in (1, 2):
             residuals = test.calibration[m][step]
             rows = cast(pd.DataFrame, points[points["step"] == step])
