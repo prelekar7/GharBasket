@@ -32,7 +32,12 @@ export const LINKS = [
   "/packer",
 ];
 
-const loadMessaging = () => import("@capacitor-firebase/messaging");
+/** @type {Promise<typeof import("@capacitor-firebase/messaging")> | undefined} The module, loaded once. */
+let messagingModule;
+const loadMessaging = () => {
+  messagingModule ??= import("@capacitor-firebase/messaging");
+  return messagingModule;
+};
 
 /** @returns {boolean} */
 function wasDenied() {
@@ -76,12 +81,24 @@ async function mayNotify(messaging) {
 
 /** Bumped on every sign-in and sign-out, so a start-up that is still waiting can tell it is stale. */
 let generation = 0;
+/** @type {Promise<void> | null} The start-up that is running now: a second caller joins it. */
+let running = null;
+/** Whether this session's start-up has finished, so the permission and token are not asked twice. */
+let enabled = false;
 
-/** After sign-in: channel, permission, token. Never throws: push is never worth an error screen. */
-async function enable() {
+/**
+ * After sign-in: channel, permission, token. Single flight: the app opening signed in and the
+ * session store flipping to signed in both ask for it, and the second call joins the first (or
+ * does nothing once it is done), so the permission prompt never shows twice. Never throws: push
+ * is never worth an error screen.
+ * @returns {Promise<void>}
+ */
+function enable() {
+  if (enabled) return Promise.resolve();
+  if (running) return running;
   const mine = ++generation;
   const current = () => mine === generation && useSession.getState().signedIn;
-  await withPlugin(loadMessaging, async ({ FirebaseMessaging: messaging, Importance }) => {
+  const run = withPlugin(loadMessaging, async ({ FirebaseMessaging: messaging, Importance }) => {
     await messaging
       .createChannel({
         id: CHANNEL_ID,
@@ -93,12 +110,21 @@ async function enable() {
     if (!(await mayNotify(messaging)) || !current()) return;
     const { token } = await messaging.getToken();
     if (current()) await registerPushToken(token);
-  }).catch(() => {});
+  })
+    .catch(() => {})
+    .then(() => {
+      if (mine === generation) enabled = true;
+      if (running === run) running = null;
+    });
+  running = run;
+  return run;
 }
 
 /** After sign-out: the server forgets the token first (it needs the session), then the phone does. */
 async function disable() {
   generation++;
+  running = null;
+  enabled = false;
   await clearPushToken();
   await withPlugin(loadMessaging, async ({ FirebaseMessaging: messaging }) => {
     await messaging.deleteToken();
