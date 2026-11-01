@@ -8,7 +8,7 @@ import {
   Skeleton,
   toast,
 } from "@gharbasket/ui";
-import { PlusIcon } from "@phosphor-icons/react";
+import { CameraIcon, PlusIcon } from "@phosphor-icons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,6 +23,9 @@ import {
   useScheduleDonation,
 } from "@/features/community/kindness.js";
 import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
+import { NATIVE } from "@/lib/env.js";
+import { UploadTooLargeError } from "@/lib/upload.js";
+import { photoFile, takePhoto } from "@/shared/native/camera.js";
 
 /** Kindness: your gullak, give things away on the van's way back, what you gave (design HcKindness, M9, W8). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -42,6 +45,14 @@ function Kindness() {
   const [picked, setPicked] = useState(/** @type {Record<string, number>} */ ({}));
   const [photos, setPhotos] = useState(/** @type {File[]} */ ([]));
   const fileInput = useRef(/** @type {HTMLInputElement | null} */ (null));
+  /** The Android app's camera or gallery; the web keeps the file input. @param {"camera" | "gallery"} source */
+  const addPhoto = async (source) => {
+    const photo = await takePhoto({ source }).catch(() => {
+      toast(t("photo.failed"));
+      return null;
+    });
+    if (photo) setPhotos((p) => [...p, photoFile(photo)].slice(0, MAX_PHOTOS));
+  };
 
   const header = (
     <header className="flex flex-col">
@@ -154,14 +165,35 @@ function Kindness() {
           onChange={(e) => setPhotos((p) => [...p, ...(e.target.files ?? [])].slice(0, MAX_PHOTOS))}
         />
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="secondary"
-            isDisabled={photos.length >= MAX_PHOTOS}
-            onPress={() => fileInput.current?.click()}
-          >
-            <PlusIcon aria-hidden size={20} weight="bold" />
-            {t("kindness.photos")}
-          </Button>
+          {NATIVE ? (
+            <>
+              <Button
+                variant="secondary"
+                isDisabled={photos.length >= MAX_PHOTOS}
+                onPress={() => addPhoto("camera")}
+              >
+                <CameraIcon aria-hidden size={20} />
+                {t("photo.take")}
+              </Button>
+              <Button
+                variant="secondary"
+                isDisabled={photos.length >= MAX_PHOTOS}
+                onPress={() => addPhoto("gallery")}
+              >
+                <PlusIcon aria-hidden size={20} weight="bold" />
+                {t("photo.gallery")}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="secondary"
+              isDisabled={photos.length >= MAX_PHOTOS}
+              onPress={() => fileInput.current?.click()}
+            >
+              <PlusIcon aria-hidden size={20} weight="bold" />
+              {t("kindness.photos")}
+            </Button>
+          )}
           {photos.length > 0 && (
             <span className="text-sm text-fg-secondary">
               {t("kindness.photosAdded", { count: photos.length })}
@@ -188,7 +220,12 @@ function Kindness() {
                   setPhotos([]);
                   toast(t("kindness.booked", { day: day(pickupOn) }));
                 },
-                onError: () => toast(t("kindness.failed")),
+                onError: (e) =>
+                  toast(
+                    e instanceof UploadTooLargeError
+                      ? t("photo.tooLarge", { mb: e.limitMb })
+                      : t("kindness.failed"),
+                  ),
               },
             )
           }
