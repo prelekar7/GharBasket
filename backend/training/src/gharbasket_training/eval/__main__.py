@@ -70,6 +70,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="the share of tiffins booked with a preferred cook (default: all, as in production)",
     )
     parser.add_argument(
+        "--assign-preferences",
+        choices=assignment_sweep.PREFERENCES,
+        default=assignment_sweep.PREFERENCES[0],
+        help="how a household picks the menu it books: a favourite per seed (sticky), one per "
+        "order (nightly), or a favourite skewed by popularity (popular)",
+    )
+    parser.add_argument(
         "--learned-from",
         type=int,
         help="the seed the pantry reference arm learns its priors on (default: the next of the "
@@ -107,6 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         weeks=args.assign_weeks,
         kitchens=args.assign_kitchens,
         preferred_share=args.assign_preferred_share,
+        preferences=args.assign_preferences,
     )
     if args.smoke:
         args.seeds, args.weeks, args.adoption = [7], 1, 0.02
@@ -193,6 +201,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "assign_weeks": sweep_config.weeks,
             "assign_kitchens": sweep_config.kitchens,
             "assign_preferred_share": sweep_config.preferred_share,
+            "assign_preferences": sweep_config.preferences,
             "learned_from": sources,
             "forecast_weeks": None if args.no_forecast else args.forecast_weeks,
             "forecast_start": args.forecast_start.isoformat(),
@@ -278,11 +287,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"M-G Gini <= 0.25 at <= +5 % cost: {verdict}"
             + (f" (dropped seeds {dropped})" if dropped else "")
         )
-        chosen = sweep_target["production_lambda"]
+        chosen = sweep_target["rule_lambda"]
         print(
-            "M-G production λ: "
+            "M-G λ by the rule fixed before the sweep: "
             + ("none (no verdict)" if chosen is None else f"{chosen:g}")
-            + f" ({sweep_target['production_rule']})"
+            + f" ({sweep_target['lambda_rule']})"
         )
     forecast = built.get("forecast", {})
     for arm, metrics in forecast.get("arms", {}).items():

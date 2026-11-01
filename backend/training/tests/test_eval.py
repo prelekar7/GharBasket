@@ -532,6 +532,64 @@ def test_an_order_out_of_every_kitchens_reach_is_left_out_not_a_solver_failure()
     assert point.cost_paise_per_portion > 0  # over the 2 assigned portions
 
 
+def test_the_cost_counts_only_the_orders_every_arm_assigned() -> None:
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import Weeks
+
+    # `big` (6 portions) can go to either kitchen, `south` (3) only to `near` (4.5 km; `far` is
+    # 5.5 km away). Greedy puts `big` at `near`, the cheaper, and has no room left for `south`;
+    # CP-SAT sends `big` north and `south` to `near`. So the arms leave out different orders.
+    near, far = _kitchen("near", SOCIETY[0]), _kitchen("far", 19.0390)
+    big = _order("big", portions=6)
+    south = {**_order("south", portions=3), "lat": 18.9895}
+    weeks = Weeks([[big, south]], [near, far])
+
+    alone_greedy = assignment_sweep.run_weeks(weeks, None)
+    alone_fair = assignment_sweep.run_weeks(weeks, 0.0)
+    assert alone_greedy.unassigned_share == round(3 / 9, 4) and alone_fair.unassigned_share == 0
+    # Each over its own orders, CP-SAT would look dearer only for cooking `south` at all.
+    assert alone_fair.cost_paise_per_portion > alone_greedy.cost_paise_per_portion
+
+    (greedy, fair), costed = assignment_sweep.sweep_points(weeks, (0.0,))
+    assert costed == 6  # `big` alone: the order both arms assigned
+    assert fair.solved and greedy.unassigned_share > fair.unassigned_share
+    # `big` at `far` (1 km) against `near` (beside it): CP-SAT is dearer on the same order.
+    assert greedy.km_per_portion == 0 and round(fair.km_per_portion) == 1
+    assert fair.cost_paise_per_portion - greedy.cost_paise_per_portion == pytest.approx(
+        fair.rider_paise_per_portion - greedy.rider_paise_per_portion
+    )
+
+
+def test_the_preference_models() -> None:
+    from collections import defaultdict
+
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import SweepConfig
+
+    catalog = from_seed_files()
+
+    def favourites(cfg: SweepConfig) -> tuple[dict[str, set[str | None]], list[Any]]:
+        weeks = assignment_sweep.instance(7, catalog, 0.05, cfg)
+        assert weeks is not None
+        seen: dict[str, set[str | None]] = defaultdict(set)
+        for o in (o for e in weeks.evenings for o in e):
+            seen[o["household"]].add(o["preferred"])
+        return seen, weeks.kitchens
+
+    sticky, _ = favourites(SweepConfig(weeks=2))
+    assert all(len(cooks) == 1 and None not in cooks for cooks in sticky.values())
+    nightly, _ = favourites(SweepConfig(weeks=2, preferences="nightly"))
+    assert any(len(cooks) > 1 for cooks in nightly.values())
+    none, _ = favourites(SweepConfig(weeks=2, preferred_share=0.0))
+    assert all(cooks == {None} for cooks in none.values())
+    half, _ = favourites(SweepConfig(weeks=2, preferred_share=0.5))
+    assert any(None in cooks and len(cooks) == 2 for cooks in half.values())
+    # Popular: one favourite per household, drawn with the popularity weights (not uniformly).
+    popular, _ = favourites(SweepConfig(weeks=2, preferences="popular"))
+    assert popular != sticky and set(popular) == set(sticky)
+    assert all(len(cooks) == 1 for cooks in popular.values())
+
+
 def test_the_harness_uses_the_production_numbers() -> None:
     from gharbasket_training.eval import assignment_sweep
 
@@ -555,11 +613,13 @@ def test_the_production_lambda_is_the_same_everywhere() -> None:
     api = ApiSettings.model_fields["partners_fairness_lambda"].default
     gateway = GatewayRequest.model_fields["fairness_lambda"].default
     ml = AssignRequest.model_fields["fairness_lambda"].default
-    assert api == gateway == ml == FAIRNESS_LAMBDA
+    # 600: the owner's departure from the rule's 900 (eval protocol §7, 2026-11-01).
+    assert api == gateway == ml == FAIRNESS_LAMBDA == 600.0
 
 
-def test_the_production_lambda_follows_the_rule_fixed_before_the_sweep() -> None:
-    from gharbasket_training.eval.assignment_sweep import production_lambda
+def test_the_rule_lambda_follows_the_rule_fixed_before_the_sweep() -> None:
+    from gharbasket_training.eval.assignment_sweep import KEEP_LAMBDA
+    from gharbasket_training.eval.assignment_sweep import rule_lambda as production_lambda
 
     def grid(**rows: tuple[float, bool | None]) -> dict[str, Any]:
         return {
@@ -567,7 +627,7 @@ def test_the_production_lambda_follows_the_rule_fixed_before_the_sweep() -> None
             for k, (cost, holds) in rows.items()
         }
 
-    # The target holds: the smallest λ > 0 that meets it, whatever the knee.
+    # The target holds: the smallest λ > 0 that meets it, whatever the cost budget allows.
     holding = grid(l0=(-0.04, False), l300=(0.0, False), l700=(0.02, True), l900=(0.03, True))
     assert production_lambda(holding, True) == 700.0
     # It does not: the last λ before the first whose mean cost is above +5 %, even when a
@@ -581,7 +641,9 @@ def test_the_production_lambda_follows_the_rule_fixed_before_the_sweep() -> None
         l800=(0.04, False),
     )
     assert production_lambda(knee, False) == 600.0
-    assert production_lambda(grid(l0=(0.0, False), l100=(0.06, False)), False) is None
+    # Even the smallest λ > 0 costs more than +5 %: production's λ of the registration stays.
+    assert production_lambda(grid(l0=(0.0, False), l100=(0.06, False)), False) == KEEP_LAMBDA
+    assert KEEP_LAMBDA == 300.0
     assert production_lambda(knee, None) is None  # no verdict, no pick
 
 
@@ -611,12 +673,12 @@ def test_the_m_g_target_needs_both_upper_bounds_five_seeds_and_a_positive_lambda
     assert holds["per_lambda"]["100"]["holds"] is False  # Gini 0.4
     assert holds["per_lambda"]["300"]["extra_cost_upper"] <= 0.05
     assert holds["dropped_seeds"] == [] and holds["greedy_gini"]["mean"] == 0.6
-    assert holds["production_lambda"] == 300.0 and "knee" in holds["production_rule"]
+    assert holds["rule_lambda"] == 300.0 and "mean-cost budget" in holds["lambda_rule"]
 
     costly = target(seeds(1100.0))  # +10 % cost
     assert costly["holds"] is False and costly["lambda"] is None
     # The knee: 200 (a copy of greedy here) is the last λ before 300, which costs +10 %.
-    assert costly["production_lambda"] == 200.0
+    assert costly["rule_lambda"] == 200.0
 
     # λ = 0 is the cost-only plan: even a fair cost-only week does not meet the target.
     zero = target(seeds(1100.0, zero_gini=0.1))
@@ -624,7 +686,7 @@ def test_the_m_g_target_needs_both_upper_bounds_five_seeds_and_a_positive_lambda
 
     few = target(seeds(1020.0, n=3))
     assert few["holds"] is None and few["lambda"] is None
-    assert few["production_lambda"] is None
+    assert few["rule_lambda"] is None
     assert all(v["holds"] is None for v in few["per_lambda"].values())
 
     # A seed where CP-SAT fell back to greedy at one λ is dropped for every λ, and named; one
@@ -681,13 +743,13 @@ def test_the_lambda_sweep_solves_every_point_of_a_small_week() -> None:
     target = built["assignment_targets"]["gini_le_0_25_at_le_5pct_cost"]
     assert target["holds"] is None and target["seeds"] == [7] and target["dropped_seeds"] == []
     assert set(target["per_lambda"]) == {"0", "300", "2000"}
-    assert target["production_lambda"] is None  # one seed: no verdict, no pick
+    assert target["rule_lambda"] is None  # one seed: no verdict, no pick
     rows = report.metrics_rows(built)
     assert {r["model_name"] for r in rows} >= {"assignment_cpsat", "assignment_greedy"}
     extra = next(r for r in rows if r["metric"] == "extra_cost_lambda_2000")
     assert set(extra["details"]["per_seed"]) == {"7"} and extra["details"]["dropped_seeds"] == []
     page = report.to_html(built)
-    assert "λ sweep" in page and "preferred cook" in page and "Production λ" in page
+    assert "λ sweep" in page and "preferred cook" in page and "rule fixed before" in page
 
 
 def test_the_cli_passes_the_sweep_flags_and_checks_them(
@@ -708,14 +770,18 @@ def test_the_cli_passes_the_sweep_flags_and_checks_them(
     flags = ["--seeds", "7", "11", "--no-learned", "--no-forecast", "--out", str(tmp_path)]
     sweep = ["--assign-lambdas", "700", "0", "700", "--assign-weeks", "3"]
     sweep += ["--assign-kitchens", "8", "--assign-preferred-share", "0.5"]
+    sweep += ["--assign-preferences", "nightly"]
     with pytest.raises(_Stop) as stop:
         cli.main([*flags, *sweep])
 
-    cfg = assignment_sweep.SweepConfig((0.0, 700.0), weeks=3, kitchens=8, preferred_share=0.5)
+    cfg = assignment_sweep.SweepConfig(
+        (0.0, 700.0), weeks=3, kitchens=8, preferred_share=0.5, preferences="nightly"
+    )
     assert got == [(7, None, cfg), (11, None, cfg)]
     args = stop.value.args[0]["args"]
     assert args["assign_lambdas"] == [0.0, 700.0] and args["assign_weeks"] == 3
     assert args["assign_kitchens"] == 8 and args["assign_preferred_share"] == 0.5
+    assert args["assign_preferences"] == "nightly"
 
     got.clear()
     with pytest.raises(_Stop):
@@ -728,6 +794,7 @@ def test_the_cli_passes_the_sweep_flags_and_checks_them(
         ["--assign-kitchens", "0"],
         ["--assign-lambdas", "-1"],
         ["--assign-preferred-share", "1.5"],
+        ["--assign-preferences", "random"],
     ):
         with pytest.raises(SystemExit):
             cli.main([*flags, *bad])

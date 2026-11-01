@@ -75,3 +75,24 @@ def test_the_runs_summary_for_the_fairness_dashboard() -> None:
     # Only the kitchens that could take an order count in `gini_eligible`.
     assert matching.summary(matches, cooks, {A})["gini_eligible"] == 0.0
     assert matching.summary([], cooks, set())["km_per_portion"] == 0.0
+
+
+def test_the_solver_request_is_built_after_the_preferred_cooks() -> None:
+    # The round and the eval harness's λ sweep both send this body (M10 §3.5).
+    near = uuid.UUID(int=10)
+    cooks = [cook(near, NEAR, left=5, skills=frozenset({"veg", "jain"}))]
+    taken, rest = matching.preferred_first(
+        [order(A, 2, preferred=near), order(B, 3, skills=frozenset({"jain", "veg"}))], cooks, 5000
+    )
+
+    body = matching.solver_request(rest, cooks, fairness_lambda=600.0, rate=5000, time_limit_s=5)
+
+    assert len(taken) == 1 and [o["id"] for o in body["orders"]] == [str(B)]
+    assert body["orders"][0]["skills"] == ["jain", "veg"] and body["orders"][0]["portions"] == 3
+    (kitchen,) = body["kitchens"]
+    # Her room and rolling earnings after the preferred order she took.
+    assert (kitchen["id"], kitchen["max_portions"]) == (str(near), 3)
+    assert kitchen["earnings_paise"] == 2 * 5000 and kitchen["skills"] == ["jain", "veg"]
+    assert (body["rating_floor"], body["max_km"]) == (matching.RATING_FLOOR, matching.MAX_KM)
+    assert body["fairness_lambda"] == 600.0 and body["paise_per_portion"] == 5000
+    assert body["time_limit_s"] == 5

@@ -644,14 +644,15 @@ def _sweep_html(report: dict[str, Any]) -> str:
         verdict = f"holds from λ = {target['lambda']:g}"
     else:
         verdict = "does not hold at any λ"
-    dropped, chosen = target["dropped_seeds"], target["production_lambda"]
+    dropped, chosen = target["dropped_seeds"], target["rule_lambda"]
     note = (
         f'<p class="note">M-G target (greedy Gini {_cell(target["greedy_gini"])}): {verdict}. '
         f"Paired seeds {target['seeds']}"
         + (f"; dropped (CP-SAT fell back to greedy): {dropped}" if dropped else "")
-        + ". Production λ: "
+        + ". λ by the rule fixed before the sweep: "
         + ("none (no verdict)" if chosen is None else f"{chosen:g}")
-        + f" ({html.escape(target['production_rule'])}).</p>"
+        + f" ({html.escape(target['lambda_rule'])}); production runs "
+        "PARTNERS_FAIRNESS_LAMBDA, which a dated §7 entry may set apart from it.</p>"
     )
     return table + checks + note
 

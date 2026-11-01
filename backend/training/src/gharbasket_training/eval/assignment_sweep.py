@@ -6,8 +6,12 @@ tiffins (those with a no-cook day) order dinner portions at their society on eac
 one of them on its no-cook day (Sunday in the simulator) and on each other evening with
 probability `WEEKDAY_TIFFIN_SHARE` (the simulator has no weekday tiffin demand yet, so the harness
 draws it). Each order is booked from a kitchen's menu, so it carries that kitchen as its preferred
-cook (ADR-0027 §7): the household's favourite, drawn once per seed among the kitchens that can cook
-its tiffin. `kitchens` home kitchens around the hub cook them.
+cook (ADR-0027 §7). The simulator has no menu choice, so the preference model is an assumption
+with a flag (`--assign-preferences`): "sticky" (the default) gives each household a favourite
+drawn once per seed uniformly among the kitchens that can cook its tiffin; "nightly" redraws it
+for every order; "popular" is sticky with kitchens weighted 1, 1/2, 1/3 ... in a per-seed order of
+popularity. `--assign-preferred-share` is the share of orders that name one. `kitchens` home
+kitchens around the hub cook them.
 
 Each evening, as in production: the preferred cook takes her orders first while she is eligible
 and has room (`matching.preferred_first`, the production function), then the rest goes to the
@@ -18,10 +22,12 @@ window.
 
 Per seed, the greedy nearest kitchen and the CP-SAT model at every λ live the same weeks; the
 scored week is judged by the Gini of the kitchens' earnings in that week and the cost a portion
-(distance + quality penalty) over all its assigned portions, the preferred cooks' included. An
-order no kitchen in reach has room for is left out, as production refunds it (ADR-0027), and the
-share left out is reported. A seed is the pair (dropped when CP-SAT fell back to greedy on any
-evening): the M-G target (Gini ≤ 0.25 at ≤ +5 % cost against greedy) is judged on the per-seed
+(distance + quality penalty). An order no kitchen in reach has room for is left out, as production
+refunds it (ADR-0027), and each arm reports the share it left out. The arms do not always leave out
+the same orders (greedy packs worse than CP-SAT), so the cost a portion is counted over the orders
+of the scored week that **every** arm assigned, the preferred cooks' included: a refund never
+looks free. A seed is the pair (dropped when CP-SAT fell back to greedy on any evening): the M-G
+target (Gini ≤ 0.25 at ≤ +5 % cost against greedy) is judged on the per-seed
 cost_λ / cost_greedy - 1 and Gini_λ, mean ± 95 % t-CI.
 """
 
@@ -29,7 +35,7 @@ import hashlib
 import importlib.metadata
 import random
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +62,7 @@ WEEKS = 5  # four weeks fill the 28-day window, the fifth is scored
 EVENINGS = 7  # Monday to Sunday: a week
 WEEKDAY_TIFFIN_SHARE = 0.5  # a tiffin household's chance of ordering on an evening it cooks
 PREFERRED_SHARE = 1.0  # orders that name a preferred cook: all, every tiffin is booked from a menu
+PREFERENCES = ("sticky", "nightly", "popular")  # how a household picks the menu it books
 # Production's numbers (M8 §3.4, `partners.assignments` and `partners.matching`; a test pins them).
 ROLLING_DAYS = 28  # `assignments.ROLLING`: the window of the earnings the fairness term sees
 TIME_LIMIT_S = 5.0  # `assignments.TIME_LIMIT_S`, here as deterministic time (`deterministic=True`)
@@ -65,6 +72,7 @@ RATE = matching.PAISE_PER_PORTION  # what a kitchen earns a portion (the default
 COST_LIMIT = 0.05  # the target: at most +5 % cost a portion against greedy ...
 GINI_LIMIT = 0.25  # ... at a Gini of weekly earnings of at most 0.25
 MIN_SEEDS = 5  # the protocol's seeds; fewer give no verdict
+KEEP_LAMBDA = 300.0  # production's λ when the rule was registered: kept if no λ > 0 fits the budget
 
 
 @dataclass(frozen=True)
@@ -75,6 +83,7 @@ class SweepConfig:
     weeks: int = WEEKS
     kitchens: int = KITCHENS
     preferred_share: float = PREFERRED_SHARE
+    preferences: str = PREFERENCES[0]
 
 
 @dataclass(frozen=True)
@@ -137,6 +146,7 @@ class SweepRun:
     portions: int  # of the scored week
     points: list[SweepPoint]
     config: SweepConfig = field(default_factory=SweepConfig)
+    costed_portions: int = 0  # of the scored week's orders every point assigned: the cost basis
 
     @property
     def solved(self) -> bool:
@@ -167,8 +177,15 @@ def settings(cfg: SweepConfig | None = None) -> dict[str, Any]:
         "rolling_days": ROLLING_DAYS,
         "weekday_tiffin_share": WEEKDAY_TIFFIN_SHARE,
         "preferred_share": cfg.preferred_share,
-        "preferred_cook": "the household's favourite, drawn once per seed uniformly among the "
-        "kitchens whose skills cover its tiffin; matching.preferred_first before the solver",
+        "preferences": cfg.preferences,
+        "preferred_cook": {
+            "sticky": "the household's favourite, drawn once per seed uniformly among the "
+            "kitchens whose skills cover its tiffin",
+            "nightly": "drawn for every order uniformly among the kitchens whose skills cover it",
+            "popular": "the household's favourite, drawn once per seed among the kitchens whose "
+            "skills cover its tiffin, weighted 1, 1/2, 1/3 ... by a per-seed popularity order",
+        }[cfg.preferences]
+        + "; matching.preferred_first before the solver",
         "kitchen_capacity": "max(8, the evening's portions // 3)",
         "max_km": MAX_KM,
         "rating_floor": RATING_FLOOR,
@@ -184,11 +201,13 @@ def settings(cfg: SweepConfig | None = None) -> dict[str, Any]:
         "societies_source": "gharbasket.tools.seed.SOCIETIES",
         "societies_sha256": hashlib.sha256(seed_file.read_bytes()).hexdigest(),
         "gini_population": "kitchens eligible on at least one evening of the scored week",
-        "cost_population": "every assigned portion of the scored week, the preferred cooks' "
-        "included",
+        "cost_population": "the scored week's orders that every arm (greedy and every λ) "
+        "assigned, the preferred cooks' included",
         "pairing": "a seed is dropped when CP-SAT fell back to greedy on any evening of any week "
-        "at any λ; orders no kitchen in reach has room for are left out in every arm, as "
-        "production refunds them (ADR-0027), and reported as unassigned_share",
+        "at any λ; an order no kitchen in reach has room for is left out, as production refunds "
+        "it (ADR-0027), and each arm reports the share it left out (unassigned_share); the arms "
+        "may leave out different orders, hence the cost over the orders every arm assigned",
+        "request": "matching.solver_request, the builder production's round uses",
     }
 
 
@@ -230,12 +249,21 @@ def instance(
         if h.rules["no_cook_days"] and h.society_id in centres
     ]
     kitchens = kitchens_for(seed, cfg.kitchens)
+    ranked = [k["id"] for k in kitchens]
+    random.Random(f"gharbasket-eval-assign:{seed}:popularity").shuffle(ranked)  # noqa: S311
+    weight = {k: 1 / (i + 1) for i, k in enumerate(ranked)}
+    can: dict[str, list[str]] = {}
     favourite: dict[str, str | None] = {}
     for h in takers:
         need = {"veg", "jain"} if h.rules["jain"] else {"veg"}
-        can = [k["id"] for k in kitchens if need <= set(k["skills"])]
+        can[h.key] = [k["id"] for k in kitchens if need <= set(k["skills"])]
         rng = random.Random(f"gharbasket-eval-assign:{seed}:cook:{h.key}")  # noqa: S311 (seeded)
-        favourite[h.key] = rng.choice(can) if can else None
+        if not can[h.key]:
+            favourite[h.key] = None
+        elif cfg.preferences == "popular":
+            favourite[h.key] = rng.choices(can[h.key], [weight[k] for k in can[h.key]])[0]
+        else:
+            favourite[h.key] = rng.choice(can[h.key])
     evenings: list[list[dict[str, Any]]] = []
     for day in range(cfg.weeks * EVENINGS):
         rng = random.Random(f"gharbasket-eval-assign:{seed}:{day}")  # noqa: S311 (seeded)
@@ -247,6 +275,9 @@ def instance(
                 continue
             lat, lng = centres[h.society_id]
             booked = menu.random() < cfg.preferred_share
+            preferred = favourite[h.key] if booked else None
+            if booked and cfg.preferences == "nightly" and can[h.key]:
+                preferred = menu.choice(can[h.key])
             tonight.append(
                 {
                     "id": _id(f"{seed}:{h.key}-d{day}"),
@@ -254,7 +285,8 @@ def instance(
                     "lng": lng + rng.uniform(-0.0005, 0.0005),
                     "portions": h.rules["size"],
                     "skills": ["veg", "jain"] if h.rules["jain"] else ["veg"],
-                    "preferred": favourite[h.key] if booked else None,
+                    "preferred": preferred,
+                    "household": h.key,
                 }
             )
         evenings.append(tonight)
@@ -323,23 +355,13 @@ def evening(
     if not rest:  # every order went to its preferred cook ("preferred-m8", solved)
         return Evening(matches, preferred, eligible, "solved", False, 0.0)
     req = AssignRequest.model_validate(
-        {
-            "orders": [
-                {"id": str(o.id), "lat": o.lat, "lng": o.lng, "portions": o.portions}
-                | {"skills": sorted(o.skills)}
-                for o in rest
-            ],
-            "kitchens": [
-                {"id": str(c.id), "lat": c.lat, "lng": c.lng, "max_portions": c.left}
-                | {"skills": sorted(c.skills), "rating": c.rating, "earnings_paise": c.earnings}
-                for c in cooks
-            ],
-            "fairness_lambda": fairness_lambda or 0.0,
-            "rating_floor": RATING_FLOOR,
-            "max_km": MAX_KM,
-            "paise_per_portion": RATE,
-            "time_limit_s": TIME_LIMIT_S,
-        }
+        matching.solver_request(
+            rest,
+            cooks,
+            fairness_lambda=fairness_lambda or 0.0,
+            rate=RATE,
+            time_limit_s=TIME_LIMIT_S,
+        )
     )
     answer: AssignResponse = (
         assignment.baseline(req)
@@ -354,9 +376,33 @@ def evening(
     return Evening(matches, preferred, eligible, status, greedy, answer.seconds)
 
 
-def run_weeks(weeks: Weeks, fairness_lambda: float | None) -> SweepPoint:
+Costs = dict[str, tuple[int, int, int, int]]  # scored-week order → portions, paise, rider, metres
+
+
+def run_weeks(
+    weeks: Weeks, fairness_lambda: float | None, costed: set[str] | None = None
+) -> SweepPoint:
     """Every evening of the weeks at one λ (None: greedy), each seeing the kitchens' rolling
-    earnings of the `ROLLING_DAYS` evenings before it; the last week is scored."""
+    earnings of the `ROLLING_DAYS` evenings before it; the last week is scored, its cost a
+    portion over the orders in `costed` (default: every order this arm assigned)."""
+    point, costs = _live(weeks, fairness_lambda)
+    return _costed(point, costs, set(costs) if costed is None else costed)
+
+
+def _costed(point: SweepPoint, costs: Costs, costed: set[str]) -> SweepPoint:
+    """The point with its cost, rider and km a portion over the orders in `costed`."""
+    portions = sum(costs[o][0] for o in costed)
+    each = max(portions, 1)
+    return replace(
+        point,
+        cost_paise_per_portion=round(sum(costs[o][1] for o in costed) / each, 2),
+        rider_paise_per_portion=round(sum(costs[o][2] for o in costed) / each, 2),
+        km_per_portion=round(sum(costs[o][3] for o in costed) / 1000 / each, 3),
+    )
+
+
+def _live(weeks: Weeks, fairness_lambda: float | None) -> tuple[SweepPoint, Costs]:
+    """The point without its cost figures, and what each assigned scored-week order cost."""
     ids = [k["id"] for k in weeks.kitchens]
     by_id = {k["id"]: k for k in weeks.kitchens}
     scored_from = len(weeks.evenings) - EVENINGS
@@ -366,7 +412,8 @@ def run_weeks(weeks: Weeks, fairness_lambda: float | None) -> SweepPoint:
     statuses: list[str] = []
     greedy_evenings = 0
     seconds = 0.0
-    ordered = portions = preferred = cost = rider = metres = 0
+    ordered = portions = preferred = 0
+    costs: Costs = {}
     for day, orders in enumerate(weeks.evenings):
         earned = dict.fromkeys(ids, 0)
         daily.append(earned)
@@ -389,14 +436,12 @@ def run_weeks(weeks: Weeks, fairness_lambda: float | None) -> SweepPoint:
         for order_id, kitchen_id, n in night.matches:
             m, c = _cost(by_order[order_id], by_id[kitchen_id])
             portions += n
-            cost += c * n
-            rider += m * assignment.PAISE_PER_PORTION_KM // 1000 * n
-            metres += m * n
+            costs[order_id] = (n, c * n, m * assignment.PAISE_PER_PORTION_KM // 1000 * n, m * n)
             used.add(kitchen_id)
     week = {k: sum(d[k] for d in daily[scored_from:]) for k in ids}
     last = {k: sum(d[k] for d in daily[-ROLLING_DAYS:]) for k in ids}
     each = max(portions, 1)
-    return SweepPoint(
+    point = SweepPoint(
         fairness_lambda=fairness_lambda,
         status=next((s for s in statuses if s != "solved"), "solved"),
         evening_status=statuses,
@@ -404,14 +449,24 @@ def run_weeks(weeks: Weeks, fairness_lambda: float | None) -> SweepPoint:
         seconds=round(seconds, 3),
         gini=assignment.gini([week[k] for k in sorted(eligible)]),
         gini_all=assignment.gini(list(week.values())),
-        cost_paise_per_portion=round(cost / each, 2),
-        rider_paise_per_portion=round(rider / each, 2),
-        km_per_portion=round(metres / 1000 / each, 3),
+        cost_paise_per_portion=0.0,  # set by `_costed`
+        rider_paise_per_portion=0.0,
+        km_per_portion=0.0,
         kitchens_used=len(used),
         preferred_share=round(preferred / each, 4),
         gini_rolling=assignment.gini(list(last.values())),
         unassigned_share=round(1 - portions / ordered, 4) if ordered else 0.0,
     )
+    return point, costs
+
+
+def sweep_points(weeks: Weeks, lambdas: tuple[float, ...]) -> tuple[list[SweepPoint], int]:
+    """Greedy and every λ over the same weeks, each costed over the scored week's orders that
+    every one of them assigned; and those orders' portions."""
+    lived = [_live(weeks, lam) for lam in (None, *lambdas)]
+    costed = set.intersection(*(set(costs) for _, costs in lived))
+    points = [_costed(point, costs, costed) for point, costs in lived]
+    return points, sum(lived[0][1][o][0] for o in costed)
 
 
 def run_sweep(
@@ -421,9 +476,9 @@ def run_sweep(
     weeks = instance(seed, catalog, adoption, cfg)
     if weeks is None:
         return None
-    points = [run_weeks(weeks, lam) for lam in (None, *cfg.lambdas)]
+    points, costed = sweep_points(weeks, cfg.lambdas)
     days = sum(1 for e in weeks.scored if e)
-    return SweepRun(seed, days, weeks.orders, weeks.portions, points, cfg)
+    return SweepRun(seed, days, weeks.orders, weeks.portions, points, cfg, costed)
 
 
 METRICS = (
@@ -476,31 +531,33 @@ def _upper(e: Estimate) -> float:
     return e.mean + e.ci
 
 
-KNEE_RULE = (
-    "the target holds: the smallest λ > 0 that meets it (§4); it does not: the knee, the "
-    "largest λ > 0 of the grid up to which every λ > 0 keeps the mean cost against greedy "
-    "≤ +5 % (§7, 2026-11-01)"
+BUDGET_RULE = (
+    "the target holds: the smallest λ > 0 that meets it (§4); it does not: the mean-cost budget "
+    "rule, the largest λ > 0 of the grid up to which every λ > 0 keeps the mean cost against "
+    "greedy ≤ +5 %, else 300 (§7, 2026-11-01)"
 )
 
 
-def production_lambda(per_lambda: dict[str, Any], holds: bool | None) -> float | None:
-    """The λ production runs at, by the rule fixed before the sweep (eval protocol §7,
-    2026-11-01). When the target holds, the protocol's own pick: the smallest λ > 0 meeting it.
-    When it does not, the knee: walking up the grid from the smallest λ > 0, the last λ before
-    the first whose mean extra cost is above +5 % (the most fairness the cost limit buys on
-    average). None with no verdict (fewer than 5 paired seeds), or when even the smallest λ > 0
-    costs more than that."""
+def rule_lambda(per_lambda: dict[str, Any], holds: bool | None) -> float | None:
+    """The λ the rule fixed before the sweep picks (eval protocol §7, 2026-11-01). When the
+    target holds, the protocol's own pick: the smallest λ > 0 meeting it. When it does not, the
+    mean-cost budget rule: walking up the grid from the smallest λ > 0, the last λ before the
+    first whose mean extra cost is above +5 % (the most fairness the cost limit buys on
+    average), or `KEEP_LAMBDA` when even the smallest λ > 0 costs more. The mean, not the CI
+    upper bound the target uses: the target tests a hypothesis, this picks an operating point by
+    its expected cost. None with no verdict (fewer than 5 paired seeds). Production may depart
+    from it by a dated §7 entry (2026-11-01: production runs 600, this picks 900)."""
     if holds is None:
         return None
     grid = sorted((float(k), v) for k, v in per_lambda.items() if float(k) > 0)
     if holds:
         return min(lam for lam, v in grid if v["holds"])
-    knee = None
+    chosen = KEEP_LAMBDA
     for lam, v in grid:
         if v["extra_cost"]["mean"] > COST_LIMIT:
             break
-        knee = lam
-    return knee
+        chosen = lam
+    return chosen
 
 
 def against_target(runs: list[SweepRun]) -> dict[str, Any]:
@@ -541,7 +598,7 @@ def against_target(runs: list[SweepRun]) -> dict[str, Any]:
             "dropped_seeds": dropped,
             "greedy_gini": greedy.as_dict(),
             "per_lambda": per_lambda,
-            "production_lambda": production_lambda(per_lambda, holds),
-            "production_rule": KNEE_RULE,
+            "rule_lambda": rule_lambda(per_lambda, holds),
+            "lambda_rule": BUDGET_RULE,
         }
     }
