@@ -2,9 +2,6 @@
   "appId": "in.gharbasket.spike.s1",
   "appName": "Spike S1 Razorpay",
   "webDir": "dist",
-  "server": {
-    "cleartext": true,
-    "allowNavigation": ["api.razorpay.com", "*.razorpay.com"]
-  },
-  "android": { "allowMixedContent": true }
+  "server": { "androidScheme": "https", "cleartext": true },
+  "android": { "allowMixedContent": true, "useLegacyBridge": true }
 }
