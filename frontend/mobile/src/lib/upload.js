@@ -1,5 +1,6 @@
 import { request } from "@/lib/api.js";
 import { MOCK } from "@/lib/env.js";
+import { downscaleImage } from "@/lib/image.js";
 
 /** What a file is for (M0 §3.1): decides the allowed types, the size limit and how long it is kept. @typedef {"order_issue_photo" | "donation_photo" | "kyc_document" | "delivery_photo" | "handoff_photo"} UploadPurpose */
 // "delivery_photo" is M7's purpose (proof, undelivered and damage photos); M0 §3.1 does not list it yet.
@@ -31,12 +32,14 @@ export class UploadTooLargeError extends Error {
 /**
  * Uploads one file straight to private storage and returns its key (POST /v1/files/presign, M0;
  * handbook 10: the API keeps only the key and metadata). The PUT carries exactly the headers the
- * presign answers with. The default purpose is a photo of a problem with an order. A file over the
- * purpose's limit throws UploadTooLargeError before the presign call. A camera photo is a Blob
- * whose `type` is already set (native/camera.js), so it goes the same way as a picked File.
- * @param {File | Blob} file @param {UploadPurpose} [purpose]
+ * presign answers with. The default purpose is a photo of a problem with an order. A big photo is
+ * shrunk first (lib/image.js), because some cameras ignore the size the app asks for; PDFs go as is.
+ * A file still over the purpose's limit throws UploadTooLargeError before the presign call. A camera
+ * photo is a Blob whose `type` is already set (native/camera.js), so it goes the same way as a File.
+ * @param {File | Blob} original @param {UploadPurpose} [purpose]
  */
-export async function uploadFile(file, purpose = "order_issue_photo") {
+export async function uploadFile(original, purpose = "order_issue_photo") {
+  const file = await downscaleImage(original);
   if (file.size > UPLOAD_LIMITS[purpose]) throw new UploadTooLargeError(purpose, file.size);
   const { url, key, headers } =
     /** @type {{ url: string, key: string, headers: Record<string, string> }} */ (
