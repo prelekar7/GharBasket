@@ -10,8 +10,10 @@
 #   scripts/mandi-on-mac.sh status     # the job and the last lines of its log
 #   scripts/mandi-on-mac.sh uninstall
 #
-# Secrets come from Infisical `staging` (DATA_GOV_IN_API_KEY, S3_*, JOBS_TOKEN); the Mac must be
-# logged in to Infisical (`infisical login`). Logs: ~/Library/Logs/gharbasket-mandi.log.
+# Secrets come from Infisical `staging`: DATA_GOV_IN_API_KEY, JOBS_TOKEN, S3_ENDPOINT_URL and an R2
+# token that can write gb-staging-lake: TRAINING_S3_ACCESS_KEY / TRAINING_S3_SECRET_KEY when set (the
+# training jobs' own token), else the API's S3_ACCESS_KEY / S3_SECRET_KEY. The Mac must be logged in
+# to Infisical (`infisical login`). Logs: ~/Library/Logs/gharbasket-mandi.log.
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,11 +26,14 @@ collect() {
   # launchd starts with a bare PATH; the tools live in Homebrew and ~/.local/bin.
   export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
   echo "== $(date '+%Y-%m-%d %H:%M:%S %Z') collect_mandi"
-  infisical run --env=staging --silent -- env \
-    API_URL="${STAGING_API_URL:-https://gharbasket-api.onrender.com}" \
-    S3_REGION=auto S3_BUCKET_LAKE=gb-lake S3_BUCKET_MLFLOW=gb-mlflow \
-    uv run --directory backend/training python -m gharbasket_training.jobs.collect_mandi \
-    --push-index
+  # Single quotes: the variables are expanded inside infisical's environment, not here.
+  infisical run --env=staging --silent -- sh -c '
+    exec env S3_ACCESS_KEY="${TRAINING_S3_ACCESS_KEY:-$S3_ACCESS_KEY}" \
+      S3_SECRET_KEY="${TRAINING_S3_SECRET_KEY:-$S3_SECRET_KEY}" \
+      API_URL="${STAGING_API_URL:-https://gharbasket-api.onrender.com}" \
+      S3_REGION=auto S3_BUCKET_LAKE=gb-staging-lake S3_BUCKET_MLFLOW=gb-staging-mlflow \
+      uv run --directory backend/training python -m gharbasket_training.jobs.collect_mandi \
+      --push-index'
 }
 
 case "${1:-}" in
