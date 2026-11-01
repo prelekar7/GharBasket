@@ -121,8 +121,8 @@ async def push_metrics(
         {
             "model_name": METRIC_MODELS[name],
             "version": document["version"],
-            "metric": "tap_log_score",
-            "value": scores["tap_log_score"],
+            "metric": pantry_priors.METRIC,
+            "value": scores[pantry_priors.METRIC],
             "split": "holdout",
             "data_source": METRICS_SOURCE.get(document["data_source"], document["data_source"]),
             "details": {
@@ -132,7 +132,8 @@ async def push_metrics(
             },
         }
         for name, scores in document["metrics"].items()
-        if scores["tap_log_score"] == scores["tap_log_score"]  # not NaN
+        if name in METRIC_MODELS
+        and scores[pantry_priors.METRIC] == scores[pantry_priors.METRIC]  # not NaN
     ]
     if not metrics:
         return 0

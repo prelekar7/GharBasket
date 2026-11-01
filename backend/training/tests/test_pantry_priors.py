@@ -84,13 +84,50 @@ def quick(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_the_learned_priors_beat_the_rule_table_out_of_sample(quick: None) -> None:
     """Where priors matter: new households, two boxes before the scored tap. The rule table
     says 1400 ml per adult equivalent, the households use about 1000: priors learned from the
-    other households' taps predict the held-out taps better."""
-    metrics = pantry_priors.evaluate(synthetic(weeks=3, households=24))
+    other households' taps (boxes on both sides of the use) predict the held-out taps better,
+    pooled and in every cohort."""
+    metrics = pantry_priors.evaluate(synthetic(weeks=3, households=24, boxes=(0.5, 1.1)))
 
     learned, table = metrics["learned_priors"], metrics["rule_table"]
     assert learned["households_weeks"] == table["households_weeks"] > 50
-    assert learned["tap_log_score"] > table["tap_log_score"] + 0.1
+    assert learned[pantry_priors.METRIC] > table[pantry_priors.METRIC] + 0.1
+    assert set(metrics["by_cohort"]) == {f"milk/{c}" for c in pantry_priors.COHORTS}
     assert pantry_priors.beats_rule_table(metrics)[0]
+
+
+def test_one_sided_or_uncertain_cohorts_keep_the_rule_table(
+    quick: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Boxes from the rule table, 40 % above these households' use: nearly every tap says
+    "wasted", an upper bound only, so the fit cannot place the cohort's use and publishes
+    nothing; and a cohort whose typical use the fit leaves uncertain is not published."""
+    one_sided = pantry_priors.fit(synthetic(households=8), "test")
+    assert one_sided.priors == [] and len(one_sided.skipped) == 3
+    why = list(one_sided.skipped.values())
+    assert all(w.startswith(("one-sided taps", "uncertain")) for w in why)
+    assert sum(w.startswith("one-sided taps") for w in why) >= 2
+
+    monkeypatch.setattr(pantry_priors, "MAX_LOG_MU_SD", 0.0)
+    uncertain = pantry_priors.fit(synthetic(households=8, boxes=(0.5, 1.1)), "test")
+    assert uncertain.priors == [] and len(uncertain.skipped) == 3
+    assert all(why.startswith("uncertain") for why in uncertain.skipped.values())
+
+
+def test_the_gate_refuses_a_cohort_worse_than_the_rule_table_inside_a_good_average() -> None:
+    def pair(learned: float, table: float) -> dict[str, Any]:
+        return {
+            "rule_table": {pantry_priors.METRIC: table, "households_weeks": 10},
+            "learned_priors": {pantry_priors.METRIC: learned, "households_weeks": 10},
+        }
+
+    good = {**pair(-0.6, -0.9), "by_cohort": {"milk/small": pair(-0.5, -0.9)}}
+    assert pantry_priors.beats_rule_table(good)[0]
+    one_bad = {
+        **pair(-0.6, -0.9),
+        "by_cohort": {"milk/small": pair(-0.4, -0.9), "milk/large": pair(-1.3, -1.0)},
+    }
+    ok, why = pantry_priors.beats_rule_table(one_bad)
+    assert not ok and "milk/large -1.3000 < -1.0000" in why
 
 
 def test_a_stuck_chain_keeps_the_rule_table(quick: None, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -129,9 +166,11 @@ def test_numpyro_recovers_the_per_equivalent_use_and_the_spread(quick: None) -> 
     """With boxes on both sides of the households' use (as once the box follows the twin),
     the taps bound the use from both sides and the fit recovers it. (From rule-table boxes
     alone, 40 % above the truth here, nearly every tap is "wasted": an upper bound only.)"""
-    observed = synthetic(households=8, boxes=(0.5, 1.1))
+    observed = synthetic(households=20, boxes=(0.5, 1.1))
 
     fitted = pantry_priors.fit(observed, "test")
+    by_cohort = pantry_priors.evaluate(observed)["by_cohort"]
+    assert set(by_cohort) <= {f"milk/{c}" for c in pantry_priors.COHORTS}
 
     by_key = fitted.by_key()
     assert fitted.skipped == {} and set(by_key) == {(c, "milk") for c in pantry_priors.COHORTS}
@@ -141,7 +180,7 @@ def test_numpyro_recovers_the_per_equivalent_use_and_the_spread(quick: None) -> 
         prior = by_key[(cohort, "milk")]
         assert prior.prior_mean_per_ae == pytest.approx(PER_AE, rel=0.15), cohort
         # prior_weeks = WEEK_SIGMA^2 / s^2: the truth (s = 0.2) is 0.25 weeks.
-        assert 0.05 <= prior.prior_weeks <= 2.0 and prior.households == 8
+        assert 0.05 <= prior.prior_weeks <= 2.0 and prior.households == 20
         assert prior.rule_mean_per_ae == 1400
 
     train, held = pantry_priors.split_last_week(observed)
@@ -184,17 +223,24 @@ def test_the_holdout_scores_the_last_tap_with_the_serving_twin() -> None:
         )
     )
     expected = math.log(before.probability(1500.0, math.inf))
-    assert table == {"tap_log_score": round(expected, 4), "households_weeks": 1}
+    assert table == {pantry_priors.METRIC: round(expected, 4), "households_weeks": 1}
     assert expected < math.log(0.5)  # two "wasted" taps made "ran out" unlikely
 
 
-def test_too_few_households_keep_the_rule_table(quick: None) -> None:
+def test_too_few_households_keep_the_rule_table(
+    quick: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pantry_priors, "MAX_LOG_MU_SD", 1.0)  # four households: only the count
     few = [o for o in synthetic() if o.household.endswith(("-0", "-1")) and "small" in o.household]
     fitted = pantry_priors.fit(few, "test")
     assert fitted.priors == [] and fitted.skipped == {"milk": "2 households"}
-    assert math.isnan(pantry_priors.holdout_tap_score([], [], None)["tap_log_score"])
+    assert math.isnan(pantry_priors.holdout_tap_score([], [], None)[pantry_priors.METRIC])
     assert not pantry_priors.beats_rule_table(pantry_priors.evaluate(few))[0]
-    two_large = [o for o in synthetic() if "large" not in o.household or o.household[-1] in "01"]
+    two_large = [
+        o
+        for o in synthetic(boxes=(0.5, 1.1))
+        if "large" not in o.household or o.household[-1] in "01"
+    ]
     partial = pantry_priors.fit(two_large, "test")
     assert {p.cohort for p in partial.priors} == {"small", "medium"}
     assert partial.skipped == {"milk/large": "2 households"}
@@ -230,8 +276,8 @@ def _card(learned: float, table: float, version: str = "v-synthetic") -> dict[st
             {"cohort": "small", "product": "milk", "prior_mean_per_ae": 1000.0, "prior_weeks": 3.0}
         ],
         "metrics": {
-            "rule_table": {"tap_log_score": table, "households_weeks": 10},
-            "learned_priors": {"tap_log_score": learned, "households_weeks": 10},
+            "rule_table": {pantry_priors.METRIC: table, "households_weeks": 10},
+            "learned_priors": {pantry_priors.METRIC: learned, "households_weeks": 10},
         },
     }
 
@@ -334,7 +380,7 @@ async def test_the_job_pushes_only_out_of_sample_metrics_per_source() -> None:
     items = sent[0][1]["items"]
     assert {i["model_name"] for i in items} == {"pantry_priors", "pantry_priors_rule_table"}
     assert {i["data_source"] for i in items} == {"live"}  # real households, never "mixed"
-    assert {i["metric"] for i in items} == {"tap_log_score"}
+    assert {i["metric"] for i in items} == {pantry_priors.METRIC}
 
 
 @pytest.mark.anyio

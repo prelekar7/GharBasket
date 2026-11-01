@@ -48,6 +48,14 @@ from gharbasket.modules.subscriptions import rules
 MODEL_NAME = "pantry_priors"
 COHORTS = ("small", "medium", "large")  # by adult equivalents: < 2, 2 to < 3.5, 3.5 and up
 MIN_HOUSEHOLDS = 3  # tapped households per product and per cohort, before a prior is kept
+# A cohort's prior is published only when the fit pins it down (set before any run, not tuned):
+# its typical use known to about +-10 % (posterior sd of log mu_c), and taps from both sides.
+# "Ran out" only bounds the use from below and "wasted" only from above; a cohort whose taps are
+# almost all one kind leaves mu_c to the hyperprior (one-sided cohorts fitted +14 % to +63 %
+# above the table on the simulator, PR #465 review).
+MAX_LOG_MU_SD = 0.1
+MAX_ONE_SIDED = 0.8
+METRIC = "tap_log_likelihood"  # the held-out taps' mean log predictive probability: higher wins
 WARMUP, SAMPLES = 300, 300
 MIN_ACCEPT = 0.5  # NUTS adapts towards 0.8; a chain far below it did not explore the posterior
 RULE_PRIOR_WEEKS = rules.RULE_PRIOR_WEEKS  # M3's weight on the rule table
@@ -110,9 +118,10 @@ class Fit:
 
 def _fit_product(
     observations: list[Observation], guess: dict[str, float], *, seed: int = 7
-) -> dict[str, tuple[float, float]] | str:
+) -> dict[str, tuple[float, float, float]] | str:
     """NUTS on one product's tapped weeks: {cohort: (typical weekly use per AE in base units,
-    prior weeks)}, or why the chain cannot be trusted (the product then keeps the rule table)."""
+    prior weeks, posterior sd of log mu_c)}, or why the chain cannot be trusted (the product then
+    keeps the rule table)."""
     import jax
     import jax.numpy as jnp
     import numpyro
@@ -174,9 +183,14 @@ def _fit_product(
     if stuck:
         return stuck
     log_mu = np.asarray(draws["log_mu"]).mean(axis=0)
+    log_mu_sd = np.asarray(draws["log_mu"]).std(axis=0)
     s2 = (np.asarray(draws["s"]) ** 2).mean(axis=0)
     return {
-        c: (float(math.exp(log_mu[i])), float(WEEK_SIGMA**2 / max(s2[i], 1e-12)))
+        c: (
+            float(math.exp(log_mu[i])),
+            float(WEEK_SIGMA**2 / max(s2[i], 1e-12)),
+            float(log_mu_sd[i]),
+        )
         for c, i in c_index.items()
     }
 
@@ -217,10 +231,18 @@ def fit(observations: list[Observation], version: str, *, seed: int = 7) -> Fit:
         if isinstance(fitted, str):
             out.skipped[product] = fitted
             continue
-        for cohort, (per_ae, weeks) in fitted.items():
+        for cohort, (per_ae, weeks, log_mu_sd) in fitted.items():
             members = {o.household for o in mine if o.cohort == cohort}
             if len(members) < MIN_HOUSEHOLDS:
                 out.skipped[f"{product}/{cohort}"] = f"{len(members)} households"
+                continue
+            signals = [o.signal for o in mine if o.cohort == cohort]
+            one_sided = max(signals.count("ran_out"), signals.count("wasted")) / len(signals)
+            if one_sided > MAX_ONE_SIDED:
+                out.skipped[f"{product}/{cohort}"] = f"one-sided taps ({one_sided:.0%} of one kind)"
+                continue
+            if log_mu_sd > MAX_LOG_MU_SD:
+                out.skipped[f"{product}/{cohort}"] = f"uncertain (sd of log mu {log_mu_sd:.2f})"
                 continue
             out.priors.append(
                 Prior(
@@ -272,24 +294,23 @@ def serving_prior(
     return rule, RULE_PRIOR_WEEKS, "rule"
 
 
-def holdout_tap_score(
+def _tap_scores(
     train: list[Observation],
     held: list[Observation],
     priors: dict[tuple[str, str], Prior] | None,
-) -> dict[str, float]:
-    """Out-of-sample: each held-out tap, predicted by the serving update over the household's
-    earlier boxes (the last OBSERVED_WEEKS weeks of them, as M3 reads them) from `priors`
-    (fitted on `train` only) or from the rule table when None. The score is the mean log of
-    the probability the twin gave the tap's interval beforehand (higher is better; a perfect
-    twin scores 0). A household's product with no earlier box is not scored (M3 drafts it from
-    the rule table without asking the twin)."""
+) -> dict[str, list[float]]:
+    """Each held-out tap's log predictive probability, by `product/cohort`: the serving update
+    over the household's earlier boxes (the last OBSERVED_WEEKS weeks of them, as M3 reads them)
+    from `priors` (fitted on `train` only) or from the rule table when None, and the log of the
+    probability it gave the tap's interval beforehand. A household's product with no earlier
+    box is not scored (M3 drafts it from the rule table without asking the twin)."""
     from gharbasket_ml.pantry import posterior
     from gharbasket_ml.schemas import PantryItemIn
 
     past: dict[tuple[str, str], list[Observation]] = defaultdict(list)
     for o in train:
         past[(o.household, o.product)].append(o)
-    scores: list[float] = []
+    scores: dict[str, list[float]] = defaultdict(list)
     for last in held:
         earlier = sorted(past.get((last.household, last.product), []), key=lambda o: o.week)
         earlier = [o for o in earlier if o.week >= last.week - OBSERVED_WEEKS]
@@ -305,42 +326,77 @@ def holdout_tap_score(
             prior_weeks=prior_weeks,
             observations=[o.served() for o in earlier],
         )
-        scores.append(math.log(max(posterior(item).probability(*bounds), 1e-12)))
+        p = posterior(item).probability(*bounds)
+        scores[f"{last.product}/{last.cohort}"].append(math.log(max(p, 1e-12)))
+    return scores
+
+
+def _summary(scores: list[float]) -> dict[str, float]:
     if not scores:
-        return {"tap_log_score": math.nan, "households_weeks": 0}
-    return {"tap_log_score": round(sum(scores) / len(scores), 4), "households_weeks": len(scores)}
+        return {METRIC: math.nan, "households_weeks": 0}
+    return {METRIC: round(sum(scores) / len(scores), 4), "households_weeks": len(scores)}
 
 
-def evaluate(observations: list[Observation], *, seed: int = 7) -> dict[str, dict[str, float]]:
+def holdout_tap_score(
+    train: list[Observation],
+    held: list[Observation],
+    priors: dict[tuple[str, str], Prior] | None,
+) -> dict[str, float]:
+    """Out-of-sample, pooled: the mean over the held-out taps of the log of the probability the
+    serving twin gave each tap's interval beforehand (higher is better; a perfect twin scores
+    0). See `_tap_scores`."""
+    return _summary([x for xs in _tap_scores(train, held, priors).values() for x in xs])
+
+
+def evaluate(observations: list[Observation], *, seed: int = 7) -> dict[str, Any]:
     """The candidate's out-of-sample card: refit on every household's weeks before its last
-    tapped one, score both priors on the held-out taps."""
+    tapped one, score both priors on the held-out taps, pooled and per product x cohort."""
     train, held = split_last_week(observations)
     heldout_fit = fit(train, "holdout", seed=seed) if train else Fit("holdout")
+    table = _tap_scores(train, held, None)
+    learned = _tap_scores(train, held, heldout_fit.by_key())
     return {
-        "rule_table": holdout_tap_score(train, held, None),
-        "learned_priors": holdout_tap_score(train, held, heldout_fit.by_key()),
+        "rule_table": _summary([x for xs in table.values() for x in xs]),
+        "learned_priors": _summary([x for xs in learned.values() for x in xs]),
+        "by_cohort": {
+            key: {
+                "rule_table": _summary(table[key]),
+                "learned_priors": _summary(learned.get(key, [])),
+            }
+            for key in sorted(table)
+        },
     }
 
 
-def beats_rule_table(metrics: dict[str, dict[str, float]]) -> tuple[bool, str]:
-    """The champion/challenger check `just promote` applies: the learned priors' out-of-sample
-    tap log score must be above the rule table's on the same held-out taps."""
-    learned = metrics.get("learned_priors", {}).get("tap_log_score", math.nan)
-    table = metrics.get("rule_table", {}).get("tap_log_score", math.nan)
+def beats_rule_table(metrics: dict[str, Any]) -> tuple[bool, str]:
+    """The champion/challenger check `just promote` applies: the learned priors' held-out tap
+    log-likelihood must be above the rule table's pooled, and no product x cohort may be worse
+    than the rule table on its own held-out taps (one inflated cohort must not pass inside a
+    good average)."""
+    learned = metrics.get("learned_priors", {}).get(METRIC, math.nan)
+    table = metrics.get("rule_table", {}).get(METRIC, math.nan)
     if not (learned == learned and table == table):  # NaN: nothing was scored
         return False, "no out-of-sample score for both the learned priors and the rule table"
-    if learned > table:
-        return True, (
-            f"learned priors {learned:.4f} > rule table {table:.4f} (held-out tap log score)"
+    worse = [
+        f"{key} {ours:.4f} < {theirs:.4f}"
+        for key, pair in sorted(metrics.get("by_cohort", {}).items())
+        if (ours := pair["learned_priors"][METRIC]) == ours
+        and (theirs := pair["rule_table"][METRIC]) == theirs
+        and ours < theirs
+    ]
+    if learned <= table:
+        return False, (
+            f"learned priors {learned:.4f} <= rule table {table:.4f} (held-out tap log-likelihood)"
         )
-    return False, (
-        f"learned priors {learned:.4f} <= rule table {table:.4f} (held-out tap log score)"
+    if worse:
+        return False, "learned priors worse than the rule table on " + "; ".join(worse)
+    return True, (
+        f"learned priors {learned:.4f} > rule table {table:.4f} (held-out tap log-likelihood), "
+        "and no product x cohort worse"
     )
 
 
-def as_document(
-    fit_: Fit, metrics: dict[str, dict[str, float]], data_source: str
-) -> dict[str, Any]:
+def as_document(fit_: Fit, metrics: dict[str, Any], data_source: str) -> dict[str, Any]:
     return {
         "model": MODEL_NAME,
         "version": fit_.version,
