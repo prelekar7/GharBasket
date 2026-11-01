@@ -174,7 +174,53 @@ async def test_missing_configuration_is_refused(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="API_URL"):
         await job.push_index(http, Settings(data_gov_in_api_key=SecretStr("k")), [])
     with pytest.raises(httpx2.HTTPStatusError):
-        await job.fetch(http, settings(), state="Maharashtra", market="Mumbai")
+        await job.fetch(http, settings(retry_wait_s=0), state="Maharashtra", market="Mumbai")
+
+
+class Flaky:
+    """data.gov.in failing `failures` times (a 503 or a timeout), then answering."""
+
+    def __init__(self, failures: list[str]) -> None:
+        self.failures = list(failures)
+        self.calls = 0
+
+    def handle(self, request: httpx2.Request) -> httpx2.Response:
+        self.calls += 1
+        if self.failures:
+            failure = self.failures.pop(0)
+            if failure == "timeout":
+                raise httpx2.ReadTimeout("slow", request=request)
+            return httpx2.Response(int(failure))
+        return httpx2.Response(
+            200, json={"total": 1, "records": [record("Mumbai", "Tomato", 2400)]}
+        )
+
+
+@pytest.mark.parametrize("failures", [["503"], ["timeout"], ["timeout", "502"]])
+async def test_a_slow_or_failing_page_is_tried_again(failures: list[str]) -> None:
+    flaky = Flaky(failures)
+    http = httpx2.AsyncClient(transport=httpx2.MockTransport(flaky.handle))
+    records = await job.fetch(http, settings(retry_wait_s=0), state="Maharashtra", market="Mumbai")
+    assert [r["commodity"] for r in records] == ["Tomato"]
+    assert flaky.calls == len(failures) + 1
+
+
+async def test_retries_stop_after_the_last_attempt() -> None:
+    flaky = Flaky(["timeout", "timeout", "timeout", "timeout"])
+    http = httpx2.AsyncClient(transport=httpx2.MockTransport(flaky.handle))
+    with pytest.raises(httpx2.ReadTimeout):
+        await job.fetch(
+            http, settings(retry_wait_s=0, http_attempts=3), state="Maharashtra", market="Mumbai"
+        )
+    assert flaky.calls == 3
+
+
+async def test_a_client_error_is_not_tried_again() -> None:
+    flaky = Flaky(["403"])
+    http = httpx2.AsyncClient(transport=httpx2.MockTransport(flaky.handle))
+    with pytest.raises(httpx2.HTTPStatusError):
+        await job.fetch(http, settings(retry_wait_s=0), state="Maharashtra", market="Mumbai")
+    assert flaky.calls == 1
 
 
 def test_normalise_skips_rows_without_a_price() -> None:

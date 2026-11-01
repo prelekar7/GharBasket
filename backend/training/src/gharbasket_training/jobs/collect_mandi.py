@@ -9,6 +9,7 @@ Prices are ₹ per quintal; ₹ X per quintal is exactly X paise per kg, which i
 """
 
 import argparse
+import asyncio
 import json
 import statistics
 import sys
@@ -65,6 +66,25 @@ def _day(raw: str) -> date:
     return datetime.strptime(raw, "%d/%m/%Y").date()
 
 
+async def _page(
+    http: httpx2.AsyncClient, settings: Settings, params: dict[str, Any]
+) -> dict[str, Any]:
+    """One page of the resource. data.gov.in is often slow or briefly down: a timeout, a dropped
+    connection or a 5xx is tried again (settings.http_attempts in all, waiting retry_wait_s, then
+    twice that, ...); a 4xx (a bad key, a bad filter) fails at once."""
+    for attempt in range(1, settings.http_attempts + 1):
+        try:
+            response = await http.get(API, params=params, timeout=settings.http_timeout_s)
+            if response.status_code < 500 or attempt == settings.http_attempts:
+                response.raise_for_status()
+                return response.json()
+        except (httpx2.TimeoutException, httpx2.TransportError):
+            if attempt == settings.http_attempts:
+                raise
+        await asyncio.sleep(settings.retry_wait_s * attempt)
+    raise AssertionError("unreachable")
+
+
 async def fetch(
     http: httpx2.AsyncClient, settings: Settings, *, state: str, market: str
 ) -> list[dict[str, Any]]:
@@ -73,9 +93,10 @@ async def fetch(
     records: list[dict[str, Any]] = []
     offset = 0
     while True:
-        response = await http.get(
-            API,
-            params={
+        page = await _page(
+            http,
+            settings,
+            {
                 "api-key": settings.data_gov_in_api_key.get_secret_value(),
                 "format": "json",
                 "limit": PAGE,
@@ -83,10 +104,7 @@ async def fetch(
                 "filters[state]": state,
                 "filters[market]": market,
             },
-            timeout=settings.http_timeout_s,
         )
-        response.raise_for_status()
-        page = response.json()
         batch = page.get("records", [])
         records.extend(batch)
         offset += len(batch)
@@ -235,8 +253,6 @@ async def run(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    import asyncio
-
     parser = argparse.ArgumentParser(description="Collect today's mandi prices into the lake.")
     parser.add_argument("--out", type=Path, default=None, help="local lake folder instead of S3")
     parser.add_argument("--today", type=date.fromisoformat, default=date.today())
