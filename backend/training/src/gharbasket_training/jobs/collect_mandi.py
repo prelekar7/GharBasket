@@ -29,6 +29,18 @@ from gharbasket_training.settings import Settings, get_settings
 RESOURCE = "9ef84268-d588-465a-a308-a864a43d0070"
 API = f"https://api.data.gov.in/resource/{RESOURCE}"
 PAGE = 1000
+# data.gov.in's firewall answers 502 to clients that do not look like a browser.
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+    "Accept": "application/json",
+}
+
+
+class DataGovError(RuntimeError):
+    """data.gov.in refused a page. The message never holds the URL: it carries the API key."""
+
+
 PREFIX = "external/mandi"
 INDEX_WEEKS = 4
 COMMODITIES = Path(__file__).resolve().parents[1] / "data" / "commodities.json"
@@ -72,15 +84,20 @@ async def _page(
     """One page of the resource. data.gov.in is often slow or briefly down: a timeout, a dropped
     connection or a 5xx is tried again (settings.http_attempts in all, waiting retry_wait_s, then
     twice that, ...); a 4xx (a bad key, a bad filter) fails at once."""
+    where = f"market={params.get('filters[market]')} offset={params.get('offset')}"
     for attempt in range(1, settings.http_attempts + 1):
         try:
-            response = await http.get(API, params=params, timeout=settings.http_timeout_s)
-            if response.status_code < 500 or attempt == settings.http_attempts:
-                response.raise_for_status()
-                return response.json()
-        except (httpx2.TimeoutException, httpx2.TransportError):
+            response = await http.get(
+                API, params=params, headers=HEADERS, timeout=settings.http_timeout_s
+            )
+        except (httpx2.TimeoutException, httpx2.TransportError) as error:
             if attempt == settings.http_attempts:
-                raise
+                raise DataGovError(f"data.gov.in: {type(error).__name__} ({where})") from None
+        else:
+            if response.is_success:
+                return response.json()
+            if response.status_code < 500 or attempt == settings.http_attempts:
+                raise DataGovError(f"data.gov.in answered {response.status_code} ({where})")
         await asyncio.sleep(settings.retry_wait_s * attempt)
     raise AssertionError("unreachable")
 
