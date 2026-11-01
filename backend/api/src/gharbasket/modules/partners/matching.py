@@ -102,6 +102,36 @@ def preferred_first(
     return matches, rest
 
 
+def solver_request(
+    orders: list[Order],
+    cooks: list[Cook],
+    *,
+    fairness_lambda: float,
+    rate: int,
+    time_limit_s: float,
+) -> dict[str, Any]:
+    """The body of M10's `POST /assign/kitchens` for the orders left after `preferred_first`:
+    every cook with her room left and rolling earnings (raised by the preferred orders she took),
+    M8's rating floor and reach. The round and the eval harness's λ sweep both build it here."""
+    return {
+        "orders": [
+            {"id": str(o.id), "lat": o.lat, "lng": o.lng, "portions": o.portions}
+            | {"skills": sorted(o.skills)}
+            for o in orders
+        ],
+        "kitchens": [
+            {"id": str(c.id), "lat": c.lat, "lng": c.lng, "max_portions": c.left}
+            | {"skills": sorted(c.skills), "rating": c.rating, "earnings_paise": c.earnings}
+            for c in cooks
+        ],
+        "fairness_lambda": fairness_lambda,
+        "rating_floor": RATING_FLOOR,
+        "max_km": MAX_KM,
+        "paise_per_portion": rate,
+        "time_limit_s": time_limit_s,
+    }
+
+
 def greedy(
     orders: list[Order], cooks: list[Cook], rate: int = PAISE_PER_PORTION
 ) -> tuple[list[Match], dict[uuid.UUID, str]]:

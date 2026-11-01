@@ -1,8 +1,9 @@
 """What this service is serving (M10 §3 `/models`, ADR-0025).
 
-Solvers are built in and versioned with the code. Learned models arrive later from the R2
-registry (`s3://gb-mlflow/models/<name>/<version>/` with a `latest.json` pointer per model); until
-then `MODELS_MANIFEST` may point at a local JSON file of the same shape, mostly for tests.
+Solvers are built in and versioned with the code. Learned models come from the R2 registry
+(`s3://gb-mlflow/models/<name>/<version>/` with a `latest.json` pointer per model), synced into a
+local folder by `model_sync` or given as `MODELS_DIR`; `MODELS_MANIFEST` may point at a local JSON
+file listing models, mostly for tests.
 """
 
 import json

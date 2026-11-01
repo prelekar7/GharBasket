@@ -2,7 +2,8 @@
 at T-1 23:05 after the payment grace, a rebuild when M10 stores a new forecast, the vendor scores of
 the past week on Monday at 03:33, `build_packing_tasks` at T 05:00 IST and `surplus_cascade` (the
 12:30 run, §3.5) at T 12:30 IST. Bags M7's riders take back after a second miss are unpacked
-from `logistics.pickup_completed` (§3.5, M7 §3.6).
+from `logistics.pickup_completed` (§3.5, M7 §3.6). Queued packing tasks follow the published box
+routes on `logistics.route_published` (§3.2).
 
 `scheduled_for` decides the delivery date (its IST calendar day for packing, the next IST day for
 procurement) or the week, never the clock.
@@ -134,6 +135,31 @@ async def on_pickup_completed(session: AsyncSession, event: OutboxEvent) -> None
             log.warning("returned_bag_skipped", order_id=order_id, code=exc.code)
 
 
+async def on_route_published(session: AsyncSession, event: OutboxEvent) -> None:
+    """`logistics.route_published { hub_id, delivery_date, kind, … }` (M7 §3.3): the hub's queued
+    tasks of that date follow the date's published box routes (`packing.follow_routes`, §3.2).
+    Tiffin routes are skipped (tiffins are never packed here). Only the hub and the date are
+    read; the order comes from `logistics.api.published_stop_order`, so a replay or a re-publish
+    for a new rider changes nothing. An unreadable payload or an unknown hub is logged and
+    skipped: raising would replay the event for its other consumers too."""
+    try:
+        payload = event.payload
+        kind = payload["kind"]
+        hub_id = uuid.UUID(payload["hub_id"])
+        day = date.fromisoformat(payload["delivery_date"])
+    except (KeyError, TypeError, ValueError) as exc:
+        log.warning("route_published_unreadable", event_id=str(event.id), error=type(exc).__name__)
+        return
+    if kind != "box":
+        return
+    try:
+        async with session.begin_nested():
+            await packing.follow_routes(session, hub_id, day)
+    except ProblemError as exc:
+        log.warning("route_published_skipped", event_id=str(event.id), code=exc.code)
+
+
 subscribe("intel.forecast_ready", on_forecast_ready)
 subscribe(orders_api.CARRY_OVER_EXPIRED, on_carry_over_expired)
 subscribe(logistics_api.PICKUP_COMPLETED, on_pickup_completed)
+subscribe(logistics_api.ROUTE_PUBLISHED, on_route_published)

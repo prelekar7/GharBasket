@@ -462,7 +462,7 @@ class AssignRequest(BaseModel):
 
     orders: list[TiffinOrder] = Field(min_length=1, max_length=2000)
     kitchens: list[Kitchen] = Field(min_length=1, max_length=300)
-    fairness_lambda: float = Field(default=300.0, ge=0, le=10_000)  # paise per portion
+    fairness_lambda: float = Field(default=600.0, ge=0, le=10_000)  # paise per portion
     rating_floor: float = Field(default=3.8, ge=0, le=5)
     max_km: float = Field(default=5.0, gt=0, le=50)
     paise_per_portion: int = Field(default=6000, ge=1, le=100_000)
