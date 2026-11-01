@@ -264,7 +264,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     target = built["pantry"]["target_mae_le_15pct_after_4_weeks"]
     value = "n/a" if target["value"] is None else f"{target['value']:.3f}"
-    verdict = {None: "no verdict: fewer than 5 weeks", True: "holds"}.get(
+    upper = target.get("ci95_upper")
+    holds = "holds on the mean" + (f"; 95 % CI upper bound {upper:.3f}" if upper else "")
+    verdict = {None: "no verdict: fewer than 5 weeks", True: holds}.get(
         target["holds"], "does not hold: keep PANTRY_TWIN_ENABLED off"
     )
     print(f"pantry twin target MAE <= 0.15 after 4 weeks: {value} ({verdict})")

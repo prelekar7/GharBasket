@@ -41,12 +41,17 @@ from gharbasket_ml.schemas import (
 MODEL = "pantry-tap-censored-v0.2"
 # The week-to-week spread of a household's daily use on the log scale. Chosen on simulator seeds
 # 23, 29 and 31 (never the protocol's five; eval protocol change log, 1 Nov 2026).
-WEEK_SIGMA = 0.1
-# What "wasted" means: at least this share of the delivered quantity was left (simulator v1a).
+WEEK_SIGMA = 0.05
+# What "wasted" means, an assumption taken from the simulator (v1a, `TAP_WASTED_SHARE`): at
+# least this share of the delivered quantity was left. The app's button says only "Wasted".
 WASTED_SHARE = 0.25
 MIN_PRIOR_WEEKS = 0.05
-GRID = 161  # points on log m, over +-SPAN prior standard deviations
+GRID = 161  # points on log m, over +-SPAN prior standard deviations to start with
 SPAN = 6.0
+# The grid doubles while more than EDGE_MASS of the posterior sits on its two end points (a
+# household far from its prior), up to +-MAX_LOG_SPAN (1/100 to 100 times the prior).
+EDGE_MASS = 1e-3
+MAX_LOG_SPAN = math.log(100.0)
 BISECT = 50
 
 
@@ -56,7 +61,8 @@ def _cdf(z: float) -> float:
 
 def interval(o: PantryObservation) -> tuple[float, float] | None:
     """The week's daily use (base units) the tap puts it in, or None when the week says nothing:
-    no tap, or an interval the share's clipping at 0 left empty."""
+    no tap, an interval the share's clipping at 0 left empty, or "ran out" of an empty share
+    (more than nothing: no information)."""
     if o.signal is None:
         return None
     share = o.qty
@@ -68,7 +74,7 @@ def interval(o: PantryObservation) -> tuple[float, float] | None:
         lo, hi = 0.0, waste_line
     else:
         lo, hi = max(waste_line, 0.0), share
-    if hi <= 0 or hi <= lo:
+    if hi <= 0 or hi <= lo or (lo <= 0 and hi == math.inf):
         return None
     return lo, hi
 
@@ -129,28 +135,37 @@ class Posterior:
         return math.exp((lo + hi) / 2)
 
 
-def posterior(item: PantryItemIn) -> Posterior:
-    """The prior on log m, times each tapped week's interval probability, on a grid."""
-    sigma = WEEK_SIGMA
-    if item.prior_mean <= 0:
-        return Posterior(-math.inf, (0.0,), (1.0,), sigma, 0)
-    centre = math.log(item.prior_mean)
-    spread = sigma / math.sqrt(max(item.prior_weeks, MIN_PRIOR_WEEKS))
-    points = [spread * SPAN * (2 * i / (GRID - 1) - 1) for i in range(GRID)]
+def _grid(
+    half: float, spread: float, centre: float, sigma: float, tapped: list[tuple[float, float]]
+) -> tuple[list[float], list[float]]:
+    """The posterior of log m on GRID points over [-half, half]: points and weights."""
+    points = [half * (2 * i / (GRID - 1) - 1) for i in range(GRID)]
     logs = [-0.5 * (u / spread) ** 2 for u in points]
-    taps = 0
-    for o in item.observations:
-        bounds = interval(o)
-        if bounds is None:
-            continue
-        taps += 1
+    for bounds in tapped:
         logs = [
             lp + _log_prob(*bounds, centre + u, sigma) for lp, u in zip(logs, points, strict=True)
         ]
     top = max(logs)
     mass = [math.exp(lp - top) for lp in logs]
     total = sum(mass)
-    return Posterior(centre, tuple(points), tuple(m / total for m in mass), sigma, taps)
+    return points, [m / total for m in mass]
+
+
+def posterior(item: PantryItemIn) -> Posterior:
+    """The prior on log m, times each tapped week's interval probability, on a grid that
+    widens while the posterior presses against its ends."""
+    sigma = WEEK_SIGMA
+    if item.prior_mean <= 0:
+        return Posterior(-math.inf, (0.0,), (1.0,), sigma, 0)
+    centre = math.log(item.prior_mean)
+    spread = sigma / math.sqrt(max(item.prior_weeks, MIN_PRIOR_WEEKS))
+    tapped = [b for o in item.observations if (b := interval(o)) is not None]
+    half = min(SPAN * spread, MAX_LOG_SPAN)
+    points, weights = _grid(half, spread, centre, sigma, tapped)
+    while weights[0] + weights[-1] > EDGE_MASS and half < MAX_LOG_SPAN:
+        half = min(2 * half, MAX_LOG_SPAN)
+        points, weights = _grid(half, spread, centre, sigma, tapped)
+    return Posterior(centre, tuple(points), tuple(weights), sigma, len(tapped))
 
 
 def quantities(request: PantryRequest) -> PantryResponse:

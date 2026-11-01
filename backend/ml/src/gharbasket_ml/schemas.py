@@ -138,7 +138,7 @@ class PlanResponse(BaseModel):
 Tap = Literal["ran_out", "wasted", "just_right"]
 # The rule table's weight as the twin's prior, in observed weeks (M3 sends the same,
 # `subscriptions.rules.RULE_PRIOR_WEEKS`).
-PRIOR_WEEKS = 0.25
+PRIOR_WEEKS = 0.125
 
 
 class PantryObservation(BaseModel):

@@ -837,3 +837,23 @@ def test_the_twin_sees_the_share_m3_computes_after_a_meal_swap() -> None:
     seen = pantry_baseline._twin_observations(h, catalog, rows, ["milk"])  # pyright: ignore[reportPrivateUsage, reportArgumentType]
     # Week 0: the swapped-in kheer took 600 ml of the 3500; week 1: poha's milk is optional.
     assert seen["milk"] == [(0, 2900.0, "ran_out", 3500.0), (1, 3000.0, None, 3000.0)]
+
+
+def test_the_pantry_sensitivity_runs_change_only_the_simulators_taps() -> None:
+    """The robustness check (protocol change log, 1 Nov 2026): the first scenario is the
+    harness as it runs; the others change what the simulator means by "wasted" or how often
+    it taps, never the twin, and restore the simulator afterwards."""
+    import gharbasket_sim.pantry as pantry_sim
+    from gharbasket_training.eval import pantry_grid
+
+    catalog = from_seed_files()
+    start = date(2026, 10, 5)
+    plain = pantry_baseline.run_pantry(7, catalog, weeks=3, start=start, adoption=0.02)
+    lines: list[str] = []
+    results = pantry_grid.sensitivity([7], catalog, adoption=0.02, weeks=3, out=lines.append)
+    assert list(results) == list(pantry_grid.SCENARIOS) and len(lines) == 2 + len(results)
+    first = next(iter(results.values()))
+    assert first["mae"] == pytest.approx(plain.twin) and len(first["coverage"]) == 2
+    assert pantry_sim.TAP_WASTED_SHARE == 0.25 and pantry_sim.consume.__module__ == (
+        "gharbasket_sim.pantry"
+    )
