@@ -1,6 +1,5 @@
 import { ASSISTANT_STORAGE_KEY } from "@/features/assistant/storage.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
-import { clearOutbox } from "@/lib/outbox.js";
 import { persister, queryClient } from "@/lib/queryClient.js";
 
 /**
@@ -20,7 +19,7 @@ export async function clearLocalData() {
   }
   await Promise.allSettled([
     persister.removeClient(),
-    clearOutbox(),
+    import("@/lib/outbox.js").then(({ clearOutbox }) => clearOutbox()), // Dexie loads on demand
     (async () => {
       if (!("caches" in window)) return;
       for (const name of await caches.keys()) {

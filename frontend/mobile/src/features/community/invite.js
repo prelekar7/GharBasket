@@ -1,4 +1,4 @@
-import { toast } from "@gharbasket/ui";
+import { toast } from "@/lib/toast.js";
 
 /**
  * Invite neighbours to a society: the phone's share sheet (Web Share), or the link copied with a

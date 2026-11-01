@@ -9,6 +9,7 @@
   ],
   "exports": {
     ".": "./src/index.js",
+    "./money": "./src/components/Money.jsx",
     "./styles.css": "./src/styles.css",
     "./console": "./src/console/index.js"
   },
