@@ -7,6 +7,7 @@
 // Firebase is used only to prove the phone number: as soon as we have the ID token we sign out of
 // Firebase, and the web SDK keeps its user in memory only, so no Firebase sign-in outlives ours.
 import { MOCK, NATIVE } from "@/lib/env.js";
+import { withPlugin } from "@/shared/native/platform.js";
 
 const DEV_SIGNIN =
   MOCK || (import.meta.env.DEV && !NATIVE && !import.meta.env.VITE_FIREBASE_API_KEY);
@@ -42,7 +43,53 @@ export class OtpError extends Error {
   }
 }
 
-const toOtpError = (/** @type {any} */ e) => new OtpError(e?.code ?? "auth/unknown");
+const toOtpError = (/** @type {any} */ e) => new OtpError(e?.code ?? codeFromMessage(e?.message));
+
+/**
+ * The native `phoneVerificationFailed` event carries only the Android SDK's English message, no
+ * code, so the code is recovered from the message text.
+ * @param {unknown} message
+ */
+export function codeFromMessage(message) {
+  const m = String(message ?? "").toLowerCase();
+  if (/region|operation is not allowed/.test(m)) return "auth/operation-not-allowed";
+  if (/blocked all requests|unusual activity|too many/.test(m)) return "auth/too-many-requests";
+  if (/quota/.test(m)) return "auth/quota-exceeded";
+  if (/network|timeout|unreachable host/.test(m)) return "auth/network-request-failed";
+  if (/format of the phone number|invalid phone|phone number.*incorrect/.test(m))
+    return "auth/invalid-phone-number";
+  if (/code has expired/.test(m)) return "auth/code-expired";
+  if (/verification code.*invalid|invalid.*verification code/.test(m))
+    return "auth/invalid-verification-code";
+  if (/not authorized|integrity|app identifier|recaptcha/.test(m)) return "auth/app-not-authorized";
+  return "auth/unknown";
+}
+
+const KEYS = /** @type {Record<string, string>} */ ({
+  "auth/invalid-verification-code": "otp.invalid",
+  "auth/code-expired": "otp.expired",
+  "auth/session-expired": "otp.expired",
+  "auth/too-many-requests": "otp.tooMany",
+  "auth/quota-exceeded": "otp.tooMany",
+  "auth/operation-not-allowed": "otp.region",
+  "auth/invalid-phone-number": "otp.badPhone",
+  "auth/missing-phone-number": "otp.badPhone",
+  "auth/network-request-failed": "otp.network",
+  "auth/app-not-authorized": "otp.notAuthorized",
+});
+
+/**
+ * The copy key for a sign-in failure: a Firebase error (OtpError), a rate-limited exchange (429)
+ * or a network failure of fetch itself.
+ * @param {unknown} e
+ * @param {string} [fallback]
+ */
+export function otpErrorKey(e, fallback = "otp.failed") {
+  if (e instanceof OtpError) return KEYS[e.code] ?? fallback;
+  if (/** @type {any} */ (e)?.status === 429) return "otp.tooMany";
+  if (e instanceof TypeError) return "otp.network";
+  return fallback;
+}
 
 /** @type {Promise<{ auth: any, sdk: typeof import("firebase/auth") }> | null} */
 let web = null;
@@ -66,14 +113,15 @@ function webAuth() {
 }
 
 /**
- * Runs `fn` with the native plugin. Capacitor plugin objects answer any property, `then`
- * included, so a plugin must never be returned from an async function or awaited.
+ * Runs `fn` with the native plugin (via `withPlugin`; the plugin is never awaited or returned).
  * @template T
  * @param {(plugin: typeof import("@capacitor-firebase/authentication").FirebaseAuthentication) => Promise<T>} fn
  */
-async function withNative(fn) {
-  const { FirebaseAuthentication } = await import("@capacitor-firebase/authentication");
-  return fn(FirebaseAuthentication);
+function withNative(fn) {
+  return withPlugin(
+    () => import("@capacitor-firebase/authentication"),
+    ({ FirebaseAuthentication }) => fn(FirebaseAuthentication),
+  );
 }
 
 /**
@@ -116,7 +164,7 @@ function sendNative(phone) {
             for (const fn of autoListeners) fn();
           }),
           plugin.addListener("phoneVerificationFailed", (e) => {
-            if (!sent) reject(new OtpError(e.message));
+            if (!sent) reject(new OtpError(codeFromMessage(e.message)));
           }),
         ]).then((handles) => {
           stopListening = () => {
@@ -174,6 +222,7 @@ export async function sendCode(phone, containerId) {
       },
     };
   } catch (e) {
+    stopListening();
     throw e instanceof OtpError ? e : toOtpError(e);
   }
 }

@@ -5,8 +5,10 @@ import {
   stopPushToken,
   syncPushToken,
 } from "@/features/notifications/pushToken.js";
-import { logout, logoutAll, me, setActiveRoleHeader } from "@/lib/api.js";
+import { logout, logoutAll, me, refresh, setActiveRoleHeader } from "@/lib/api.js";
+import { NATIVE } from "@/lib/env.js";
 import { clearLocalData } from "@/lib/localData.js";
+import { tokens } from "@/lib/tokens.js";
 
 /** @typedef {import("./api.js").FieldRole} FieldRole */
 /** @typedef {import("./api.js").RoleGrant} RoleGrant */
@@ -69,11 +71,16 @@ export const useSession = create(
         },
         restore: () => {
           if (get().signedIn) return Promise.resolve(true);
-          restoring ??= me()
-            .then((profile) => {
-              get().signIn(profile);
-              return true;
-            })
+          restoring ??= (async () => {
+            if (NATIVE && !tokens.access) {
+              // Cold start of the app: no refresh token means nobody ever signed in here, so
+              // answer at once instead of waiting for the API to say 401. With one, refresh first
+              // rather than send GET /v1/me to a certain 401.
+              if (!(await tokens.refreshToken()) || !(await refresh())) return false;
+            }
+            get().signIn(await me());
+            return true;
+          })()
             .catch(() => false)
             .finally(() => {
               restoring = null;
