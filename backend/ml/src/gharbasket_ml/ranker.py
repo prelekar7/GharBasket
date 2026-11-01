@@ -2,7 +2,7 @@
 from the registry scores candidates with the features the training job built; without a usable
 model the fallback ranks by frequency then popularity (`source: "fallback"`).
 
-The registry is a folder (`MODELS_DIR`, in the Space image or mounted) holding
+The registry is a folder (`MODELS_DIR`, or the cache `model_sync` keeps in step with R2) holding
 `basket_ranker/latest.json` → `{"version": "..."}` and `basket_ranker/<version>/model.txt` with
 its `card.json`; the training job writes the same layout (`--out`) and to R2 (ADR-0025).
 
