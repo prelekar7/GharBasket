@@ -6,8 +6,12 @@
 
 `grid` chooses the week-to-week spread (`gharbasket_ml.pantry.WEEK_SIGMA`) and the rule
 prior's weight in weeks (`subscriptions.rules.RULE_PRIOR_WEEKS`) on seeds the protocol does not
-report: the lowest MAE after 4 observed weeks (to three decimals), |coverage - 0.8| breaking
-ties. The simulations do not depend on the twin, so each seed's households are simulated once.
+report. The rule (corrected 1 Nov 2026, eval protocol change log): the week's spread sets the
+interval's width, so it is chosen by coverage (the grid cell whose 80 % coverage after 4 weeks is
+closest to 0.80 gives sigma_w); the prior weight is then the one with the lowest MAE after 4
+weeks at that sigma_w. The rule stated first ("lowest MAE after 4 weeks, coverage breaking
+ties") cannot see sigma_w; its pick is printed too, for the record. The simulations do not
+depend on the twin, so each seed's households are simulated once.
 
 `sensitivity` keeps the twin as served and changes what the simulator assumes about the taps:
 - what "wasted" means (the simulator's `TAP_WASTED_SHARE`: 0.1 and 0.4 of the box left, while
@@ -119,10 +123,25 @@ def _simulated_once() -> Iterator[None]:
         pantry_baseline.simulate = saved
 
 
+Row = tuple[
+    float, float, float, float
+]  # MAE after 4 weeks (3 decimals), |coverage - 0.8|, sigma_w, weight
+
+
+def select(rows: list[Row]) -> tuple[Row, Row]:
+    """(the first rule's pick, the corrected rule's pick). First: the lowest MAE, coverage
+    breaking ties. Corrected: sigma_w from the cell whose coverage is closest to 0.80, then the
+    weight with the lowest MAE at that sigma_w."""
+    first = min(rows)
+    sigma = min(rows, key=lambda r: (r[1], r[0]))[2]
+    chosen = min((r for r in rows if r[2] == sigma), key=lambda r: (r[0], r[1]))
+    return first, chosen
+
+
 def grid(
     seeds: Sequence[int], catalog: Catalog, out: Callable[[str], None] = print
 ) -> tuple[float, float]:
-    rows: list[tuple[float, float, float, float]] = []
+    rows: list[Row] = []
     out("| sigma_w | rule prior weeks | MAE after 1-4 weeks | coverage 1-4 |")
     out("|---|---|---|---|")
     for sigma in WEEK_SIGMAS:
@@ -134,11 +153,15 @@ def grid(
                 f"{' '.join(f'{x:.3f}' for x in s['coverage'])} |"
             )
             rows.append((round(s["mae"][-1], 3), abs(s["coverage"][-1] - 0.8), sigma, weeks))
-    chosen = min(rows)
-    out(
-        f"chosen: sigma_w = {chosen[2]:g}, prior weeks = {chosen[3]:g} (MAE after 4 weeks "
-        f"{chosen[0]:.3f}, coverage off 0.8 by {chosen[1]:.3f})"
-    )
+    first, chosen = select(rows)
+    for name, pick in (
+        ("the first rule (MAE, coverage breaking ties)", first),
+        ("chosen (sigma_w by coverage, weight by MAE)", chosen),
+    ):
+        out(
+            f"{name}: sigma_w = {pick[2]:g}, prior weeks = {pick[3]:g} (MAE after 4 weeks "
+            f"{pick[0]:.3f}, coverage off 0.8 by {pick[1]:.3f})"
+        )
     return chosen[2], chosen[3]
 
 

@@ -181,7 +181,7 @@ def plan_week(req: PlanRequest) -> WeekPlan:
 # --- the pantry twin (M10 §3.3), the ML service's own computation in plain `math` ---------------
 
 PANTRY_MODEL = "pantry-tap-censored-v0.2"
-PANTRY_WEEK_SIGMA = 0.05  # gharbasket_ml.pantry.WEEK_SIGMA
+PANTRY_WEEK_SIGMA = 0.1  # gharbasket_ml.pantry.WEEK_SIGMA
 PANTRY_WASTED_SHARE = 0.25  # gharbasket_ml.pantry.WASTED_SHARE
 PANTRY_MIN_PRIOR_WEEKS = 0.05
 PANTRY_GRID, PANTRY_SPAN, PANTRY_BISECT = 161, 6.0, 50
