@@ -229,6 +229,39 @@ These runbooks are not written yet. They are planned for `docs/runbooks/` and ar
 | Mobile release builds (APK, AAB) | Yash Salunkhe |
 | Backup restore tests, runbook drills, uptime checks, load tests | Rhythm Thakur, Manish Raje |
 
+## 12.9 Android build
+
+The Android app is the Capacitor project in `frontend/mobile/android/` (ADR-0012, ADR-0031). The release owner is Yash. Every command below runs in `frontend/mobile/` with JDK 21 as `JAVA_HOME`, `android/local.properties` pointing at the Android SDK (`sdk.dir=…`, gitignored), and `VITE_API_BASE_URL` set (staging: `https://gharbasket-api.onrender.com`).
+
+| Build | Command | Output (under `android/app/build/outputs/`) |
+|---|---|---|
+| Debug APK | `pnpm android:apk` | `apk/debug/app-debug.apk` |
+| Release APK | `pnpm android:release-apk` | `apk/release/app-release.apk` |
+| Release AAB (Play Store) | `pnpm android:bundle` | `bundle/release/app-release.aab` |
+
+Each command runs the native web build and `cap sync` first. A release build refuses to run without signing details; it never falls back to the debug key.
+
+**Keystore and passwords.** The release keystore (`gharbasket-release.jks`) and its passwords live in Infisical (Yash owns these entries) and nowhere else. They are never committed, pasted into chat, or sent to CI. Losing the keystore means no further updates to the published app, so keep a second copy offline (for example a USB stick held by Yash). Make it once:
+
+```
+keytool -genkeypair -v -keystore gharbasket-release.jks -alias gharbasket -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Gradle then reads the signing details from one of two places:
+
+1. `frontend/mobile/android/keystore.properties` (gitignored) with `storeFile`, `storePassword`, `keyAlias`, `keyPassword`. `storeFile` is a path, relative to `android/` or absolute.
+2. Otherwise the environment variables `GB_KEYSTORE_PATH`, `GB_KEYSTORE_PASSWORD`, `GB_KEY_ALIAS` and `GB_KEY_PASSWORD`.
+
+Check a release APK with `apksigner verify --print-certs app-release.apk` (from the Android SDK `build-tools`).
+
+**Firebase and the release key.** Phone sign-in and push use Firebase, which recognises the app by its package name and signing certificate. Take the release keystore's SHA-1 and SHA-256 (`keytool -list -v -keystore gharbasket-release.jks`) and add both to the Android app in the Firebase console (Project settings, Your apps). Then download a fresh `google-services.json` and put it in `android/app/` (and in Infisical). Debug builds use the debug certificate's fingerprints, which must be registered the same way. If Play App Signing is on, also add the SHA-1 and SHA-256 that Play Console shows under App signing.
+
+**Versioning.** `versionName` is the `version` in `frontend/mobile/package.json`. `versionCode` is `major * 10000 + minor * 100 + patch` (0.1.0 is 100, 1.2.3 is 10203), so bump `version` for every release you upload. CI or a hand build can force a different code with the environment variable `GB_VERSION_CODE`. Minification (R8) is off because Capacitor finds its plugins by reflection; turning it on needs tested keep rules.
+
+**Icons and splash.** They are generated from `frontend/mobile/public/icon.svg` by `pnpm android:assets` (script `scripts/android-assets.js`, sources in `frontend/mobile/assets/`). Run it after the logo changes and commit the result.
+
+**CI.** `.github/workflows/android.yml` builds a debug APK on every pull request that touches `frontend/mobile/`, `frontend/packages/` or the lockfile, and uploads it as the artifact `gharbasket-debug-apk` (kept 7 days; download it from the workflow run page). CI never signs a release. The optional repository secret `GOOGLE_SERVICES_JSON_B64` holds the base64 of `google-services.json` (`base64 -i google-services.json`); the workflow writes it into `android/app/` when it is set. Without it the APK builds, but Firebase sign-in and push do not work in it. Prathamesh owns the repository secrets.
+
 ## Decisions & open questions
 
 - **D6** — Postgres-centric data layer ([ADR-0006](../adr/0006-postgresql-centric-data-platform.md) in [`docs/adr/`](../adr/)).
