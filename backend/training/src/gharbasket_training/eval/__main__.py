@@ -104,13 +104,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=int,
         nargs="+",
         default=list(routing_eval.SIZES),
-        help="societies a morning (default: 50, the headline, and 100 and 200 for scale)",
+        help="societies a morning (default: 50, the headline; add 100 200 for scale)",
     )
     parser.add_argument(
         "--routing-time-limit",
         type=float,
         default=routing_eval.TIME_LIMIT_S,
         help="seconds for both waves (default: what M7 sends, 20)",
+    )
+    parser.add_argument(
+        "--routing-short-limit",
+        type=float,
+        default=routing_eval.SHORT_LIMIT_S,
+        help="the plan again at this budget for both waves, reference only (default 4; 0 skips)",
     )
     parser.add_argument(
         "--smoke",
@@ -137,8 +143,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.no_learned = True  # one week has no week to predict
         args.planners = [p for p in args.planners if not p.startswith("cpsat")]
         args.forecast_weeks = 11  # the fewest with three backtest origins
-        args.routing_sizes, args.routing_time_limit = [30], 1.0
-    routing_eval.check_args(parser, args.routing_sizes, args.routing_time_limit)
+        args.routing_sizes, args.routing_time_limit, args.routing_short_limit = [30], 1.0, 0.0
+    routing_eval.check_args(
+        parser, args.routing_sizes, args.routing_time_limit, args.routing_short_limit
+    )
 
     catalog = from_seed_files()
     shocks = None if args.no_shocks else config.load_shocks()
@@ -202,7 +210,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     routing_runs = []
     if not args.no_routing:
         routing_runs = [
-            routing_eval.run_routing(seed, size, time_limit_s=args.routing_time_limit)
+            routing_eval.run_routing(
+                seed,
+                size,
+                time_limit_s=args.routing_time_limit,
+                short_limit_s=args.routing_short_limit,
+            )
             for size in sorted(set(args.routing_sizes))
             for seed in args.seeds
         ]
@@ -232,6 +245,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "forecast_start": args.forecast_start.isoformat(),
             "routing_sizes": None if args.no_routing else sorted(set(args.routing_sizes)),
             "routing_time_limit": args.routing_time_limit,
+            "routing_short_limit": args.routing_short_limit,
         },
         routing_runs=routing_runs,
     )

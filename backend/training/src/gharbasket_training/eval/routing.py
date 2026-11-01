@@ -25,9 +25,12 @@ speed: the wall time is recorded, and guided local search spends its whole budge
 and on-time share; the M-F target holds at a size when, over at least 5 seeds, the 95 % t-CI
 **lower** bound of the plan's on-time share is ≥ 0.95, the **upper** bound of the per-seed paired
 cost_plan / cost_nn - 1 (per served order) is ≤ -0.10, and every plan is the solver's (not the
-fallback) with no checker problem. The guardrail (≤ 10 s per wave) is judged apart, on the largest
-wall time per wave over the seeds, to 0.1 s. The headline size is 50 societies (S-3's, and the
-handbook's figure); 100 and 200 show scale.
+fallback) with no checker problem. The guardrail (≤ 10 s a wave) is judged on the setting, since
+the solver always spends its budget: the time limit a wave (half of `time_limit_s`, one wave or
+two) is ≤ 10 s; the wall time over it (the overhead) is reported, and the plan is also solved at a
+shorter budget (2 s a wave, `SHORT_LIMIT_S`) as evidence that the budget is enough (review of PR
+#475). The headline size is 50 societies (S-3's, and the handbook's figure); 100 and 200 show
+scale (opt-in).
 """
 
 import argparse
@@ -35,12 +38,15 @@ import hashlib
 import importlib.metadata
 import json
 import math
+import os
+import platform
 import random
 import sys
 import time
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from html import escape as html_escape
 from pathlib import Path
 from typing import Any
 
@@ -49,7 +55,7 @@ from gharbasket_ml.schemas import RouteRequest, VansIn
 
 from gharbasket.tools import seed as world
 from gharbasket.tools.seed import SOCIETIES
-from gharbasket_training.eval.stats import Estimate, estimate
+from gharbasket_training.eval.stats import estimate
 
 HUB = (19.0300, 73.0690)  # spike S-3's Kharghar hub (and the λ sweep's)
 FOOD_BANK = (19.0190, 73.0390)  # S-3's food bank in CBD Belapur (only with `food_bank=True`)
@@ -67,8 +73,10 @@ KG_TENTHS_PER_ORDER = (30, 60)  # 3 to 6 kg an order
 EMPTIES_SHARE = 0.7  # societies served yesterday hand back their empties
 FLEET_SLACK = 1.5  # vans available = 1.5 x the vans the crates need
 MAX_VANS = 60  # `VansIn.count`'s ceiling
-SIZES = (50, 100, 200)
+SIZES = (50,)  # the default: the headline; scale is opt-in (`--routing-sizes 50 100 200`)
+SCALE_SIZES = (100, 200)
 HEADLINE_SIZE = 50
+SHORT_LIMIT_S = 4.0  # the shorter budget, 2 s a wave: is 10 s a wave enough?
 MAX_SIZE = 200  # 1.5 x the crates of 200 societies is about 55 vans, under MAX_VANS
 # The M-F target and guardrail (eval protocol §4).
 ON_TIME_TARGET = 0.95
@@ -76,6 +84,7 @@ SAVING_TARGET = 0.10  # ₹/order at least 10 % below nearest neighbour
 WAVE_LIMIT_S = 10.0
 MIN_SEEDS = 5
 ARMS = ("cvrptw_waves", "nearest_neighbour")
+SHORT_ARM = "cvrptw_waves_short"  # the plan at `SHORT_LIMIT_S`, reference only
 
 
 def _centre(boundary: list[tuple[float, float]]) -> tuple[float, float]:
@@ -87,9 +96,18 @@ def seed_societies() -> list[tuple[str, float, float]]:
     return [(s.slug, *_centre(s.boundary)) for s in SOCIETIES if s.boundary and s.hub_id]
 
 
-def morning(seed: int, size: int, *, food_bank: bool = False) -> RouteRequest:
+def morning(
+    seed: int,
+    size: int,
+    *,
+    food_bank: bool = False,
+    hub: tuple[float, float] = HUB,
+    windows: tuple[tuple[int, int], ...] = WINDOWS,
+    fleet_slack: float = FLEET_SLACK,
+) -> RouteRequest:
     """One delivery morning of `size` societies, as M7 would send it to `POST /route/solve`.
-    Deterministic in (seed, size); `food_bank` adds S-3's donations (size // 6 societies)."""
+    Deterministic in (seed, size) for the same keywords; `food_bank` adds S-3's donations
+    (size // 6 societies); `hub`, `windows` and `fleet_slack` default to S-3's (M-H reuses this)."""
     if not 1 <= size <= MAX_SIZE:
         raise ValueError(f"size must be within 1 to {MAX_SIZE}")
     rng = random.Random(f"gharbasket-eval-routing:{seed}:{size}")  # noqa: S311 (seeded)
@@ -101,7 +119,7 @@ def morning(seed: int, size: int, *, food_bank: bool = False) -> RouteRequest:
     for name, lat, lng in places:
         orders = rng.randint(*ORDERS)
         crates = math.ceil(orders / BAGS_PER_CRATE)
-        start, end = rng.choice(WINDOWS)
+        start, end = rng.choice(windows)
         stops.append(
             {
                 "id": f"{name}/{start // 3600:02d}",
@@ -122,7 +140,7 @@ def morning(seed: int, size: int, *, food_bank: bool = False) -> RouteRequest:
     needed = sum(s["crates"] for s in stops) / capacity
     return RouteRequest.model_validate(
         {
-            "hub": {"lat": HUB[0], "lng": HUB[1]},
+            "hub": {"lat": hub[0], "lng": hub[1]},
             "depart_s": DEPART_S,
             "return_by_s": max(s["window_end_s"] for s in stops) + RETURN_MARGIN_S,
             "stops": stops,
@@ -136,7 +154,7 @@ def morning(seed: int, size: int, *, food_bank: bool = False) -> RouteRequest:
                 if food_bank
                 else None
             ),
-            "vans": {"count": min(MAX_VANS, math.ceil(needed * FLEET_SLACK))},
+            "vans": {"count": min(MAX_VANS, math.ceil(needed * fleet_slack))},
             "time_limit_s": TIME_LIMIT_S,
         }
     )
@@ -194,9 +212,13 @@ class RoutingRun:
     vans_available: int
     time_limit_s: float
     arms: list[Arm]
+    short_limit_s: float | None = None  # the shorter budget of `SHORT_ARM`, when it ran
 
     def arm(self, name: str) -> Arm:
         return next(a for a in self.arms if a.arm == name)
+
+    def has(self, name: str) -> bool:
+        return any(a.arm == name for a in self.arms)
 
 
 def _waves(inst: routing.Instance) -> int:
@@ -209,14 +231,14 @@ def _served(inst: routing.Instance, ids: set[str]) -> tuple[int, int]:
     return len(drops), sum(s.orders for s in drops)
 
 
-def solve_plan(inst: routing.Instance, time_limit_s: float) -> Arm:
+def solve_plan(inst: routing.Instance, time_limit_s: float, name: str = ARMS[0]) -> Arm:
     """Production's `routing.plan()` (both waves, the checker inside) on the haversine matrix."""
     answer = routing.plan(inst, time_limit_s, "haversine")
     ids = {s.id for r in answer.routes for s in r.stops if s.kind == "drop"}
     stops, orders = _served(inst, ids)
     s = answer.summary
     return Arm(
-        ARMS[0],
+        name,
         answer.status,
         orders,
         stops,
@@ -255,9 +277,19 @@ def solve_nearest(inst: routing.Instance) -> Arm:
     )
 
 
-def run_routing(seed: int, size: int, *, time_limit_s: float = TIME_LIMIT_S) -> RoutingRun:
+def run_routing(
+    seed: int,
+    size: int,
+    *,
+    time_limit_s: float = TIME_LIMIT_S,
+    short_limit_s: float | None = SHORT_LIMIT_S,
+) -> RoutingRun:
+    """Both arms on one morning; with `short_limit_s`, the plan again at that budget."""
     req = morning(seed, size)
     inst = instance(req)
+    arms = [solve_plan(inst, time_limit_s), solve_nearest(inst)]
+    if short_limit_s:
+        arms.append(solve_plan(inst, short_limit_s, SHORT_ARM))
     return RoutingRun(
         seed,
         size,
@@ -266,7 +298,8 @@ def run_routing(seed: int, size: int, *, time_limit_s: float = TIME_LIMIT_S) -> 
         sum(s.kg_tenths for s in req.stops) / 10,
         req.vans.count,
         time_limit_s,
-        [solve_plan(inst, time_limit_s), solve_nearest(inst)],
+        arms,
+        short_limit_s or None,
     )
 
 
@@ -285,10 +318,14 @@ def _value(a: Arm, metric: str) -> float:
     return float(getattr(a, metric))
 
 
-def saving(run: RoutingRun) -> float:
+def saving(run: RoutingRun, arm: str = ARMS[0]) -> float:
     """cost_plan / cost_nn - 1 per served order within a seed (negative: the plan is cheaper)."""
-    plan, nn = run.arm(ARMS[0]), run.arm(ARMS[1])
+    plan, nn = run.arm(arm), run.arm(ARMS[1])
     return plan.cost_paise_per_order / nn.cost_paise_per_order - 1
+
+
+def _short(these: list[RoutingRun]) -> bool:
+    return all(r.has(SHORT_ARM) for r in these)
 
 
 def summarise(runs: list[RoutingRun]) -> dict[int, dict[str, Any]]:
@@ -296,9 +333,10 @@ def summarise(runs: list[RoutingRun]) -> dict[int, dict[str, Any]]:
     out: dict[int, dict[str, Any]] = {}
     for size in sorted({r.size for r in runs}):
         these = [r for r in runs if r.size == size]
+        names = [*ARMS, SHORT_ARM] if _short(these) else list(ARMS)
         arms = {
             name: {m: estimate([_value(r.arm(name), m) for r in these]) for m in METRICS}
-            for name in ARMS
+            for name in names
         }
         paired = {
             "cost_vs_nearest": estimate([saving(r) for r in these]),
@@ -315,53 +353,80 @@ def summarise(runs: list[RoutingRun]) -> dict[int, dict[str, Any]]:
                 [float(r.arm(ARMS[0]).vans - r.arm(ARMS[1]).vans) for r in these]
             ),
         }
+        if SHORT_ARM in arms:
+            paired["cost_vs_nearest_short"] = estimate([saving(r, SHORT_ARM) for r in these])
         out[size] = {"arms": arms, "paired": paired}
     return out
 
 
+def _target(these: list[RoutingRun], arm: str) -> dict[str, Any]:
+    """The M-F target's parts for one plan arm over a size's seeds."""
+    on_time = estimate([r.arm(arm).on_time for r in these])
+    cost = estimate([saving(r, arm) for r in these])
+    on_time_lower, cost_upper = on_time.mean - on_time.ci, cost.mean + cost.ci
+    solver_plans = all(r.arm(arm).status == "solved" for r in these)
+    clean = all(r.arm(arm).feasible for r in these)
+    within = (
+        on_time_lower >= ON_TIME_TARGET and cost_upper <= -SAVING_TARGET and solver_plans and clean
+    )
+    return {
+        "on_time": on_time.as_dict(),
+        "on_time_lower": round(on_time_lower, 4),
+        "cost_vs_nearest": cost.as_dict(),
+        "cost_vs_nearest_upper": round(cost_upper, 4),
+        "solver_plans": solver_plans,
+        "no_checker_problems": clean,
+        "holds": None if len(these) < MIN_SEEDS else within,
+    }
+
+
 def verdict(runs: list[RoutingRun]) -> dict[int, dict[str, Any]]:
-    """Size → the M-F target and the guardrail (rules in the module docstring); no verdict
-    (None) below `MIN_SEEDS` seeds."""
+    """Size → the M-F target, the guardrail and the shorter budget (rules in the module
+    docstring); no target verdict (None) below `MIN_SEEDS` seeds."""
     out: dict[int, dict[str, Any]] = {}
-    for size, s in summarise(runs).items():
+    for size in sorted({r.size for r in runs}):
         these = [r for r in runs if r.size == size]
-        n = len(these)
-        on_time: Estimate = s["arms"][ARMS[0]]["on_time"]
-        cost: Estimate = s["paired"]["cost_vs_nearest"]
-        on_time_lower = on_time.mean - on_time.ci
-        cost_upper = cost.mean + cost.ci
-        solver_plans = all(r.arm(ARMS[0]).status == "solved" for r in these)
-        clean = all(r.arm(ARMS[0]).feasible for r in these)
-        wave = max(r.arm(ARMS[0]).seconds_per_wave for r in these)
-        within = (
-            on_time_lower >= ON_TIME_TARGET
-            and cost_upper <= -SAVING_TARGET
-            and solver_plans
-            and clean
-        )
+        # `routing.waves` gives every wave half the limit, one wave or two.
+        wave_limit = max(r.time_limit_s for r in these) / 2
+        overhead = max(r.arm(ARMS[0]).seconds_per_wave - r.time_limit_s / 2 for r in these)
+        short = None
+        if _short(these):
+            limit = max(r.short_limit_s or 0.0 for r in these)
+            short = {"seconds_a_wave": limit / 2, **_target(these, SHORT_ARM)}
         out[size] = {
             "headline": size == HEADLINE_SIZE,
-            "n": n,
+            "n": len(these),
             "seeds": sorted(r.seed for r in these),
-            "on_time": on_time.as_dict(),
-            "on_time_lower": round(on_time_lower, 4),
-            "cost_vs_nearest": cost.as_dict(),
-            "cost_vs_nearest_upper": round(cost_upper, 4),
-            "solver_plans": solver_plans,
-            "no_checker_problems": clean,
+            **_target(these, ARMS[0]),
             "nearest_problems": sum(len(r.arm(ARMS[1]).problems) for r in these),
-            "holds": None if n < MIN_SEEDS else within,
-            "max_seconds_per_wave": round(wave, 3),
-            "guardrail_holds": None if n < MIN_SEEDS else round(wave, 1) <= WAVE_LIMIT_S,
+            "wave_limit_s": wave_limit,
+            "guardrail_holds": wave_limit <= WAVE_LIMIT_S,
+            "max_seconds_per_wave": round(max(r.arm(ARMS[0]).seconds_per_wave for r in these), 3),
+            "max_overhead_s": round(overhead, 3),
+            "short_budget": short,
             "rule": "over >= 5 seeds: the plan's on-time 95 % CI lower bound >= 0.95, the per-seed "
             "paired cost_plan / cost_nn - 1 (per served order) 95 % CI upper bound <= -0.10, every "
-            "plan the solver's with no checker problem; guardrail: the largest wall time per wave "
-            "<= 10 s (to 0.1 s)",
+            "plan the solver's with no checker problem; guardrail: the time limit a wave <= 10 s "
+            "(the solver spends it; the wall time over it is the overhead); the shorter budget is "
+            "evidence, reference only",
         }
     return out
 
 
-def settings(time_limit_s: float = TIME_LIMIT_S) -> dict[str, Any]:
+def machine() -> dict[str, Any]:
+    """Where the plans were solved: OR-Tools stops on wall time, so plans depend on it."""
+    return {
+        "machine": platform.machine(),
+        "processor": platform.processor(),
+        "cpu_count": os.cpu_count(),
+        "python": platform.python_version(),
+        "system": platform.platform(),
+    }
+
+
+def settings(
+    time_limit_s: float = TIME_LIMIT_S, short_limit_s: float | None = None
+) -> dict[str, Any]:
     """What the mornings and the arms came from, for the report's provenance."""
     req = RouteRequest.model_fields
     seed_file = Path(world.__file__)
@@ -383,8 +448,10 @@ def settings(time_limit_s: float = TIME_LIMIT_S) -> dict[str, Any]:
         "matrix": f"haversine x {routing.DETOUR} at {routing.HAVERSINE_SPEED_MPS} m/s "
         "(routing.haversine_matrix), times the vans' traffic factor",
         "time_limit_s": time_limit_s,
+        "short_limit_s": short_limit_s,
         "time_limit_default_ml_s": req["time_limit_s"].default,
         "deterministic": False,
+        "platform": machine(),
         "model": routing.MODEL,
         "baseline": "routing.nearest_neighbour",
         "scorer": "routing.check",
@@ -401,7 +468,7 @@ def section(runs: list[RoutingRun]) -> dict[str, Any]:
         return {}
     summary = summarise(runs)
     return {
-        "settings": settings(runs[0].time_limit_s),
+        "settings": settings(runs[0].time_limit_s, runs[0].short_limit_s),
         "sizes": {
             str(size): {
                 "arms": {a: {m: e.as_dict() for m, e in ms.items()} for a, ms in s["arms"].items()},
@@ -493,10 +560,28 @@ def html(report: dict[str, Any]) -> str:
         ["morning, arm", "on time", "₹ an order", "km an order", "vans", "late min", "s a wave"],
         rows,
     )
+
+    def shorter(v: dict[str, Any]) -> str:
+        s = v["short_budget"]
+        if not s:
+            return "—"
+        return (
+            f"{s['seconds_a_wave']:g} s a wave: {s['cost_vs_nearest_upper']:+.3f} / "
+            f"{s['on_time_lower']:.3f} ({_verdict(s['holds'])})"
+        )
+
     checks = _table(
         "M-F hypothesis: on time ≥ 95 % (CI lower bound) and ₹/order ≥ 10 % below nearest "
-        "neighbour (paired CI upper bound ≤ -0.10); guardrail ≤ 10 s a wave",
-        ["societies", "cost vs nearest (paired)", "upper", "on time, lower", "holds", "s a wave"],
+        "neighbour (paired CI upper bound ≤ -0.10); guardrail: the time limit a wave ≤ 10 s",
+        [
+            "societies",
+            "cost vs nearest (paired)",
+            "upper",
+            "on time, lower",
+            "holds",
+            "limit a wave (max overhead)",
+            "shorter budget: cost upper / on time lower",
+        ],
         [
             [
                 size + (" (headline)" if v["headline"] else ""),
@@ -504,18 +589,23 @@ def html(report: dict[str, Any]) -> str:
                 f"{v['cost_vs_nearest_upper']:+.3f}",
                 f"{v['on_time_lower']:.3f}",
                 _verdict(v["holds"]),
-                f"{v['max_seconds_per_wave']:.2f} ({_verdict(v['guardrail_holds'])})",
+                f"{v['wave_limit_s']:g} s (+{v['max_overhead_s']:.3f} s; "
+                f"{_verdict(v['guardrail_holds'])})",
+                shorter(v),
             ]
             for size, v in sec["verdict"].items()
         ],
     )
     st = sec["settings"]
+    where = st.get("platform", {})
     note = (
         f'<p class="note">Time limit {st["time_limit_s"]:g} s for both waves (M7), not '
-        "deterministic: OR-Tools routing stops on wall time, so plans depend on the machine. "
-        "Distances are haversine x 1.3, as staging (no OSRM); S-3's numbers were on OSRM. "
-        "₹ an order counts the orders each arm served. No verdict below 5 seeds; reference "
-        "only sizes other than the headline (eval protocol §7, 2026-11-02).</p>"
+        "deterministic: OR-Tools routing stops on wall time, so plans depend on the machine "
+        f"({html_escape(where.get('system', '?'))}, {where.get('cpu_count', '?')} CPUs) and can "
+        "change from one run to the next. Distances are haversine x 1.3, as staging (no OSRM); "
+        "S-3's numbers were on OSRM; the hub is S-3's. ₹ an order counts the orders each arm "
+        "served. No verdict below 5 seeds; sizes other than the headline and the shorter budget "
+        "are reference only (eval protocol §7, 2026-11-02).</p>"
     )
     return arms + checks + note
 
@@ -530,11 +620,19 @@ def lines(report: dict[str, Any]) -> list[str]:
         holds, cost = v["holds"], v["cost_vs_nearest"]
         said = "no verdict: fewer than 5 seeds" if holds is None else ("holds" if holds else "no")
         rupees = lambda m: m["cost_paise_per_order"]["mean"] / 100  # noqa: E731
+        short = v["short_budget"]
         out.append(
             f"routing {size:>3} societies: plan ₹/order {rupees(plan):.2f} on time "
             f"{plan['on_time']['mean']:.3f}; nearest ₹/order {rupees(nn):.2f} on time "
             f"{nn['on_time']['mean']:.3f}; cost vs nearest {cost['mean']:+.3f} ± "
-            f"{cost['ci95']:.3f}; max {v['max_seconds_per_wave']:.2f} s a wave; M-F {said}"
+            f"{cost['ci95']:.3f}; {v['wave_limit_s']:g} s a wave (+{v['max_overhead_s']:.3f} s); "
+            f"M-F {said}"
+            + (
+                f"; at {short['seconds_a_wave']:g} s a wave {short['cost_vs_nearest']['mean']:+.3f}"
+                f" ± {short['cost_vs_nearest']['ci95']:.3f}, on time {short['on_time']['mean']:.3f}"
+                if short
+                else ""
+            )
         )
     return out
 
@@ -548,19 +646,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--seeds", type=int, nargs="+", default=[7, 11, 13, 17, 19])
     parser.add_argument("--sizes", type=int, nargs="+", default=list(SIZES))
     parser.add_argument("--time-limit", type=float, default=TIME_LIMIT_S)
+    parser.add_argument(
+        "--short-limit", type=float, default=SHORT_LIMIT_S, help="the shorter budget; 0 skips it"
+    )
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
-    check_args(parser, args.sizes, args.time_limit)
+    check_args(parser, args.sizes, args.time_limit, args.short_limit)
     started = time.perf_counter()
     runs = [
-        run_routing(seed, size, time_limit_s=args.time_limit)
-        for size in args.sizes
+        run_routing(seed, size, time_limit_s=args.time_limit, short_limit_s=args.short_limit)
+        for size in sorted(set(args.sizes))
         for seed in args.seeds
     ]
     built = {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": rep.commit(),
-        "args": {"seeds": args.seeds, "sizes": args.sizes, "time_limit": args.time_limit},
+        "args": {
+            "seeds": args.seeds,
+            "sizes": sorted(set(args.sizes)),
+            "time_limit": args.time_limit,
+            "short_limit": args.short_limit,
+        },
         "routing": section(runs),
         "runs": {"routing": [asdict(r) for r in runs]},
         "wall_seconds": round(time.perf_counter() - started, 1),
@@ -576,7 +682,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def check_args(parser: argparse.ArgumentParser, sizes: list[int], time_limit: float) -> None:
+def check_args(
+    parser: argparse.ArgumentParser, sizes: list[int], time_limit: float, short_limit: float = 0
+) -> None:
     if not all(1 <= s <= MAX_SIZE for s in sizes):
         parser.error(f"routing sizes must be within 1 to {MAX_SIZE}")
     limits = RouteRequest.model_fields["time_limit_s"].metadata
@@ -584,6 +692,8 @@ def check_args(parser: argparse.ArgumentParser, sizes: list[int], time_limit: fl
     high = next(m.le for m in limits if hasattr(m, "le"))
     if not low <= time_limit <= high:
         parser.error(f"the routing time limit must be within {low} to {high} s")
+    if short_limit and not low <= short_limit <= high:
+        parser.error(f"the shorter routing budget must be 0 or within {low} to {high} s")
 
 
 if __name__ == "__main__":
