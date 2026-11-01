@@ -279,11 +279,17 @@ async def draft(
     *,
     record_for: uuid.UUID | None,
     preview: bool = False,
+    ml_budget: intel_api.JobBudget | None = None,
 ) -> tuple[planning.Draft, str, uuid.UUID | None]:
     """A box for the week of `delivery_date`: (draft, plan source, prediction id).
     `preview=True` (the customer-facing preview) skips the ranker (no learned liking) and keeps
     the rule table for daily use (no pantry twin), so the preview waits on at most one ML call
-    (the planner's, bounded by `ml_timeout_s`)."""
+    (the planner's, bounded by `ml_timeout_s`). Otherwise this is the generation job's draft, where
+    no customer waits: its ML calls get `ml_job_timeout_s` while `ml_budget`, the ML time of the
+    whole run (`ML_JOB_BUDGET_S`, a fresh one if the caller has none), lasts."""
+    job = None
+    if not preview:
+        job = intel_api.JobBudget(settings.ml_job_budget_s) if ml_budget is None else ml_budget
     monday = monday_of(delivery_date)
     festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
     price_index = await intel_api.price_spikes(session, list(catalog.products), monday)
@@ -291,7 +297,14 @@ async def draft(
         None
         if preview
         else await learned_preferences(
-            session, http, settings, profile, catalog, delivery_date, record_for=record_for
+            session,
+            http,
+            settings,
+            profile,
+            catalog,
+            delivery_date,
+            record_for=record_for,
+            job=job,
         )
     )
     request = planning.plan_request(
@@ -304,12 +317,20 @@ async def draft(
         session=session if record_for else None,
         household_id=record_for,
         week_monday=monday,
+        job=job,
     )
     meals = [m.model_dump() for m in plan.plan] if plan.plan else None
     bought = await bought_recently(session, profile.id, delivery_date, catalog)
     quantities = (
         await twin_quantities(
-            session, http, settings, profile, catalog, delivery_date, record_for=record_for
+            session,
+            http,
+            settings,
+            profile,
+            catalog,
+            delivery_date,
+            record_for=record_for,
+            job=job,
         )
         if not preview
         else {}
@@ -467,6 +488,7 @@ async def learned_preferences(
     delivery_date: date,
     *,
     record_for: uuid.UUID | None,
+    job: intel_api.JobBudget | None = None,
 ) -> dict[str, float] | None:
     """v2: the ranker's score per product the household has kept before, turned into a
     liking per dish for the planner (`planning.recipe_preferences`). None for new households.
@@ -486,6 +508,7 @@ async def learned_preferences(
         session=session if record_for else None,
         household_id=record_for,
         week_monday=monday_of(delivery_date),
+        job=job,
     )
     by_slug = {p.slug: p.id for p in catalog.products.values()}
     scores = {by_slug[r.product]: r.score for r in ranked.ranked if r.product in by_slug}
@@ -619,6 +642,7 @@ async def twin_quantities(
     delivery_date: date,
     *,
     record_for: uuid.UUID | None,
+    job: intel_api.JobBudget | None = None,
 ) -> dict[uuid.UUID, tuple[float, dict[str, Any]]]:
     """The pantry twin's weekly daily use for the perishable daily-use items (M10 §3.3): the
     cohort prior is the promoted learned prior per adult equivalent times the household's
@@ -666,6 +690,7 @@ async def twin_quantities(
         session=session if record_for else None,
         household_id=record_for,
         for_date=delivery_date,
+        job=job,
     )
     by_slug = {item.product: item for item in answer.items}
     return {
@@ -726,6 +751,7 @@ async def generate_cycle(
     household_id: uuid.UUID,
     delivery_date: date,
     catalog: catalog_api.PlanCatalog,
+    ml_budget: intel_api.JobBudget | None = None,
 ) -> Generated | None:
     """The household's cycle for `delivery_date`, created once as a `draft`; None when nothing
     applies (no subscription, paused, no delivery day for the society, no household). The
@@ -759,7 +785,14 @@ async def generate_cycle(
     if day is None:
         return None
     box, source, prediction = await draft(
-        session, http, settings, profile, catalog, delivery_date, record_for=household_id
+        session,
+        http,
+        settings,
+        profile,
+        catalog,
+        delivery_date,
+        record_for=household_id,
+        ml_budget=ml_budget,
     )
     cycle = WeeklyCycle(
         household_id=household_id,
@@ -831,8 +864,12 @@ async def generate_for_hub(
     *,
     hub_id: uuid.UUID,
     delivery_date: date,
+    ml_budget: intel_api.JobBudget | None = None,
 ) -> dict[str, int]:
-    """The job's body for one hub: a cycle per Autopilot household due that day."""
+    """The job's body for one hub: a cycle per Autopilot household due that day. `ml_budget` is
+    the run's ML time, shared by every hub of the run (a fresh one if the caller has none)."""
+    if ml_budget is None:
+        ml_budget = intel_api.JobBudget(settings.ml_job_budget_s)
     catalog = await catalog_api.plan_catalog(session, hub_id)
     counts = {"created": 0, "existing": 0, "skipped": 0}
     for household_id in await identity_api.households_of_hub(session, hub_id):
@@ -843,6 +880,7 @@ async def generate_for_hub(
             household_id=household_id,
             delivery_date=delivery_date,
             catalog=catalog,
+            ml_budget=ml_budget,
         )
         if result is None:
             counts["skipped"] += 1

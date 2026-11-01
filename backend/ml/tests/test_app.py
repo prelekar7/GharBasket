@@ -109,8 +109,12 @@ async def test_health_ai_reports_the_road_network() -> None:
 
     app = create_app(Settings(app_env="test", ml_service_token=SecretStr(TOKEN)))
     lines = await smoke.check("http://ml", TOKEN, transport=httpx2.ASGITransport(app=app))
-    assert len(lines) == 5 and all(" 200 " in line for line in lines), lines
+    assert len(lines) == 9 and all(" 200 " in line for line in lines), lines
     assert "osrm=not_configured" in lines[1] and "/plan/week 200" in lines[3]
+    assert lines[5].startswith("/basket/rank 200 top=")
+    assert lines[6].startswith("/slots/price 200 candidates=1 ")
+    assert lines[7].startswith("/route/solve 200 ") and "vans=" in lines[7]
+    assert lines[8].startswith("/assign/kitchens 200 ") and "assigned=2" in lines[8]
 
 
 def test_smoke_main_prints_a_line_per_endpoint_and_exits_0_when_all_answer(
@@ -130,8 +134,27 @@ def test_smoke_main_prints_a_line_per_endpoint_and_exits_0_when_all_answer(
         "/models",
         "/plan/week",
         "/pantry/quantities",
+        "/basket/rank",
+        "/slots/price",
+        "/route/solve",
+        "/assign/kitchens",
     ]
     assert out[0] == "/health 200 0.1.0" and out[4].startswith("/pantry/quantities 200 mean=")
+
+
+def test_smoke_main_takes_the_token_from_the_environment(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On a command line a tool may echo the token (`just` did); the environment keeps it out."""
+    from gharbasket_ml import smoke
+
+    app = create_app(Settings(app_env="test", ml_service_token=SecretStr(TOKEN)))
+    monkeypatch.setenv("ML_SERVICE_TOKEN", TOKEN)
+
+    code = smoke.main(["http://ml/"], transport=httpx2.ASGITransport(app=app))
+
+    out = capsys.readouterr().out
+    assert code == 0 and "/plan/week 200" in out and TOKEN not in out
 
 
 def test_smoke_main_reports_errors_per_call_instead_of_crashing(
@@ -161,6 +184,12 @@ def test_smoke_main_reports_errors_per_call_instead_of_crashing(
     assert out[2] == "/models 200 ['planner']"
     assert out[3] == "/plan/week 503 None in None s"
     assert out[4] == "/pantry/quantities 200 mean=None"
+    assert out[5:] == [
+        "/basket/rank 200 top=None",
+        "/slots/price 200 candidates=None source=None",
+        "/route/solve 200 None vans=None",
+        "/assign/kitchens 200 None assigned=None",
+    ]
 
 
 def test_smoke_main_needs_a_url(capsys: pytest.CaptureFixture[str]) -> None:
@@ -169,3 +198,31 @@ def test_smoke_main_needs_a_url(capsys: pytest.CaptureFixture[str]) -> None:
     assert smoke.main([]) == 2
     assert "usage" in capsys.readouterr().err
     assert not smoke.passed("/health ERR ConnectError") and smoke.passed("/health 200 0.1.0")
+
+
+def test_interactive_docs_exist_locally_and_not_when_deployed() -> None:
+    token = SecretStr("t" * 32)
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        with TestClient(create_app(Settings(app_env="dev"))) as local:
+            assert local.get(path).status_code == 200, path
+        for env in ("staging", "prod"):
+            settings = Settings(app_env=env, ml_service_token=token)  # pyright: ignore[reportArgumentType]
+            with TestClient(create_app(settings)) as deployed:
+                assert deployed.get(path).status_code == 404, (env, path)
+                assert (
+                    deployed.get(
+                        path, headers={"Authorization": f"Bearer {token.get_secret_value()}"}
+                    ).status_code
+                    == 404
+                )
+            with TestClient(create_app(settings)) as deployed:
+                assert deployed.get("/health").status_code == 200
+
+
+def test_a_deployed_token_must_be_at_least_32_bytes() -> None:
+    for env in ("staging", "prod"):
+        with pytest.raises(ValidationError, match="at least 32 bytes"):
+            Settings(app_env=env, ml_service_token=SecretStr("t" * 31))  # pyright: ignore[reportArgumentType]
+        Settings(app_env=env, ml_service_token=SecretStr("t" * 32))  # pyright: ignore[reportArgumentType]
+    Settings(app_env="dev", ml_service_token=SecretStr("short"))  # local development stays lax
+    Settings(app_env="test", ml_service_token=SecretStr("short"))

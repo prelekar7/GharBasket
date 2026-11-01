@@ -1,8 +1,13 @@
 # Smoke-test the ML service on staging (a free Render web service, no longer a Hugging Face
-# Space), by hand. Render deploys it by itself after CI passes (render.yaml, autoDeployTrigger:
-# checksPass); this workflow only asks whether it answers: /health, /health/ai, /models, a week plan
-# and a pantry quantity (`just cloud-ml`). A free service sleeps after 15 minutes idle, so the first
-# step wakes it and waits up to 5 minutes for /health.
+# Space), by hand and once a day. Render deploys it by itself for each commit on main that changes
+# it (render.yaml, autoDeployTrigger: commit); this workflow only asks whether it answers: /health,
+# /health/ai, /models and one minimal request to each of /plan/week, /pantry/quantities,
+# /basket/rank, /slots/price, /route/solve and /assign/kitchens (`just cloud-ml`). A free service
+# sleeps after 15 minutes idle, so the first step wakes it and waits up to 5 minutes for /health.
+# The daily run is 06:40 IST: inside the morning window in which the API is awake anyway
+# (infra/jobs/schedule.yaml), and it leaves the service warm for the first customers. It costs the
+# ML service about 10 instance-hours a month of the workspace's 750 (ADR-0030). A red run means
+# the service, its token or one endpoint is broken.
 #
 # Needs the repository secrets STAGING_ML_URL (the service's https URL) and ML_SERVICE_TOKEN (the
 # same value the service and the API hold). Until they are set the workflow skips with a notice.
@@ -10,6 +15,8 @@ name: Smoke ML
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "10 1 * * *" # 06:40 IST daily
 
 permissions:
   contents: read
@@ -60,4 +67,4 @@ jobs:
 
       - name: Smoke test
         if: steps.configured.outputs.ready == 'true'
-        run: uv run --directory backend/ml --no-dev python -m gharbasket_ml.smoke "$STAGING_ML_URL" "$ML_SERVICE_TOKEN"
+        run: uv run --directory backend/ml --no-dev python -m gharbasket_ml.smoke "$STAGING_ML_URL"

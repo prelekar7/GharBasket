@@ -58,6 +58,17 @@ services:
         sync: false
       - key: ML_SERVICE_TOKEN
         sync: false
+      # Timeouts and the circuit breaker of the calls to it (handbook 08 §8.3). The defaults suit
+      # the free 0.1 CPU host: a job (the daily T-3 plan generation) waits 30 s, a customer 3 s, and
+      # three failed customer calls in a row pause calls to it for a minute. Shown for reference.
+      - key: ML_JOB_TIMEOUT_S
+        value: "30"
+      - key: ML_JOB_BUDGET_S
+        value: "20"
+      - key: ML_BREAKER_THRESHOLD
+        value: "3"
+      - key: ML_BREAKER_COOLDOWN_S
+        value: "60"
       # Green slots (M10 §3.8, M3 §3.6): on in staging for the MS-D demo; the kill switch is this value.
       - key: GREEN_SLOTS_ENABLED
         value: "true"
@@ -125,11 +136,11 @@ services:
       # ANTHROPIC_API_KEY is deliberately absent: the assistant is not enabled on staging, so
       # POST /assistant/turn answers 503.
       # The learned models (the basket ranker) come from the R2 registry: with these set and
-      # MODELS_DIR unset, the service follows models/<name>/latest.json in gb-mlflow at startup
+      # MODELS_DIR unset, the service follows models/<name>/latest.json in gb-staging-mlflow at startup
       # and every MODELS_RELOAD_S (600 s) in the background and caches the versions under /tmp.
       # While R2 is down the synced model keeps serving; without these settings, or until the
       # first sync after a wake (a free instance starts with an empty /tmp), the rule fallback
-      # answers. The key pair is its own R2 API token, "Object Read only" on gb-mlflow alone
+      # answers. The key pair is its own R2 API token, "Object Read only" on gb-staging-mlflow alone
       # (the service only GETs and HEADs), not the training jobs' read-write keys: stored in
       # Infisical `staging` as ML_S3_ACCESS_KEY / ML_S3_SECRET_KEY and entered here as
       # S3_ACCESS_KEY / S3_SECRET_KEY.
@@ -142,7 +153,7 @@ services:
       - key: S3_REGION
         value: auto
       - key: S3_BUCKET_MLFLOW # gitleaks:allow (a bucket name, not a secret)
-        value: gb-mlflow
+        value: gb-staging-mlflow
 
   - type: keyvalue
     name: gharbasket-valkey
