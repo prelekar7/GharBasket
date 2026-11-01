@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.intel_gateway import api as intel_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions import service
 from gharbasket.platform.jobs import JobContext, job
@@ -38,10 +39,16 @@ DAYS_AHEAD = 3
 async def generate_weekly_plans(ctx: JobContext) -> dict[str, Any]:
     delivery_date = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=DAYS_AHEAD)
     totals: dict[str, int] = {"hubs": 0, "created": 0, "existing": 0, "skipped": 0}
+    ml_budget = intel_api.JobBudget(ctx.settings.ml_job_budget_s)  # one for the whole run
     async with service.http_client(ctx.http) as http:
         for hub_id in await community_api.hubs_with_societies(ctx.session):
             counts = await service.generate_for_hub(
-                ctx.session, http, ctx.settings, hub_id=hub_id, delivery_date=delivery_date
+                ctx.session,
+                http,
+                ctx.settings,
+                hub_id=hub_id,
+                delivery_date=delivery_date,
+                ml_budget=ml_budget,
             )
             totals["hubs"] += 1
             for key, value in counts.items():

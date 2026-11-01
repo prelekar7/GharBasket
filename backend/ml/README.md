@@ -6,11 +6,11 @@ pantry twin's quantities, and soon routing and kitchen assignment. The contracts
 
 | Command | What |
 |---|---|
-| `just dev-ml` | Run on http://localhost:8100 (docs at `/docs`) |
+| `just dev-ml` | Run on http://localhost:8100 (docs at `/docs`; staging and prod serve none) |
 | `uv run --directory backend/ml pytest --cov` | Tests with the coverage gate (90%) |
 | `docker build -f backend/ml/Dockerfile.render -t gharbasket-ml-render .` (from the repository root) | The staging image: Python only, no road network, installed from `uv.lock`; `docker run -p 10000:10000 -e ML_SERVICE_TOKEN=<32+ bytes> gharbasket-ml-render` |
 | `just ml-lock && docker build -t gharbasket-ml backend/ml` | The full image: uvicorn on 7860 plus `osrm-routed` with the Mumbai road network baked in (about 10 minutes the first time, 220 MB download). `just ml-lock` writes the git-ignored `requirements.lock` from `uv.lock`; the image installs exactly those versions and runs as user 1000. For a local run or a paid host; `start.sh` supervises both processes |
-| `just cloud-ml https://<service>.onrender.com $ML_SERVICE_TOKEN` | Smoke-test a deployed service (also the manual `Smoke ML` workflow) |
+| `just cloud-ml https://<service>.onrender.com $ML_SERVICE_TOKEN` | Smoke-test a deployed service, every endpoint once (also the `Smoke ML` workflow, by hand and daily at 06:40 IST) |
 
 **Hosting (ADR-0030, which supersedes ADR-0025's Hugging Face Space):** staging runs `gharbasket-ml`, a
 second free Render web service next to the API (`render.yaml`, Singapore, `Dockerfile.render`). It has
@@ -29,7 +29,7 @@ service idles at about 125 MiB and peaks near 240 MiB; the planner does not fini
 3 s timeout there, so the weekly plan comes from the rules on staging, while routing, kitchen assignment,
 slot pricing and the pantry twin answer in time.
 
-Settings: `ML_SERVICE_TOKEN` (required outside local development), `OSRM_URL` (set by the full image to
+Settings: `ML_SERVICE_TOKEN` (required, at least 32 bytes, outside local development), `OSRM_URL` (set by the full image to
 the bundled road network; `/health/ai` reports `ok`, `down` or `not_configured`), `OSRM_TIMEOUT_S`
 (default 2.5: `/route/solve` prices with haversine when OSRM is slower), `MODELS_MANIFEST`
 (a local stand-in for the R2 registry pointer), `MODELS_DIR` (the learned models' folder in the registry

@@ -73,3 +73,6 @@ data/external/nutrition/ifct2017_compositions.csv
 
 # Playwright (e2e/web)
 e2e/web/test-results/
+
+# Swift Package Manager cache, made by some editor tooling
+.build/

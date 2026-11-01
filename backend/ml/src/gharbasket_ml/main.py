@@ -129,11 +129,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
+    # Deployed, the service is on the public internet but is only for the API: no interactive
+    # docs and no schema listing. `settings` is None under `uvicorn --factory`, so it is read here.
+    deployed = (settings or get_settings()).is_deployed
     app = FastAPI(
         title="GharBasket ML service",
         version=__version__,
         description="Internal: called only by the GharBasket API (intel_gateway).",
         lifespan=lifespan,
+        docs_url=None if deployed else "/docs",
+        redoc_url=None if deployed else "/redoc",
+        openapi_url=None if deployed else "/openapi.json",
     )
     app.state.model_sync = None
     if settings is not None:

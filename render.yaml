@@ -58,6 +58,17 @@ services:
         sync: false
       - key: ML_SERVICE_TOKEN
         sync: false
+      # Timeouts and the circuit breaker of the calls to it (handbook 08 §8.3). The defaults suit
+      # the free 0.1 CPU host: a job (the daily T-3 plan generation) waits 30 s, a customer 3 s, and
+      # three failed customer calls in a row pause calls to it for a minute. Shown for reference.
+      - key: ML_JOB_TIMEOUT_S
+        value: "30"
+      - key: ML_JOB_BUDGET_S
+        value: "20"
+      - key: ML_BREAKER_THRESHOLD
+        value: "3"
+      - key: ML_BREAKER_COOLDOWN_S
+        value: "60"
       # Green slots (M10 §3.8, M3 §3.6): on in staging for the MS-D demo; the kill switch is this value.
       - key: GREEN_SLOTS_ENABLED
         value: "true"

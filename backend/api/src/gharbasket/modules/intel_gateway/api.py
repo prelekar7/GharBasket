@@ -17,6 +17,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
+from gharbasket.modules.intel_gateway.breaker import JobBudget, ml_breakers
 from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
 from gharbasket.modules.intel_gateway.models import FeatureSnapshot, ModelMetric, Prediction
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
@@ -51,6 +52,7 @@ from gharbasket.platform.settings import Settings
 
 log = structlog.get_logger("gharbasket.intel_gateway")
 
+PLANNER_MAX_SOLVER_S = 5.0  # the ML service refuses a plan request above this (`time_limit_s`)
 ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a cold start
 STOP_COST_BATCH = 50  # /slots/price takes at most 50 candidates
 
@@ -58,6 +60,7 @@ __all__ = [
     "AssignRequest",
     "HardRule",
     "HubDrift",
+    "JobBudget",
     "KitchenAssignment",
     "MetricRow",
     "ModelHealth",
@@ -109,20 +112,27 @@ async def plan_week(
     session: AsyncSession | None = None,
     household_id: uuid.UUID | None = None,
     week_monday: date | None = None,
+    job: JobBudget | None = None,
 ) -> WeekPlan:
     """A week of meals for one household (M10 §3.1): CP-SAT if reachable, else the rules.
 
     With `session`, `household_id` and `week_monday` the answer is also kept in
     `intel.predictions` (kind `weekly_plan`, source `ml` or `fallback`); the caller commits.
+    `job` is the ML time budget of a scheduled job's run, where no customer waits: while it
+    lasts the call gets `ml_job_timeout_s` (and the solver its share of it) and may probe an open
+    circuit breaker; once spent the call is a customer's.
     """
+    job = _active(job)
     plan = await _call(
         http,
         settings,
         "/plan/week",
-        request.model_dump(mode="json") | {"time_limit_s": _solver_budget(settings, request)},
+        request.model_dump(mode="json")
+        | {"time_limit_s": _solver_budget(settings, request, job=job)},
         parse=lambda body: WeekPlan.model_validate({**body, "source": "ml"}),
         fallback_to=lambda: fallback.plan_week(request),
         call="plan_week",
+        job=job,
     )
     if session is not None and household_id is not None and week_monday is not None:
         await service.record_prediction(
@@ -153,10 +163,13 @@ async def pantry_quantities(
     session: AsyncSession | None = None,
     household_id: uuid.UUID | None = None,
     for_date: date | None = None,
+    job: JobBudget | None = None,
 ) -> PantryQuantities:
     """Weekly use per item from the pantry twin (M10 §3.3): the ML service if reachable, else
     the same closed form in plain arithmetic. With `session`, `household_id` and `for_date` the
-    answer is kept in `intel.predictions` (kind `pantry`); the caller commits."""
+    answer is kept in `intel.predictions` (kind `pantry`); the caller commits. `job` as for
+    `plan_week`."""
+    job = _active(job)
     answer = await _call(
         http,
         settings,
@@ -165,6 +178,7 @@ async def pantry_quantities(
         parse=lambda body: PantryQuantities.model_validate({**body, "source": "ml"}),
         fallback_to=lambda: fallback.pantry_quantities(request),
         call="pantry_quantities",
+        job=job,
     )
     if session is not None and household_id is not None and for_date is not None:
         await service.record_prediction(
@@ -294,10 +308,13 @@ async def rank_basket(
     session: AsyncSession | None = None,
     household_id: uuid.UUID | None = None,
     week_monday: date | None = None,
+    job: JobBudget | None = None,
 ) -> RankResponse:
     """Scores for a household's candidate products (M10 §3.7): the learned ranker on the ML
     service, else frequency then popularity. With `session`, `household_id` and `week_monday`
-    the answer is kept in `intel.predictions` (kind `basket_rank`); the caller commits."""
+    the answer is kept in `intel.predictions` (kind `basket_rank`); the caller commits.
+    `job` as for `plan_week`."""
+    job = _active(job)
     ranked = await _call(
         http,
         settings,
@@ -306,6 +323,7 @@ async def rank_basket(
         parse=RankResponse.model_validate,
         fallback_to=lambda: fallback.rank_basket(request),
         call="rank_basket",
+        job=job,
     )
     if session is not None and household_id is not None and week_monday is not None:
         await service.record_prediction(
@@ -529,6 +547,7 @@ async def society_stop_costs(
     `slot_price` prediction (subject `society`, payload `{cost_paise, by_day}`)."""
     by_day: dict[uuid.UUID, dict[str, int | None]] = {c.id: {} for c in candidates}
     model = None
+    budget = JobBudget(settings.ml_job_budget_s)  # M9's job: no customer waits (timeout as ever)
     for day in days:
         for first in range(0, len(candidates), STOP_COST_BATCH):
             body = _slot_body(day, candidates[first : first + STOP_COST_BATCH])
@@ -542,6 +561,7 @@ async def society_stop_costs(
                 timeout_s=settings.ml_timeout_s,
                 parse=_slot_prices,
                 call="society_stop_costs",
+                job=budget,
             )
             if answer is None:
                 continue
@@ -577,13 +597,34 @@ async def _call[T](
     parse: Callable[[dict[str, Any]], T],
     fallback_to: Callable[[], T],
     call: str,
+    job: JobBudget | None = None,
 ) -> T:
-    """POST `body` to the ML service at `path` within `ml_timeout_s` and `parse` the answer; on
-    no service, a timeout, an HTTP error or a malformed body, `fallback_to()` answers instead."""
+    """POST `body` to the ML service at `path` within `ml_timeout_s` (`ml_job_timeout_s` for a
+    `job` with budget left) and `parse` the answer; on no service, an open breaker, a timeout, an
+    HTTP error or a malformed body, `fallback_to()` answers instead."""
     answer = await _post(
-        http, settings, path, body, timeout_s=settings.ml_timeout_s, parse=parse, call=call
+        http,
+        settings,
+        path,
+        body,
+        timeout_s=_timeout_s(settings, job),
+        parse=parse,
+        call=call,
+        job=job,
     )
     return fallback_to() if answer is None else answer
+
+
+def _active(job: JobBudget | None) -> JobBudget | None:
+    """The job's budget while it has time left (or the service is known down: its calls then
+    answer by fallback without a request), else None: its later calls are a customer's."""
+    return job if job is not None and (job.service_down or not job.exhausted) else None
+
+
+def _timeout_s(settings: Settings, job: JobBudget | None) -> float:
+    """How long a call may wait: a job's (no customer waits) while its budget lasts, else the
+    customer's."""
+    return settings.ml_timeout_s if _active(job) is None else settings.ml_job_timeout_s
 
 
 async def _post[T](
@@ -595,10 +636,33 @@ async def _post[T](
     timeout_s: float,
     parse: Callable[[dict[str, Any]], T],
     call: str,
+    job: JobBudget | None = None,
 ) -> T | None:
     """POST `body` to the ML service at `path` within `timeout_s` and `parse` the answer; None on
-    no service, a timeout, an HTTP error or a malformed body (logged as `ml_fallback`)."""
+    no service, an open circuit breaker, a timeout, an HTTP error or a malformed body (logged as
+    `ml_fallback`).
+
+    Each ML path has its own breaker (breaker.py), which counts a call as failed when it times
+    out, cannot connect or gets a 5xx; any other answer (a 4xx, a body that does not parse) shows
+    the service is up. While a `job` run has budget left, one of its calls a cool-down may probe
+    an open breaker (it can wait for the service to wake) and the rest fall back at once; its
+    outcome still closes or re-opens the breaker, so a job that wakes the service lets the
+    customers' calls through again. The time it takes is charged to the run's budget."""
     if not settings.ml_service_url:
+        return None
+    threshold, cooldown_s = settings.ml_breaker_threshold, settings.ml_breaker_cooldown_s
+    breaker = ml_breakers.get(path)
+    job = _active(job)
+    if job is not None and job.service_down:
+        log.warning("ml_fallback", call=call, reason="service_down")
+        return None
+    allowed = (
+        breaker.allow(threshold, cooldown_s)
+        if job is None
+        else breaker.allow_job(threshold, cooldown_s)
+    )
+    if not allowed:
+        log.warning("ml_fallback", call=call, reason="circuit_open")
         return None
     headers = {}
     if settings.ml_service_token is not None:
@@ -606,6 +670,7 @@ async def _post[T](
     request_id = structlog.contextvars.get_contextvars().get("request_id")
     if request_id:
         headers["X-Request-ID"] = str(request_id)
+    started = job.now() if job is not None else 0.0
     try:
         response = await http.post(
             f"{settings.ml_service_url.rstrip('/')}{path}",
@@ -614,10 +679,29 @@ async def _post[T](
             timeout=timeout_s,
         )
         response.raise_for_status()
-        return parse(response.json())
+        answer = parse(response.json())
     except (httpx2.HTTPError, ValueError, TypeError) as exc:  # pydantic errors are ValueErrors
-        log.warning("ml_fallback", call=call, reason=type(exc).__name__)
+        status = exc.response.status_code if isinstance(exc, httpx2.HTTPStatusError) else None
+        if isinstance(exc, httpx2.TransportError) or (status is not None and status >= 500):
+            breaker.record_failure(threshold)
+            if job is not None and isinstance(exc, httpx2.TransportError):
+                # Asleep or unreachable, not one path failing: the run's later calls, on every
+                # path, do not ask.
+                job.mark_service_down()
+        else:
+            breaker.record_success()
+        log.warning(
+            "ml_fallback",
+            call=call,
+            reason=type(exc).__name__,
+            **({"status": status} if status is not None else {}),
+        )
         return None
+    finally:
+        if job is not None:
+            job.charge(started)
+    breaker.record_success()
+    return answer
 
 
 # The solver gets at most this share of the HTTP timeout; the rest covers the network, the
@@ -625,9 +709,15 @@ async def _post[T](
 SOLVER_SHARE_OF_TIMEOUT = 0.5
 
 
-def _solver_budget(settings: Settings, request: PlanRequest) -> float:
-    """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
-    return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))
+def _solver_budget(settings: Settings, request: PlanRequest, *, job: JobBudget | None) -> float:
+    """The solver's wall-clock budget, always inside its share of the call's timeout. A
+    customer's preview keeps the request's `time_limit_s` (1 s). A job with budget left has the
+    time to give the solver its whole share, up to the ML service's own maximum: the planner
+    needs ~4 s on the free host's 0.1 CPU (ADR-0030)."""
+    share = SOLVER_SHARE_OF_TIMEOUT * _timeout_s(settings, job)
+    if _active(job) is not None:
+        return max(0.1, min(share, PLANNER_MAX_SOLVER_S))
+    return max(0.1, min(request.time_limit_s, share))
 
 
 async def delete_for_user(
