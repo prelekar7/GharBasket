@@ -83,9 +83,10 @@ decisions list product ids of a scratch database, which no longer exists.
 above but **without** `--ranker-explanations` (that section is empty) and **before #460's** λ-sweep changes
 (the assignment section is the 28 Oct one's). It records the pantry twin's change (M10 §3.3 v0.2): planner,
 assignment and forecast sections are identical to 2026-10-28-77bf7d87; RQ1's twin scope moved from 0.227 to
-0.139 after 4 weeks (coverage 0.98 → 0.78). The review of #464 then changed the twin (grid widening, the
-hyperparameters re-chosen by the stated rule: σ_w 0.05, prior weight 0.125); pantry-only runs since give
-0.142 after 4 weeks (95 % CI upper bound 0.155) and coverage 0.55 (eval protocol change log, 1 Nov 2026). The
+0.139 after 4 weeks (coverage 0.98 → 0.78). The review of #464 then changed the twin (its grid widens at the edges, "ran out" of an empty share counts for
+nothing) and its hyperparameter rule was corrected, leaving σ_w 0.1 and prior weight 0.25 as here; pantry-only
+runs since give the same 0.139 after 4 weeks (95 % CI upper bound 0.154) and coverage 0.78 (eval protocol
+change log, 1 Nov 2026). The
 next full report, at the final eval, replaces this one as the reference.
 
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI

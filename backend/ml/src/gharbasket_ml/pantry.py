@@ -39,9 +39,10 @@ from gharbasket_ml.schemas import (
 )
 
 MODEL = "pantry-tap-censored-v0.2"
-# The week-to-week spread of a household's daily use on the log scale. Chosen on simulator seeds
-# 23, 29 and 31 (never the protocol's five; eval protocol change log, 1 Nov 2026).
-WEEK_SIGMA = 0.05
+# The week-to-week spread of a household's daily use on the log scale: it sets the interval's
+# width, so it is chosen by coverage (closest to 80 %) on simulator seeds 23, 29 and 31, never
+# the protocol's five (`eval/pantry_grid.py`; eval protocol change log, 1 Nov 2026).
+WEEK_SIGMA = 0.1
 # What "wasted" means, an assumption taken from the simulator (v1a, `TAP_WASTED_SHARE`): at
 # least this share of the delivered quantity was left. The app's button says only "Wasted".
 WASTED_SHARE = 0.25

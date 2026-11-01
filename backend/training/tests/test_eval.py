@@ -857,3 +857,23 @@ def test_the_pantry_sensitivity_runs_change_only_the_simulators_taps() -> None:
     assert pantry_sim.TAP_WASTED_SHARE == 0.25 and pantry_sim.consume.__module__ == (
         "gharbasket_sim.pantry"
     )
+
+
+def test_the_pantry_grid_picks_sigma_by_coverage_and_the_weight_by_mae() -> None:
+    """The 1 Nov grid on seeds 23/29/31 (MAE after 4 weeks, coverage after 4 weeks): the rule
+    stated first (lowest MAE, coverage breaking ties) picks 0.05 / 0.125, whose interval is far
+    too narrow; the corrected rule takes sigma_w from coverage and the weight from MAE."""
+    from gharbasket_training.eval import pantry_grid
+
+    cells = {
+        (0.05, 0.125): (0.136, 0.557),
+        (0.05, 0.25): (0.140, 0.477),
+        (0.1, 0.125): (0.143, 0.854),
+        (0.1, 0.25): (0.137, 0.801),
+        (0.1, 0.5): (0.139, 0.718),
+        (0.15, 1.0): (0.143, 0.835),
+        (0.2, 2.0): (0.152, 0.893),
+    }
+    rows = [(mae, abs(cov - 0.8), sigma, w) for (sigma, w), (mae, cov) in cells.items()]
+    first, chosen = pantry_grid.select(rows)
+    assert first[2:] == (0.05, 0.125) and chosen[2:] == (0.1, 0.25)
