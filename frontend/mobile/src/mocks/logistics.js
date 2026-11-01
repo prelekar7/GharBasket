@@ -1,8 +1,8 @@
 // M7 logistics mocks for the rider, in the real shapes of docs/modules/M7-logistics.md §3.3 and
 // §3.4 (frozen; ADR-0026): the rider's routes for a day, the route with its stops, start, arrive,
 // skip and complete, the rider-mode handover and its doors (deliveries, proof, undelivered), return-leg
-// pickups (§3.6 is an outline: the request follows it, the answer is ours) and the GPS pings, plus M8
-// earnings. Ids are UUIDs shared with mocks/packer.js; the captain's handover is mocks/captain.js.
+// pickups (§3.6 is an outline: the request follows it, the answer is ours) and the GPS pings (the rider's
+// earnings are mocks/partners.js). Ids are UUIDs shared with mocks/packer.js; the captain's handover is mocks/captain.js.
 // Every write needs an Idempotency-Key and replays the first answer, as the offline outbox relies on.
 import { HttpResponse, http } from "msw";
 import { todayIst } from "@/features/subscriptions/format.js";
@@ -10,7 +10,7 @@ import { caller } from "./handlers.js";
 import { HUB_ID } from "./packer.js";
 import { ROUTE_ID } from "./tracking.js";
 
-// Endpoints shared with other roles (handover, doors, earnings) answer here only for a rider.
+// Endpoints shared with other roles (handover, doors) answer here only for a rider.
 const otherRole = (/** @type {Request} */ request) => {
   const role = request.headers.get("x-active-role");
   return !!role && !role.startsWith("rider");
@@ -981,22 +981,4 @@ export const logisticsHandlers = [
       { status: 202 },
     );
   }),
-
-  // Recent earnings from the ledger (M8 §3: GET /v1/earnings?week=; no week = the latest routes).
-  // Every partner role has earnings; these answer only a rider and pass anyone else on.
-  http.get("*/v1/earnings", ({ request }) =>
-    otherRole(request)
-      ? undefined
-      : HttpResponse.json({
-          total_paise: 178000,
-          routes: 3,
-          pickup_runs: 2,
-          payout_weekday: 0,
-          items: [
-            { date: "2026-10-06", routes: 1, societies: 2, pickups: true, amount_paise: 62000 },
-            { date: "2026-10-02", routes: 1, societies: 2, pickups: false, amount_paise: 54000 },
-            { date: "2026-09-29", routes: 1, societies: 2, pickups: true, amount_paise: 62000 },
-          ],
-        }),
-  ),
 ];

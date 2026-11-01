@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { istDate } from "@/features/subscriptions/format.js";
 import { request } from "@/lib/api.js";
 
 /**
  * M8 §3.6: what a partner earned in one ISO week (Monday to Sunday, IST), for every kind of partner
  * the caller is. The money is in M5's ledger; each entry says its basis and units.
  * @typedef {"tiffin_portion" | "bag_delivered" | "dispatched_order" | "packed_order"} EarningBasis
- * @typedef {{ id: string, partner_id: string, kind: string, week: string, period: { from: string, to: string },
+ * @typedef {{ id: string, partner_id: string, kind: string, hub_id?: string, week: string, period: { from: string, to: string },
  *   amount_paise: number, status: "held" | "pending" | "processing" | "processed" | "failed",
  *   hold_reason: "kyc_incomplete" | "suspended" | "no_payout_account" | null,
  *   provider: "simulated" | "razorpay_route", provider_ref: string | null, created_at: string, processed_at: string | null }} Payout
@@ -43,5 +44,56 @@ export function useEarningsWeek(week) {
       /** @type {Promise<EarningsWeek>} */ (
         request(`/v1/earnings?${new URLSearchParams({ week })}`)
       ),
+  });
+}
+
+/**
+ * One kind's slice of a week, for a screen that belongs to a single partner role.
+ * @typedef {{ date: string, units: number, amount_paise: number }} KindDay
+ * @typedef {{ week: string, from: string, to: string, total_paise: number, units: number, items: KindDay[], payouts: Payout[] }} KindEarnings
+ */
+
+/**
+ * The days that paid a partner of one `kind` (newest first), with the units of each day counted from
+ * the entries, and the week's total and payouts for that kind only: a person can be a partner of
+ * several kinds, and `total_paise` and `days` of the response add them all up. Tolerates a payload
+ * with a part missing, so a screen never crashes on it.
+ * @param {Partial<EarningsWeek> | null | undefined} w @param {string} kind
+ * @returns {KindEarnings}
+ */
+export function forKind(w, kind) {
+  const entries = (w?.entries ?? []).filter(
+    (e) => e.kind === kind && !Number.isNaN(Date.parse(e.at)),
+  );
+  const byDate = new Map(/** @type {[string, KindDay][]} */ ([]));
+  for (const e of entries) {
+    const date = istDate(new Date(e.at));
+    const day = byDate.get(date) ?? { date, units: 0, amount_paise: 0 };
+    day.units += e.units;
+    day.amount_paise += e.amount_paise;
+    byDate.set(date, day);
+  }
+  const line = (w?.by_kind ?? []).find((k) => k.kind === kind);
+  return {
+    week: w?.week ?? "",
+    from: w?.from ?? "",
+    to: w?.to ?? "",
+    total_paise: line?.amount_paise ?? entries.reduce((n, e) => n + e.amount_paise, 0),
+    units: line?.units ?? entries.reduce((n, e) => n + e.units, 0),
+    items: [...byDate.values()]
+      .filter((d) => d.amount_paise > 0)
+      .sort((a, b) => (a.date < b.date ? 1 : -1)),
+    payouts: (w?.payouts ?? []).filter((p) => p.kind === kind),
+  };
+}
+
+/**
+ * This week's earnings of a partner of one `kind` (GET /v1/earnings, no `week` = this week; M8 §3.6),
+ * for the captain and rider screens. @param {"captain" | "rider" | "packer" | "kitchen"} kind
+ */
+export function useKindEarnings(kind) {
+  return useQuery({
+    queryKey: ["earnings-this-week", kind],
+    queryFn: async () => forKind(/** @type {EarningsWeek} */ (await request("/v1/earnings")), kind),
   });
 }
