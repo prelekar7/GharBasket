@@ -268,6 +268,8 @@ def instance(
     for day in range(cfg.weeks * EVENINGS):
         rng = random.Random(f"gharbasket-eval-assign:{seed}:{day}")  # noqa: S311 (seeded)
         menu = random.Random(f"gharbasket-eval-assign:{seed}:menu:{day}")  # noqa: S311 (seeded)
+        # Nightly cooks from a stream of their own, so the models share the `booked` draws.
+        nightly = random.Random(f"gharbasket-eval-assign:{seed}:nightly:{day}")  # noqa: S311
         tonight = []
         for h in takers:
             draw = rng.random()  # one draw per household and evening, ordered or not
@@ -277,7 +279,7 @@ def instance(
             booked = menu.random() < cfg.preferred_share
             preferred = favourite[h.key] if booked else None
             if booked and cfg.preferences == "nightly" and can[h.key]:
-                preferred = menu.choice(can[h.key])
+                preferred = nightly.choice(can[h.key])
             tonight.append(
                 {
                     "id": _id(f"{seed}:{h.key}-d{day}"),
