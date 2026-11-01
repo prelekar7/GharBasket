@@ -87,16 +87,21 @@ class Settings(DatabaseSettings):
     ml_service_url: str | None = None
     ml_service_token: SecretStr | None = None
     ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
-    # The same calls from a scheduled job (the Sunday plan generation: plan_week, rank_basket,
+    # The same calls from a scheduled job (the daily T-3 plan generation: plan_week, rank_basket,
     # pantry_quantities), where no customer waits: long enough for the free host's 0.1 CPU (the
     # planner needs ~4 s there, ADR-0030). The solver gets half of it, at most its own 5 s limit.
     # A cold start (~1 min) still outlasts it: the first call wakes the service, the later ones
     # of the job are answered.
     ml_job_timeout_s: float = Field(default=30.0, gt=0, le=120)
-    # Circuit breaker on the customer-path calls (per API process): after this many consecutive
-    # failed calls (timeout, connection error, HTTP 5xx) the gateway stops calling the ML service
-    # for ML_BREAKER_COOLDOWN_S and answers with its fallback at once; then one call probes.
-    # Scheduled-job calls ignore an open breaker. 0 turns the breaker off.
+    # The ML time one job run (all the households of one generate_weekly_plans call) may spend on
+    # those long calls. The job runs inside the request of cron-job.org, which gives up after 30 s,
+    # and a household costs ~8-10 s when the planner is slow: once spent, the run's remaining calls
+    # use ML_TIMEOUT_S and the solver's customer limit (rule fallbacks mostly), so it finishes.
+    ml_job_budget_s: float = Field(default=20.0, gt=0, le=300)
+    # Circuit breaker, one per ML path (per API process): after this many consecutive failed calls
+    # (timeout, connection error, HTTP 5xx) the gateway stops calling that path for
+    # ML_BREAKER_COOLDOWN_S and answers with its fallback at once; then one call probes. A job
+    # run may probe one call per cool-down, before the cool-down ends too. 0 turns it off.
     ml_breaker_threshold: int = Field(default=3, ge=0, le=100)
     ml_breaker_cooldown_s: float = Field(default=60.0, gt=0, le=3600)
     # Ghar Saathi (M13): the LLM loop runs in the ML service; a turn may take longer than a

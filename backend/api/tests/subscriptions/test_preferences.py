@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.intel_gateway import api as intel_api
 from gharbasket.modules.subscriptions import planning, service
 from gharbasket.tools.seed import SEED_HUB_ID
 
@@ -159,3 +160,20 @@ async def test_two_approved_weeks_rank_the_household_and_tilt_the_plan(
     # A job waits for the ML service longer than a customer does, and the preview does not.
     assert waits[("/plan/week", True)] == settings.ml_timeout_s == 3.0
     assert waits[("/plan/week", False)] == waits[("/basket/rank", False)] == 30.0
+
+    # A run that has spent its ML budget drafts the rest of its boxes with a customer's timeouts.
+    spent = intel_api.JobBudget(20.0)
+    spent.charge(spent.now() - 21.0)
+    waits.clear()
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(down)) as http:
+        await service.draft(
+            db_session,
+            http,
+            settings,
+            profile,
+            catalog,
+            next_delivery,
+            record_for=None,
+            ml_budget=spent,
+        )
+    assert set(waits.values()) == {3.0}
