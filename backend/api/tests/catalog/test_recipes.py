@@ -211,10 +211,11 @@ async def test_festivals_in_a_range_with_names_and_the_unverified_flag(
     )
 
     items = response.json()["items"]
-    # October 2026 in Maharashtra: Indira Ekadashi, nine days of Navratri, Dussehra,
-    # Papankusha Ekadashi and Sankashti Chaturthi (kalagana; see data/external/festivals).
+    # October 2026 in Maharashtra: Indira Ekadashi, nine days of Navratri, Dussehra (moved to
+    # 20 Oct by CHECK.md's corrections), Papankusha Ekadashi and Sankashti Chaturthi (kalagana;
+    # see data/external/festivals).
     assert [i["date"] for i in items] == [
-        date(2026, 10, d).isoformat() for d in (6, *range(11, 20), 21, 22, 29)
+        date(2026, 10, d).isoformat() for d in (6, *range(11, 20), 20, 22, 29)
     ]
     assert items[1] == {
         "date": "2026-10-11",
@@ -222,8 +223,9 @@ async def test_festivals_in_a_range_with_names_and_the_unverified_flag(
         "name": "नवरात्रि",
         "region": "all",
         "rules": {"fasting": True, "no_onion_garlic": True},
-        "verified": False,
+        "verified": True,  # checked in CHECK.md
     }
+    assert items[2]["verified"] is False  # Navratri day 2: not checked yet
     assert {i["code"] for i in items} == {"ekadashi", "navratri", "dussehra", "sankashti"}
     assert none.json()["items"] == []  # beyond the generated window
 

@@ -6,7 +6,8 @@ panchang for Mumbai, for the window the pilot and the simulator cover.
         python data/external/festivals/generate.py
 
 Dates are marked `verified: false` until checked against a printed panchang (see CHECK.md);
-the generator keeps `verified: true` for a (date, code) pair listed in CHECK.md as checked.
+the generator keeps `verified: true` for a (date, code) pair listed in CHECK.md as checked, and
+moves a day CHECK.md's corrections table says the published panchangs keep on another date.
 """
 
 import json
@@ -114,11 +115,25 @@ def checked() -> set[tuple[str, str]]:
     return {(m.group(1), m.group(2)) for m in row.finditer(CHECK.read_text())}
 
 
+def corrections() -> dict[tuple[str, str], tuple[str, str]]:
+    """(kalagana's date, code) → (the date the panchangs keep, what it was checked against), from
+    the corrections table of CHECK.md: rows whose third column is a date."""
+    if not CHECK.exists():
+        return {}
+    row = re.compile(
+        r"^\| (\d{4}-\d{2}-\d{2}) \| ([a-z_]+) \| (\d{4}-\d{2}-\d{2}) \| ([^|]+?) \|", re.M
+    )
+    return {
+        (m.group(1), m.group(2)): (m.group(3), m.group(4)) for m in row.finditer(CHECK.read_text())
+    }
+
+
 def main() -> int:
     occurrences = []
     for year in sorted({START.year, END.year}):
         occurrences += kalagana.festivals_for_year(year, LOCATION, tradition="north")
     verified = checked()
+    moved = corrections()
     rows: dict[tuple[str, str, str], dict] = {}
     for occurrence in occurrences:
         rule = RULES.get(occurrence.name)
@@ -129,15 +144,21 @@ def main() -> int:
             day = occurrence.date + timedelta(days=offset)
             if not START <= day <= END:
                 continue
-            key = (day.isoformat(), code, REGION.get(code, "all"))
+            source = f"kalagana 0.1.3 ({occurrence.name})"
+            when = day.isoformat()
+            fixed = (when, code) in moved  # a correction is itself a check
+            if fixed:
+                when, against = moved[(when, code)]
+                source += f", moved from {day.isoformat()} ({against})"
+            key = (when, code, REGION.get(code, "all"))
             rows[key] = {
                 "date": key[0],
                 "code": code,
                 "region": key[2],
                 "names": names,
                 "rules": flags,
-                "verified": (key[0], code) in verified,
-                "source": f"kalagana 0.1.3 ({occurrence.name})",
+                "verified": fixed or (when, code) in verified,
+                "source": source,
             }
     items = [rows[k] for k in sorted(rows)]
     OUT.write_text(
