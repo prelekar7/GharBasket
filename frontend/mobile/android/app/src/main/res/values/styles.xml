@@ -18,5 +18,7 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12+ draws its own splash (launcher icon on this colour) and ignores the drawable. -->
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
     </style>
 </resources>
