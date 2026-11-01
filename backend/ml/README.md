@@ -10,7 +10,7 @@ pantry twin's quantities, and soon routing and kitchen assignment. The contracts
 | `uv run --directory backend/ml pytest --cov` | Tests with the coverage gate (90%) |
 | `docker build -f backend/ml/Dockerfile.render -t gharbasket-ml-render .` (from the repository root) | The staging image: Python only, no road network, installed from `uv.lock`; `docker run -p 10000:10000 -e ML_SERVICE_TOKEN=<32+ bytes> gharbasket-ml-render` |
 | `just ml-lock && docker build -t gharbasket-ml backend/ml` | The full image: uvicorn on 7860 plus `osrm-routed` with the Mumbai road network baked in (about 10 minutes the first time, 220 MB download). `just ml-lock` writes the git-ignored `requirements.lock` from `uv.lock`; the image installs exactly those versions and runs as user 1000. For a local run or a paid host; `start.sh` supervises both processes |
-| `just cloud-ml https://<service>.onrender.com $ML_SERVICE_TOKEN` | Smoke-test a deployed service, every endpoint once (also the `Smoke ML` workflow, by hand and daily at 06:40 IST) |
+| `infisical run --env=staging -- just cloud-ml https://<service>.onrender.com` (token from `ML_SERVICE_TOKEN`, never on the command line) | Smoke-test a deployed service, every endpoint once (also the `Smoke ML` workflow, by hand and daily at 06:40 IST) |
 
 **Hosting (ADR-0030, which supersedes ADR-0025's Hugging Face Space):** staging runs `gharbasket-ml`, a
 second free Render web service next to the API (`render.yaml`, Singapore, `Dockerfile.render`). It has

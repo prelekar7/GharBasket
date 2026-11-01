@@ -4,6 +4,7 @@ price, a route and a kitchen assignment (each from a minimal valid body); prints
 (`<path> <status> <summary>`, or `<path> ERR <reason>`) and exits 1 unless all nine are 200."""
 
 import asyncio
+import os
 import sys
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -191,9 +192,13 @@ def main(
 ) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
-        print("usage: python -m gharbasket_ml.smoke <url> [token]", file=sys.stderr)
+        print(
+            "usage: python -m gharbasket_ml.smoke <url>  (token from ML_SERVICE_TOKEN)",
+            file=sys.stderr,
+        )
         return 2
-    token = args[1] if len(args) > 1 and args[1] else None
+    # The token comes from the environment: on a command line a tool may echo it (`just` does).
+    token = (args[1] if len(args) > 1 and args[1] else None) or os.environ.get("ML_SERVICE_TOKEN")
     lines = asyncio.run(check(args[0], token, transport=transport))
     print("\n".join(lines))
     return 0 if all(passed(line) for line in lines) else 1

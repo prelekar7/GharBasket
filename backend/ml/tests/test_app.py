@@ -142,6 +142,21 @@ def test_smoke_main_prints_a_line_per_endpoint_and_exits_0_when_all_answer(
     assert out[0] == "/health 200 0.1.0" and out[4].startswith("/pantry/quantities 200 mean=")
 
 
+def test_smoke_main_takes_the_token_from_the_environment(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On a command line a tool may echo the token (`just` did); the environment keeps it out."""
+    from gharbasket_ml import smoke
+
+    app = create_app(Settings(app_env="test", ml_service_token=SecretStr(TOKEN)))
+    monkeypatch.setenv("ML_SERVICE_TOKEN", TOKEN)
+
+    code = smoke.main(["http://ml/"], transport=httpx2.ASGITransport(app=app))
+
+    out = capsys.readouterr().out
+    assert code == 0 and "/plan/week 200" in out and TOKEN not in out
+
+
 def test_smoke_main_reports_errors_per_call_instead_of_crashing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
