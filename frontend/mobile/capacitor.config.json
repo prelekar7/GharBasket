@@ -4,9 +4,23 @@
   "webDir": "dist",
   "server": { "androidScheme": "https" },
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": false,
+    "useLegacyBridge": true
   },
   "plugins": {
+    "SystemBars": {
+      "insetsHandling": "native",
+      "initialViewportFitValueHint": "cover",
+      "style": "LIGHT"
+    },
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#FBF7F0",
+      "androidScaleType": "CENTER_CROP"
+    },
+    "Keyboard": {
+      "resizeOnFullScreen": true
+    },
     "FirebaseAuthentication": {
       "skipNativeAuth": false,
       "providers": ["phone"]
