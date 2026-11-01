@@ -164,15 +164,23 @@ export function refresh() {
   return refreshing;
 }
 
-/** True while the session is being ended (sign-out), see `setSigningOut`. */
+/** True from the start of a sign-out until the next sign-in, see `setSigningOut`. */
 let signingOut = false;
-/** The only calls a sign-out itself makes. */
-const SIGN_OUT_PATHS = new Set(["/v1/auth/logout", "/v1/auth/logout-all", "/v1/me/push-token"]);
+/** The only calls a sign-out makes, and the exchange that starts the next session. */
+const SIGN_OUT_PATHS = new Set([
+  "/v1/auth/logout",
+  "/v1/auth/logout-all",
+  "/v1/me/push-token",
+  "/v1/auth/exchange",
+]);
 
 /**
- * While signing out, screens that were still refetching must not hit the API with a session that
- * is being ended: their calls are refused here without a request, and a 401 that was already in
- * flight is neither refreshed nor reported as an expired session.
+ * From the start of a sign-out until the next sign-in, screens that are still mounted must not hit
+ * the API: their calls are refused here without a request, and a 401 that was already in flight is
+ * neither refreshed nor reported as an expired session. It has to last past the sign-out itself:
+ * clearing the query cache makes the screen that is still showing (Profile) refetch on its next
+ * render, after the sign-out has finished (four 401s on the vivo phone). A successful exchange
+ * turns it off.
  * @param {boolean} on
  */
 export function setSigningOut(on) {
@@ -258,6 +266,7 @@ async function doExchange({ firebaseIdToken, devPhone, keepAccount }) {
   };
   const out = await request("/v1/auth/exchange", { method: "POST", body });
   epoch++;
+  signingOut = false; // a new session: its screens may call the API again
   await tokens.save(out);
   return out;
 }

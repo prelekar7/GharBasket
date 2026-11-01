@@ -90,7 +90,8 @@ export const useSession = create(
         },
         signOut: async ({ everywhere = false } = {}) => {
           // Screens may still be refetching: stop them first, so no request goes out (or reports
-          // an expired session) while the old session is being ended.
+          // an expired session) while the old session is being ended, and none after it either
+          // (the next sign-in's exchange turns this off, see setSigningOut).
           setSigningOut(true);
           try {
             await queryClient.cancelQueries();
@@ -98,8 +99,9 @@ export const useSession = create(
             await (everywhere ? logoutAll() : logout()).catch(() => {});
             await clearLocalData();
             get().clear();
-          } finally {
-            setSigningOut(false);
+          } catch (e) {
+            setSigningOut(false); // still signed in: the app must keep working
+            throw e;
           }
         },
         clear: () => {

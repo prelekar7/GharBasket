@@ -272,7 +272,11 @@ describe("sign-out on the phone", () => {
     expect(calls.map((c) => c.url)).toEqual(["/v1/wallet", "/v1/auth/logout"]);
     expect(expired).not.toHaveBeenCalled();
     expect(store.has("refresh_token")).toBe(false);
-    // Signed out: requests work again for the next sign-in.
+    // Signed out: a screen that refetches after the sign-out (the cache was cleared under it) still
+    // sends nothing, until the next sign-in.
+    expect((await api.request("/v1/notifications").catch((e) => e)).code).toBe("auth.signing_out");
+    routes["/v1/auth/exchange"] = () => reply(200, { access_token: "a3", refresh_token: "r3" });
+    await api.exchange({ devPhone: "+919800001001" });
     expect(await api.request("/v1/notifications")).toEqual([]);
   });
 
