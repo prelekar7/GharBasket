@@ -269,12 +269,12 @@ async def test_a_job_probes_an_open_breaker_once_and_its_success_closes_it() -> 
 
 async def test_a_hung_service_costs_a_job_one_probe_a_cooldown_not_one_wait_a_household() -> None:
     service = Service()
-    run = JobBudget(1000.0)
-    answers = [await rank(service, job=run) for _ in range(8)]
+    # Eight runs (each its own budget, so none knows the service is down yet): three calls open
+    # the breaker (each a full job wait on a real hung service), one probe may follow; the other
+    # four fall back at once.
+    answers = [await rank(service, job=JobBudget(1000.0)) for _ in range(8)]
 
     assert all(a.source == "fallback" for a in answers)
-    # three calls open the breaker (each a full job wait on a real hung service), one probe may
-    # follow; the other four fall back at once.
     assert len(service.seen) == 4
     assert service.timeouts == [30.0] * 4
 
@@ -352,6 +352,73 @@ async def test_a_spent_budget_is_a_customers_for_the_breaker_too() -> None:
 
     assert (await rank(service, job=run)).source == "fallback"  # no job probe privilege
     assert len(service.seen) == 3
+
+
+@pytest.mark.parametrize(
+    ("answer", "down"),
+    [
+        ("timeout", True),
+        ("no_connection", True),
+        (httpx2.Response(503), False),  # one path failing: its breaker counts it, the run asks on
+        (httpx2.Response(422, json={}), False),  # a 4xx: the service is up
+        (httpx2.Response(401, json={}), False),
+    ],
+)
+async def test_a_failed_job_call_marks_the_service_down_for_the_rest_of_the_run(
+    answer: object, down: bool
+) -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request.url.path)
+        if answer == "timeout":
+            raise httpx2.ReadTimeout("asleep", request=request)
+        if answer == "no_connection":
+            raise httpx2.ConnectError("refused", request=request)
+        assert isinstance(answer, httpx2.Response)
+        return answer
+
+    pantry = PantryRequest(items=[PantryItem(product="milk", step=500, prior_mean=1400)])
+    cfg = settings()
+    run = JobBudget(20.0)
+    with structlog.testing.capture_logs() as logs:
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
+            await api.plan_week(http, cfg, plan_request(), job=run)
+            ranked = await api.rank_basket(http, cfg, candidates(), job=run)
+            quantities = await api.pantry_quantities(http, cfg, pantry, job=run)
+            another_plan = await api.plan_week(http, cfg, plan_request(), job=run)
+
+    assert run.service_down is down
+    assert ranked.source == quantities.source == another_plan.source == "fallback"
+    if down:
+        assert seen == ["/plan/week"]  # one request for every path of the run
+        reasons = [e["reason"] for e in logs if e["event"] == "ml_fallback"]
+        assert reasons[1:] == ["service_down"] * 3
+    else:
+        assert seen == ["/plan/week", "/basket/rank", "/pantry/quantities", "/plan/week"]
+    # The mark belongs to the run: a customer's call (no budget) is not held back by it.
+    assert ml_breakers.get("/basket/rank").state(COOLDOWN_S) == "closed"
+
+
+async def test_the_service_down_mark_outlives_the_budget_and_is_not_shared_between_runs() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request.url.path)
+        raise httpx2.ReadTimeout("asleep", request=request)
+
+    cfg = settings()
+    spent = JobBudget(1.0)
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
+        await api.rank_basket(http, cfg, candidates(), job=spent)
+        spent.charge(spent.now() - 5)  # the budget is gone as well
+        assert spent.exhausted and spent.service_down
+        await api.rank_basket(http, cfg, candidates(), job=spent)
+        assert seen == [
+            "/basket/rank"
+        ]  # an exhausted run that saw the service down still asks nothing
+        await api.rank_basket(http, cfg, candidates(), job=JobBudget(20.0))  # the next run asks
+    assert len(seen) == 2
 
 
 def test_the_job_budget_is_a_bounded_setting() -> None:

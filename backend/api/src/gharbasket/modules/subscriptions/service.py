@@ -287,7 +287,9 @@ async def draft(
     (the planner's, bounded by `ml_timeout_s`). Otherwise this is the generation job's draft, where
     no customer waits: its ML calls get `ml_job_timeout_s` while `ml_budget`, the ML time of the
     whole run (`ML_JOB_BUDGET_S`, a fresh one if the caller has none), lasts."""
-    job = None if preview else ml_budget or intel_api.JobBudget(settings.ml_job_budget_s)
+    job = None
+    if not preview:
+        job = intel_api.JobBudget(settings.ml_job_budget_s) if ml_budget is None else ml_budget
     monday = monday_of(delivery_date)
     festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
     price_index = await intel_api.price_spikes(session, list(catalog.products), monday)
@@ -851,7 +853,8 @@ async def generate_for_hub(
 ) -> dict[str, int]:
     """The job's body for one hub: a cycle per Autopilot household due that day. `ml_budget` is
     the run's ML time, shared by every hub of the run (a fresh one if the caller has none)."""
-    ml_budget = ml_budget or intel_api.JobBudget(settings.ml_job_budget_s)
+    if ml_budget is None:
+        ml_budget = intel_api.JobBudget(settings.ml_job_budget_s)
     catalog = await catalog_api.plan_catalog(session, hub_id)
     counts = {"created": 0, "existing": 0, "skipped": 0}
     for household_id in await identity_api.households_of_hub(session, hub_id):

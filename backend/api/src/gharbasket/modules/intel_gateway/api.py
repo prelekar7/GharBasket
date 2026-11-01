@@ -616,8 +616,9 @@ async def _call[T](
 
 
 def _active(job: JobBudget | None) -> JobBudget | None:
-    """The job's budget while it has time left, else None: its later calls are a customer's."""
-    return job if job is not None and not job.exhausted else None
+    """The job's budget while it has time left (or the service is known down: its calls then
+    answer by fallback without a request), else None: its later calls are a customer's."""
+    return job if job is not None and (job.service_down or not job.exhausted) else None
 
 
 def _timeout_s(settings: Settings, job: JobBudget | None) -> float:
@@ -652,6 +653,9 @@ async def _post[T](
     threshold, cooldown_s = settings.ml_breaker_threshold, settings.ml_breaker_cooldown_s
     breaker = ml_breakers.get(path)
     job = _active(job)
+    if job is not None and job.service_down:
+        log.warning("ml_fallback", call=call, reason="service_down")
+        return None
     allowed = (
         breaker.allow(threshold, cooldown_s)
         if job is None
@@ -680,6 +684,10 @@ async def _post[T](
         status = exc.response.status_code if isinstance(exc, httpx2.HTTPStatusError) else None
         if isinstance(exc, httpx2.TransportError) or (status is not None and status >= 500):
             breaker.record_failure(threshold)
+            if job is not None and isinstance(exc, httpx2.TransportError):
+                # Asleep or unreachable, not one path failing: the run's later calls, on every
+                # path, do not ask.
+                job.mark_service_down()
         else:
             breaker.record_success()
         log.warning(

@@ -126,6 +126,7 @@ class JobBudget:
         self.total_s = total_s
         self._clock = clock
         self._spent_s = 0.0
+        self._service_down = False
 
     @property
     def exhausted(self) -> bool:
@@ -134,6 +135,15 @@ class JobBudget:
     @property
     def spent_s(self) -> float:
         return self._spent_s
+
+    @property
+    def service_down(self) -> bool:
+        """A job call timed out or could not connect: the run's later calls, on every path,
+        fall back without a request. (A 5xx or a 4xx on one path does not say the rest is down.)"""
+        return self._service_down
+
+    def mark_service_down(self) -> None:
+        self._service_down = True
 
     def now(self) -> float:
         return self._clock()
