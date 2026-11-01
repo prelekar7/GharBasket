@@ -47,6 +47,15 @@ describe("partner applications (M8 §3.1)", () => {
     expect((await call("POST", "/v1/partner-applications", { kind: "kitchen" })).status).toBe(400);
     const bad = await call("POST", "/v1/partner-applications", { kind: "cook" }, key());
     expect((await bad.json()).code).toBe("partners.kind_invalid");
+    // The name customers see is 2 to 40 characters, from the body or else the profile.
+    const short = await call(
+      "POST",
+      "/v1/partner-applications",
+      { kind: "kitchen", display_name: "P" },
+      key(),
+    );
+    expect(short.status).toBe(422);
+    expect((await short.json()).code).toBe("partners.display_name_invalid");
     const k = key();
     const res = await call("POST", "/v1/partner-applications", { kind: "kitchen" }, k);
     expect(res.status).toBe(201);
@@ -603,5 +612,19 @@ describe("income certificate (M8 §3.7, US-12)", () => {
     expect((await res.json()).code).toBe("partners.partner_not_found");
     localStorage.clear();
     expect((await certificate()).status).toBe(401);
+  });
+});
+
+describe("partner application display name (M8 §3.1)", () => {
+  it("uses the name sent, trimmed, instead of the profile name", async () => {
+    await signIn();
+    const res = await call(
+      "POST",
+      "/v1/partner-applications",
+      { kind: "captain", display_name: "  Meena tai " },
+      key(),
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).display_name).toBe("Meena tai");
   });
 });
