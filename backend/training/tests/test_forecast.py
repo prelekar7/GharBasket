@@ -96,6 +96,91 @@ def test_the_conformal_quantile_has_the_finite_sample_correction() -> None:
     assert forecast.conformal_quantile(np.zeros(0), 0.5) == 0
 
 
+def test_the_weighted_conformal_quantile_is_the_plain_one_under_equal_weights() -> None:
+    rng = np.random.default_rng(7)
+    for n in (1, 2, 5, 9, 40):
+        scores = rng.integers(-3, 4, size=n).astype(float)  # plenty of ties
+        for tau in (0.0, 0.1, 0.375, 0.5, 0.75, 0.95, 1.0):
+            for w in (1.0, 0.3, 7.0):  # the weights' unit does not matter
+                weighted = forecast.weighted_conformal_quantile(scores, np.full(n, w), tau)
+                assert weighted == forecast.conformal_quantile(scores, tau), (n, tau, w)
+    assert forecast.weighted_conformal_quantile(np.zeros(0), np.zeros(0), 0.5) == 0
+
+
+def test_the_weighted_conformal_quantile_follows_the_weight_not_the_count() -> None:
+    # Four light zero-demand residuals and one heavy series that ran short: by count the 37.5 %
+    # quantile is a negative margin, by units it is the heavy series' shortfall.
+    scores = np.array([-1.0, -1.0, -1.0, -1.0, 2.0])
+    assert forecast.conformal_quantile(scores, 0.375) == -1
+    heavy = np.array([1.0, 1.0, 1.0, 1.0, 10.0])
+    # needed: 0.375 x (14 + 14 / 5) = 6.3 > 4, reached only at the heavy score
+    assert forecast.weighted_conformal_quantile(scores, heavy, 0.375) == 2
+    light = np.array([10.0, 10.0, 10.0, 10.0, 1.0])
+    assert forecast.weighted_conformal_quantile(scores, light, 0.375) == -1
+    # Tied scores share one value: how their weight is spread among them does not matter, only
+    # its total (8 of 9 here; with a heavier last score the quantile moves past the ties).
+    tied = np.array([0.0, 0.0, 0.0, 1.0])
+    for weights in ([1.0, 5.0, 2.0, 1.0], [2.0, 1.0, 5.0, 1.0], [5.0, 2.0, 1.0, 1.0]):
+        assert forecast.weighted_conformal_quantile(tied, np.array(weights), 0.375) == 0
+    # 0.375 x (16 + 4) = 7.5 > the ties' 7: the last score
+    assert forecast.weighted_conformal_quantile(tied, np.array([5.0, 1.0, 1.0, 9.0]), 0.375) == 1
+    # Beyond the sample: the largest score, as the plain quantile.
+    assert forecast.weighted_conformal_quantile(scores, heavy, 0.99) == 2
+    with pytest.raises(ValueError, match="positive weight"):
+        forecast.weighted_conformal_quantile(scores, np.zeros(5), 0.5)
+    with pytest.raises(ValueError, match="positive weight"):
+        forecast.weighted_conformal_quantile(scores, np.ones(4), 0.5)
+
+
+def test_the_backtest_calibrates_each_window_on_scale_weighted_residuals() -> None:
+    series = forecast.weekly_series(lines(), forecast.last_complete_week(TODAY))
+    tau = 0.375
+
+    test = forecast.backtest(series, "hub-1", tau)
+
+    points = test.points
+    assert points is not None
+    for m in forecast.MODELS:
+        for step in (1, 2):
+            residuals = test.calibration[m][step]
+            rows = cast(pd.DataFrame, points[points["step"] == step])
+            assert residuals.size == len(rows) and residuals.scale.shape == residuals.scaled.shape
+            assert (residuals.scale > 0).all()
+            # The residuals are the points' own, in their order.
+            y, q50 = rows["y"].to_numpy(dtype=float), rows[m].to_numpy(dtype=float)
+            assert residuals.scaled * residuals.scale == pytest.approx(y - q50)
+            target, origin = rows["ds"].to_numpy(), rows["origin"].to_numpy()
+            for o in sorted(set(origin)):
+                seen = target <= o
+                window = origin == o
+                qtau = rows[f"{m}_qtau"].to_numpy(dtype=float)[window]
+                if not seen.any():
+                    assert np.isnan(qtau).all()
+                    continue
+                margin = forecast.weighted_conformal_quantile(
+                    residuals.scaled[seen], residuals.scale[seen], tau
+                )
+                expected = np.maximum(0.0, q50[window] + residuals.scale[window] * margin)
+                assert qtau == pytest.approx(expected)
+
+
+def test_production_q_tau_uses_the_scale_weighted_margin() -> None:
+    frame = lines()
+    series = forecast.weekly_series(frame, forecast.last_complete_week(TODAY))
+    costs = forecast.Costs()
+
+    planned, test = forecast.forecast_hub(series, frame, "hub-1", TODAY, costs)
+
+    assert planned  # Tuesdays only: each line is its product's whole week (step 2)
+    residuals = test.calibration[test.champion][2]
+    margin = forecast.weighted_conformal_quantile(residuals.scaled, residuals.scale, costs.tau)
+    for line in planned:
+        history = where(series, series["product_id"] == line.product_id)["uncommitted"]
+        scale = float(history.to_numpy(dtype=float).mean())
+        expected = max(0.0, line.uncommitted_q50 + scale * margin)
+        assert line.uncommitted_qtau == pytest.approx(expected, abs=0.02)
+
+
 def test_the_backtest_uses_weekly_origins_a_two_week_horizon_and_nested_windows() -> None:
     series = forecast.weekly_series(lines(), forecast.last_complete_week(TODAY))
 
