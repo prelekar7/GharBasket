@@ -368,6 +368,8 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
 async def push(http: httpx2.AsyncClient, settings: Settings, rows: list[dict[str, Any]]) -> int:
     if not settings.api_url or settings.jobs_token is None:
         raise RuntimeError("set API_URL and JOBS_TOKEN to push the metrics")
+    if not rows:  # the endpoint takes at least one item; nothing to store is not an error
+        return 0
     response = await http.post(
         f"{settings.api_url.rstrip('/')}/v1/internal/intel/model-metrics",
         json={"items": rows},
