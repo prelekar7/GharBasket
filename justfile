@@ -149,6 +149,10 @@ migration message:
 cloud url:
     scripts/smoke-staging.sh {{url}}
 
+# Sync the cron-job.org jobs with infra/jobs/schedule.yaml, e.g. `infisical run --env=staging -- just cronjob-sync --apply` (plan only without --apply)
+cronjob-sync *args:
+    uv run python scripts/cronjob_sync.py {{args}}
+
 # Regenerate backend/api/openapi.json, then the JS client types from it (ADR-0022)
 gen-api: openapi
     pnpm --filter @gharbasket/api-client run generate

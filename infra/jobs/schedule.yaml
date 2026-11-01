@@ -4,9 +4,10 @@
 # crons here and the `on.schedule` lines of `.github/workflows/jobs-staging.yml` differ.
 #
 # Read by `.github/workflows/jobs-staging.yml` (the `actions` entries, picked by their cron) and
-# by a future `scripts/cronjob_sync.py` that creates the cron-job.org jobs from the `cron-job.org`
-# entries. To add a job: register it, add an entry here, and for `actions` add the literal cron to
-# `on.schedule` of the workflow (GitHub accepts nothing else).
+# by `scripts/cronjob_sync.py` (`just cronjob-sync`), which creates, updates and deletes the
+# cron-job.org jobs from the `cron-job.org` entries. To add a job: register it, add an entry
+# here, and for `actions` add the literal cron to `on.schedule` of the workflow (GitHub accepts
+# nothing else); for `cron-job.org`, run `just cronjob-sync --apply` after the merge.
 #
 # Fields:
 #   name    the job name (snake_case, as in `@job("name")`)
