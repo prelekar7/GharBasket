@@ -454,7 +454,7 @@
       "cancelled": "This week’s box was cancelled. Nothing was charged.",
       "payment_failed": "Your box wasn’t paid at the cut-off. Add money to your wallet to keep it."
     },
-    "brings": "{name} brings it to {flat}",
+    "brings": "{name} brings it",
     "open": "Open box",
     "lock": "Budget Lock · {month}",
     "lockValue": "{spent} of {budget}",
@@ -1696,6 +1696,7 @@
     "how": "How many tiffins",
     "unit": "{n, plural, one {tiffin} other {tiffins}}",
     "note": "Order by {when}. Paid with your box at the cut-off. {cook} cooks it fresh; {captain} brings it to your door.",
+    "noteNoCaptain": "Order by {when}. Paid with your box at the cut-off. {cook} cooks it fresh and it comes to your door.",
     "cta": "Book {n, plural, one {# tiffin} other {# tiffins}} · {total}",
     "already": "A tiffin is already booked for that meal.",
     "goneTitle": "This tiffin can’t be booked now",

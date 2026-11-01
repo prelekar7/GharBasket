@@ -1229,3 +1229,14 @@ describe("product detail (HcProduct)", () => {
     expect((await missing.json()).code).toBe("catalog.product_not_found");
   });
 });
+
+describe("the week's captain (M3 §3.2: CycleOut.captain is a card, never a flat)", () => {
+  it("is {display_name, photo_url} once the box is generated, null in a preview", async () => {
+    await signIn();
+    const cycle = await getJson("/v1/cycles/current");
+    expect(cycle.captain).toEqual({ display_name: expect.any(String), photo_url: null });
+    expect(cycle.captain).not.toHaveProperty("name");
+    expect(cycle.captain).not.toHaveProperty("flat");
+    expect((await getJson("/v1/cycles/preview")).captain).toBeNull();
+  });
+});

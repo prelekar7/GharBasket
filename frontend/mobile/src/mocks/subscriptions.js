@@ -397,7 +397,10 @@ function cycle(
     ],
     // A skipped week spends nothing from the Budget Lock.
     budget_lock: lock,
-    captain: preview ? null : { name: lang === "hi" ? "मीना ताई" : "Meena tai", flat: "B-402" },
+    // The society captain's card (M9 §3.2): a name and a photo, never a flat or a phone.
+    captain: preview
+      ? null
+      : { display_name: lang === "hi" ? "मीना ताई" : "Meena tai", photo_url: null },
     order_id:
       !preview && ["approved", "locked", "payment_failed"].includes(status)
         ? uid("order-box-2026-10-06")
