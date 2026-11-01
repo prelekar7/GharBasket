@@ -112,7 +112,7 @@ def build(
         "commit": commit(),
         "args": args,
         "provenance": provenance()
-        | ({"assignment": assignment_sweep.settings()} if sweep_runs else {}),
+        | ({"assignment": assignment_sweep.settings(sweep_runs[0].config)} if sweep_runs else {}),
         "seeds": sorted(
             {r.seed for r in planner_runs}
             | {r.seed for r in pantry_runs}
@@ -597,9 +597,9 @@ def _sweep_html(report: dict[str, Any]) -> str:
         return ""
     table = (
         _table(
-            "RQ4 — fair kitchen assignment: the λ sweep over a simulated week (7 evenings, "
-            "earnings carried forward from 0); per seed, then mean ± 95 % t-CI over the paired "
-            "seeds",
+            "RQ4 — fair kitchen assignment: the λ sweep over consecutive simulated weeks (the "
+            "preferred cook first, then the assignment on 28-day rolling earnings); the last "
+            "week scored, per seed, then mean ± 95 % t-CI over the paired seeds",
             [
                 "λ (paise a portion of imbalance)",
                 "Gini of weekly earnings (eligible kitchens)",
@@ -607,6 +607,7 @@ def _sweep_html(report: dict[str, Any]) -> str:
                 "cost a portion (distance + quality penalty, ₹)",
                 "rider ₹ a portion",
                 "km a portion",
+                "share of portions to the preferred cook",
                 "cost vs greedy (per-seed ratio - 1)",
             ],
             [
@@ -617,6 +618,7 @@ def _sweep_html(report: dict[str, Any]) -> str:
                     _rupees(m["cost_paise_per_portion"]),
                     _rupees(m["rider_paise_per_portion"]),
                     _cell(m["km_per_portion"]),
+                    _cell(m["preferred_share"]),
                     _cell(m["extra_cost"]) if "extra_cost" in m else "—",
                 ]
                 for key, m in sweep.items()
@@ -640,12 +642,14 @@ def _sweep_html(report: dict[str, Any]) -> str:
         verdict = f"holds from λ = {target['lambda']:g}"
     else:
         verdict = "does not hold at any λ"
-    dropped = target["dropped_seeds"]
+    dropped, chosen = target["dropped_seeds"], target["production_lambda"]
     note = (
         f'<p class="note">M-G target (greedy Gini {_cell(target["greedy_gini"])}): {verdict}. '
         f"Paired seeds {target['seeds']}"
         + (f"; dropped (a point did not solve): {dropped}" if dropped else "")
-        + ".</p>"
+        + ". Production λ: "
+        + ("none (no verdict)" if chosen is None else f"{chosen:g}")
+        + f" ({html.escape(target['production_rule'])}).</p>"
     )
     return table + checks + note
 
