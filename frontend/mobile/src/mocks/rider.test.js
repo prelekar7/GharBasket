@@ -297,24 +297,89 @@ describe("rider mode: handover and the doors (M7 §3.4)", () => {
   });
 });
 
-describe("return-leg pickups (M7 §3.6, an outline)", () => {
-  it("counts the empties and the donations collected at a stop", async () => {
+describe("return-leg pickups (M7 §3.6)", () => {
+  const qr = (/** @type {string} */ orderId) => `GB1:${orderId.replaceAll("-", "")}`;
+
+  it("serves StopPickups in the contract's shape: donation_id, items, flat_label, status; bags", async () => {
+    await start();
+    const [first, second] = (await route()).stops;
+    // A captain's stop: no flat label on a donation, only M9's item summary.
+    expect(first.pickups).toEqual({
+      empties_collected: null,
+      donations: [
+        {
+          donation_id: expect.any(String),
+          items: "school bag and clothes",
+          flat_label: null,
+          status: "expected",
+        },
+      ],
+      bags: [],
+    });
+    expect(first.pickups.donations[0]).not.toHaveProperty("ref");
+    expect(first.pickups.donations[0]).not.toHaveProperty("note");
+    // A rider-mode stop: flat labels, and a bag the captain kept.
+    expect(second.pickups.donations[0].flat_label).toBe("B wing, 301");
+    expect(second.pickups.bags).toEqual([
+      { order_id: expect.any(String), flat_label: "A wing, 104", status: "expected" },
+    ]);
+  });
+
+  it("counts the empties and the donations collected at a stop, and answers with the Stop", async () => {
     await start();
     const [first] = (await route()).stops;
-    expect(first.pickups).toMatchObject({ empties_collected: null });
     const donation = first.pickups.donations[0];
     const bad = await post(`/v1/stops/${first.id}/pickups`, {
       donations: [{ donation_id: "nope", status: "collected" }],
     });
     expect(bad.status).toBe(422);
+    expect(await code(bad)).toBe("logistics.pickup_unknown");
     const ok = await (
       await post(`/v1/stops/${first.id}/pickups`, {
         empties: 3,
         donations: [{ donation_id: donation.donation_id, status: "collected" }],
       })
     ).json();
-    expect(ok.empties).toBe(3);
+    expect(ok.id).toBe(first.id);
+    expect(ok.pickups.empties_collected).toBe(3);
+    expect(ok.pickups.donations[0].status).toBe("collected");
     expect((await route()).stops[0].pickups.donations[0].status).toBe("collected");
+  });
+
+  it("collects a bag from its scanned GB1: QR, once", async () => {
+    await start();
+    const second = (await route()).stops[1];
+    const orderId = second.pickups.bags[0].order_id;
+    const unknown = await post(`/v1/stops/${second.id}/pickups`, {
+      bags: [qr("0199a000-0000-7000-8000-000000000001")],
+    });
+    expect(unknown.status).toBe(422);
+    expect(await code(unknown)).toBe("logistics.pickup_unknown");
+    const typed = await post(`/v1/stops/${second.id}/pickups`, { bags: ["B-214"] });
+    expect(await code(typed)).toBe("logistics.pickup_unknown");
+    const ok = await (await post(`/v1/stops/${second.id}/pickups`, { bags: [qr(orderId)] })).json();
+    expect(ok.pickups.bags[0].status).toBe("collected");
+    // Naming it again with the same status changes nothing.
+    expect((await post(`/v1/stops/${second.id}/pickups`, { bags: [qr(orderId)] })).status).toBe(
+      200,
+    );
+  });
+
+  it("refuses an empty report and a donation named twice; a changed status is 409", async () => {
+    await start();
+    const [first] = (await route()).stops;
+    const id = first.pickups.donations[0].donation_id;
+    expect(await code(await post(`/v1/stops/${first.id}/pickups`, {}))).toBe("request.invalid");
+    const twice = { donations: [1, 2].map(() => ({ donation_id: id, status: "collected" })) };
+    expect(await code(await post(`/v1/stops/${first.id}/pickups`, twice))).toBe("request.invalid");
+    await post(`/v1/stops/${first.id}/pickups`, {
+      donations: [{ donation_id: id, status: "collected" }],
+    });
+    const other = await post(`/v1/stops/${first.id}/pickups`, {
+      donations: [{ donation_id: id, status: "not_ready" }],
+    });
+    expect(other.status).toBe(409);
+    expect(await code(other)).toBe("logistics.pickup_already_reported");
   });
 });
 

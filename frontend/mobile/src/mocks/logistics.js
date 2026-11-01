@@ -80,19 +80,16 @@ const demoRoute = (date) => ({
       bags: 46,
       empties_expected: 3,
       captain: { display_name: w("Meena tai", "मीना ताई"), photo_url: null },
+      // A captain's stop: the rider sees no flat (M7 §3.6 Privacy), only M9's summary of the items.
       donations: [
         {
           donation_id: uid("1", 402),
-          ref: "B-402",
-          qty: 1,
-          note: w(
-            "1 bag: school bag and clothes",
-            "1 बैग: स्कूल बैग और कपड़े",
-            "1 पिशवी: शाळेची बॅग आणि कपडे",
-          ),
+          items: w("school bag and clothes", "स्कूल बैग और कपड़े", "शाळेची बॅग आणि कपडे"),
+          flat_label: null,
           status: "expected",
         },
       ],
+      pickupBags: [],
     }),
     stop(2, KUNJ, w("Krishna Kunj", "कृष्णा कुंज"), 18.9968, 73.1203, {
       eta: "08:40",
@@ -100,7 +97,16 @@ const demoRoute = (date) => ({
       bags: 12,
       empties_expected: 1,
       captain: null,
-      donations: [],
+      // A rider-mode stop of a route in progress: flat labels show.
+      donations: [
+        {
+          donation_id: uid("1", 403),
+          items: w("clothes 3 kg, toys 2", "कपड़े 3 किलो, खिलौने 2", "कपडे 3 किलो, खेळणी 2"),
+          flat_label: "B wing, 301",
+          status: "expected",
+        },
+      ],
+      pickupBags: [{ order_id: uid("4", 77), flat_label: "A wing, 104", status: "expected" }],
     }),
   ],
 });
@@ -127,8 +133,8 @@ function stop(seq, societyId, name, lat, lng, o) {
     navigate_url: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
     arrived_at: null,
     handed_over_at: null,
-    // Not in M7 yet (§3.6 is an outline; the donation list is a backend ask): what the rider collects on the way back.
-    pickups: { empties_collected: null, donations: o.donations },
+    // M7 §3.6: what the rider collects on the way back (flat labels only on rider-mode stops).
+    pickups: { empties_collected: null, donations: o.donations, bags: o.pickupBags ?? [] },
   };
 }
 
@@ -924,7 +930,8 @@ export const logisticsHandlers = [
     }),
   ),
 
-  // Return-leg pickups (§3.6 outline): the request is the outline's; the answer is ours.
+  // Return-leg pickups (M7 §3.6, Idempotency-Key): empties replace the stop's count; each donation
+  // and bag is set once; the answer is the Stop. Bags are the scanned `GB1:` codes.
   http.post("*/v1/stops/:id/pickups", ({ request, params }) =>
     once(request, (s, body) => {
       const x = findStop(s, /** @type {string} */ (params.id));
@@ -933,26 +940,51 @@ export const logisticsHandlers = [
       if (closed) return closed;
       if (!x.pickups) return invalid(); // kitchen and tiffin stops have none (§3.6 is box-only)
       const donations = body.donations ?? [];
+      const bags = body.bags ?? [];
+      const ids = donations.map((/** @type {any} */ d) => d?.donation_id);
       if (
-        (body.empties !== undefined && !Number.isInteger(body.empties)) ||
+        (body.empties != null &&
+          !(Number.isInteger(body.empties) && body.empties >= 0 && body.empties <= 100)) ||
         !Array.isArray(donations) ||
+        !Array.isArray(bags) ||
+        bags.some((/** @type {any} */ c) => typeof c !== "string") ||
+        donations.some((/** @type {any} */ d) => !["collected", "not_ready"].includes(d?.status)) ||
+        new Set(ids).size !== ids.length ||
+        new Set(bags).size !== bags.length ||
+        (body.empties == null && donations.length === 0 && bags.length === 0) ||
         !clientAt(body)
       )
         return invalid();
-      if (body.empties !== undefined) x.pickups.empties_collected = body.empties;
-      for (const d of donations) {
-        const row = x.pickups.donations.find(
-          (/** @type {any} */ p) => p.donation_id === d.donation_id,
+      const rows = x.pickups.donations;
+      const unknownDonations = ids.filter(
+        (/** @type {string} */ id) => !rows.some((/** @type {any} */ r) => r.donation_id === id),
+      );
+      const bagRow = (/** @type {string} */ code) =>
+        x.pickups.bags.find(
+          (/** @type {any} */ b) => code === `GB1:${b.order_id.replaceAll("-", "")}`,
         );
-        if (!row || !["collected", "not_ready"].includes(d.status))
-          return problem(422, "request.invalid", "That donation is not on this stop");
-        row.status = d.status;
-      }
+      const unknownBags = bags.filter((/** @type {string} */ c) => !bagRow(c));
+      if (unknownDonations.length || unknownBags.length)
+        return problem(422, "logistics.pickup_unknown", "That is not expected at this stop", {
+          donation_ids: unknownDonations,
+          bags: unknownBags,
+        });
+      const clash = donations.filter((/** @type {any} */ d) => {
+        const row = rows.find((/** @type {any} */ r) => r.donation_id === d.donation_id);
+        return row.status !== "expected" && row.status !== d.status;
+      });
+      const clashBags = bags.filter((/** @type {string} */ c) => bagRow(c).status === "not_ready");
+      if (clash.length || clashBags.length)
+        return problem(409, "logistics.pickup_already_reported", "Already reported", {
+          donation_ids: clash.map((/** @type {any} */ d) => d.donation_id),
+          order_ids: clashBags.map((/** @type {string} */ c) => bagRow(c).order_id),
+        });
+      if (body.empties != null) x.pickups.empties_collected = body.empties;
+      for (const d of donations)
+        rows.find((/** @type {any} */ r) => r.donation_id === d.donation_id).status = d.status;
+      for (const c of bags) bagRow(c).status = "collected";
       s.route.version += 1;
-      return [
-        200,
-        { stop_id: x.id, empties: x.pickups.empties_collected, donations: x.pickups.donations },
-      ];
+      return [200, localise(x, langOf(request))];
     }),
   ),
 
