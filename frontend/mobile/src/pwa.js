@@ -1,5 +1,4 @@
 import { registerSW } from "virtual:pwa-register";
-import { toast } from "@gharbasket/ui";
 import i18n from "@/i18n.js";
 
 /**
@@ -10,7 +9,9 @@ export function startPwa() {
   if (import.meta.env.MODE === "native") return;
   const updateSW = registerSW({
     immediate: true,
-    onNeedRefresh() {
+    async onNeedRefresh() {
+      // Imported here, not at the top, so the UI kit stays out of the entry chunk.
+      const { toast } = await import("@gharbasket/ui");
       toast(i18n.t("pwa.updateTitle"), {
         duration: Number.POSITIVE_INFINITY,
         action: { label: i18n.t("pwa.refresh"), onClick: () => updateSW(true) },

@@ -1,7 +1,7 @@
 import { Button } from "@gharbasket/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LOCALES } from "@/i18n.js";
+import { LOCALES, setLocale } from "@/i18n.js";
 import { useSession } from "@/lib/session.js";
 
 const LANGUAGE_NAMES = { "en-IN": "English", "hi-IN": "हिन्दी", "mr-IN": "मराठी" };
@@ -25,7 +25,7 @@ export function ProfileActions() {
               key={lng}
               variant={i18n.resolvedLanguage === lng ? "primary" : "secondary"}
               aria-pressed={i18n.resolvedLanguage === lng}
-              onPress={() => i18n.changeLanguage(lng)}
+              onPress={() => setLocale(lng)}
             >
               {LANGUAGE_NAMES[lng]}
             </Button>
