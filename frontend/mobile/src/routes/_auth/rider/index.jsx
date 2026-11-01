@@ -12,6 +12,7 @@ import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { clock, dayLabel, nextStop, routeSlot, stopDone } from "@/features/logistics/format.js";
+import { LocationBanner } from "@/features/logistics/LocationBanner.jsx";
 import { useHub, useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { clockTime, istClock, timeRange, todayIst } from "@/features/subscriptions/format.js";
 import { useOutboxCount } from "@/lib/outbox.js";
@@ -107,6 +108,7 @@ function RiderRoute() {
         })}
         title={t("rider.title")}
       />
+      <LocationBanner />
       <Suspense fallback={<Skeleton className="h-[180px] w-full" />}>
         {hub.data ? (
           <RouteMap
