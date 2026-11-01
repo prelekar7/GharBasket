@@ -67,4 +67,4 @@ jobs:
 
       - name: Smoke test
         if: steps.configured.outputs.ready == 'true'
-        run: uv run --directory backend/ml --no-dev python -m gharbasket_ml.smoke "$STAGING_ML_URL" "$ML_SERVICE_TOKEN"
+        run: uv run --directory backend/ml --no-dev python -m gharbasket_ml.smoke "$STAGING_ML_URL"

@@ -165,9 +165,9 @@ sim *args:
 ml-lock:
     uv export --quiet --package gharbasket-ml --frozen --no-dev --no-emit-project -o backend/ml/requirements.lock
 
-# Smoke-test a deployed ML service, e.g. `just cloud-ml https://<service>.onrender.com $ML_SERVICE_TOKEN`
-cloud-ml url token="":
-    uv run --directory backend/ml python -m gharbasket_ml.smoke {{url}} {{token}}
+# Smoke-test a deployed ML service with ML_SERVICE_TOKEN from the environment, e.g. `infisical run --env=staging -- just cloud-ml https://<service>.onrender.com`
+cloud-ml url:
+    @uv run --directory backend/ml python -m gharbasket_ml.smoke {{url}}
 
 # Evaluate the planner and the pantry baseline over simulator seeds; report in docs/eval (eval protocol)
 eval *args:
