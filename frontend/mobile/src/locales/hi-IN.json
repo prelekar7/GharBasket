@@ -1167,6 +1167,12 @@
       "pickups": "पिकअप",
       "earnings": "कमाई"
     },
+    "location": {
+      "notificationTitle": "GharBasket के लिए डिलीवरी जारी है",
+      "notificationBody": "रूट चलने तक आपकी लोकेशन साझा की जा रही है",
+      "denied": "लोकेशन बंद है, इसलिए हब आपकी वैन नहीं देख पा रहा। सेटिंग्स में इसे चालू करें।",
+      "openSettings": "सेटिंग्स खोलें"
+    },
     "title": "आपका रूट",
     "when": "{day} · {slot} · वैन {plate}",
     "map": {
