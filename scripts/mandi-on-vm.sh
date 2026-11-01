@@ -42,7 +42,8 @@ if ! swapon --show | grep -q /swapfile; then
   sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null
   sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
 fi
-sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl >/dev/null
+# build-essential: statsforecast (a training dependency) builds from source on this image.
+sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl build-essential >/dev/null
 command -v uv >/dev/null || [ -x "$HOME/.local/bin/uv" ] || curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
 export PATH="$HOME/.local/bin:$PATH"
 [ -d GharBasket/.git ] || git clone -q https://github.com/prelekar7/GharBasket.git
