@@ -1,27 +1,17 @@
 import { Button, IconButton, toast } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OtpBoxes } from "@/components/OtpBoxes.jsx";
 import { householdQuery } from "@/features/identity/profile.js";
 import { exchange, me } from "@/lib/api.js";
-import { OtpError, onAutoVerified, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
+import { onAutoVerified, otpErrorKey, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { nextSearch } from "@/lib/search.js";
 import { useSession } from "@/lib/session.js";
 
 const RESEND_AFTER_S = 30;
-
-/** Maps Firebase auth error codes to copy keys. @param {unknown} e */
-const errorKey = (e) => {
-  const code = e instanceof OtpError ? e.code : "";
-  if (code === "auth/invalid-verification-code") return "otp.invalid";
-  if (code === "auth/code-expired") return "otp.expired";
-  if (code === "auth/too-many-requests") return "otp.tooMany";
-  if (code === "auth/operation-not-allowed") return "otp.region";
-  return "otp.failed";
-};
 
 /** Enter the SMS code, then exchange the Firebase ID token for our session (design Hf03 OTP). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -50,7 +40,12 @@ function Otp() {
     return () => clearTimeout(timer);
   }, [wait]);
 
+  // One sign-in at a time: the auto-verify listener and the Verify button must not both exchange.
+  const signingIn = useRef(false);
+
   const verify = async () => {
+    if (signingIn.current) return;
+    signingIn.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -62,8 +57,9 @@ function Otp() {
       queryClient.removeQueries({ queryKey: householdQuery.queryKey });
       navigate({ to: next ?? "/" });
     } catch (e) {
-      setError(t(errorKey(e)));
+      setError(t(otpErrorKey(e)));
       setBusy(false);
+      signingIn.current = false;
     }
   };
 
@@ -79,7 +75,7 @@ function Otp() {
       setWait(RESEND_AFTER_S);
       toast(t("otp.resent"));
     } catch (e) {
-      setError(t(errorKey(e)));
+      setError(t(otpErrorKey(e)));
     }
   };
 

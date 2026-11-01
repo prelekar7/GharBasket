@@ -144,6 +144,9 @@
     "expired": "This code has expired. Send a new one.",
     "tooMany": "Too many tries. Wait a few minutes and try again.",
     "region": "We can’t send SMS to this number yet.",
+    "badPhone": "That phone number doesn’t look right. Check it and try again.",
+    "network": "No internet connection. Check your network and try again.",
+    "notAuthorized": "This app version can’t verify phone numbers yet. Update the app or contact support.",
     "failed": "We couldn’t sign you in. Check your internet and try again."
   },
   "outbox": {

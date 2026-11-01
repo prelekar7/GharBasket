@@ -111,6 +111,12 @@ async function send(path, { method = "GET", body, headers: extra, signal } = {})
   return fetch(request);
 }
 
+/**
+ * Bumped by every sign-in. A request or refresh that started under an older number belongs to a
+ * session that is gone: its late 401 must not wipe the tokens just saved, nor show login.
+ */
+let epoch = 0;
+
 /** @type {Promise<boolean> | null} */
 let refreshing = null;
 /** Whether the last refresh failed because the session is over (401), not because the server was busy. */
@@ -124,6 +130,7 @@ let ended = false;
 export function refresh() {
   refreshing ??= (async () => {
     const run = async () => {
+      const started = epoch;
       const refreshToken = await tokens.refreshToken();
       ended = NATIVE && !refreshToken;
       if (ended) return false;
@@ -131,6 +138,12 @@ export function refresh() {
         method: "POST",
         body: NATIVE ? { refresh_token: refreshToken } : {},
       });
+      // Someone signed in while this was in flight: the answer is about the old refresh token.
+      // Saving or clearing now would overwrite the new session, so drop it; the tokens are fresh.
+      if (epoch !== started) {
+        ended = false;
+        return true;
+      }
       // Only a 401 means the refresh token is dead. A 429 or a cold-start 503 keeps the
       // session, so a busy server never signs anyone out.
       ended = res.status === 401;
@@ -161,9 +174,13 @@ const NO_RETRY = new Set(["/v1/auth/exchange", "/v1/auth/refresh"]);
  * @param {RequestOptions} [init]
  */
 export async function request(path, init) {
+  const started = epoch;
   let res = await send(path, init);
   if (res.status === 401 && !NO_RETRY.has(path)) {
-    if (await refresh()) {
+    if (epoch !== started) {
+      // Sent under the old session, answered after a new sign-in: just send it again.
+      res = await send(path, init);
+    } else if (await refresh()) {
       res = await send(path, init);
       if (res.status === 401) onExpired();
     } else if (ended) onExpired();
@@ -190,15 +207,40 @@ export async function openStream(path, signal) {
 /**
  * POST /v1/auth/exchange with a Firebase ID token, or `dev_phone` against a local dev backend
  * only (never staging).
+ * Single-flight: a second call while one runs gets the same answer, so a double submit never
+ * creates two sessions.
  * @param {{ firebaseIdToken?: string, devPhone?: string }} input
  * @returns {Promise<ExchangeOut>}
  */
-export async function exchange({ firebaseIdToken, devPhone }) {
+export function exchange(input) {
+  exchanging ??= doExchange(input).finally(() => {
+    exchanging = null;
+  });
+  return exchanging;
+}
+
+/** @type {Promise<ExchangeOut> | null} */
+let exchanging = null;
+
+/** @param {{ firebaseIdToken?: string, devPhone?: string }} input */
+async function doExchange({ firebaseIdToken, devPhone }) {
   const device = { platform: NATIVE ? "android" : "web", push_token: null };
   const body = firebaseIdToken
     ? { firebase_id_token: firebaseIdToken, device }
     : { dev_phone: devPhone, device };
-  const out = await request("/v1/auth/exchange", { method: "POST", body });
+  /** @type {ExchangeOut} */
+  let out;
+  try {
+    out = await request("/v1/auth/exchange", { method: "POST", body });
+  } catch (e) {
+    // The account was queued for deletion: signing in again keeps it.
+    if (!(e instanceof ApiError && e.code === "identity.deletion_pending")) throw e;
+    out = await request("/v1/auth/exchange", {
+      method: "POST",
+      body: { ...body, keep_account: true },
+    });
+  }
+  epoch++;
   await tokens.save(out);
   return out;
 }
