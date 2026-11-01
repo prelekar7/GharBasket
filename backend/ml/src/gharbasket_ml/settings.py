@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -65,11 +65,38 @@ class Settings(BaseSettings):
         )
 
     @property
+    def registry_sync_warning(self) -> str | None:
+        """Why a half-set registry configuration is not followed (logged once at startup)."""
+        given = [
+            name
+            for name, value in (
+                ("S3_ENDPOINT_URL", self.s3_endpoint_url),
+                ("S3_ACCESS_KEY", self.s3_access_key),
+                ("S3_SECRET_KEY", self.s3_secret_key),
+            )
+            if value
+        ]
+        if not given:
+            return None
+        if self.models_dir is not None:
+            return f"MODELS_DIR is set, so {', '.join(given)} are ignored: R2 is not read"
+        if len(given) < 3:
+            return f"only {', '.join(given)} of the three S3 settings set: R2 is not read"
+        return None
+
+    @property
     def served_models_dir(self) -> Path | None:
         """The folder the ranker and `/models` read: MODELS_DIR, else the R2 cache, else None."""
         if self.models_dir is not None:
             return self.models_dir
         return self.models_cache_dir if self.registry_sync_enabled else None
+
+    @field_validator("s3_endpoint_url")
+    @classmethod
+    def _endpoint_is_http(cls, value: str | None) -> str | None:
+        if value and not value.lower().startswith(("http://", "https://")):
+            raise ValueError("S3_ENDPOINT_URL must be an http:// or https:// URL")
+        return value or None
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:

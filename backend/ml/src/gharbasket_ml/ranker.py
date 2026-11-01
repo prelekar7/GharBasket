@@ -105,15 +105,17 @@ def load(
     *,
     reload_s: float = RELOAD_S,
     clock: Callable[[], float] = time.monotonic,
+    force: bool = False,
 ) -> Loaded | None:
-    """The model to serve, re-read at most every `reload_s` seconds. A bad registry keeps the
-    last good model (or None) until the next read; it never raises."""
+    """The model to serve, re-read at most every `reload_s` seconds (`force`: now, as after a
+    registry sync moved the pointer). A bad registry keeps the last good model (or None) until
+    the next read; it never raises."""
     if models_dir is None:
         return None
     now = clock()
     with _lock:
         hit = _cache.get(models_dir)
-        if hit is not None and now - hit[0] < reload_s:
+        if hit is not None and not force and now - hit[0] < reload_s:
             return hit[1]
         try:
             loaded = _read(models_dir)

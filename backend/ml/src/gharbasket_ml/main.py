@@ -7,6 +7,7 @@ Only the API calls it (through `intel_gateway.api`), with the shared service tok
 import asyncio
 import contextlib
 import hmac
+import logging
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Annotated
@@ -46,6 +47,8 @@ from gharbasket_ml.schemas import (
 )
 from gharbasket_ml.settings import Settings, get_settings
 
+log = logging.getLogger(__name__)
+
 _bearer = HTTPBearer(auto_error=False)
 
 
@@ -74,13 +77,13 @@ async def require_service_token(
 
 
 def _reload_ranker(models_dir: Path, reload_s: float) -> Callable[[list[str]], None]:
-    """After a sync moved the ranker: drop the cached model, then load the new one in the sync's
-    thread, so it is served at once and no request pays the load."""
+    """After a sync moved the ranker: re-read it now, in the sync's thread, so the new version
+    is served at once and no request pays the load. Forced, not cleared: a new version that
+    cannot be served keeps the last good model (ranker.load), never the fallback."""
 
     def reload(changed: list[str]) -> None:
         if ranker.MODEL_NAME in changed:
-            ranker.clear_cache()
-            ranker.load(models_dir, reload_s=reload_s)
+            ranker.load(models_dir, reload_s=reload_s, force=True)
 
     return reload
 
@@ -92,7 +95,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.dependency_overrides.get(get_settings, get_settings)()
     sync: model_sync.ModelSync | None = None
     task: asyncio.Task[None] | None = None
+    if (warning := settings.registry_sync_warning) is not None:
+        log.warning("model registry: %s", warning)
     if settings.registry_sync_enabled:
+        # A test hook: tests put a fake registry here before the app starts; unset in service.
         reader = getattr(app.state, "registry_reader", None) or model_sync.R2Reader.from_settings(
             settings
         )
@@ -108,11 +114,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        if sync is not None:
+            sync.stop()  # a running sync gives up at its next piece or request
         if task is not None:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         if sync is not None:
+            # The worker thread outlives the cancelled task: close the client only once it is
+            # done (bounded by one request's timeouts).
+            if not await asyncio.to_thread(sync.wait_idle, settings.models_sync_timeout_s + 5):
+                log.warning("model registry: a sync was still running at shutdown")
             sync.close()
 
 
@@ -242,7 +254,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def basket_rank(
         body: RankRequest, settings: Annotated[Settings, Depends(get_settings)]
     ) -> RankResponse:
-        return ranker.rank(body, settings.served_models_dir, settings.models_reload_s)
+        # Off the event loop: a (re)load reads the model file under the ranker's lock.
+        return await run_in_threadpool(
+            ranker.rank, body, settings.served_models_dir, settings.models_reload_s
+        )
 
     @app.post(
         "/assign/kitchens",
