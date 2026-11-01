@@ -1,7 +1,8 @@
-"""The pantry twin v1: NumPyro recovers per-adult-equivalent cohort priors from the daily-use
-share, the out-of-sample check against the rule table, one candidate per data source, the
-registry document, `just promote` (champion/challenger, the push that serving follows) and the
-job's read of locked boxes, which is the serving twin's own."""
+"""The pantry twin v1: NumPyro recovers per-adult-equivalent cohort priors from the households'
+taps (the serving twin's own likelihood), the out-of-sample check against the rule table (the
+held-out taps' log score), one candidate per data source, the registry document, `just
+promote` (champion/challenger, the push that serving follows) and the job's read of locked
+boxes, which is the serving twin's own."""
 
 import json
 import math
@@ -12,6 +13,8 @@ from typing import Any
 import httpx2
 import numpy as np
 import pytest
+from gharbasket_ml.pantry import WASTED_SHARE, WEEK_SIGMA, posterior
+from gharbasket_ml.schemas import PantryItemIn
 from gharbasket_training import pantry_priors
 from gharbasket_training.jobs import promote
 from gharbasket_training.jobs import refit_pantry as job
@@ -21,35 +24,52 @@ from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 STEP = 500.0  # ml of milk in one step
-PER_AE = 2.0  # the truth: steps of milk a week per adult equivalent (the rule table says 2.8)
+PER_AE = 1000.0  # the truth: ml of milk a week per adult equivalent (the rule table says 1400)
+SPREAD = 0.2  # the truth: households' spread around it, on the log scale
 EQUIVALENTS = {"small": (1.0, 1.8), "medium": (2.0, 3.3), "large": (3.5, 5.0)}
 
 
+def tap(use: float, box: float) -> str:
+    if use > box:
+        return "ran_out"
+    if use <= box - WASTED_SHARE * box:
+        return "wasted"
+    return "just_right"
+
+
 def synthetic(
-    seed: int = 7, weeks: int = 6, households: int = 4, data_source: str = "synthetic"
+    seed: int = 7,
+    weeks: int = 6,
+    households: int = 4,
+    data_source: str = "synthetic",
+    feedback: float = 0.8,
+    boxes: tuple[float, float] = (1.0, 1.0),
 ) -> list[pantry_priors.Observation]:
-    """Households of every cohort with their own adult equivalents; each uses about PER_AE
-    steps a week per equivalent (x a household factor), observed as a fractional daily-use
-    share, some weeks with a tap."""
+    """Households of every cohort with their own adult equivalents, each using about PER_AE ml
+    a week per equivalent (x its own factor, x the week's noise), boxed from the rule table
+    (x a factor drawn from `boxes`, rounded up to a step) and tapping on most boxes, as the
+    serving twin sees them."""
     rng = random.Random(seed)
     out = []
     for cohort, (low, high) in EQUIVALENTS.items():
         for h in range(households):
             equivalents = round(rng.uniform(low, high - 0.01), 2)
-            rate = PER_AE * equivalents * rng.uniform(0.85, 1.15)
+            rate = PER_AE * equivalents * math.exp(rng.gauss(0, SPREAD))
             for w in range(weeks):
-                steps = sum(1 for _ in range(200) if rng.random() < rate / 200)  # ~Poisson
-                share = steps * STEP + rng.uniform(-60, 60)  # not a whole number of steps
+                box = math.ceil(1400 * equivalents * rng.uniform(*boxes) / STEP) * STEP
+                use = rate * math.exp(rng.gauss(0, WEEK_SIGMA))
+                signal = tap(use, box) if rng.random() < feedback else None
                 out.append(
                     pantry_priors.Observation(
                         f"{data_source}-{cohort}-{h}",
                         equivalents,
                         "milk",
                         w,
-                        max(share, 0.0),
-                        None,
+                        box,
+                        signal,
                         STEP,
                         data_source,
+                        delivered=box,
                     )
                 )
     return out
@@ -62,24 +82,24 @@ def quick(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_the_learned_priors_beat_the_rule_table_out_of_sample(quick: None) -> None:
-    """Where priors matter: new households, two weeks before the scored one. With five weeks
-    of history (`synthetic()`) the household's own weeks outweigh any prior and even the true
-    one ties the rule table on 12 scored weeks; here the learned priors win on every data seed
-    tried (1 to 10, by 0.04 to 0.08 of MAE, macOS and amd64 alike)."""
+    """Where priors matter: new households, two boxes before the scored tap. The rule table
+    says 1400 ml per adult equivalent, the households use about 1000: priors learned from the
+    other households' taps predict the held-out taps better."""
     metrics = pantry_priors.evaluate(synthetic(weeks=3, households=24))
 
-    assert metrics["learned_priors"]["households_weeks"] == 72
-    assert metrics["learned_priors"]["mae_pct"] < metrics["rule_table"]["mae_pct"] - 0.02
+    learned, table = metrics["learned_priors"], metrics["rule_table"]
+    assert learned["households_weeks"] == table["households_weeks"] > 50
+    assert learned["tap_log_score"] > table["tap_log_score"] + 0.1
     assert pantry_priors.beats_rule_table(metrics)[0]
 
 
 def test_a_stuck_chain_keeps_the_rule_table(quick: None, monkeypatch: pytest.MonkeyPatch) -> None:
     """A chain whose step size collapsed returns its starting point for every draw; that is
     never published as a prior."""
-    frozen = {"mu": np.ones((5, 3)), "w": np.full((5, 3), 2.0)}
+    frozen = {"log_mu": np.ones((5, 3)), "s": np.full((5, 3), 0.2)}
     assert pantry_priors._stuck(frozen, np.zeros(5)) == "sampler stuck (mean acceptance 0.00)"
-    assert pantry_priors._stuck(frozen, np.full(5, 0.9)) == "sampler stuck (mu never moved)"
-    moving = {"mu": np.arange(15.0).reshape(5, 3), "w": np.arange(15.0).reshape(5, 3)}
+    assert pantry_priors._stuck(frozen, np.full(5, 0.9)) == "sampler stuck (log_mu never moved)"
+    moving = {"log_mu": np.arange(15.0).reshape(5, 3), "s": np.arange(15.0).reshape(5, 3)}
     assert pantry_priors._stuck(moving, np.full(5, 0.9)) is None
 
     monkeypatch.setattr(pantry_priors, "_stuck", lambda draws, accept: "sampler stuck (test)")
@@ -87,7 +107,7 @@ def test_a_stuck_chain_keeps_the_rule_table(quick: None, monkeypatch: pytest.Mon
     assert fitted.priors == [] and fitted.skipped == {"milk": "sampler stuck (test)"}
 
 
-def test_cohorts_and_fractional_tap_corrected_counts() -> None:
+def test_cohorts_and_what_a_tap_bounds() -> None:
     assert [pantry_priors.cohort_of(x) for x in (1.0, 1.99, 2.0, 3.49, 3.5, 6)] == [
         "small",
         "small",
@@ -96,80 +116,90 @@ def test_cohorts_and_fractional_tap_corrected_counts() -> None:
         "large",
         "large",
     ]
-    ran_out = pantry_priors.Observation("h", 1.0, "milk", 0, 1100, "ran_out", STEP)
-    assert ran_out.count == pytest.approx(1100 * 1.3 / 500)  # 2.86, never rounded to 3
-    assert ran_out.use == pytest.approx(1430) and ran_out.cohort == "small"
+    obs = lambda signal, delivered=None: pantry_priors.Observation(  # noqa: E731
+        "h", 1.0, "milk", 0, 1000, signal, STEP, delivered=delivered
+    )
+    assert obs("ran_out").bounds == (1000, math.inf) and obs("ran_out").cohort == "small"
+    assert obs("wasted", 1600).bounds == (0.0, 600.0)  # a quarter of the whole box was left
+    assert obs("just_right", 1600).bounds == (600.0, 1000)
+    assert obs(None).bounds is None  # an untapped box says nothing about use
 
 
-def test_numpyro_recovers_the_per_equivalent_use(quick: None) -> None:
-    observed = synthetic()
+def test_numpyro_recovers_the_per_equivalent_use_and_the_spread(quick: None) -> None:
+    """With boxes on both sides of the households' use (as once the box follows the twin),
+    the taps bound the use from both sides and the fit recovers it. (From rule-table boxes
+    alone, 40 % above the truth here, nearly every tap is "wasted": an upper bound only.)"""
+    observed = synthetic(households=8, boxes=(0.5, 1.1))
 
     fitted = pantry_priors.fit(observed, "test")
 
     by_key = fitted.by_key()
     assert fitted.skipped == {} and set(by_key) == {(c, "milk") for c in pantry_priors.COHORTS}
+    tapped = sum(1 for o in observed if o.signal is not None)
+    assert sum(p.weeks for p in fitted.priors) == tapped
     for cohort in pantry_priors.COHORTS:  # per adult equivalent, so the same in every cohort
         prior = by_key[(cohort, "milk")]
-        assert prior.prior_mean_per_ae / STEP == pytest.approx(PER_AE, rel=0.25), cohort
-        assert 0.5 <= prior.prior_weeks <= 52 and prior.households == 4 and prior.weeks == 24
+        assert prior.prior_mean_per_ae == pytest.approx(PER_AE, rel=0.15), cohort
+        # prior_weeks = WEEK_SIGMA^2 / s^2: the truth (s = 0.2) is 0.25 weeks.
+        assert 0.05 <= prior.prior_weeks <= 2.0 and prior.households == 8
         assert prior.rule_mean_per_ae == 1400
 
     train, held = pantry_priors.split_last_week(observed)
-    assert {o.week for o in held} == {5} and max(o.week for o in train) == 4
-    assert len(held) == 12 and len(train) == 60
+    assert all(o.signal is not None for o in held)
+    assert {o.household for o in held} == {o.household for o in observed if o.signal}
+    assert all(o.week < h.week for h in held for o in train if o.household == h.household)
 
-    metrics = pantry_priors.evaluate(observed)
-
-    assert metrics["learned_priors"]["households_weeks"] == 12
-    assert metrics["rule_table"]["households_weeks"] == 12
-
-    document = pantry_priors.as_document(fitted, metrics, "synthetic")
+    document = pantry_priors.as_document(fitted, pantry_priors.evaluate(observed), "synthetic")
     assert document["model"] == "pantry_priors" and len(document["items"]) == 3
-    assert document["items"][0]["prior_mean_per_ae"] > 0
-    assert document["metrics_split"] == "holdout_last_week"
+    assert document["metrics_split"] == "holdout_last_tap"
+    assert document["metrics"]["learned_priors"]["households_weeks"] == len(held)
 
 
 def test_the_serving_prior_scales_with_the_household_as_m3_sends_it() -> None:
     big = pantry_priors.Observation("h", 4.0, "milk", 0, 0.0, None, STEP)
     prior = pantry_priors.Prior("large", "milk", 1000.0, 3.0, 5, 20)
-    assert pantry_priors.serving_prior(big, {("large", "milk"): prior}) == (4000.0, 3.0, "learned")
     weight = pantry_priors.RULE_PRIOR_WEEKS
+    assert pantry_priors.serving_prior(big, {("large", "milk"): prior}) == (4000.0, 3.0, "learned")
     assert pantry_priors.serving_prior(big, None) == (1400 * 4.0, weight, "rule")
     assert pantry_priors.serving_prior(big, {("small", "milk"): prior}) == (5600.0, weight, "rule")
 
 
-def test_the_holdout_never_sees_the_scored_week() -> None:
-    """A household's last week is far off its earlier weeks: a prior fitted on the earlier weeks
-    only cannot have learned it, and the score is computed against that week."""
-    observed = [
-        pantry_priors.Observation("a", 1.0, "milk", w, 1000.0, None, STEP) for w in range(3)
-    ] + [pantry_priors.Observation("a", 1.0, "milk", 3, 9000.0, None, STEP)]
+def test_the_holdout_scores_the_last_tap_with_the_serving_twin() -> None:
+    """The household's last tapped week is held out; the score is the log of the probability
+    the serving twin, given only the earlier boxes, put on that tap's interval."""
+    o = lambda w, signal: pantry_priors.Observation(  # noqa: E731
+        "a", 1.0, "milk", w, 1500.0, signal, STEP, delivered=1500.0
+    )
+    observed = [o(0, "wasted"), o(1, None), o(2, "wasted"), o(3, "ran_out"), o(4, None)]
     train, held = pantry_priors.split_last_week(observed)
-    assert [o.week for o in held] == [3] and all(o.share == 1000.0 for o in train)
-    table = pantry_priors.holdout_mae(train, held, None)
-    # Three untapped boxes say nothing about use (M10 §3.3 v0.2): the serving twin answers the
-    # rule table's prior predictive mean.
-    from gharbasket_ml.pantry import posterior
-    from gharbasket_ml.schemas import PantryItemIn
-
-    rule = posterior(
+    assert [x.week for x in held] == [3] and [x.week for x in train] == [0, 1, 2]
+    table = pantry_priors.holdout_tap_score(train, held, None)
+    before = posterior(
         PantryItemIn(
-            product="milk", step=STEP, prior_mean=1400, prior_weeks=pantry_priors.RULE_PRIOR_WEEKS
+            product="milk",
+            step=STEP,
+            prior_mean=1400,
+            prior_weeks=pantry_priors.RULE_PRIOR_WEEKS,
+            observations=[x.served() for x in train],
         )
-    ).mean
-    assert table == {"mae_pct": round((9000 - rule) / 9000, 4), "households_weeks": 1}
+    )
+    expected = math.log(before.probability(1500.0, math.inf))
+    assert table == {"tap_log_score": round(expected, 4), "households_weeks": 1}
+    assert expected < math.log(0.5)  # two "wasted" taps made "ran out" unlikely
 
 
 def test_too_few_households_keep_the_rule_table(quick: None) -> None:
     few = [o for o in synthetic() if o.household.endswith(("-0", "-1")) and "small" in o.household]
     fitted = pantry_priors.fit(few, "test")
     assert fitted.priors == [] and fitted.skipped == {"milk": "2 households"}
-    assert math.isnan(pantry_priors.holdout_mae([], [], None)["mae_pct"])
+    assert math.isnan(pantry_priors.holdout_tap_score([], [], None)["tap_log_score"])
     assert not pantry_priors.beats_rule_table(pantry_priors.evaluate(few))[0]
     two_large = [o for o in synthetic() if "large" not in o.household or o.household[-1] in "01"]
     partial = pantry_priors.fit(two_large, "test")
     assert {p.cohort for p in partial.priors} == {"small", "medium"}
     assert partial.skipped == {"milk/large": "2 households"}
+    untapped = [o for o in synthetic(feedback=0.0)]
+    assert pantry_priors.fit(untapped, "test").skipped == {"milk": "0 households"}
 
 
 def test_sources_are_never_pooled_and_versions_carry_the_source(
@@ -200,20 +230,20 @@ def _card(learned: float, table: float, version: str = "v-synthetic") -> dict[st
             {"cohort": "small", "product": "milk", "prior_mean_per_ae": 1000.0, "prior_weeks": 3.0}
         ],
         "metrics": {
-            "rule_table": {"mae_pct": table, "households_weeks": 10},
-            "learned_priors": {"mae_pct": learned, "households_weeks": 10},
+            "rule_table": {"tap_log_score": table, "households_weeks": 10},
+            "learned_priors": {"tap_log_score": learned, "households_weeks": 10},
         },
     }
 
 
 def test_promote_checks_the_challenger_and_moves_the_pointer(tmp_path: Path) -> None:
     registry = open_registry(Settings(), tmp_path)
-    job.publish(registry, _card(0.10, 0.20, "2026-10-04-synthetic"))
-    job.publish(registry, _card(0.30, 0.20, "2026-10-11-synthetic"))
+    job.publish(registry, _card(-0.80, -1.00, "2026-10-04-synthetic"))
+    job.publish(registry, _card(-1.20, -1.00, "2026-10-11-synthetic"))
 
     first = promote.promote(registry, "pantry_priors", "2026-10-04-synthetic")
     assert first["version"] == "2026-10-04-synthetic" and "previous" not in first
-    with pytest.raises(SystemExit, match=r"not promoted: learned priors 0\.3000 >= rule table"):
+    with pytest.raises(SystemExit, match=r"not promoted: learned priors -1\.2000 <= rule table"):
         promote.promote(registry, "pantry_priors", "2026-10-11-synthetic")
     assert json.loads((tmp_path / "pantry_priors/latest.json").read_text())["version"] == (
         "2026-10-04-synthetic"
@@ -271,7 +301,7 @@ async def test_promotion_pushes_the_versions_priors_before_the_pointer(tmp_path:
 
     settings = Settings(api_url="https://api.test", jobs_token=SecretStr("t"))
     async with httpx2.AsyncClient(transport=httpx2.MockTransport(handle)) as http:
-        assert await promote.push_priors(http, settings, _card(0.1, 0.2)) == 1
+        assert await promote.push_priors(http, settings, _card(-0.8, -1.0)) == 1
     assert sent == [
         {
             "version": "v-synthetic",
@@ -297,13 +327,14 @@ async def test_the_job_pushes_only_out_of_sample_metrics_per_source() -> None:
         return httpx2.Response(200, json={"accepted": len(body["items"])})
 
     settings = Settings(api_url="https://api.test", jobs_token=SecretStr("t"))
-    document = _card(0.1, 0.2, "v-real") | {"data_source": "real"}
+    document = _card(-0.8, -1.0, "v-real") | {"data_source": "real"}
     async with httpx2.AsyncClient(transport=httpx2.MockTransport(handle)) as http:
         assert await job.push_metrics(http, settings, document) == 2
     assert [path for path, _ in sent] == ["/v1/internal/intel/model-metrics"]
     items = sent[0][1]["items"]
     assert {i["model_name"] for i in items} == {"pantry_priors", "pantry_priors_rule_table"}
     assert {i["data_source"] for i in items} == {"live"}  # real households, never "mixed"
+    assert {i["metric"] for i in items} == {"tap_log_score"}
 
 
 @pytest.mark.anyio
@@ -357,11 +388,11 @@ async def test_the_job_observes_exactly_what_the_serving_twin_observes(
             (o for o in observed if o.household == household), key=lambda o: (o.product, o.week)
         )
         expected = sorted(
-            (slug[pid], share, signal or "")
+            (slug[pid], share, signal or "", delivered)
             for pid, rows in served.items()
-            for share, signal, _ in rows
+            for share, signal, delivered in rows
         )
-        assert sorted((o.product, o.share, o.signal or "") for o in mine) == expected
+        assert sorted((o.product, o.share, o.signal or "", o.delivered) for o in mine) == expected
     # Not whole boxes: the recipes' need is taken off what the boxes delivered.
     delivered = (
         await db_session.execute(
