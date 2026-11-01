@@ -137,6 +137,8 @@ async def push(
     """Store the features through `POST /v1/internal/intel/feature-snapshots`."""
     if not settings.api_url or settings.jobs_token is None:
         raise RuntimeError("set API_URL and JOBS_TOKEN to push the features")
+    if not features:  # the endpoint takes 1 to 5000 items; nothing to store is not an error
+        return 0
     body = {
         "as_of": as_of.isoformat(),
         "items": [

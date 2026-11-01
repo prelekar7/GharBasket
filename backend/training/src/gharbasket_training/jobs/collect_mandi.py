@@ -213,6 +213,8 @@ async def push_index(http: httpx2.AsyncClient, settings: Settings, rows: list[In
     """Hand the index to the API (`POST /v1/internal/intel/price-index`); returns rows accepted."""
     if not settings.api_url or settings.jobs_token is None:
         raise RuntimeError("set API_URL and JOBS_TOKEN to push the index")
+    if not rows:  # the endpoint takes at least one item; nothing to store is not an error
+        return 0
     body = {
         "items": [
             {
