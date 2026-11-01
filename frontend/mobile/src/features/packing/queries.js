@@ -31,17 +31,34 @@ import { isDone } from "./lines.js";
  * @typedef {{ hub: { id: string, name: string }, date: string, van_departs_at: string, tasks: PackingTask[] }} PackingDay
  */
 /**
- * A bag that takes a shortage and what that family gets: a swap they allowed (`substitute`) or money back.
+ * A bag that takes a shortage and what that family gets: a substitute they allowed or money back
+ * (M1's preference words). For an open bag `substitute` is the first listed product in stock; for a
+ * reported one, the product that was packed.
  * @typedef {{ task_id: string, bag_qr: string, society: string, flat_label: string | null, qty: number,
- *   outcome: "swap" | "refund", substitute: PackProduct | null, refund_paise: number }} ShortBagOut
+ *   outcome: "substitute" | "refund", substitute: PackProduct | null, refund_paise: number }} ShortBagOut
  */
 /**
  * An item short today: the goods-receipt gap in steps and the bags it can fall on, then the bags it
- * has (GET /v1/hubs/{id}/shortages, a mock-only proposal to M6). `needed`/`received` are null for
- * one reported at a bag.
- * @typedef {PackProduct & { needed: number | null, received: number | null,
+ * has (GET /v1/hubs/{id}/shortages, M6 §3.6). `received` is null when the step does not convert to
+ * the operations unit; `short_by` is then 0.
+ * @typedef {PackProduct & { needed: number, received: number | null, short_by: number,
  *   bags: ShortBagOut[], reported: ShortBagOut[] }} ShortItem
  */
+
+/**
+ * The substitute to send for a bag, or null for money back: only when the family's rule allows one
+ * (`outcome: "substitute"`) and the list named a product. The server checks the rule again.
+ * @param {ShortBagOut} bag
+ */
+export const substituteFor = (bag) =>
+  bag.outcome === "substitute" ? (bag.substitute?.product_id ?? null) : null;
+
+/** The POST /v1/packing-tasks/{id}/shortage body for one listed bag of `item`. @param {ShortItem} item @param {ShortBagOut} bag */
+export const shortageBody = (item, bag) => ({
+  product_id: item.product_id,
+  short_qty: bag.qty,
+  substitute_product_id: substituteFor(bag),
+});
 
 /** The packer's hub, from her role grant. */
 export const useHubId = () =>
@@ -118,7 +135,7 @@ export function usePrefetchNext(tasks) {
   }, [client, hubId, lang, wanted]);
 }
 
-/** Items short today and the bags they fall on (mock-only proposal, see ShortItem). */
+/** Items short today and the bags they fall on (GET /v1/hubs/{id}/shortages, M6 §3.6). */
 export function useShortages() {
   const hubId = useHubId();
   const { i18n } = useTranslation();
@@ -251,11 +268,11 @@ export function usePackingActions() {
           if (row) actions.started(row);
           patchRow(b.task_id, (t) => ({ ...t, lines_done: t.lines_done + 1 }));
           client.invalidateQueries({ queryKey: taskKey(b.task_id), refetchType: "none" });
-          return send(/** @type {PackingTask} */ ({ id: b.task_id }), "shortage", {
-            product_id: item.product_id,
-            short_qty: b.qty,
-            substitute_product_id: b.outcome === "swap" ? (b.substitute?.product_id ?? null) : null,
-          });
+          return send(
+            /** @type {PackingTask} */ ({ id: b.task_id }),
+            "shortage",
+            shortageBody(item, b),
+          );
         }),
       );
     },

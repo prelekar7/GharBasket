@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { shortageBody } from "@/features/packing/queries.js";
 import { mockFetch } from "./index.js";
 import { HUB_ID, resetPacking, seedAllPacked } from "./packer.js";
 
@@ -218,6 +219,33 @@ describe("shortages", () => {
     expect(lineOf(await picked.json(), "methi").done).toBe(true);
   });
 
+  it("sends what the shortage list says: the listed substitute, or none for a family that chose money back", async () => {
+    const [methi] = (await (await call("GET", SHORTAGES)).json()).items;
+    const [allowed, refunded] = methi.bags;
+    expect([allowed.outcome, refunded.outcome]).toEqual(["substitute", "refund"]);
+    // A substitute the family allowed: the whole line is swapped, nothing is refunded.
+    const body = shortageBody(methi, allowed);
+    expect(body).toEqual({
+      product_id: methi.product_id,
+      short_qty: allowed.qty,
+      substitute_product_id: allowed.substitute.product_id,
+    });
+    await call("POST", `/v1/packing-tasks/${allowed.task_id}/start`);
+    const swapped = await call("POST", `/v1/packing-tasks/${allowed.task_id}/shortage`, body);
+    expect(lineOf(await swapped.json(), "methi")).toMatchObject({ short_qty: 0 });
+    // Money back: no substitute is sent and the steps are refunded.
+    const refund = shortageBody(methi, refunded);
+    expect(refund.substitute_product_id).toBeNull();
+    await call("POST", `/v1/packing-tasks/${refunded.task_id}/start`);
+    const done = await call("POST", `/v1/packing-tasks/${refunded.task_id}/shortage`, refund);
+    expect(lineOf(await done.json(), "methi")).toMatchObject({ short_qty: refunded.qty });
+    const [after] = (await (await call("GET", SHORTAGES)).json()).items;
+    expect(after.reported.map((/** @type {any} */ b) => [b.task_id, b.outcome])).toEqual([
+      [allowed.task_id, "substitute"],
+      [refunded.task_id, "refund"],
+    ]);
+  });
+
   it("refuses a swap for a family that chose money back, or for part of a line", async () => {
     const task = await bySeq(4);
     await post(task, "start");
@@ -236,12 +264,17 @@ describe("shortages", () => {
   it("proposal: lists methi short with each family's choice, then moves the reported bags", async () => {
     const list = async () => (await (await call("GET", SHORTAGES)).json()).items;
     const [methi] = await list();
-    expect([methi.slug, methi.needed, methi.received]).toEqual(["methi", 30, 26]);
+    expect([methi.slug, methi.needed, methi.received, methi.short_by]).toEqual([
+      "methi",
+      30,
+      26,
+      4,
+    ]);
     expect(methi.bags.map((/** @type {any} */ b) => b.outcome)).toEqual([
-      "swap",
+      "substitute",
       "refund",
-      "swap",
-      "swap",
+      "substitute",
+      "substitute",
       "refund",
       "refund",
     ]);

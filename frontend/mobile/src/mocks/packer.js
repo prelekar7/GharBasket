@@ -93,11 +93,11 @@ KUNJ_FLATS.push("B-104", "B-202", "B-301", "B-303", "B-402", "B-404");
 
 /** Tasks (queue position) that are short of methi today, and what each family chose (designs). */
 const METHI_SHORT = [
-  { seq: 3, outcome: "swap" },
+  { seq: 3, outcome: "substitute" },
   { seq: 4, outcome: "refund" },
-  { seq: 6, outcome: "swap" },
+  { seq: 6, outcome: "substitute" },
   { seq: 51, outcome: "refund" },
-  { seq: 40, outcome: "swap" },
+  { seq: 40, outcome: "substitute" },
   { seq: 56, outcome: "refund" },
 ];
 const prefersRefund = (/** @type {number} */ seq) =>
@@ -481,10 +481,10 @@ export const packerHandlers = [
     }),
   ),
 
-  // MOCK-ONLY PROPOSAL (not in M6 §3.2): items that came in short today (the goods-receipt gap,
-  // M6 §3.4 once built), the bags that can still take the shortage and those that have, each with
-  // what the family gets: a swap they allowed (`substitute`, chosen by the server from
-  // catalog.api.substitute_ids) or money back. `needed` and `received` are in steps.
+  // M6 §3.6: items that came in short today (the goods-receipt gap), the bags that can still take
+  // the shortage and those that have, each with what the family gets: a substitute they allowed
+  // (chosen by the server from catalog.api.substitute_ids) or money back. `needed`, `received` and
+  // `short_by` are in steps.
   http.get("*/v1/hubs/:hubId/shortages", ({ request, params }) => {
     const denied = staff(request);
     if (denied) return denied;
@@ -500,7 +500,7 @@ export const packerHandlers = [
         society: t.society.name,
         flat_label: task.flat_label,
         qty: t.lines.find((l) => l.code === code)?.qty ?? 1,
-        outcome: swap ? "swap" : "refund",
+        outcome: swap ? "substitute" : "refund",
         substitute: swap ? productOut(PALAK, lang) : null,
         refund_paise: 2000,
       };
@@ -524,12 +524,16 @@ export const packerHandlers = [
     /** @param {string} code @param {{ needed: number, received: number, bags: ReturnType<typeof bagOut>[] }} [gap] */
     const item = (code, gap) => ({
       ...productOut(code, lang),
-      needed: gap?.needed ?? null,
+      needed: gap?.needed ?? 0,
       received: gap?.received ?? null,
+      short_by: gap ? Math.max(0, gap.needed - gap.received) : 0,
       bags: gap?.bags ?? [],
       reported: reported[code] ?? [],
     });
     return HttpResponse.json({
+      hub_id: HUB_ID,
+      date: DATE,
+      as_of: new Date().toISOString(),
       items: [
         item(METHI, {
           needed: 30,
