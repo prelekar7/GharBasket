@@ -22,6 +22,11 @@ def test_the_buffer_the_short_life_cap_and_rounding() -> None:
     assert q(ten, Decimal(3), 10, None, zero, "kg") == ("forecast", Decimal(3), Decimal(13))
     assert q(Decimal("1.234"), None, 10, None, zero, "kg")[2] == Decimal("1.4")
     assert q(ten, None, 10, None, Decimal(12), "piece")[2] == 0  # never negative
+    # Add-on orders already in `committed` are part of M10's uncommitted demand: counted once.
+    three, two = Decimal(3), Decimal(2)
+    assert q(ten, three, 10, None, zero, "kg", two) == ("forecast", Decimal(1), Decimal(11))
+    assert q(ten, two, 10, None, zero, "kg", three) == ("forecast", zero, Decimal(10))
+    assert q(ten, None, 10, None, zero, "kg", three) == ("buffer", Decimal(1), Decimal(11))
     assert procurement.to_ops(2.5, 500, "g") == Decimal("1.25")
     assert procurement.to_ops(3, 500, "ml") == Decimal("1.5")
     assert procurement.to_ops(1.5, 4, "piece") == Decimal(6)
