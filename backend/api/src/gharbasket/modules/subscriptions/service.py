@@ -498,19 +498,21 @@ async def learned_preferences(
 
 
 OBSERVED_WEEKS = 12  # how far back the twin looks at boxes and taps
-RULE_PRIOR_WEEKS = 2.0  # the rule table's weight as the twin's prior
 
 
 @dataclass(frozen=True)
 class DailyUseShare:
     """One locked box's daily-use share of one twin product (M10 §3.3): what the box delivered
-    minus what that week's planned recipes needed, never below 0, and the household's tap."""
+    minus what that week's recipes needed (the cycle's stored meal plan, swapped meals
+    included), never below 0, the household's tap and the delivered quantity (the "wasted" tap
+    is against it)."""
 
     delivery_date: date
     data_source: str  # the cycle's: real | synthetic
     product_id: uuid.UUID
     share: float  # base units
     signal: str | None
+    delivered: float = 0.0  # base units, recipes included
 
 
 async def daily_use_history(
@@ -572,6 +574,7 @@ async def daily_use_history(
                     product.id,
                     max(0.0, units - need.get(product.id, 0.0)),
                     taps.get((cycle.id, product.id)),
+                    units,
                 )
             )
     return out
@@ -582,10 +585,11 @@ async def pantry_observations(
     profile: identity_api.HouseholdPlanProfile,
     catalog: catalog_api.PlanCatalog,
     delivery_date: date,
-) -> dict[uuid.UUID, list[tuple[float, str | None]]]:
+) -> dict[uuid.UUID, list[tuple[float, str | None, float]]]:
     """Per twin product (perishable daily use): each locked box of the last OBSERVED_WEEKS weeks
-    that carried it, oldest first, as (daily-use share in base units, the household's tap)."""
-    out: dict[uuid.UUID, list[tuple[float, str | None]]] = {}
+    that carried it, oldest first, as (daily-use share in base units, the household's tap, the
+    delivered quantity in base units)."""
+    out: dict[uuid.UUID, list[tuple[float, str | None, float]]] = {}
     for row in await daily_use_history(
         session,
         profile,
@@ -593,7 +597,7 @@ async def pantry_observations(
         since=delivery_date - timedelta(weeks=OBSERVED_WEEKS),
         before=delivery_date,
     ):
-        out.setdefault(row.product_id, []).append((row.share, row.signal))
+        out.setdefault(row.product_id, []).append((row.share, row.signal, row.delivered))
     return out
 
 
@@ -631,7 +635,7 @@ async def twin_quantities(
             per_equivalent, prior_weeks = learned[product.id]
             prior_mean, prior_of[slug] = per_equivalent * equivalents, "learned"
         else:
-            prior_mean, prior_weeks, prior_of[slug] = prior, RULE_PRIOR_WEEKS, "rule"
+            prior_mean, prior_weeks, prior_of[slug] = prior, rules.RULE_PRIOR_WEEKS, "rule"
         items.append(
             PantryItem(
                 product=slug,
@@ -639,8 +643,8 @@ async def twin_quantities(
                 prior_mean=prior_mean,
                 prior_weeks=prior_weeks,
                 observations=[
-                    PantryObservation(qty=qty, signal=signal)  # pyright: ignore[reportArgumentType]
-                    for qty, signal in observed[product.id]
+                    PantryObservation(qty=qty, signal=signal, delivered=delivered)  # pyright: ignore[reportArgumentType]
+                    for qty, signal, delivered in observed[product.id]
                 ],
             )
         )

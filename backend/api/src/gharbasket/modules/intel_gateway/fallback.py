@@ -9,6 +9,8 @@ import math
 from typing import Literal
 
 from gharbasket.modules.intel_gateway.schemas import (
+    PantryItem,
+    PantryObservation,
     PantryQuantities,
     PantryQuantity,
     PantryRequest,
@@ -176,10 +178,13 @@ def plan_week(req: PlanRequest) -> WeekPlan:
     return WeekPlan(source="fallback", status="infeasible", relaxed=[], plan=None, model=MODEL)
 
 
-# --- the pantry twin's closed form, without SciPy (M10 §3.3) -----------------------------------
+# --- the pantry twin (M10 §3.3), the ML service's own computation in plain `math` ---------------
 
-TAP_FACTOR = {"ran_out": 1.3, "wasted": 0.7, "just_right": 1.0, None: 1.0}
-Z80 = 1.2816  # the 80 % interval of a normal approximation to the predictive
+PANTRY_MODEL = "pantry-tap-censored-v0.2"
+PANTRY_WEEK_SIGMA = 0.1  # gharbasket_ml.pantry.WEEK_SIGMA
+PANTRY_WASTED_SHARE = 0.25  # gharbasket_ml.pantry.WASTED_SHARE
+PANTRY_MIN_PRIOR_WEEKS = 0.05
+PANTRY_GRID, PANTRY_SPAN, PANTRY_BISECT = 161, 6.0, 50
 
 
 RANKER_MODEL = "frequency-v0"
@@ -204,34 +209,98 @@ def rank_basket(req: RankRequest) -> RankResponse:
     )
 
 
-def pantry_quantities(req: PantryRequest) -> PantryQuantities:
-    """Gamma-Poisson update per item: the prior carries the cohort's weekly use with the weight
-    of `prior_weeks`, each observed week adds the box's daily-use share (corrected by the tap)
-    in steps. The interval is for next week's use: the posterior predictive is Negative Binomial
-    (mean alpha/beta, variance alpha(beta+1)/beta^2 in steps); the ML service gives its exact
-    percentiles, this gives the same mean with a normal interval, so a customer never waits on
-    the ML service."""
-    items = []
-    for item in req.items:
-        step = max(item.step, 1e-9)
-        alpha = max(item.prior_weeks, 0.5) * max(item.prior_mean, 1e-9) / step
-        beta = max(item.prior_weeks, 0.5)
-        alpha += sum(o.qty * TAP_FACTOR[o.signal] / step for o in item.observations)
-        beta += len(item.observations)
-        mean = alpha / beta * step
-        sd = math.sqrt(alpha * (beta + 1)) / beta * step
-        items.append(
-            PantryQuantity(
-                product=item.product,
-                mean=round(mean, 2),
-                p10=round(max(0.0, mean - Z80 * sd), 2),
-                p90=round(mean + Z80 * sd, 2),
-                weeks_observed=len(item.observations),
-                alpha=round(alpha, 4),
-                beta=round(beta, 4),
-            )
+def _cdf(z: float) -> float:
+    return 0.5 * math.erfc(-z / math.sqrt(2.0))
+
+
+def _tap_interval(o: PantryObservation) -> tuple[float, float] | None:
+    """The week's daily use the tap puts it in (see `gharbasket_ml.pantry.interval`)."""
+    if o.signal is None:
+        return None
+    share = o.qty
+    delivered = max(o.delivered if o.delivered is not None else share, share)
+    waste_line = share - PANTRY_WASTED_SHARE * delivered
+    if o.signal == "ran_out":
+        lo, hi = share, math.inf
+    elif o.signal == "wasted":
+        lo, hi = 0.0, waste_line
+    else:
+        lo, hi = max(waste_line, 0.0), share
+    if hi <= 0 or hi <= lo:
+        return None
+    return lo, hi
+
+
+def _log_prob(lo: float, hi: float, centre: float, sigma: float) -> float:
+    a = (math.log(lo) - centre) / sigma if lo > 0 else -math.inf
+    b = (math.log(hi) - centre) / sigma if hi < math.inf else math.inf
+    p = _cdf(-a) - _cdf(-b) if a > 0 else _cdf(b) - _cdf(a)
+    return math.log(max(p, 1e-300))
+
+
+def _pantry_item(item: PantryItem) -> PantryQuantity:
+    sigma = PANTRY_WEEK_SIGMA
+    if item.prior_mean <= 0:
+        return PantryQuantity(
+            product=item.product,
+            mean=0.0,
+            p10=0.0,
+            p90=0.0,
+            weeks_observed=len(item.observations),
+            taps=0,
+            scale=1.0,
+            scale_sd=0.0,
         )
-    return PantryQuantities(source="fallback", model="pantry-rules-v0", items=items)
+    centre = math.log(item.prior_mean)
+    spread = sigma / math.sqrt(max(item.prior_weeks, PANTRY_MIN_PRIOR_WEEKS))
+    points = [spread * PANTRY_SPAN * (2 * i / (PANTRY_GRID - 1) - 1) for i in range(PANTRY_GRID)]
+    logs = [-0.5 * (u / spread) ** 2 for u in points]
+    taps = 0
+    for o in item.observations:
+        bounds = _tap_interval(o)
+        if bounds is None:
+            continue
+        taps += 1
+        logs = [
+            lp + _log_prob(*bounds, centre + u, sigma) for lp, u in zip(logs, points, strict=True)
+        ]
+    top = max(logs)
+    mass = [math.exp(lp - top) for lp in logs]
+    weights = [m / sum(mass) for m in mass]
+    first = sum(w * math.exp(u) for u, w in zip(points, weights, strict=True))
+    second = sum(w * math.exp(2 * u) for u, w in zip(points, weights, strict=True))
+    live = [(u, w) for u, w in zip(points, weights, strict=True) if w > 1e-12]
+
+    def quantile(q: float) -> float:
+        lo = centre + min(u for u, _ in live) - 8 * sigma
+        hi = centre + max(u for u, _ in live) + 8 * sigma
+        for _ in range(PANTRY_BISECT):
+            mid = (lo + hi) / 2
+            cdf = sum(w * _cdf((mid - centre - u) / sigma) for u, w in live)
+            lo, hi = (mid, hi) if cdf < q else (lo, mid)
+        return math.exp((lo + hi) / 2)
+
+    return PantryQuantity(
+        product=item.product,
+        mean=round(math.exp(centre + sigma**2 / 2) * first, 2),
+        p10=round(quantile(0.10), 2),
+        p90=round(quantile(0.90), 2),
+        weeks_observed=len(item.observations),
+        taps=taps,
+        scale=round(first, 4),
+        scale_sd=round(math.sqrt(max(second - first**2, 0.0)), 4),
+    )
+
+
+def pantry_quantities(req: PantryRequest) -> PantryQuantities:
+    """The pantry twin without the ML service: the same interval-censored model on the same grid
+    as `gharbasket_ml.pantry` (pure arithmetic there too), so the answer is the same and a
+    customer never waits on the ML service. The household's factor on the prior has a lognormal
+    prior worth `prior_weeks` weeks; each tapped week says which side of the box the week's use
+    fell; an untapped week says nothing about use."""
+    return PantryQuantities(
+        source="fallback", model=PANTRY_MODEL, items=[_pantry_item(i) for i in req.items]
+    )
 
 
 # --- slot pricing (M10 §3.8): an upper bound from the nearest stop, no trips --------------------

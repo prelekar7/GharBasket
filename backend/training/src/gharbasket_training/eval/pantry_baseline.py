@@ -7,9 +7,11 @@ Two views, both from the simulator's ground truth:
    simplest learner, and its error after k observed weeks is the cold-start curve.
 2. The pantry twin's scope (M-A v0): the perishable daily-use items (milk, curd), and only their
    daily-use share, which is what the twin predicts (M3 adds the week's recipes on top). The rule
-   table, the running mean of the actual daily use, and the twin, which sees only what the app
-   sees: each box's daily-use share (delivered minus the planned recipes' need, the way M3
-   computes it) and the household's taps. Its 80 % interval's coverage is the calibration metric.
+   table, the running mean of the actual daily use (an oracle: it sees the true use, which the
+   app never does), and the twin, which sees only what the app sees: each box's delivered
+   quantity, its daily-use share (delivered minus the need of the week's recipes as M3 stores
+   them, a swapped meal included) and the household's taps. Its 80 % interval's coverage is the
+   calibration metric.
    A reference arm (no target; eval protocol change log, 8 Oct 2026): the same twin started from
    cohort priors learned (`pantry_priors.fit`, M-A v1) on another seed's households, so the
    priors never saw the households they are scored on.
@@ -79,7 +81,7 @@ def learned_priors(
                     signal,
                     catalog.products[slug].step,
                 )
-                for week, share, signal in boxes
+                for week, share, signal, _ in boxes
             )
     return pantry_priors.fit(observed, f"seed-{seed}", seed=seed).by_key()
 
@@ -143,9 +145,10 @@ def run_pantry(
                     product=slug,
                     step=step,
                     prior_mean=rule[slug],
+                    prior_weeks=rules.RULE_PRIOR_WEEKS,
                     observations=[
-                        PantryObservation(qty=q, signal=sig)  # pyright: ignore[reportArgumentType]
-                        for k, q, sig in boxes[slug]
+                        PantryObservation(qty=q, signal=sig, delivered=d)  # pyright: ignore[reportArgumentType]
+                        for k, q, sig, d in boxes[slug]
                         if k < w
                     ],
                 )
@@ -180,24 +183,28 @@ def run_pantry(
 
 def _twin_observations(
     h: SimHousehold, catalog: Catalog, rows: Rows, scope: list[str]
-) -> dict[str, list[tuple[int, float, str | None]]]:
+) -> dict[str, list[tuple[int, float, str | None, float]]]:
     """What the app would know, per product and delivered week: the box's daily-use share
-    (delivered minus the planned dishes' non-optional ingredients x adult equivalents, M3's
-    `recipe_need`) and the tap. The simulator's draft sums the recipes' need and the rule
-    table's daily use on one line, as M3 does, so every delivered week counts."""
+    (delivered minus the week's dishes' non-optional ingredients x adult equivalents, M3's
+    `recipe_need`), the tap and the delivered quantity. The dishes are the final ones: a meal
+    the household swapped is stored in the cycle's `meal_plan` and redraws the box's lines
+    (M3 `set_meal`; the simulator's `edit_box` redraws them the same way), so M3's share
+    subtracts the swapped-in dish's need, not the planned one's. The simulator's draft sums the
+    recipes' need and the rule table's daily use on one line, as M3 does, so every delivered
+    week counts."""
     need: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for m in rows.meals:
-        if m["household"] == h.key and m["planned"]:
-            for i in catalog.ingredients.get(m["planned"], ()):
+        if m["household"] == h.key and m["final"]:
+            for i in catalog.ingredients.get(m["final"], ()):
                 if not i.optional:
                     need[m["week"]][i.product] += i.qty * h.adult_equivalents
-    out: dict[str, list[tuple[int, float, str | None]]] = {slug: [] for slug in scope}
+    out: dict[str, list[tuple[int, float, str | None, float]]] = {slug: [] for slug in scope}
     for p in rows.pantry:
         slug, w = p["product"], p["week"]
         if p["household"] != h.key or slug not in out or p["delivered"] <= 0:
             continue
         share = max(0.0, p["delivered"] - need[w][slug])
-        out[slug].append((w, share, p["signal"]))
+        out[slug].append((w, share, p["signal"], p["delivered"]))
     for slug in out:
         out[slug].sort(key=lambda o: o[0])
     return out

@@ -153,9 +153,14 @@ class PantryObservation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     qty: float = Field(
-        ge=0, description="The week's daily-use share: delivered minus the planned recipes' need"
+        ge=0,
+        description="The week's daily-use share: delivered minus the need of the week's recipes "
+        "(the cycle's meal plan, swaps included)",
     )
     signal: Tap | None = None
+    delivered: float | None = Field(
+        default=None, ge=0, description="The box's quantity of the product, recipes included"
+    )
 
 
 class PantryItem(BaseModel):
@@ -164,7 +169,7 @@ class PantryItem(BaseModel):
     product: str = Field(min_length=1, max_length=80)
     step: float = Field(gt=0)
     prior_mean: float = Field(ge=0)
-    prior_weeks: float = Field(default=2.0, ge=0, le=52)
+    prior_weeks: float = Field(default=0.25, ge=0, le=52)  # subscriptions.rules.RULE_PRIOR_WEEKS
     observations: list[PantryObservation] = Field(default_factory=list, max_length=52)
 
 
@@ -180,8 +185,9 @@ class PantryQuantity(BaseModel):
     p10: float
     p90: float
     weeks_observed: int
-    alpha: float
-    beta: float
+    taps: int
+    scale: float
+    scale_sd: float
 
 
 class PantryQuantities(BaseModel):

@@ -133,8 +133,9 @@ def test_the_serving_prior_scales_with_the_household_as_m3_sends_it() -> None:
     big = pantry_priors.Observation("h", 4.0, "milk", 0, 0.0, None, STEP)
     prior = pantry_priors.Prior("large", "milk", 1000.0, 3.0, 5, 20)
     assert pantry_priors.serving_prior(big, {("large", "milk"): prior}) == (4000.0, 3.0, "learned")
-    assert pantry_priors.serving_prior(big, None) == (1400 * 4.0, 2.0, "rule")
-    assert pantry_priors.serving_prior(big, {("small", "milk"): prior}) == (5600.0, 2.0, "rule")
+    weight = pantry_priors.RULE_PRIOR_WEEKS
+    assert pantry_priors.serving_prior(big, None) == (1400 * 4.0, weight, "rule")
+    assert pantry_priors.serving_prior(big, {("small", "milk"): prior}) == (5600.0, weight, "rule")
 
 
 def test_the_holdout_never_sees_the_scored_week() -> None:
@@ -146,8 +147,17 @@ def test_the_holdout_never_sees_the_scored_week() -> None:
     train, held = pantry_priors.split_last_week(observed)
     assert [o.week for o in held] == [3] and all(o.share == 1000.0 for o in train)
     table = pantry_priors.holdout_mae(train, held, None)
-    # The rule (1400 x 1, weight 2) and three weeks of 1000: (2 x 2.8 + 6) / 5 steps = 1160 ml.
-    assert table == {"mae_pct": round((9000 - 1160) / 9000, 4), "households_weeks": 1}
+    # Three untapped boxes say nothing about use (M10 §3.3 v0.2): the serving twin answers the
+    # rule table's prior predictive mean.
+    from gharbasket_ml.pantry import posterior
+    from gharbasket_ml.schemas import PantryItemIn
+
+    rule = posterior(
+        PantryItemIn(
+            product="milk", step=STEP, prior_mean=1400, prior_weeks=pantry_priors.RULE_PRIOR_WEEKS
+        )
+    ).mean
+    assert table == {"mae_pct": round((9000 - rule) / 9000, 4), "households_weeks": 1}
 
 
 def test_too_few_households_keep_the_rule_table(quick: None) -> None:
@@ -349,7 +359,7 @@ async def test_the_job_observes_exactly_what_the_serving_twin_observes(
         expected = sorted(
             (slug[pid], share, signal or "")
             for pid, rows in served.items()
-            for share, signal in rows
+            for share, signal, _ in rows
         )
         assert sorted((o.product, o.share, o.signal or "") for o in mine) == expected
     # Not whole boxes: the recipes' need is taken off what the boxes delivered.

@@ -500,3 +500,34 @@ def test_the_lambda_sweep_solves_every_point_of_a_small_week() -> None:
     extra = next(r for r in rows if r["metric"] == "extra_cost_lambda_2000")
     assert set(extra["details"]["per_seed"]) == {"7"} and extra["details"]["dropped_seeds"] == []
     assert "λ sweep" in report.to_html(built)
+
+
+def test_the_twin_sees_the_share_m3_computes_after_a_meal_swap() -> None:
+    """M3 stores a swapped meal in the cycle's meal plan and redraws the box for it (`set_meal`),
+    so the daily-use share it sends the twin subtracts the swapped-in dish's need. Before 1 Nov
+    2026 the harness subtracted the planned dish's need instead (288 of 798 milk and curd weeks
+    on seed 7 differed)."""
+    ing = SimpleNamespace
+    catalog = SimpleNamespace(
+        ingredients={
+            "kheer": [ing(product="milk", qty=300.0, optional=False)],
+            "poha": [ing(product="milk", qty=50.0, optional=True)],
+        }
+    )
+    h = SimpleNamespace(key="h1", adult_equivalents=2.0)
+    rows = Rows([], [], [])
+    rows.meals.append({"household": "h1", "week": 0, "planned": "poha", "final": "kheer"})
+    rows.meals.append({"household": "h1", "week": 1, "planned": "kheer", "final": "poha"})
+    for week, delivered, signal in ((0, 3500.0, "ran_out"), (1, 3000.0, None)):
+        rows.pantry.append(
+            {
+                "household": "h1",
+                "week": week,
+                "product": "milk",
+                "delivered": delivered,
+                "signal": signal,
+            }
+        )
+    seen = pantry_baseline._twin_observations(h, catalog, rows, ["milk"])  # pyright: ignore[reportPrivateUsage, reportArgumentType]
+    # Week 0: the swapped-in kheer took 600 ml of the 3500; week 1: poha's milk is optional.
+    assert seen["milk"] == [(0, 2900.0, "ran_out", 3500.0), (1, 3000.0, None, 3000.0)]

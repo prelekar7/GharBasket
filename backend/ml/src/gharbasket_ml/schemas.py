@@ -136,6 +136,9 @@ class PlanResponse(BaseModel):
 # --- POST /pantry/quantities (M10 §3.3) --------------------------------------------------------
 
 Tap = Literal["ran_out", "wasted", "just_right"]
+# The rule table's weight as the twin's prior, in observed weeks (M3 sends the same,
+# `subscriptions.rules.RULE_PRIOR_WEEKS`).
+PRIOR_WEEKS = 0.25
 
 
 class PantryObservation(BaseModel):
@@ -144,18 +147,26 @@ class PantryObservation(BaseModel):
     qty: float = Field(
         ge=0,
         description="The week's daily-use share in base units: what the box delivered minus "
-        "what that week's planned recipes needed",
+        "what that week's recipes (the cycle's meal plan, swaps included) needed",
     )
     signal: Tap | None = Field(default=None, description="The household's tap for that week")
+    delivered: float | None = Field(
+        default=None,
+        ge=0,
+        description="What the box delivered of the product in base units, recipes included "
+        "(the 'wasted' tap is against it); null: the share alone",
+    )
 
 
 class PantryItemIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: str = Field(min_length=1, max_length=80, description="Product slug")
-    step: float = Field(gt=0, description="Base units in one step (the count unit)")
-    prior_mean: float = Field(ge=0, description="The cohort's weekly use in base units")
-    prior_weeks: float = Field(default=2.0, ge=0, le=52, description="The prior's weight")
+    step: float = Field(gt=0, description="Base units in one step (the pack; not in the model)")
+    prior_mean: float = Field(ge=0, description="The cohort's typical weekly use in base units")
+    prior_weeks: float = Field(
+        default=PRIOR_WEEKS, ge=0, le=52, description="The prior's weight in observed weeks"
+    )
     observations: list[PantryObservation] = Field(default_factory=list, max_length=52)
 
 
@@ -170,14 +181,15 @@ class PantryItemOut(BaseModel):
     mean: float = Field(description="Weekly use to plan for, in base units")
     p10: float = Field(description="Next week's use, 10th percentile (posterior predictive)")
     p90: float = Field(description="Next week's use, 90th percentile (posterior predictive)")
-    weeks_observed: int
-    alpha: float
-    beta: float
+    weeks_observed: int = Field(description="Boxes sent, tapped or not")
+    taps: int = Field(description="Of those, the tapped weeks: the only ones that say how much")
+    scale: float = Field(description="The household's factor on the prior: posterior mean")
+    scale_sd: float = Field(description="The household's factor on the prior: posterior sd")
 
 
 class PantryResponse(BaseModel):
     items: list[PantryItemOut]
-    model: str = "pantry-gamma-poisson-v0"
+    model: str = "pantry-tap-censored-v0.2"
 
 
 # --- POST /route/solve (M10 §3.4): one delivery slot's van routes -------------------------------
