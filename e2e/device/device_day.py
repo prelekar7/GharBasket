@@ -996,6 +996,10 @@ async def pack(config: DeviceConfig, leave: int) -> None:
                 break
             task = claimed.json()
             for line in task["lines"]:
+                # The packer's own open bag comes back first; lines done on the phone (picked or
+                # marked short) are left as they are.
+                if line.get("done"):
+                    continue
                 picked = await http.post(
                     f"/v1/packing-tasks/{task['id']}/pick",
                     json={"product_id": line["product_id"], "picked_qty": line["qty"]},
