@@ -81,6 +81,10 @@ class RegistryError(Exception):
     """The registry answered something we cannot use (the message names keys, never secrets)."""
 
 
+class GaveUp(RegistryError):
+    """The sync's deadline passed, or the service is stopping."""
+
+
 def _hmac(key: bytes, message: str) -> bytes:
     return hmac.new(key, message.encode(), hashlib.sha256).digest()
 
@@ -240,7 +244,7 @@ class R2Reader:
 
     def fetch(self, key: str, dest: Path, *, max_bytes: int, expired: Expired) -> str | None:
         if expired():
-            raise RegistryError(f"the sync gave up before reading {key}")
+            raise GaveUp(f"the sync gave up before reading {key}")
         url = self.url(key)
         with self._client.stream("GET", url, headers=self._headers("GET", url)) as answer:
             if answer.status_code == 404:
@@ -260,13 +264,13 @@ class R2Reader:
                     if size > max_bytes:
                         raise RegistryError(f"{key} is larger than {max_bytes} bytes")
                     if expired():
-                        raise RegistryError(f"the sync gave up while reading {key}")
+                        raise GaveUp(f"the sync gave up while reading {key}")
                     out.write(piece)
             return answer.headers.get("etag", "")
 
     def etag(self, key: str, *, expired: Expired) -> str | None:
         if expired():
-            raise RegistryError(f"the sync gave up before checking {key}")
+            raise GaveUp(f"the sync gave up before checking {key}")
         url = self.url(key)
         answer = self._client.head(url, headers=self._headers("HEAD", url))
         if answer.status_code == 404:
@@ -312,15 +316,34 @@ def _pointed_version(raw: bytes, key: str) -> str:
     return version
 
 
+def _previous(raw: bytes | str) -> str | None:
+    """The version a pointer names as `previous` (what `just promote` records), if usable."""
+    try:
+        previous = json.loads(raw).get("previous")
+    except (ValueError, AttributeError):
+        return None
+    return previous if _usable(previous) else None
+
+
+def normal_etag(etag: str | None) -> str:
+    """An ETag as compared: without a weak `W/` prefix, quotes or spaces ("" when unknown);
+    stores differ in how HEAD and GET spell the same one."""
+    value = (etag or "").strip()
+    if value[:2].upper() == "W/":
+        value = value[2:]
+    return value.strip().strip('"')
+
+
 def _recorded_etags(version_dir: Path) -> dict[str, str] | None:
-    """The ETags a cached version was downloaded with; None when it is not cached."""
-    if not version_dir.is_dir():
+    """The ETags a cached version was downloaded with; None when it is not a copy this sync
+    made (missing, a folder of unknown origin, or its record unreadable)."""
+    if not (version_dir.is_symlink() and version_dir.is_dir()):
         return None
     try:
         etags = json.loads((version_dir / SOURCE).read_text()).get("etags")
     except (OSError, ValueError, AttributeError):
-        return {}
-    return {str(k): str(v) for k, v in etags.items()} if isinstance(etags, dict) else {}
+        return None
+    return {str(k): str(v) for k, v in etags.items()} if isinstance(etags, dict) else None
 
 
 class ModelSync:
@@ -348,6 +371,7 @@ class ModelSync:
         self._wallclock = wallclock
         self._lock = threading.Lock()  # one sync at a time; held while a sync runs
         self._stop = threading.Event()
+        self._logged: set[str] = set()  # warnings given once per process, not every pass
         self.last_attempt_at: datetime | None = None
         self.last_success_at: datetime | None = None
         self.last_failure_at: datetime | None = None
@@ -389,8 +413,9 @@ class ModelSync:
             if errors:
                 self.last_failure_at = started
                 self.last_error = "; ".join(errors)
-            else:
+            else:  # the error is over; when it happened stays in last_failure_at
                 self.last_success_at = started
+                self.last_error = None
             return changed
 
     def _sync_model(self, name: str, artefacts: Artefacts, expired: Expired) -> bool:
@@ -406,7 +431,8 @@ class ModelSync:
             ):
                 log.info("model %s: nothing promoted in the registry yet", name)
                 return False
-            version = _pointed_version(incoming.read_bytes(), key)
+            raw = incoming.read_bytes()
+            version = _pointed_version(raw, key)
             current = local_version(folder)
             recorded = _recorded_etags(folder / version)
             fresh = recorded is not None and self._unchanged(
@@ -415,9 +441,15 @@ class ModelSync:
             if version == current and fresh:
                 return False
             if not fresh:
-                self._download(name, version, artefacts, folder, expired)
+                self._download(name, version, artefacts, folder, expired, recorded)
+            # Keep the version served until now and the one the promotion names as previous,
+            # besides the new one; when the current version was only overwritten in place,
+            # every cached version stays (the rollback target among them).
+            keep: set[str | None] = {version, current, _previous(raw)}
+            if version == current:
+                keep |= {c.name for c in folder.iterdir() if c.is_symlink()}
             os.replace(incoming, folder / POINTER)
-            self._prune(folder, keep={version, current})
+            self._prune(folder, keep=keep)
             log.info("model %s: serving %s from the registry (was %s)", name, version, current)
             return True
         finally:
@@ -433,19 +465,47 @@ class ModelSync:
     ) -> bool:
         """Whether the cached copy of `version` is what the registry holds now: versions are
         not immutable (a training run can overwrite one), so the required files' ETags are
-        compared (one HEAD each)."""
+        compared (one HEAD each). When that cannot tell (no ETag on either side, or a HEAD
+        refused while GET works) the cached copy is trusted: a re-download every pass would cost
+        more than a rare overwrite served ten minutes late."""
         for file in artefacts.required:
             key = self._key(name, version, file)
-            etag = self.reader.etag(key, expired=expired)
+            try:
+                etag = self.reader.etag(key, expired=expired)
+            except GaveUp:
+                raise
+            except RegistryError as e:
+                self._warn_once(f"head:{key}", "model %s: %s; trusting the cached copy", name, e)
+                continue
+            except httpx2.HTTPError as e:
+                self._warn_once(
+                    f"head:{key}", "model %s: HEAD %s failed (%s); trusting the cached copy",
+                    name, key, type(e).__name__,
+                )  # fmt: skip
+                continue
             if etag is None:
                 raise RegistryError(f"{key} is missing")
-            if etag != recorded.get(file):
+            if file not in recorded:  # not a complete copy of ours
+                return False
+            remote, cached = normal_etag(etag), normal_etag(recorded[file])
+            if remote and cached and remote != cached:
                 log.info("model %s: %s changed in the registry; downloading it again", name, key)
                 return False
         return True
 
+    def _warn_once(self, topic: str, message: str, *args: object) -> None:
+        if topic not in self._logged:
+            self._logged.add(topic)
+            log.warning(message, *args)
+
     def _download(
-        self, name: str, version: str, artefacts: Artefacts, folder: Path, expired: Expired
+        self,
+        name: str,
+        version: str,
+        artefacts: Artefacts,
+        folder: Path,
+        expired: Expired,
+        replaced: dict[str, str] | None = None,
     ) -> None:
         """Into a fresh folder under `.v/`, then the `<version>` symlink is switched to it with
         one atomic rename: the old files stay readable until then, new ones are complete."""
@@ -461,6 +521,18 @@ class ModelSync:
                 if etag is None:
                     raise RegistryError(f"{key} is missing")
                 etags[file] = etag
+                if (
+                    replaced
+                    and normal_etag(etag)
+                    and normal_etag(etag) == normal_etag(replaced.get(file))
+                ):
+                    self._warn_once(
+                        f"etag:{key}",
+                        "model %s: %s came back with the ETag already cached; the store's HEAD "
+                        "and GET disagree about it",
+                        name,
+                        key,
+                    )
             for file in artefacts.optional:
                 key = self._key(name, version, file)
                 etag = self.reader.fetch(

@@ -768,3 +768,143 @@ def test_the_served_models_are_what_serving_reads() -> None:
     assert dict(model_sync.SERVED) == {
         "basket_ranker": model_sync.Artefacts(("model.txt",), ("card.json",))
     }
+
+
+# --- re-review nits ------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("etag", "normal"),
+    [
+        ('"abc"', "abc"),
+        ('W/"abc"', "abc"),
+        ('w/"abc"', "abc"),
+        (" abc ", "abc"),
+        ("", ""),
+        (None, ""),
+    ],
+)
+def test_etags_are_compared_without_their_spelling(etag: str | None, normal: str) -> None:
+    assert model_sync.normal_etag(etag) == normal
+
+
+@pytest.mark.parametrize("head", ["", "W/{etag}", "{bare}"])
+def test_a_head_spelling_the_etag_differently_does_not_churn(tmp_path: Path, head: str) -> None:
+    """No ETag on HEAD, a weak one or an unquoted one: the cached copy is still current."""
+
+    class Store(FakeR2):
+        def etag(self, key: str, *, expired: model_sync.Expired) -> str | None:
+            self.headed.append(key)
+            if key not in self.objects:
+                return None
+            etag = self._etag(self.objects[key])
+            return head.format(etag=etag, bare=etag.strip('"'))
+
+    r2 = Store()
+    r2.publish("v1", b"m")
+    r2.promote("v1")
+    sync = ModelSync(r2, tmp_path / "cache", bucket="gb-mlflow")
+    assert [sync.sync_once() for _ in range(4)] == [["basket_ranker"], [], [], []]
+    assert r2.fetched.count("models/basket_ranker/v1/model.txt") == 1
+
+
+def test_a_head_and_get_that_disagree_are_reported_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    class Store(FakeR2):
+        def etag(self, key: str, *, expired: model_sync.Expired) -> str | None:
+            return '"something-else"' if key in self.objects else None
+
+    r2 = Store()
+    r2.publish("v1", b"m")
+    r2.promote("v1")
+    sync = ModelSync(r2, tmp_path / "cache", bucket="gb-mlflow")
+    with caplog.at_level(logging.WARNING, logger="gharbasket_ml.model_sync"):
+        for _ in range(3):
+            sync.sync_once()
+    disagreements = [r for r in caplog.records if "HEAD and GET disagree" in r.getMessage()]
+    assert len(disagreements) == 1 and sync.last_error is None
+
+
+@pytest.mark.parametrize("failure", ["403", "network"])
+def test_a_refused_head_trusts_the_cached_copy(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, failure: str
+) -> None:
+    """GET works but HEAD does not (a token or a proxy that allows only GET)."""
+
+    class Store(FakeR2):
+        def etag(self, key: str, *, expired: model_sync.Expired) -> str | None:
+            if failure == "403":
+                raise RegistryError(f"HEAD {key}: HTTP 403")
+            raise httpx2.ConnectError("HEAD dropped")
+
+    r2 = Store()
+    r2.publish("v1", b"one")
+    r2.publish("v2", b"two")
+    r2.promote("v1")
+    sync = ModelSync(r2, tmp_path / "cache", bucket="gb-mlflow")
+    with caplog.at_level(logging.WARNING, logger="gharbasket_ml.model_sync"):
+        assert sync.sync_once() == ["basket_ranker"]
+        assert sync.sync_once() == [] and sync.last_error is None  # unchanged pointer
+        r2.promote("v2", previous="v1")
+        assert sync.sync_once() == ["basket_ranker"]
+        r2.fetched.clear()
+        r2.promote("v1", previous="v2")  # a rollback to the cached copy
+        assert sync.sync_once() == ["basket_ranker"] and sync.last_error is None
+        sync.sync_once()
+    assert r2.fetched.count("models/basket_ranker/v1/model.txt") == 0
+    assert sync.status()["models"] == {"basket_ranker": "v1"}
+    trusted = [r for r in caplog.records if "trusting the cached copy" in r.getMessage()]
+    assert len(trusted) == 1  # once for the cached v1, not every pass
+
+
+def test_the_deadline_still_ends_a_head(tmp_path: Path) -> None:
+    class Store(FakeR2):
+        def etag(self, key: str, *, expired: model_sync.Expired) -> str | None:
+            raise model_sync.GaveUp(f"the sync gave up before checking {key}")
+
+    r2 = Store()
+    r2.publish("v1", b"m")
+    r2.promote("v1")
+    sync = ModelSync(r2, tmp_path / "cache", bucket="gb-mlflow")
+    sync.sync_once()
+    assert sync.sync_once() == []
+    assert "gave up before checking" in str(sync.last_error)
+
+
+def test_overwriting_the_current_version_keeps_the_previous(tmp_path: Path) -> None:
+    r2 = FakeR2()
+    r2.publish("v1", b"one")
+    r2.publish("v2", b"two")
+    cache = tmp_path / "cache"
+    sync = ModelSync(r2, cache, bucket="gb-mlflow")
+    r2.promote("v1")
+    sync.sync_once()
+    r2.promote("v2")  # no `previous` in the pointer
+    sync.sync_once()
+    assert artefacts("basket_ranker", cache) == ["latest.json", "v1", "v2"]
+
+    r2.publish("v2", b"two, retrained")
+    assert sync.sync_once() == ["basket_ranker"]
+    assert artefacts("basket_ranker", cache) == ["latest.json", "v1", "v2"]
+    assert len(stored("basket_ranker", cache)) == 2
+    r2.fetched.clear()
+    r2.promote("v1")
+    assert sync.sync_once() == ["basket_ranker"]
+    assert "models/basket_ranker/v1/model.txt" not in r2.fetched  # the rollback is local
+
+
+def test_a_success_clears_the_last_error(tmp_path: Path) -> None:
+    r2 = FakeR2()
+    r2.publish("v1", b"m")
+    r2.promote("v1")
+    sync = ModelSync(r2, tmp_path / "cache", bucket="gb-mlflow")
+    r2.down = True
+    sync.sync_once()
+    failed_at = sync.status()["last_failure_at"]
+    assert sync.last_error == "basket_ranker: ConnectError" and failed_at is not None
+    r2.down = False
+    sync.sync_once()
+    status = sync.status()
+    assert status["last_error"] is None and status["last_failure_at"] == failed_at
+    assert status["last_success_at"] is not None
