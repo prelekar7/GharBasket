@@ -99,51 +99,25 @@ function Assistant() {
                 </Button>
               </div>
             )}
-            {m.proposal && (
+            {m.proposals?.map((p) => (
               <section
-                aria-label={t("ghar.confirmTitle", { day: day(m.proposal.box.delivery_date) })}
+                key={p.id}
+                aria-label={p.summary}
                 className="flex flex-col gap-1.5 rounded-md border-2 border-line-strong bg-bg px-4 py-3.5"
               >
-                <strong>
-                  {t("ghar.confirmTitle", { day: day(m.proposal.box.delivery_date) })}
-                </strong>
-                <ul>
-                  {m.proposal.lines.map((l) => (
-                    <li
-                      key={l.kind === "meal" ? `${l.date}-${l.slot}` : l.name}
-                      className="flex items-baseline justify-between gap-3 border-b border-line py-1.5 text-sm leading-5"
-                    >
-                      <span>
-                        {l.kind === "meal"
-                          ? t("ghar.meal", {
-                              day: weekdayName(l.date, lang),
-                              slot: t(`ghar.slot.${l.slot}`),
-                              dish: l.dish,
-                            })
-                          : t(`ghar.line.${l.kind}`, { item: l.name, qty: l.qty_label })}
-                      </span>
-                      {l.delta_paise ? (
-                        <MoneyText paise={l.delta_paise} delta />
-                      ) : (
-                        <span className="text-fg-secondary">{t("ghar.noPrice")}</span>
-                      )}
-                    </li>
-                  ))}
-                  <li className="flex items-baseline justify-between gap-3 py-1.5">
-                    <strong>{t("ghar.total")}</strong>
-                    <MoneyText paise={m.proposal.new_total_paise} />
-                  </li>
-                </ul>
-                {m.proposal.status === "pending" ? (
+                <strong>{p.summary}</strong>
+                {p.payload.price_change_paise ? (
+                  <MoneyText paise={p.payload.price_change_paise} delta />
+                ) : null}
+                {p.status === "pending" ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="primary"
-                      isPending={confirm.isPending && confirm.variables?.id === m.proposal.id}
+                      isPending={confirm.isPending && confirm.variables?.id === p.id}
                       isDisabled={
-                        reject.isPending ||
-                        (confirm.isPending && confirm.variables?.id !== m.proposal.id)
+                        reject.isPending || (confirm.isPending && confirm.variables?.id !== p.id)
                       }
-                      onPress={() => m.proposal && confirm.mutate(m.proposal)}
+                      onPress={() => confirm.mutate(p)}
                     >
                       <CheckIcon aria-hidden size={20} weight="bold" />
                       {t("ghar.yes")}
@@ -151,7 +125,7 @@ function Assistant() {
                     <Button
                       variant="secondary"
                       isDisabled={confirm.isPending}
-                      onPress={() => m.proposal && reject.mutate(m.proposal)}
+                      onPress={() => reject.mutate(p)}
                     >
                       {t("ghar.no")}
                     </Button>
@@ -159,39 +133,31 @@ function Assistant() {
                 ) : (
                   <p
                     role="status"
-                    className={`text-sm font-semibold ${m.proposal.status === "confirmed" ? "text-primary" : "text-fg-secondary"}`}
+                    className={`text-sm font-semibold ${p.status === "confirmed" ? "text-primary" : "text-fg-secondary"}`}
                   >
-                    {t(`ghar.status.${m.proposal.status}`, {
-                      day: day(m.proposal.box.delivery_date),
-                    })}
+                    {t(`ghar.status.${p.status}`, { day: day(p.payload.delivery_date) })}
                   </p>
                 )}
-                {m.proposal.status === "pending" && failed(m.proposal.id) && (
+                {p.status === "pending" && failed(p.id) && (
                   <div className="flex flex-col items-start gap-2">
                     <p role="alert" className="text-sm font-semibold text-danger">
-                      {t(
-                        `ghar.errors.${failed(m.proposal.id)?.code?.replace(/\./g, "_") ?? "other"}`,
-                        {
-                          defaultValue: t("ghar.errors.other"),
-                        },
-                      )}
+                      {t(`ghar.errors.${failed(p.id)?.code?.replace(/\./g, "_") ?? "other"}`, {
+                        defaultValue: t("ghar.errors.other"),
+                      })}
                     </p>
-                    {isStale(failed(m.proposal.id)) && (
-                      <Button
-                        variant="secondary"
-                        onPress={() => m.proposal && askAgain(m.proposal)}
-                      >
+                    {isStale(failed(p.id)) && (
+                      <Button variant="secondary" onPress={() => askAgain(p)}>
                         {t("ghar.askAgain")}
                       </Button>
                     )}
                   </div>
                 )}
               </section>
-            )}
+            ))}
           </div>
         ))}
         {send.isPending && <Bubble from="bot">{t("ghar.thinking")}</Bubble>}
-        {messages.some((m) => m.proposal) && (
+        {messages.some((m) => m.proposals?.length) && (
           <p className="text-sm text-fg-secondary">{t("ghar.safe")}</p>
         )}
         <div ref={end} />
