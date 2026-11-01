@@ -147,6 +147,39 @@ describe("sign-in", () => {
     await vi.waitFor(() => expect(registerPushToken).toHaveBeenCalledWith("fcm-1"));
   });
 
+  it("asks and fetches the token once when the start-up and a sign-in both ask for it", async () => {
+    vi.resetModules();
+    const session = fakeSession();
+    session.set(true);
+    vi.doMock("@/lib/env.js", () => ({ NATIVE: true, MOCK: false, API_BASE: "" }));
+    vi.doMock("@/lib/session.js", () => ({ useSession: session }));
+    const push = await import("./push.js");
+    push.startPush(fakeRouter(), /** @type {any} */ ({ invalidateQueries: vi.fn() }));
+    // The session restores while the start-up is still registering listeners.
+    session.set(false);
+    session.set(true);
+    await settle();
+    await tick();
+    expect(messaging.createChannel).toHaveBeenCalledOnce();
+    expect(messaging.checkPermissions).toHaveBeenCalledOnce();
+    expect(messaging.requestPermissions).toHaveBeenCalledOnce();
+    expect(messaging.getToken).toHaveBeenCalledOnce();
+    expect(registerPushToken).toHaveBeenCalledOnce();
+  });
+
+  it("does it again for the next session after a sign-out", async () => {
+    permission = "granted";
+    const { session } = await load(true);
+    session.set(true);
+    await vi.waitFor(() => expect(registerPushToken).toHaveBeenCalledTimes(1));
+    await tick();
+    session.set(false);
+    await vi.waitFor(() => expect(messaging.deleteToken).toHaveBeenCalled());
+    session.set(true);
+    await vi.waitFor(() => expect(registerPushToken).toHaveBeenCalledTimes(2));
+    expect(messaging.getToken).toHaveBeenCalledTimes(2);
+  });
+
   it("registers no token and remembers it when the person says no", async () => {
     asked = "denied";
     const { session } = await load(true);
