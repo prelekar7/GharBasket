@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";
-import { db, enqueue, flush } from "@/lib/outbox.js";
+import { db, dropStaleFailures, enqueue, flush } from "@/lib/outbox.js";
 
 // Rider data (M7 §3.3 and §3.4, frozen). Reads are cached and persisted, so a route loaded at the
 // hub keeps working without signal. Writes go through the offline outbox (each tap has its own
@@ -125,6 +125,8 @@ async function sendNow(client, action) {
       body,
       headers: { "idempotency-key": crypto.randomUUID() },
     });
+    // A queued wrong code for this door is out of date now.
+    dropStaleFailures(action).catch(() => {});
     client.invalidateQueries({ queryKey: ["routes"] });
     return { queued: false, data };
   } catch (e) {

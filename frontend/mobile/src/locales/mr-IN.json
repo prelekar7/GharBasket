@@ -145,7 +145,36 @@
   "outbox": {
     "waiting": "{count, plural, one {# काम सिंक होण्याची वाट पाहत आहे} other {# कामे सिंक होण्याची वाट पाहत आहेत}}",
     "retry": "आता प्रयत्न करा",
-    "failed": "{count, plural, one {# काम पाठवता आले नाही} other {# कामे पाठवता आली नाहीत}}"
+    "failed": "{count, plural, one {# काम पाठवता आले नाही} other {# कामे पाठवता आली नाहीत}}",
+    "dismiss": "काढून टाका",
+    "dismissAll": "सर्व काढा",
+    "action": {
+      "start": "सुरू",
+      "complete": "पूर्ण",
+      "arrive": "पोहोचणे",
+      "skip": "स्टॉप सोडणे",
+      "handover": "हँडओव्हर",
+      "proof": "डिलिव्हरीचा पुरावा",
+      "undelivered": "डिलिव्हर झाले नाही",
+      "collect": "किचनमधून पिकअप",
+      "pickups": "पिकअप",
+      "pick": "वस्तू उचलली",
+      "short": "कमी नोंदवले",
+      "close": "पिशवी बंद",
+      "other": "काम"
+    },
+    "reason": {
+      "bags_not_packed": "सर्व पिशव्या अजून पॅक झालेल्या नाहीत.",
+      "route_not_started": "रूट सुरू झाला नव्हता.",
+      "route_closed": "रूट आधीच बंद झाला आहे.",
+      "photo_already_used": "हा फोटो आधीच वापरला आहे. नवीन फोटो घ्या.",
+      "photo_key_invalid": "फोटो नीट अपलोड झाला नाही.",
+      "pickup_already_reported": "हा पिकअप आधीच दुसऱ्या पद्धतीने नोंदवला आहे.",
+      "not_your_route": "हा रूट तुमचा नाही.",
+      "task_not_started": "ही पिशवी सुरू केली नव्हती.",
+      "task_taken": "ही पिशवी दुसऱ्या पॅकरकडे आहे.",
+      "other": "सर्व्हरने हे काम नाकारले."
+    }
   },
   "install": {
     "title": "GharBasket इंस्टॉल करा",

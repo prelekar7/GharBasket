@@ -149,7 +149,36 @@
   "outbox": {
     "waiting": "{count, plural, one {# action waiting to sync} other {# actions waiting to sync}}",
     "retry": "Try now",
-    "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}"
+    "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}",
+    "dismiss": "Dismiss",
+    "dismissAll": "Dismiss all",
+    "action": {
+      "start": "Start",
+      "complete": "Finish",
+      "arrive": "Arrival",
+      "skip": "Skip stop",
+      "handover": "Handover",
+      "proof": "Delivery proof",
+      "undelivered": "Not delivered",
+      "collect": "Kitchen pickup",
+      "pickups": "Pickups",
+      "pick": "Item picked",
+      "short": "Marked short",
+      "close": "Close bag",
+      "other": "Action"
+    },
+    "reason": {
+      "bags_not_packed": "The bags aren’t all packed yet.",
+      "route_not_started": "The route hadn’t started.",
+      "route_closed": "The route is already closed.",
+      "photo_already_used": "That photo was already used. Take a new one.",
+      "photo_key_invalid": "The photo didn’t upload properly.",
+      "pickup_already_reported": "This pickup was already reported another way.",
+      "not_your_route": "This route isn’t yours.",
+      "task_not_started": "The bag hadn’t been started.",
+      "task_taken": "Another packer holds this bag.",
+      "other": "The server refused this action."
+    }
   },
   "install": {
     "title": "Install GharBasket",

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { istDate } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";
-import { db, enqueue, flush } from "@/lib/outbox.js";
+import { db, dropStaleFailures, enqueue, flush } from "@/lib/outbox.js";
 import { applyAction } from "./day.js";
 
 const DAY = ["captain-day"];
@@ -89,6 +89,8 @@ async function sendNow(client, action) {
       body: action.body,
       headers: { "idempotency-key": crypto.randomUUID() },
     });
+    // A queued wrong code for this door is out of date now.
+    dropStaleFailures(action).catch(() => {});
     // A tiffin drop moves only the tiffins the rider had collected (`with_captain`).
     show(
       answer?.with_captain

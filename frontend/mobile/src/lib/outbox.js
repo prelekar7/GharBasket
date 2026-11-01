@@ -1,10 +1,12 @@
 // Offline outbox for field-role writes (Part 4): each action is saved in IndexedDB (Dexie) with
 // its own Idempotency-Key and sent in order when the device is online again, so a retry never
-// repeats an action on the server. The token is refreshed before a replay.
+// repeats an action on the server. There is no pre-emptive token refresh: request() refreshes and
+// retries by itself when a send gets a 401, so N queued actions cost N requests, not N more
+// refreshes (each of which also rotates the refresh token).
 import { App } from "@capacitor/app";
 import Dexie, { liveQuery } from "dexie";
 import { useEffect, useState } from "react";
-import { ApiError, refresh, request } from "@/lib/api.js";
+import { ApiError, request } from "@/lib/api.js";
 
 /**
  * @typedef {object} OutboxItem
@@ -17,11 +19,23 @@ import { ApiError, refresh, request } from "@/lib/api.js";
  * @property {"waiting" | "failed"} status "failed" = the server refused it for good (4xx)
  * @property {number} attempts
  * @property {string} [lastError] problem+json code of the last failure
+ * @property {string} [target] what the action is about ("deliveries/<id>"), see targetOf()
  */
 
 export const db = new Dexie("gharbasket");
 db.version(1).stores({ outbox: "++id, createdAt, status" });
 const outbox = /** @type {import("dexie").Table<OutboxItem, number>} */ (db.table("outbox"));
+
+/**
+ * What an action is about: "/v1/deliveries/<id>/proof" -> "deliveries/<id>". Actions on the same
+ * target are the same door, stop, route or bag, whatever they did to it.
+ * @param {string} path
+ */
+export const targetOf = (path) =>
+  path
+    .match(/^\/v1\/([a-z-]+)\/([^/?]+)/)
+    ?.slice(1, 3)
+    .join("/");
 
 /** Saves a write and tries to send it straight away. @returns {Promise<string>} its Idempotency-Key */
 export async function enqueue(
@@ -33,6 +47,7 @@ export async function enqueue(
     method: action.method ?? "POST",
     path: action.path,
     body: action.body ?? {},
+    target: targetOf(action.path),
     createdAt: Date.now(),
     status: "waiting",
     attempts: 0,
@@ -44,6 +59,21 @@ export async function enqueue(
 /** Errors worth retrying later: offline, server trouble, expired session, rate limits. */
 const retryable = (/** @type {unknown} */ e) =>
   !(e instanceof ApiError) || e.status >= 500 || [401, 408, 429].includes(e.status);
+
+/**
+ * Refusals that mean "this is already done (or no longer applies)": the action's goal is met, so
+ * the item is dropped like a success instead of staying as a failure nobody can fix. Not every
+ * `*_already_*` code belongs here: `logistics.photo_already_used` and
+ * `logistics.pickup_already_reported` say the request itself was wrong, so those stay failed.
+ */
+const ALREADY_DONE = new Set([
+  "logistics.routes_started", // the route is already running (a replayed Start)
+  "logistics.already_handed_over", // the stop was already handed over
+  "logistics.delivery_closed", // the order is already delivered, refunded or otherwise closed
+  "hub_ops.task_packed", // the bag is already packed
+  "community.handoff_already_confirmed",
+  "community.donation_already_verified",
+]);
 
 /** @type {Promise<void> | null} */
 let flushing = null;
@@ -64,11 +94,26 @@ function scheduleRetry(/** @type {number} */ attempts) {
   }, backoffMs(attempts));
 }
 
+/**
+ * A later action succeeded for a target: failed items of the same action on the same target are
+ * out of date (a wrong delivery code, once the door was delivered by photo), so they go. Items
+ * saved after it stay. Call it after a direct (not queued) send succeeds too.
+ * @param {{ path: string, createdAt?: number }} done
+ */
+export async function dropStaleFailures(done) {
+  const target = targetOf(done.path);
+  if (!target) return;
+  const before = done.createdAt ?? Date.now();
+  await outbox
+    .where("status")
+    .equals("failed")
+    .filter((f) => f.target === target && f.path === done.path && f.createdAt <= before)
+    .delete();
+}
+
 /** One pass over the waiting actions. @returns {Promise<boolean>} true = stop, retry later */
 async function pass() {
   const waiting = await outbox.where("status").equals("waiting").sortBy("createdAt");
-  if (waiting.length === 0) return false;
-  if (!(await refresh())) return true;
   for (const item of waiting) {
     try {
       await request(item.path, {
@@ -77,8 +122,15 @@ async function pass() {
         headers: { "idempotency-key": item.key },
       });
       await outbox.delete(/** @type {number} */ (item.id));
+      await dropStaleFailures(item);
     } catch (e) {
       const code = e instanceof ApiError ? e.code : "network";
+      if (e instanceof ApiError && ALREADY_DONE.has(code)) {
+        // Same as a success for ordering: the next item goes on.
+        await outbox.delete(/** @type {number} */ (item.id));
+        await dropStaleFailures(item);
+        continue;
+      }
       const status = retryable(e) ? "waiting" : "failed";
       await outbox.update(/** @type {number} */ (item.id), {
         status,
@@ -120,13 +172,15 @@ export function flush() {
 }
 
 /**
- * Sends the actions the server refused again (after the person has fixed the cause, or to try
- * once more). They are never deleted silently: they stay until sent or until sign-out.
+ * Failed items are never re-sent: the server refused them for good, so the same request would be
+ * refused again (a Start re-sent 18 times, wrong codes re-sent after the door was delivered). The
+ * person sees why and dismisses them, and "Try now" only flushes the waiting ones. A failed item
+ * goes only by this, by a later success for the same target (dropStaleFailures) or at sign-out.
  */
-export async function retryFailed() {
-  await outbox.where("status").equals("failed").modify({ status: "waiting" });
-  return flush();
-}
+export const dismissFailed = (/** @type {number} */ id) => outbox.delete(id);
+
+/** Dismisses every failed item. */
+export const dismissAllFailed = () => outbox.where("status").equals("failed").delete();
 
 /** Flush on start, when the connection comes back and when the app returns to the foreground. */
 export function startOutbox() {
@@ -148,6 +202,21 @@ export function useOutboxCount(/** @type {"waiting" | "failed"} */ status = "wai
     return () => sub.unsubscribe();
   }, [status]);
   return count;
+}
+
+/** Live list of the failed items, oldest first. */
+export function useFailedItems() {
+  const [items, setItems] = useState(/** @type {OutboxItem[]} */ ([]));
+  useEffect(() => {
+    const sub = liveQuery(() =>
+      outbox.where("status").equals("failed").sortBy("createdAt"),
+    ).subscribe({
+      next: setItems,
+      error: () => setItems([]),
+    });
+    return () => sub.unsubscribe();
+  }, []);
+  return items;
 }
 
 /** Empties the outbox (sign-out). */
