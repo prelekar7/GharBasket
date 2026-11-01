@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import lockup from "@/assets/logo-lockup.svg";
 import lockupKraft from "@/assets/logo-lockup-kraft.svg";
-import { shortDate } from "@/features/subscriptions/format.js";
+import { istDatesFrom, shortDate, weekdayOf } from "@/features/subscriptions/format.js";
 import { LOCALES } from "@/i18n.js";
 
 /** Each language in its own words, so anyone can find theirs (design Hf01). */
@@ -12,8 +12,8 @@ const LANGUAGES = {
   "hi-IN": { title: "हिन्दी", description: "आपकी रसोई, पहले से प्लान।" },
   "mr-IN": { title: "मराठी", description: "तुमचं स्वयंपाकघर, आधीच नियोजित." },
 };
-/** The sample week starts on the designs' Monday. */
-const SAMPLE_START = ["2026-10-05", "2026-10-06", "2026-10-07"];
+/** The sample week shows today and the next two days. */
+const SAMPLE_DAYS = 3;
 
 /** First screen: what GharBasket is, a sample week, pick a language (design Hf01 Language). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -23,6 +23,7 @@ function Welcome() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const lang = i18n.resolvedLanguage ?? "en-IN";
+  const sampleDates = istDatesFrom(SAMPLE_DAYS);
   const meals = /** @type {[string, string][]} */ (t("welcome.sample", { returnObjects: true }));
   return (
     <main className="mx-auto flex min-h-dvh max-w-[480px] flex-col gap-[18px] px-5 pt-[calc(24px+env(safe-area-inset-top))] pb-6">
@@ -34,8 +35,8 @@ function Welcome() {
         label={t("welcome.weekLabel")}
         today={0}
         labels={{ today: t("week.today") }}
-        days={SAMPLE_START.map((iso, i) => ({
-          day: t(`days.short.d${i}`),
+        days={sampleDates.map((iso, i) => ({
+          day: t(`days.short.d${weekdayOf(iso)}`),
           date: shortDate(iso, lang),
           meals: [
             { slot: t("week.slot.lunch"), name: meals[i]?.[0] ?? "", tiffin: i === 1 },
