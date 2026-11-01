@@ -171,7 +171,7 @@ Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` 
     "orders": [ { "id": "<order id>", "lat", "lng", "portions", "skills": ["veg", "jain"] } ],   ≤ 2000
     "kitchens": [ { "id": "<partner id>", "lat", "lng", "max_portions", "skills": [...], "rating": 4.5,
                     "earnings_paise": 120000 } ],         ≤ 300; rolling earnings before tonight, ≤ 10^12
-    "fairness_lambda": 300,            paise of cost per portion of earnings imbalance; 0 = cost only
+    "fairness_lambda": 600,            paise of cost per portion of earnings imbalance; 0 = cost only
     "rating_floor": 3.8, "max_km": 5, "paise_per_portion": 6000, "quality_paise_per_star": 500,
     "max_kitchens_per_order": 15,      only the nearest this many eligible kitchens are candidates
     "time_limit_s": 5                  wall clock, building the model included
@@ -186,7 +186,35 @@ Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` 
     "seconds", "model": "assignment-cpsat-v0" | "greedy-v0"
 ```
 - **Model:** CP-SAT; each order to one kitchen within reach that has the skills, the rating and the room; objective = distance (₹3 a portion-km) + quality penalty (₹5 a star below 5) + λ × (the largest deviation of an eligible kitchen's earnings from the fair share + the mean absolute deviation). Earnings are rolling + tonight and counted **in portions** (÷ `paise_per_portion`), so λ trades like for like with the cost per portion; the max is the linear proxy for the Gini in handbook 08 M-G, the mean keeps the objective from going flat when one kitchen pins the max. *Eligible* = a candidate for at least one order tonight: a kitchen with no room, below the floor, without the skills or out of reach is left out of the share and the deviations.
-- **λ default 300:** the knee of a sweep on the test instance (12 orders, 4 kitchens, three seeds: knees at 200-300); on a 60-order, 8-kitchen hub the knee is at 600-700. The eval harness's sweep settles the production value.
+- **λ default 600 (1 Nov 2026), set from the eval harness's sweep:** the harness lives production's evenings (`eval/assignment_sweep.py`, eval protocol §7, the two 2026-11-01 entries): per seed 5 weeks, each order booked from a kitchen's menu (its preferred cook), `matching.preferred_first` before the solver and the request built by the round's own `matching.solver_request`, every evening on the kitchens' rolling 28-day earnings, 5 km, the 5th week scored; greedy and every λ paired by seed, 5 seeds, mean ± 95 % t-CI. The Gini is over the kitchens eligible in the scored week; the cost a portion is over the scored week's orders that **every** arm assigned (the preferred cooks' included), because the arms can leave out different orders. The default preference model (*sticky*: each household's favourite drawn once per seed uniformly among the kitchens that can cook its tiffin, every order naming it):
+
+  | λ | Gini of the week's earnings | cost vs greedy | λ | Gini | cost vs greedy |
+  |---|---|---|---|---|---|
+  | greedy | 0.369 ± 0.090 | — | 700 | 0.299 ± 0.083 | +3.8 % ± 3.4 % |
+  | 0 | 0.369 ± 0.090 | −0.1 % ± 1.1 % | 800 | 0.301 ± 0.081 | +3.9 % ± 3.5 % |
+  | 100 | 0.354 ± 0.061 | +0.3 % ± 1.6 % | 900 | 0.288 ± 0.093 | +4.7 % ± 5.8 % |
+  | 200 | 0.345 ± 0.061 | +0.5 % ± 1.9 % | 1000 | 0.286 ± 0.098 | +5.2 % ± 6.5 % |
+  | 300 | 0.336 ± 0.053 | +1.0 % ± 2.1 % | 1100 | 0.285 ± 0.098 | +5.7 % ± 7.6 % |
+  | 400 | 0.327 ± 0.069 | +1.7 % ± 2.8 % | 1200 | 0.284 ± 0.100 | +5.3 % ± 6.5 % |
+  | 500 | 0.321 ± 0.072 | +2.0 % ± 1.8 % | 2000 | 0.284 ± 0.098 | +5.4 % ± 7.7 % |
+  | **600** | **0.316 ± 0.076** | **+2.6 % ± 2.2 %** | | | |
+
+  **The M-G target (Gini ≤ 0.25 at ≤ +5 % cost, 95 % CI upper bounds) does not hold at any λ** (the lowest Gini upper bound is 0.381). The preferred cooks take 74 % ± 7 % of the portions before the solver sees them (ADR-0027 keeps the customer's choice ahead of fairness), so λ balances only the rest: the Gini falls from 0.37 to about 0.28 and stays there, the floor that sticky favourites over few households set (seed 19 is at 0.357 from λ = 600 on). The λ arms left out 4.7 % of the ordered portions for want of a kitchen in reach with room (greedy 4.9 %, it packs worse; seed 13 has a society 5.2 km from every kitchen, 21.9 % of its scored week), as production refunds them.
+
+  The simulator has no menu choice, so the preference model is an assumption; the sweep under each (`--assign-preferences`, `--assign-preferred-share`), mean ± 95 % t-CI over the 5 seeds:
+
+  | preferences | share of portions to the preferred cook | greedy Gini | λ by the rule | Gini at 600 | cost at 600 | Gini at 900 | cost at 900 |
+  |---|---|---|---|---|---|---|---|
+  | sticky, every order (default) | 0.74 | 0.369 | 900 | 0.316 | +2.6 % ± 2.2 % | 0.288 | +4.7 % ± 5.8 % |
+  | sticky, half the orders | 0.42 | 0.388 | 600 | 0.293 | +3.6 % ± 3.0 % | 0.220 | +9.0 % ± 6.1 % |
+  | nightly (a cook per order), every order | 0.77 | 0.212 | 1200 | 0.182 | +3.2 % ± 2.2 % | 0.173 | +4.3 % ± 2.6 % |
+  | nightly, half the orders | 0.39 | 0.340 | 500 | 0.223 | +5.4 % ± 2.9 % | 0.161 | +9.2 % ± 3.5 % |
+  | none (share 0) | 0 | 0.442 | 600 | 0.339 | +3.3 % ± 3.0 % | 0.180 | +13.7 % ± 7.7 % |
+  | popular (sticky, weights 1, 1/2, 1/3 …), every order | 0.69 | 0.320 | 1200 | 0.274 | +2.7 % ± 4.9 % | 0.264 | +3.6 % ± 5.5 % |
+
+  The target holds under none of them. "λ by the rule" is the **mean-cost budget rule** fixed before the sweep (eval protocol §7): the last λ before the first whose mean cost against greedy is above +5 % (the mean, because it picks an operating point by its expected cost; the target, a hypothesis test, uses the CI upper bounds). On the default model it picks 900, but 900's gain over 600 is a paired Gini difference of −0.028 ± 0.061, not significant and almost all from seed 17 (0.340 → 0.224 for +2.3 % → +12.6 % cost), and the rule's answer moves from 500 to 1200 with the preference model, and even with the random draws under one model (nightly, every order: 900 or 1200 depending on the stream). The share-1 models are the production-faithful ones (every tiffin is booked from a kitchen's menu, ADR-0027 §7); share < 1 is a stress case. **Production runs 600**: under every share-1 model it costs +2.6 % to +3.2 % on average, it is the largest grid λ whose mean cost stays ≤ +5 % under every model tested except the nightly stress case with half the orders (whose budget ends at 500), and on the default model a walk up the grid by the target's CI upper bounds also stops there (600: +4.8 %; 700: +7.3 %). The owner's decision, a disclosed and conservative departure from the rule (§7, 2026-11-01); the reports keep showing the rule's answer. λ is an environment setting: revisit it with pilot data. The earlier default, 300, was the knee of a sweep on the test instance (12 orders, 4 kitchens); the 28 Oct report's sweep (one week from 0 earnings, every order to the solver, 8 km) did not match production and is superseded.
+
+  **What the harness still leaves out:** kitchen capacity is max(8, the evening's portions ÷ 3) rather than each kitchen's own; dinner only; no declines, expiries or round 2; the rating floor never binds (every simulated kitchen is rated 3.9–4.9); and CP-SAT runs on deterministic time, not production's wall clock. The model's skip penalty (twice the dearest candidate's cost a portion) does not cover displacing another order: in a hand-built case at λ = 0, a 3-portion order 4.5 km away was skipped because placing it meant moving a 6-portion order to a kitchen 4 km away (found while testing; the model is not changed here).
 - **Partial plans:** every order has a skip with a penalty per portion larger than any order's cost and fairness effect, so one order no kitchen can take never fails the hub. Skipped orders are listed in `unassigned` with the first reason that rules every kitchen out, or `no_room` when kitchens could cook it but are full; `status` is then `partial` (`infeasible` only when nothing is assigned). `summary` per-portion figures count the assigned portions.
 - **Summary:** `gini` is over every kitchen in the request (the paper metric), `gini_eligible` over the eligible kitchens (what λ balances).
 - **Time:** candidates are the nearest `max_kitchens_per_order` kitchens per order, the variables are grouped by order and kitchen in one pass, and building counts against `time_limit_s` (the solver gets the rest; under 0.05 s left → greedy). Above `max_orders_for_solver` (default 500: a 500-order, 60-kitchen hub ends within ~2 % of optimal in 5 s) greedy answers; so do instances whose objective would not fit in int64. The gateway waits `max(ml_timeout_s, time_limit_s + 5 s)`.

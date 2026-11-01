@@ -438,7 +438,8 @@ class SlotPriceResponse(BaseModel):
 
 # --- POST /assign/kitchens (M10 §3.5): tomorrow's tiffin portions to home kitchens ------------
 
-FAIRNESS_LAMBDA = 300.0  # paise per portion of imbalance: the knee of the test sweep (M10 §3.5)
+# Paise per portion of imbalance: set from the eval harness's λ sweep (M10 §3.5, 2026-11-01).
+FAIRNESS_LAMBDA = 600.0
 MAX_ORDERS_FOR_SOLVER = 500  # measured: up to 500x60 ends within ~2 % of optimal in 5 s
 
 

@@ -314,23 +314,13 @@ async def _meal_round(
     eligible = matching.eligible_ids(rest, available)
     if rest and available:
         request = AssignRequest.model_validate(
-            {
-                "orders": [
-                    {"id": str(o.id), "lat": o.lat, "lng": o.lng, "portions": o.portions}
-                    | {"skills": sorted(o.skills)}
-                    for o in rest
-                ],
-                "kitchens": [
-                    {"id": str(c.id), "lat": c.lat, "lng": c.lng, "max_portions": c.left}
-                    | {"skills": sorted(c.skills), "rating": c.rating, "earnings_paise": c.earnings}
-                    for c in available
-                ],
-                "fairness_lambda": settings.partners_fairness_lambda,
-                "rating_floor": matching.RATING_FLOOR,
-                "max_km": matching.MAX_KM,
-                "paise_per_portion": rate,
-                "time_limit_s": TIME_LIMIT_S,
-            }
+            matching.solver_request(
+                rest,
+                available,
+                fairness_lambda=settings.partners_fairness_lambda,
+                rate=rate,
+                time_limit_s=TIME_LIMIT_S,
+            )
         )
         sent_lambda = request.fairness_lambda
         plan = await _solve(http, settings, request, session, hub_id, day)
