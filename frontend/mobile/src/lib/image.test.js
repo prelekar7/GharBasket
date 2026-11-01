@@ -50,7 +50,7 @@ describe("downscaleImage", () => {
     expect(encode).toHaveBeenCalledWith(big, true);
     expect(out).not.toBe(big);
     expect(out.type).toBe("image/jpeg");
-    expect(out.name).toBe("IMG_1.jpg");
+    expect(/** @type {File} */ (out).name).toBe("IMG_1.jpg");
     expect(out.size).toBe(300_000);
   });
 
@@ -58,7 +58,7 @@ describe("downscaleImage", () => {
     const out = await downscaleImage(file("image/png", 2_000_000, "scan.png"), async () =>
       encoded(200_000),
     );
-    expect(out.name).toBe("scan.jpg");
+    expect(/** @type {File} */ (out).name).toBe("scan.jpg");
   });
 
   it("checks a small photo's pixels, and keeps it when they are fine", async () => {
@@ -89,5 +89,16 @@ describe("downscaleImage", () => {
         throw new Error("decode");
       }),
     ).toBe(big);
+  });
+});
+
+describe("a camera photo (a Blob with no name)", () => {
+  it("is shrunk too and named photo.jpg", async () => {
+    const blob = new Blob([new Uint8Array(10)], { type: "image/jpeg" });
+    Object.defineProperty(blob, "size", { value: 4_400_000 });
+    const out = await downscaleImage(blob, async () => encoded(300_000));
+    expect(out).toBeInstanceOf(File);
+    expect(/** @type {File} */ (out).name).toBe("photo.jpg");
+    expect(out.size).toBe(300_000);
   });
 });

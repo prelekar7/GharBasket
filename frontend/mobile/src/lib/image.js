@@ -80,9 +80,9 @@ export async function encodeJpeg(file, force) {
 /**
  * Returns the file to upload: the original when it is not a photo, is small enough, or cannot be
  * decoded; otherwise a JPEG at most MAX_SIDE px long. Never makes the upload bigger or throws.
- * @param {File} file
+ * @param {File | Blob} file a picked File, or the camera plugin's Blob (no name)
  * @param {(file: Blob, force: boolean) => ReturnType<typeof encodeJpeg>} [encode] the canvas part
- * @returns {Promise<File>}
+ * @returns {Promise<File | Blob>}
  */
 export async function downscaleImage(file, encode = encodeJpeg) {
   if (!isResizable(file)) return file;
@@ -91,7 +91,8 @@ export async function downscaleImage(file, encode = encodeJpeg) {
     if (!out || out.blob === file) return file;
     // A small photo that was only re-encoded to fit the pixels must not come out bigger.
     if (out.blob.size >= file.size && !needsResize({ size: 0 }, out.dimensions)) return file;
-    const name = file.name.replace(/\.[^./\\]+$/, "") || "photo";
+    const base = file instanceof File ? file.name : "";
+    const name = base.replace(/\.[^./\\]+$/, "") || "photo";
     return new File([out.blob], `${name}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
   } catch {
     return file;
