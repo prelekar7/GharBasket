@@ -104,6 +104,10 @@ services:
         sync: false
       - key: APP_WEB_URL
         sync: false
+      # The console's Vercel URL (https://..., no trailing slash). An admin's drift message links
+      # to CONSOLE_URL/ai-health so the push opens in a browser; unset: the relative /ai-health.
+      - key: CONSOLE_URL
+        sync: false
 
   # The ML service (backend/ml, M10) on a second free web service, without OSRM: routing and slot
   # pricing use their haversine fallback (OSRM_URL is unset). The image is backend/ml/Dockerfile.render;

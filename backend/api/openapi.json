@@ -995,6 +995,9 @@
             "title": "Generated At",
             "type": "string"
           },
+          "ml_service": {
+            "$ref": "#/components/schemas/MlServiceOut"
+          },
           "models": {
             "items": {
               "$ref": "#/components/schemas/ModelHealthOut"
@@ -1018,6 +1021,7 @@
         "required": [
           "generated_at",
           "window_days",
+          "ml_service",
           "models",
           "predictions"
         ],
@@ -13605,6 +13609,53 @@
         "title": "MetricOut",
         "type": "object"
       },
+      "MlServiceOut": {
+        "description": "The ML service as the API sees it right now (`GET /health/ai`, cached about a minute).",
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "registry_sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegistrySyncOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The service's last sync of promoted models from the registry; null when it is not up or does not sync"
+          },
+          "served": {
+            "description": "Empty unless `up`",
+            "items": {
+              "$ref": "#/components/schemas/ServedModelOut"
+            },
+            "title": "Served",
+            "type": "array"
+          },
+          "status": {
+            "description": "`down`: no answer within 3 s (a sleeping free instance is down until it wakes), a refused token or a failing service; customers get the rule-based fallbacks",
+            "enum": [
+              "up",
+              "down",
+              "not_configured"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "served",
+          "registry_sync",
+          "checked_at"
+        ],
+        "title": "MlServiceOut",
+        "type": "object"
+      },
       "ModelHealthOut": {
         "properties": {
           "drift": {
@@ -22705,6 +22756,53 @@
         "title": "RefundSociety",
         "type": "object"
       },
+      "RegistrySyncOut": {
+        "properties": {
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the last sync failed; no secrets",
+            "title": "Last Error"
+          },
+          "last_failure_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Failure At"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          }
+        },
+        "required": [
+          "last_success_at",
+          "last_failure_at",
+          "last_error"
+        ],
+        "title": "RegistrySyncOut",
+        "type": "object"
+      },
       "ReinstateIn": {
         "additionalProperties": false,
         "properties": {
@@ -24099,6 +24197,24 @@
           "note"
         ],
         "title": "SendBackIn",
+        "type": "object"
+      },
+      "ServedModelOut": {
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "version"
+        ],
+        "title": "ServedModelOut",
         "type": "object"
       },
       "SessionOut": {
@@ -39223,7 +39339,7 @@
             "AccessToken": []
           }
         ],
-        "summary": "Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
+        "summary": "Whether the ML service is up and what it serves, every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
         "tags": [
           "analytics"
         ]

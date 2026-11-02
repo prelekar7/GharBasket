@@ -6,7 +6,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +48,7 @@ from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.locale import Lang
 from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["analytics"])
@@ -55,6 +56,7 @@ router.include_router(impact_router)
 
 CanRead = Annotated[Permit, require("analytics:read")]
 CanSeeCohorts = Annotated[Permit, require("analytics:cohorts")]
+AppSettings = Annotated[Settings, Depends(get_settings)]
 CanSeeAiHealth = Annotated[Permit, require("analytics:ai_health")]
 # Calendar dates the console can ask for; the day arithmetic around them never leaves the range.
 CalendarDate = Annotated[date, Field(ge=date(2000, 1, 1), le=date(2100, 12, 31))]
@@ -86,11 +88,19 @@ READ_ERRORS: dict[int | str, dict[str, Any]] = {
 
 @router.get(
     "/analytics/ai-health",
-    summary="Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
+    summary="Whether the ML service is up and what it serves, every model's newest metrics, "
+    "per-hub drift and the ML-or-fallback share (admin)",
 )
-async def ai_health(permit: CanSeeAiHealth, session: DbSession, response: Response) -> AiHealthOut:
+async def ai_health(
+    permit: CanSeeAiHealth,
+    session: DbSession,
+    response: Response,
+    request: Request,
+    settings: AppSettings,
+) -> AiHealthOut:
     response.headers["Cache-Control"] = "no-store"
-    return await service.ai_health(session)
+    async with service.http_client(getattr(request.app.state, "http", None)) as http:
+        return await service.ai_health(session, http, settings)
 
 
 @router.get(
