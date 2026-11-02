@@ -33,7 +33,12 @@ ones next to AutoETS and the two baselines.
   SeasonalNaive and the protocol's "10 points better" check are reported, never a gate.
 - Intervals: split conformal on residuals scaled per series (divided by the series' mean weekly
   uncommitted quantity up to the origin), per horizon step, with the (n+1) finite-sample
-  correction: q_tau = max(0, q50 + scale x Q_tau). The backtest calibrates every evaluation
+  correction: q_tau = max(0, q50 + scale x Q_tau). Q_tau is the **scale-weighted** tau-quantile
+  of the scaled residuals (each weighted by its series' scale): the newsvendor cost counts units,
+  and with q = q50 + s x m a point's unit pinball loss is s x rho_tau(r - m), so the weighted
+  quantile is the margin that minimises it (M10 §3.6, eval protocol §7 2026-11-02, second
+  entry). An unweighted quantile let the many zero weeks of sparse series pull the margin far
+  below zero and stock out the high-volume weeks. The backtest calibrates every evaluation
   window only on residuals whose target week was known at that window's origin, and reports the
   empirical coverage of q_tau, the pinball loss (q50, q_tau), MASE and the newsvendor's waste
   and stock-out at q_tau (as shares of the demand) on those windows.
@@ -125,6 +130,22 @@ class Line:
     model: str
 
 
+@dataclass(frozen=True, eq=False)
+class Residuals:
+    """A model's backtest residuals for one horizon step: each scaled residual (actual - q50,
+    divided by its series' scale) and that scale, its weight in the conformal quantile."""
+
+    scaled: np.ndarray
+    scale: np.ndarray
+
+    @property
+    def size(self) -> int:
+        return int(self.scaled.size)
+
+
+NO_RESIDUALS = Residuals(np.zeros(0), np.zeros(0))
+
+
 @dataclass
 class Backtest:
     hub_id: str
@@ -134,6 +155,9 @@ class Backtest:
     series: int
     tau: float = 0.5
     coverage: dict[str, float] = field(default_factory=dict)  # share of actuals ≤ q_tau
+    # The same, each point weighted by its series' scale: what the scale-weighted margin aims at
+    # tau (per-point coverage need not sit at tau).
+    coverage_weighted: dict[str, float] = field(default_factory=dict)
     pinball_q50: dict[str, float] = field(default_factory=dict)
     pinball_qtau: dict[str, float] = field(default_factory=dict)
     mase: dict[str, float] = field(default_factory=dict)
@@ -142,8 +166,9 @@ class Backtest:
     waste: dict[str, float] = field(default_factory=dict)
     stockout: dict[str, float] = field(default_factory=dict)
     eval_points: int = 0  # the points behind coverage, pinball and MASE
-    # model → horizon step → every scaled residual of the backtest (the production calibration)
-    calibration: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
+    # model → horizon step → every scaled residual of the backtest with its series' scale (the
+    # production calibration: a scale-weighted conformal quantile)
+    calibration: dict[str, dict[int, Residuals]] = field(default_factory=dict)
     # Every scored point (unique_id, ds, origin, step, y) with each model's q50 (column
     # `<model>`) and q_tau (`<model>_qtau`, NaN where the nested calibration had no residual
     # yet), for evaluations below the weekly level (the eval harness's per-day split).
@@ -361,6 +386,30 @@ def conformal_quantile(scores: np.ndarray, tau: float) -> float:
     return float(np.sort(scores)[k - 1])
 
 
+def weighted_conformal_quantile(scores: np.ndarray, weights: np.ndarray, tau: float) -> float:
+    """The weighted split-conformal tau-quantile: the smallest score whose cumulative weight
+    reaches tau x (W + W/n), W the total weight, clamped to the largest score. The test point's
+    weight is approximated by the mean weight W/n: strict weighted conformal (Tibshirani et al.
+    2019) uses the test point's own weight w_test, which would make the margin differ per series
+    (in the review of PR #476 the difference was 0.005 of the newsvendor cost on 1 of 5 seeds).
+    These weights are loss weights (the newsvendor cost counts units), not the likelihood ratios
+    of covariate-shift conformal, so the guarantee is not the point; the cost-optimal margin is.
+    With equal weights it is `conformal_quantile` exactly (the ⌈(n+1)·tau⌉-th smallest); tied
+    scores share one value, so the order among ties does not matter. Weights must be positive
+    (the series scales are)."""
+    n = int(scores.size)
+    if n == 0:
+        return 0.0
+    if weights.shape != scores.shape or not bool(np.all(weights > 0)):
+        raise ValueError("one positive weight per score")
+    order = np.argsort(scores, kind="stable")
+    cumulative = np.cumsum(weights[order])
+    total = float(cumulative[-1])
+    needed = tau * (total + total / n)  # tau x (n + 1) points of mean weight
+    k = int(np.searchsorted(cumulative, needed * (1 - 1e-12), side="left"))
+    return float(scores[order][min(max(k, 0), n - 1)])
+
+
 def _uncommitted(series: pd.DataFrame, hub_id: str) -> pd.DataFrame:
     mine = _rows(series, series["hub_id"] == hub_id)
     return pd.DataFrame(
@@ -483,14 +532,16 @@ def backtest(
         kept[m] = predicted
         test.wape[m] = round(wape(actual, predicted), 4)
         scaled = (actual - predicted) / scale
-        test.calibration[m] = {s: scaled[steps == s] for s in range(1, HORIZON + 1)}
+        test.calibration[m] = {
+            s: Residuals(scaled[steps == s], scale[steps == s]) for s in range(1, HORIZON + 1)
+        }
         # Nested calibration: each point's interval uses only residuals of the same step whose
         # target week was already known at that point's origin.
         qtau = np.full(actual.shape, np.nan)
         for s, origin in {(int(s), o) for s, o in zip(steps, origin_of, strict=True)}:
             seen = (steps == s) & (target <= origin)
             if seen.any():
-                margin = conformal_quantile(scaled[seen], tau)
+                margin = weighted_conformal_quantile(scaled[seen], scale[seen], tau)
                 mask = (steps == s) & (origin_of == origin)
                 qtau[mask] = np.maximum(0.0, predicted[mask] + scale[mask] * margin)
         kept[f"{m}_qtau"] = qtau
@@ -500,6 +551,8 @@ def backtest(
         y, q50, q = actual[evaluated], predicted[evaluated], qtau[evaluated]
         test.eval_points = int(evaluated.sum())
         test.coverage[m] = round(float(np.mean(y <= q)), 4)
+        weight = scale[evaluated]
+        test.coverage_weighted[m] = round(float((weight * (y <= q)).sum() / weight.sum()), 4)
         test.pinball_q50[m] = round(_pinball(y, q50, 0.5), 4)
         test.pinball_qtau[m] = round(_pinball(y, q, tau), 4)
         demand = float(y.sum()) or 1.0
@@ -617,8 +670,8 @@ def forecast_hub(
                 continue
             ahead = (monday_of(day) - last_week).days // 7
             q50_week = weekly.get((uid, ahead), latest)
-            residuals = test.calibration.get(model, {}).get(ahead, np.zeros(0))
-            margin = conformal_quantile(residuals, costs.tau) if residuals.size else 0.0
+            residuals = test.calibration.get(model, {}).get(ahead, NO_RESIDUALS)
+            margin = weighted_conformal_quantile(residuals.scaled, residuals.scale, costs.tau)
             qtau_week = max(0.0, q50_week + scales.get(uid, 1.0) * margin)
             same_day = last_week + timedelta(days=day.weekday())
             committed = committed_on.get((uid, same_day), 0.0)

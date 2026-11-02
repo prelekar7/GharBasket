@@ -78,6 +78,7 @@ METRICS = (
     "pinball_q50",
     "pinball_qtau",
     "coverage_qtau",
+    "coverage_qtau_weighted",
     "waste",
     "stockout",
     "newsvendor_cost",
@@ -208,6 +209,7 @@ def _arm(test: forecast.Backtest, model: str, costs: forecast.Costs) -> dict[str
         "pinball_q50": test.pinball_q50,
         "pinball_qtau": test.pinball_qtau,
         "coverage_qtau": test.coverage,
+        "coverage_qtau_weighted": test.coverage_weighted,
         "waste": test.waste,
         "stockout": test.stockout,
     }
@@ -448,7 +450,15 @@ def against_target(runs: list[ForecastRun]) -> dict[str, Any]:
         "newsvendor_cost": cost,
         "cost_below_both": None if None in below else all(below),
         "reported": {m: {"value": champion(m), "ceiling": c} for m, c in CEILINGS.items()}
-        | {"coverage_qtau": {"value": champion("coverage_qtau"), "tau": _tau()}},
+        | {
+            # Per point, for reference: the scale-weighted margin need not put it at tau.
+            "coverage_qtau": {"value": champion("coverage_qtau"), "tau": _tau()},
+            # Each point weighted by its series' scale: what the margin aims at tau.
+            "coverage_qtau_weighted": {
+                "value": champion("coverage_qtau_weighted"),
+                "tau": _tau(),
+            },
+        },
         "note": TAU_NOTE,
     }
 

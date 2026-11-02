@@ -735,7 +735,9 @@ def _forecast_html(report: dict[str, Any]) -> str:
     table = _table(
         "RQ3 — forecast of the uncommitted demand (rolling origin, an origin a week, a 2-week "
         "horizon; q_tau at tau = C_u / (C_u + C_o)): per seed, then mean ± 95 % t-CI; lower is "
-        "better except coverage, which should sit near tau. daily_*: the weekly q50 and q_tau "
+        "better except coverage: coverage_qtau_weighted (each point weighted by its series' "
+        "scale, as the margin is) should sit near tau; per-point coverage_qtau need not. "
+        "daily_*: the weekly q50 and q_tau "
         "split over the days by weekday shares as of the origin, against the daily orders",
         [
             "metric",
@@ -807,7 +809,13 @@ def _forecast_verdict_html(forecast: dict[str, Any]) -> str:
                 k,
                 _cell(r["value"]),
                 f"ceiling {r['ceiling']}" if "ceiling" in r else f"tau {r['tau']}",
-                "registered ceiling, not judged" if "ceiling" in r else "should sit near tau",
+                "registered ceiling, not judged"
+                if "ceiling" in r
+                else (
+                    "scale-weighted: should sit near tau"
+                    if k.endswith("_weighted")
+                    else "per point: need not sit near tau (the margin is scale-weighted)"
+                ),
                 "not judged",
             ]
             for k, r in target["reported"].items()

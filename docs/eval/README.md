@@ -118,7 +118,13 @@ out 45 % of the units, theirs 12–13 %), but that is the calibration, not the m
 an unweighted quantile of scaled residuals, strongly negative for a smooth forecast of sparse add-on series
 and ≈ 0 for the baselines, which repeat past values (their 0.63 coverage comes from ties at zero demand).
 The newsvendor cost counts units, so its optimal margin is a scale-weighted quantile (eval protocol §7,
-2026-11-02; the follow-up change fixes it).
+2026-11-02).
+
+**Then the calibration fix (same day, second §7 entry of 2026-11-02):** with the scale-weighted margin the
+same run gives the champion's newsvendor cost 0.071 ± 0.001 (was 0.146), seasonal naive 0.086 ± 0.006, naive
+0.091 ± 0.001, LightGBM 0.081 ± 0.005; champion − seasonal naive −0.015 ± 0.006 (lower on every seed),
+champion − naive −0.020 ± 0.001; stock-out 0.133, waste 0.062, coverage of q_τ 0.57. WAPE is unchanged, so the
+M-E target still does not hold; RQ3's cost answer is now yes (90 s for the same command).
 
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
 check (one seed, one week, no CP-SAT planner arm, the λ sweep on that seed's small week, under a
