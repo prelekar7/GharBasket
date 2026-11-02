@@ -20,6 +20,7 @@ from gharbasket_sim import config
 from gharbasket_sim.catalog import SEED_FILES
 
 from gharbasket_training.eval import assignment_sweep, forecast_ab
+from gharbasket_training.eval import routing as routing_eval
 from gharbasket_training.eval.pantry_baseline import PantryRun
 from gharbasket_training.eval.planner_ab import (
     FROM_WEEK,
@@ -86,7 +87,9 @@ def build(
     sweep_runs: list[assignment_sweep.SweepRun] | None = None,
     forecast_runs: list[forecast_ab.ForecastRun] | None = None,
     ranker_explanations: dict[str, Any] | None = None,
+    routing_runs: list[routing_eval.RoutingRun] | None = None,
 ) -> dict[str, Any]:
+    routing_runs = routing_runs or []
     summary = summarise(planner_runs)
     diffs = paired(planner_runs)
     later = paired(planner_runs, later=True, arms=(V2,))
@@ -118,7 +121,10 @@ def build(
             | {r.seed for r in pantry_runs}
             | {r.seed for r in sweep_runs}
             | {r.seed for r in forecast_runs}
+            | {r.seed for r in routing_runs}
         ),
+        # M-F: van routing against nearest neighbour per size (eval/routing.py).
+        "routing": routing_eval.section(routing_runs),
         "planner": {
             p: {m: e.as_dict() for m, e in metrics.items()} for p, metrics in summary.items()
         },
@@ -194,6 +200,7 @@ def build(
             "pantry": [asdict(r) for r in pantry_runs],
             "assignment": [asdict(r) for r in sweep_runs],
             "forecast": [asdict(r) for r in forecast_runs],
+            "routing": [asdict(r) for r in routing_runs],
         },
     }
 
@@ -422,6 +429,7 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
                 },
             }
         )
+    rows += routing_eval.metrics_rows(report, details)
     return rows
 
 
@@ -608,7 +616,8 @@ def to_html(report: dict[str, Any]) -> str:
         "true daily use, which the app never sees (the twin sees boxes and taps). The twin's "
         "tap meanings and its week-to-week spread match the simulator's own (protocol change "
         "log, 1 Nov 2026).</p>"
-        f"{sweep_table}{_forecast_html(report)}{_ranker_html(report)}</body></html>\n"
+        f"{sweep_table}{_forecast_html(report)}{_ranker_html(report)}"
+        f"{routing_eval.html(report)}</body></html>\n"
     )
 
 
