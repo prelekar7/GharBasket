@@ -50,8 +50,9 @@ jobs:
       DATABASE_URL_RO: ${{ secrets.DATABASE_URL_RO }}
       # A schedule has no inputs: 02:03 IST runs the snapshots, 21:10 IST the forecast, 03:03 IST
       # Sunday the pantry priors' refit, 03:33 IST Sunday the ranker. collect_mandi has no schedule
-      # here: api.data.gov.in refuses connections from outside India, so it runs from a Mac in
-      # India (scripts/mandi-on-mac.sh); dispatching it here fails with ConnectError.
+      # here: api.data.gov.in refuses connections from outside India, so it runs on a VM in
+      # Mumbai (scripts/mandi-on-vm.sh; scripts/mandi-on-mac.sh is the fallback); dispatching it
+      # here fails with ConnectError.
       JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || github.event.schedule == '40 15 * * *' && 'forecast' || github.event.schedule == '33 21 * * 6' && 'refit_pantry' || github.event.schedule == '3 22 * * 6' && 'train_ranker' || 'collect_mandi') }}
       ARGS: ${{ inputs.args }} # blank: the job's default, set in the run step
     steps:

@@ -40,11 +40,13 @@ class Settings(BaseSettings):
     # MODELS_SYNC_DEADLINE_S, after which it gives up and the models it has keep serving.
     models_sync_timeout_s: float = Field(default=10.0, gt=0, le=60)
     models_sync_deadline_s: float = Field(default=120.0, gt=0, le=600)
-    # The OSRM server next to this service (the Space runs it on 127.0.0.1:5000); unset: the
-    # routing endpoints answer with the haversine fallback and /health/ai says "not_configured".
+    # The OSRM server next to this service (the full image runs it on 127.0.0.1:5000; staging has
+    # none); unset: the routing endpoints answer with the haversine fallback and /health/ai says
+    # "not_configured".
     osrm_url: str | None = None
-    # Ghar Saathi (M13): the Anthropic key (a Space secret) and the model (ADR-0013: Opus 5.5
-    # until the S8 evaluation); unset key: /assistant/turn answers 503 and the API says so.
+    # Ghar Saathi (M13): the Anthropic key (a host secret; not set on staging, ADR-0030) and the
+    # model (ADR-0013: Opus 5.5 until the S8 evaluation); unset key: /assistant/turn answers 503
+    # and the API says so.
     anthropic_api_key: SecretStr | None = None
     assistant_model: str = "claude-opus-5-5"
     # One Anthropic request may take this long (one retry); the whole turn (up to four rounds)

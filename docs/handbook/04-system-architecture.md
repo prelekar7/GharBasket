@@ -60,7 +60,7 @@ flowchart TB
   GHA["GitHub Actions schedule + cron-job.org<br/>call internal job endpoints;<br/>backend/training jobs (D25)"]
   subgraph Backend["Backend (Python 3.13)"]
     API["backend/api<br/>FastAPI modular monolith<br/>13 modules, on Render<br/>outbox relay + jobs inside"]
-    ML["backend/ml (Hugging Face Space, D25)<br/>FastAPI, stateless: planners,<br/>routing, assignment, LLM, inference"]
+    ML["backend/ml (Render free web service, D30)<br/>FastAPI, stateless: planners,<br/>routing, assignment, LLM, inference"]
   end
   subgraph Data["Data and infrastructure"]
     PG[("PostgreSQL 18<br/>Neon (Singapore) / Docker<br/>one schema per module")]
@@ -84,7 +84,7 @@ flowchart TB
   API --> OBJ
 ```
 
-Where it runs (D20): the API and Valkey on Render's free tier (Singapore), Postgres on Neon (Singapore), files on Cloudflare R2, and both frontends on Vercel, which rewrites `/v1/*` to the API so browsers stay same-origin. The platforms provide TLS. The ML service and OSRM run on one Hugging Face Space, training and data jobs run in GitHub Actions (`backend/training`), models and the lake live on R2, and MLflow stays local (D25, [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)); locally everything runs in Docker Compose. Details: [Chapter 12](12-deployment-and-operations.md).
+Where it runs (D20): the API and Valkey on Render's free tier (Singapore), Postgres on Neon (Singapore), files on Cloudflare R2, and both frontends on Vercel, which rewrites `/v1/*` to the API so browsers stay same-origin. The platforms provide TLS. The ML service runs as a second free Render web service without OSRM (D30, [ADR-0030](../adr/0030-ml-service-on-render-free.md)), training and data jobs run in GitHub Actions (`backend/training`), models and the lake live on R2, and MLflow stays local (D25, [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)); locally everything runs in Docker Compose. Details: [Chapter 12](12-deployment-and-operations.md).
 
 ## 4. C4 level 3 — components
 
@@ -185,7 +185,7 @@ flowchart TB
 |---|---|
 | `api` (FastAPI modular monolith, 13 modules) | All transactional business logic. One database transaction can safely span order + ledger + inventory |
 | `worker` (same code as api, Taskiq) — from the pilot | Background jobs must not slow API requests. Until a paid worker exists, jobs run without a broker: the API relays outbox rows after each commit and a GitHub Actions schedule calls internal job endpoints (D21) |
-| `ml` (FastAPI, on a Hugging Face Space, D25) | Different dependencies (OR-Tools, inference libraries), different CPU/RAM profile; stateless, so it can crash or reload a model without touching orders |
+| `ml` (FastAPI, on a free Render web service on staging, D30) | Different dependencies (OR-Tools, inference libraries), different CPU/RAM profile; stateless, so it can crash or reload a model without touching orders |
 | `ml-worker` (same code as ml) — from the pilot | Long batch jobs (weekly plans, training); until then training, forecasts and snapshots run in GitHub Actions from `backend/training` (D25) |
 | `console` (Next.js), `mobile` (static bundle) | Frontends |
 | Postgres, Valkey, MLflow, OSRM | Off-the-shelf infrastructure |
@@ -217,7 +217,7 @@ flowchart LR
 | Mobile app | React 19 + Vite + TanStack Router → PWA + Capacitor 8 (Android) | One JavaScript codebase with the console (D18). Flutter dropped (second language, no shared UI). React Native/Expo rejected (no UI sharing with web) |
 | Web console + public site | Next.js 16 | Server rendering for dashboards and SEO landing/referral pages; route groups; `proxy.js` sign-in gate (cookies are set and refreshed by the API, D24). A Vite SPA cannot do SEO pages well |
 | Backend API | FastAPI (Python 3.13) modular monolith | The ML/optimisation ecosystem is Python; async + Pydantic + automatic OpenAPI → generated API client (D22). NestJS rejected (second backend language); Django rejected (sync-first, heavier) |
-| ML / optimisation | Separate FastAPI service: OR-Tools, StatsForecast, LightGBM, NumPyro, Chronos-2, MLflow | Isolated heavy dependencies; CPU-only training in GitHub Actions (`backend/training`); serving on a Hugging Face Space (D25; Docker Compose locally) |
+| ML / optimisation | Separate FastAPI service: OR-Tools, StatsForecast, LightGBM, NumPyro, Chronos-2, MLflow | Isolated heavy dependencies; CPU-only training in GitHub Actions (`backend/training`); serving on a free Render web service (D30; Docker Compose locally) |
 | Background jobs | Postgres outbox (`FOR UPDATE SKIP LOCKED`) relayed by the API after each commit; scheduled jobs as `POST /v1/internal/jobs/<name>` called by a GitHub Actions schedule (D21) and, for minute-level jobs, cron-job.org (D25). Taskiq + Valkey from the pilot | Free and durable; APScheduler rejected (misses jobs while the free API sleeps); Celery rejected (sync-first) |
 | Database | PostgreSQL 18 (+ PostGIS, pgvector, pg_trgm), Valkey, S3-compatible storage, DuckDB | Relational integrity for money and orders; geo, vector and fuzzy search in one database |
 | API contract | OpenAPI → openapi-typescript (`schema.d.ts` types) + openapi-fetch + openapi-react-query (TanStack Query hooks) (D22) | Generated contract between Yash and Prathamesh; CI fails on drift |
@@ -226,7 +226,7 @@ flowchart LR
 | Auth / push | Firebase Phone Auth + FCM; our own JWT sessions (D24) | Firebase ID token verified with PyJWT, not firebase-admin |
 | Payments | Razorpay (Checkout, UPI Autopay, Route) — test mode; our own thin async client on httpx2 | UPI Autopay moves to the pilot phase |
 | Maps / routing | MapLibre + OpenFreeMap/MapTiler; OSRM self-hosted | No Google Maps bills |
-| Hosting | Free tiers (D20): Render (API, Key Value), Vercel (PWA, console, PR previews), Neon Postgres (Singapore, one shared dev/staging database), Cloudflare R2 (files), Infisical (secrets). The ML service and OSRM on a Hugging Face Space, training in GitHub Actions, MLflow local only (D25) | No bill possible during development; no server to maintain |
+| Hosting | Free tiers (D20): Render (API, Key Value), Vercel (PWA, console, PR previews), Neon Postgres (Singapore, one shared dev/staging database), Cloudflare R2 (files), Infisical (secrets). The ML service on a second free Render web service (no OSRM on staging, D30), training in GitHub Actions, MLflow local only (D25) | No bill possible during development; no server to maintain |
 | CI/CD | GitHub Actions (CI; after merge `alembic upgrade head` on Neon, then the Render deploy hook); Render builds the Docker image; Docker Compose locally | |
 | Observability | structlog JSON logs, OpenTelemetry → Grafana Cloud, PostHog | Sentry is not used |
 | Architecture | Service-based: modular monolith + ML service + background jobs | Not microservices (§6) |
@@ -238,6 +238,6 @@ Detailed library lists per layer are in `docs/TDD.md` (Part 2) and [Chapter 09](
 - D2 Frontend codebase — [ADR-0002](../adr/0002-react-capacitor-mobile-nextjs-console.md). D3 Python-only backend — [ADR-0003](../adr/0003-python-fastapi-backend-and-ml-service.md). D6 Postgres-centric database — [ADR-0006](../adr/0006-postgresql-centric-data-platform.md).
 - D14 Final stack and service-based architecture — [ADR-0014](../adr/0014-final-stack-and-service-based-architecture.md). D18 JavaScript frontend — [ADR-0018](../adr/0018-javascript-not-typescript-frontend.md). D20 Free-tier hosting on Render, Vercel, Neon, R2 and Infisical — [ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md) (supersedes ADR-0011 and ADR-0015). D21 Jobs without a broker — [ADR-0021](../adr/0021-jobs-without-a-broker.md). D22 Generated API client — [ADR-0022](../adr/0022-api-client-openapi-fetch.md).
 - Open: before the pilot (Phase 6), decide on paid plans (Render Starter, a worker, Firebase Blaze) and whether the pilot database stays on Neon Singapore (about 60 ms per round-trip, to be verified) or moves to a paid Postgres in Mumbai (Q3).
-- D25 ML runtime: the ML service and OSRM on a Hugging Face Space, training in GitHub Actions, models and the lake on R2 — [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md).
+- D25 ML runtime: training in GitHub Actions, models and the lake on R2 — [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); its serving host (a Hugging Face Space with OSRM) is replaced on staging by a free Render web service without OSRM (D30) — [ADR-0030](../adr/0030-ml-service-on-render-free.md).
 
 Related: [03 Product and features](03-product-and-features.md) · [05 Data architecture](05-data-architecture.md) · [10 API and integration](10-api-and-integration.md) · [12 Deployment and operations](12-deployment-and-operations.md)

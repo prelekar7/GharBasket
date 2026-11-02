@@ -146,7 +146,7 @@ flowchart TD
 | `jobs-staging.yml` | GitHub Actions schedule (daily and weekly) or "Run workflow" with a job name | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` and the scheduled time (D21). Minute-level jobs (the 21:00 cut-off, the outbox sweep every few minutes) are called the same way by cron-job.org, since a private repository has 2,000 free Actions minutes a month. Skips with a notice until the secrets exist |
 | `training-jobs.yml` | GitHub Actions schedule (daily, 18:33 IST) or "Run workflow" with a job module | Runs `python -m gharbasket_training.jobs.<name>` from `backend/training` on the runner (D25): reads and writes the lake on R2 and hands results to the API's internal endpoints with `JOBS_TOKEN`. Today it runs `collect_mandi`. Skips with a notice until its secrets exist |
 
-Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag), `deploy-ml.yml` for the ML service on its Hugging Face Space and, before P6, a pilot production deploy.
+Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag) and, before P6, a pilot production deploy.
 
 ## 11.5 Environments
 
@@ -179,7 +179,7 @@ flowchart LR
 |---|---|---|---|---|
 | local | Docker Postgres (tests and `just seed` refuse any other database) | `just dev` | `next dev`, `vite` | `vite` / Android emulator |
 | preview (PR) | No database of its own; uses staging | Shared staging API | Vercel preview | Debug APK (later) |
-| staging | Neon, one database shared by Infisical `dev` and `staging` | Render free web service; the ML service and OSRM on a Hugging Face Space (D25) | Vercel | Internal testing track |
+| staging | Neon, one database shared by Infisical `dev` and `staging` | Render free web service; the ML service on a second free Render web service, without OSRM (D30) | Vercel | Internal testing track |
 | prod (pilot) | Decided before P6 (Q3) | Paid plans decided before P6 | Vercel | Internal / closed testing |
 
 ## 11.6 Testing strategy
@@ -246,7 +246,7 @@ Core rules in `AGENTS.md`:
 - **D14** — Final tech stack; changes need an ADR ([ADR-0014](../adr/0014-final-stack-and-service-based-architecture.md)); amended by D18 (JavaScript frontend, [ADR-0018](../adr/0018-javascript-not-typescript-frontend.md)) and D22 (generated API client, [ADR-0022](../adr/0022-api-client-openapi-fetch.md)).
 - **D20** — Free-tier environments: Render, Vercel, Neon, R2 ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md); supersedes ADR-0015).
 - **D23** — Ownership: one backend owner, one frontend owner ([ADR-0023](../adr/0023-ownership-backend-and-frontend.md); supersedes the code ownership in ADR-0009).
-- **D25** — ML runtime: the ML service and OSRM on one Hugging Face Space, training in GitHub Actions (`backend/training`), models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020).
+- **D25** — ML runtime: training in GitHub Actions (`backend/training`), models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020). Its serving host, a Hugging Face Space with OSRM, is replaced by a free Render web service without OSRM (D30, [ADR-0030](../adr/0030-ml-service-on-render-free.md)).
 - **Open:** the pilot production setup (before P6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 12 — Deployment and operations](12-deployment-and-operations.md) · [Chapter 14 — Project plan](14-project-plan.md)

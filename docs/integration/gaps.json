@@ -8,62 +8,6 @@
     "Delete an entry when its fix lands (--check reports a stale entry). extra_fixes lists mismatches the scan cannot see."
   ],
   "entries": {
-    "PATCH /v1/cycles/{}/meals": {
-      "app": "mobile",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "F1: useSwapMeal sends PATCH; send PUT (same body { date, slot }); change the mock handler too.",
-      "note": "M3 §3.2 renamed it to PUT; blocks the MS-A meal-swap flow."
-    },
-    "PATCH /v1/admin/festivals/{}": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "F3: PATCH (and DELETE) /v1/admin/festivals/{day}/{code}/{region}, not a single id; the run's days become one call each.",
-      "note": "M2 §3.3."
-    },
-    "POST /v1/admin/reconciliation/{}/credit": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "F4: POST /v1/admin/reconciliation/{id}/resolve with { note } (moves no money; the wallet credit is not an action).",
-      "note": "M5 §3.4. Built on main."
-    },
-    "POST /v1/admin/reconciliation/{}/investigate": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "F4: same resolve call; the spec has no 'investigating' state.",
-      "note": "M5 §3.4."
-    },
-    "POST /v1/admin/reconciliation/check": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "F4: drop the 'Check now' button; the hourly Razorpay check is a job. Ask for an admin trigger only if wanted.",
-      "note": "No endpoint in M5 §3.4."
-    },
-    "POST /v1/hubs/{}/cutoff/run": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "Remove 'Run cut-off now' from the cut-off page: M4 replaced it with the 21:00 job (cutoff_lock), which is operator-only.",
-      "note": "M4 spec endpoint table, row POST /v1/internal/jobs/cutoff_lock."
-    },
-    "GET /v1/admin/hubs": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "The spec has POST only. List with GET /v1/hubs and read each with GET /v1/hubs/{id}; show what those carry.",
-      "note": "M6 §3.1. If address, people and slots are needed in one list, that is a new backend ask."
-    },
-    "GET /v1/public/societies": {
-      "app": "console",
-      "class": "fix-frontend",
-      "owner": "yash",
-      "fix": "Drop the public society list from the landing page; a society page is GET /v1/public/societies/{slug}.",
-      "note": "M12 §3.7: 'Not in v1'."
-    },
     "GET /v1/public/cooks/{}": {
       "app": "console",
       "class": "fix-frontend",
@@ -95,35 +39,35 @@
       "id": "F2",
       "app": "mobile",
       "where": "src/mocks/handlers.js, kitchen.js, community.js",
-      "fix": "Mock role grants use slug scope_ids; use the seed UUIDs (hub 0199a000-0000-7000-8000-00000000a001, Sunrise Towers ...b001) so the same code runs on both.",
+      "fix": "Done (checked against frontend/mobile on 2 Nov 2026): the mock role grants take their scope ids from `mocks/packer.js` (HUB_ID, SOCIETY_ID: the seed UUIDs), and `kitchen.js` and `community.js` use them too; no slug scope_id is left. Was: Mock role grants use slug scope_ids; use the seed UUIDs (hub 0199a000-0000-7000-8000-00000000a001, Sunrise Towers ...b001) so the same code runs on both.",
       "owner": "yash"
     },
     {
       "id": "F6",
       "app": "console",
       "where": "app/(console)/(hub)/today/page.jsx, app/(console)/(analytics)/kpis, app/(console)/(franchise)/customers",
-      "fix": "M12 §3.3 ships (GET /v1/analytics/hubs/{id}/today, /kpis, /societies) and replaces the mocks. GET /v1/hubs/{id}/ops-board becomes /v1/analytics/hubs/{id}/today: timestamps and HH:MM, formatted by the console; compose the status line from steps; no markers or route; attention is { kind, count, oldest_at, due_at, link } (copy and tone from kind; issues link to /hub/issues). GET /v1/analytics/customer-summary becomes /v1/analytics/societies (the console totals items and counts status unlocking as joining; paused_households is in the row). /kpis needs data_source real|synthetic, returns periods (ISO dates) and series.<key>.",
+      "fix": "Done (checked against frontend/console on 2 Nov 2026): the today board calls GET /v1/analytics/hubs/{id}/today, Customers calls GET /v1/analytics/societies and /kpis, and KPIs calls GET /v1/analytics/kpis with `data_source`; none calls ops-board or customer-summary. Was: M12 §3.3 ships (GET /v1/analytics/hubs/{id}/today, /kpis, /societies) and replaces the mocks. GET /v1/hubs/{id}/ops-board becomes /v1/analytics/hubs/{id}/today: timestamps and HH:MM, formatted by the console; compose the status line from steps; no markers or route; attention is { kind, count, oldest_at, due_at, link } (copy and tone from kind; issues link to /hub/issues). GET /v1/analytics/customer-summary becomes /v1/analytics/societies (the console totals items and counts status unlocking as joining; paused_households is in the row). /kpis needs data_source real|synthetic, returns periods (ISO dates) and series.<key>.",
       "owner": "yash"
     },
     {
       "id": "F7",
       "app": "console",
       "where": "lib/session.js (STAFF_ROLES, ROLES, ConsoleRole), lib/nav.js",
-      "fix": "Add the catalog_editor role (seed person Rekha Joshi, +91 98000 01013): its home, nav sections (catalog and prices) and the sign-in button.",
+      "fix": "Done (checked against frontend/console on 2 Nov 2026): `catalog_editor` is in STAFF_ROLES, ROLES (home /catalog, Rekha Joshi, sections [catalog]) and the nav, and the sign-in page lists every ROLES entry. Was: Add the catalog_editor role (seed person Rekha Joshi, +91 98000 01013): its home, nav sections (catalog and prices) and the sign-in button.",
       "owner": "yash"
     },
     {
       "id": "F8",
       "app": "console",
       "where": "lib/hub.js, mocks/README.md",
-      "fix": "GET /v1/hubs ships now: update the comments that say it is a 404, and the mocks README (it says API port 8010 and console port 3160; real mode is 8000 and 3000, see docs/SETUP.md 'Real mode').",
+      "fix": "Done (checked against frontend/console on 2 Nov 2026): lib/hub.js documents GET /v1/hubs as shipped and the mocks README gives the real-mode ports 8000 and 3000. Was: GET /v1/hubs ships now: update the comments that say it is a 404, and the mocks README (it says API port 8010 and console port 3160; real mode is 8000 and 3000, see docs/SETUP.md 'Real mode').",
       "owner": "yash"
     },
     {
       "id": "F9",
       "app": "console",
       "where": "lib/ngo.js, app/(console)/(community)/handoffs/, app/(console)/(community)/drives/",
-      "fix": "M9 §3.5 ships: build against its shapes, not the mock's (M9 §3.5 'Mock today'). POST /v1/admin/ngos takes { name, kind, hub_ids, accepts, registration_ref, verified, status, note } (coordinators are M1 role grants) and PATCH needs If-Match; GET /v1/ngo-handoffs is Page[Handoff] with `report` (`summary` is structured; `open_batches` is GET /v1/ngo-handoffs/ready); POST /v1/ngo-handoffs takes { ngo_id, hub_id, kind, donation_ids | offer_ids | meals, photo_keys (1 to 3 handoff_photo uploads), people_reached, handed_at, note } with an Idempotency-Key; a drive's ngo_id may be set.",
+      "fix": "Done (checked against frontend/console on 2 Nov 2026): POST /v1/admin/ngos (name, kind, hub_ids, accepts, registration_ref, note), GET and POST /v1/ngo-handoffs with Idempotency-Key and photo_keys, GET /v1/ngo-handoffs/ready and the handoff confirm are called with the M9 section 3.5 shapes. The console makes no PATCH /v1/admin/ngos call, so the If-Match part has nothing to check; a drive is created with `ngo_id: null`, which the spec allows. Was: M9 §3.5 ships: build against its shapes, not the mock's (M9 §3.5 'Mock today'). POST /v1/admin/ngos takes { name, kind, hub_ids, accepts, registration_ref, verified, status, note } (coordinators are M1 role grants) and PATCH needs If-Match; GET /v1/ngo-handoffs is Page[Handoff] with `report` (`summary` is structured; `open_batches` is GET /v1/ngo-handoffs/ready); POST /v1/ngo-handoffs takes { ngo_id, hub_id, kind, donation_ids | offer_ids | meals, photo_keys (1 to 3 handoff_photo uploads), people_reached, handed_at, note } with an Idempotency-Key; a drive's ngo_id may be set.",
       "owner": "yash"
     }
   ]

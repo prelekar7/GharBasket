@@ -1,7 +1,6 @@
 # The ML service on a free Render web service (staging), without OSRM: routing and slot pricing then
-# use their haversine fallback (OSRM_URL unset). The Hugging Face Space image (Dockerfile, with the
-# baked road network) stays the full image for a local or paid host. Built by Render from the
-# repository root, like the API image:
+# use their haversine fallback (OSRM_URL unset). The full image (Dockerfile, with the baked road
+# network, built for a Hugging Face Space before ADR-0030) stays for a local or paid host. Built by Render from the repository root, like the API image:
 #   docker build -f backend/ml/Dockerfile.render -t gharbasket-ml-render .
 # Dependencies come straight from the workspace's uv.lock (no requirements.lock to generate).
 
