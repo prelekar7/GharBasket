@@ -1,22 +1,12 @@
 """RQ3 (M-E): forecast v0 against v1 on a seeded synthetic uncommitted demand.
 
-The simulator's weeks are boxes (committed demand), so this module derives the uncommitted demand
-(add-on lines and tiffins) from what it already produces, for the harness only: the simulator's
-own outputs are untouched. Every draw is seeded per seed, household and week.
-
-- **Add-ons:** a product a household ran short of in a week (the simulator's pantry
-  `bought_elsewhere`, bought outside its box) becomes an add-on with probability `ADDON_TAKE`,
-  times the week's price multiplier to the power `-PRICE_ELASTICITY` (shocks.json) and
-  `1 + FESTIVAL_LIFT` per festival day of the week (seed festivals.json), capped at 1. The
-  quantity is the shortfall in the product's steps (at least one, at most M4's
-  `MAX_ADDON_QTY`). Add-ons are placed as production can place them (ADR-0031, eval protocol §7
-  2026-11-02, third entry): as add-on lines on the week's box, so only in a week the household
-  ordered and funded (`funded`: the simulator's `--write-db` cut-off draw; a skipped or unfunded
-  week loses them), delivered on the box's day (the seed societies deliver on Tuesdays), never
-  for a product already on that box (M4 refuses it: the household edits the box line instead)
-  or without a price at the hub, and at most `MAX_ADDON_LINES` a box (first by product).
-- **Tiffins:** a slot the plan leaves to a no-cook day (meal action `tiffin`) is ordered as a
-  tiffin with probability `TIFFIN_TAKE`, one portion per member, product `tiffin-<slot>`.
+The simulator's weeks are boxes (committed demand); the uncommitted demand (add-on lines and
+tiffins) comes from `gharbasket_sim.uncommitted`, the one derivation `--write-db` shares (take
+rates, elasticity, festival lift, the per-week streams and production's rules for add-ons,
+ADR-0031). The harness also applies the cut-off: a week the simulator leaves unfunded
+(`uncommitted.funded`) loses its add-ons with its box. An add-on line rides on the week's box: its
+order and the box's day (the seed societies deliver on Tuesdays); a tiffin is product
+`tiffin-<slot>` on its meal's day.
 - **World:** every household the seed samples, one hub (the seed societies'), `WEEKS` weeks from
   `START` with the rules planner and the price shocks. Exogenous inputs: the festival calendar by
   week and the shock multiplier as the price index (1.0 = usual; production reads the 4-week
@@ -50,31 +40,26 @@ judged (at tau = 0.375 q_tau sits below the median by design). Everything is per
 several hubs counts once, as the mean of its hubs.
 """
 
-import math
-import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, cast
 
 import pandas as pd
-from gharbasket_sim import config
+from gharbasket_sim import config, uncommitted
 from gharbasket_sim import pantry as pantry_sim
 from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import sample, societies
 from gharbasket_sim.weeks import PLANNERS, cached, simulate
 
-from gharbasket.modules.orders.api import MAX_ADDON_LINES, MAX_ADDON_QTY
 from gharbasket.tools.seed import SEED_DELIVERY_WEEKDAY
 from gharbasket_training import forecast
 from gharbasket_training.eval.stats import Estimate, estimate
 from gharbasket_training.jobs.forecast import prices_frame, weeks_frame
 
-ADDON_TAKE = 0.5  # share of shortfalls ordered as an add-on rather than at the corner shop
-PRICE_ELASTICITY = 1.0
-FESTIVAL_LIFT = 0.1  # per festival day of the week
-TIFFIN_TAKE = 0.7  # share of no-cook slots ordered as a tiffin
-UNFUNDED = 0.05  # the simulator's --write-db: a week's wallet left short at the cut-off
+ADDON_TAKE, TIFFIN_TAKE = uncommitted.ADDON_TAKE, uncommitted.TIFFIN_TAKE
+PRICE_ELASTICITY, FESTIVAL_LIFT = uncommitted.PRICE_ELASTICITY, uncommitted.FESTIVAL_LIFT
+take, funded = uncommitted.take, uncommitted.funded
 WEEKS = 20  # room for the 8 origins after the 7 weeks a series needs and the 2-week horizon
 START = date(2026, 9, 7)  # the first week of the seed festival calendar
 V1 = "LightGBM"
@@ -130,27 +115,10 @@ def assumptions() -> dict[str, Any]:
         "tiffin_take": TIFFIN_TAKE,
         # ADR-0031: add-ons ride on the week's ordered and funded box, on its day.
         "addons_on_box": True,
-        "unfunded": UNFUNDED,
+        "unfunded": uncommitted.UNFUNDED,
         "planner": "rules",
         "costs": {"underage": forecast.Costs().underage, "overage": forecast.Costs().overage},
     }
-
-
-def _stream(seed: int, household: str, week: int) -> random.Random:
-    return random.Random(f"gharbasket-eval-forecast:{seed}:{household}:{week}")  # noqa: S311 (seeded)
-
-
-def funded(seed: int, household: str, week: int) -> bool:
-    """Whether the household's wallet covers the week's box at the cut-off: the first draw of the
-    simulator's per-week `--write-db` stream (run.py, through_modules.replay_week)."""
-    rng = random.Random(f"gharbasket-sim:{seed}:{household}:{week}:db")  # noqa: S311 (seeded)
-    return rng.random() >= UNFUNDED
-
-
-def take(multiplier: float, festival_days: float) -> float:
-    """The chance that a shortfall becomes an add-on in a week."""
-    lift = 1 + FESTIVAL_LIFT * festival_days
-    return min(1.0, ADDON_TAKE * multiplier**-PRICE_ELASTICITY * lift)
 
 
 def demand(
@@ -168,62 +136,41 @@ def demand(
     hub_of = {str(s.id): str(s.hub_id) for s in societies()}
     plan = cached(PLANNERS["rules"])
     festivals = weeks_frame([(f.day, f.code, dict(f.rules)) for f in catalog.festivals])
-    festival_days = {
-        pd.Timestamp(ds).date(): float(n)
-        for ds, n in zip(festivals["ds"], festivals["festival_days"], strict=True)
-    }
+    festival_days = uncommitted.festival_days(catalog)
     factors = [pantry_sim.weekly_prices(catalog, shocks, w) for w in range(weeks)]
     lines: list[dict[str, Any]] = []
     for h in households:
         rows = simulate(seed, h, catalog, start, weeks, plan, shocks)
         hub = hub_of[h.society_id]
-        ordered = {b["week"] for b in rows.boxes if b["ordered"]}
-        on_box: dict[int, set[str]] = {}
-        for line in rows.box_lines:
-            on_box.setdefault(line["week"], set()).add(line["product"])
-        placed: dict[int, int] = {}  # add-on lines on each week's box
-        rngs: dict[int, random.Random] = {}  # one stream per week, drawn in the rows' order
-        rng = lambda w: rngs.setdefault(w, _stream(seed, h.key, w))  # noqa: B023, E731
-        for p in rows.pantry:
-            w, slug, short = p["week"], p["product"], p["bought_elsewhere"]
+        for w in range(weeks):
             monday = start + timedelta(weeks=w)
-            chance = take(factors[w][slug], festival_days.get(monday, 0.0))
-            if short <= 0 or rng(w).random() >= chance:
-                continue
-            product = catalog.products[slug]
-            if (
-                w not in ordered
-                or not funded(seed, h.key, w)
-                or slug in on_box.get(w, set())
-                or pantry_sim.price_of(product, factors[w]) is None
-                or placed.get(w, 0) >= MAX_ADDON_LINES
-            ):
-                continue  # production has no box to put it on, or M4 refuses it
-            placed[w] = placed.get(w, 0) + 1
-            step = product.step or 1
-            lines.append(
+            addons, tiffins = uncommitted.week_demand(
+                seed, h, rows, catalog, w, factors[w], festival_days.get(monday, 0.0)
+            )
+            if not uncommitted.funded(seed, h.key, w):
+                addons = []  # the cut-off cancels the unpaid box and its add-on lines
+            lines += [
                 {
                     "hub_id": hub,
-                    # An add-on line rides on the week's box: the box's order and delivery day.
-                    "product_id": slug,
-                    "order_id": f"{h.key}-{w}-box",
+                    "product_id": a.product,
+                    "order_id": f"{h.key}-{w}-box",  # an add-on line rides on the week's box
                     "delivery_date": monday + timedelta(days=SEED_DELIVERY_WEEKDAY),
                     "order_kind": "addon",
-                    "qty": float(min(MAX_ADDON_QTY, max(1, math.ceil(short / step)))),
+                    "qty": float(a.qty),
                 }
-            )
-        for m in rows.meals:
-            if m["action"] == "tiffin" and rng(m["week"]).random() < TIFFIN_TAKE:
-                lines.append(
-                    {
-                        "hub_id": hub,
-                        "product_id": f"tiffin-{m['slot']}",
-                        "order_id": f"{h.key}-{m['date']}-tiffin",
-                        "delivery_date": m["date"],
-                        "order_kind": "tiffin",
-                        "qty": float(len(h.body["members"])),
-                    }
-                )
+                for a in addons
+            ]
+            lines += [
+                {
+                    "hub_id": hub,
+                    "product_id": f"tiffin-{t.slot}",
+                    "order_id": f"{h.key}-{t.day}-tiffin",
+                    "delivery_date": t.day,
+                    "order_kind": "tiffin",
+                    "qty": float(t.portions),
+                }
+                for t in tiffins
+            ]
     shocked = sorted({e.product for e in shocks.episodes} if shocks else set())
     prices = prices_frame(
         [

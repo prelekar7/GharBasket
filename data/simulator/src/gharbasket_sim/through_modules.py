@@ -41,12 +41,12 @@ from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import Settings
 from gharbasket_sim.households import SimHousehold
 from gharbasket_sim.pantry import Line
+from gharbasket_sim.uncommitted import UNFUNDED, AddOn
 from gharbasket_sim.weeks import Planned, Rows
 
 IST = ZoneInfo("Asia/Kolkata")
 ML_TOKEN = "simulator-ml-token"  # noqa: S105 (in-process only)
 MAX_OPS = 20
-UNFUNDED = 0.05  # chance a household's wallet is left short at the cut-off this week
 FUNDING_BUFFER_PAISE = 20_000
 
 
@@ -61,6 +61,8 @@ class Outcome:
     ops: int = 0
     refused: list[str] = field(default_factory=list)  # problem codes met on the way
     feedback: int = 0
+    addon_lines: int = 0  # add-on lines placed on the box (ADR-0031)
+    addon_steps: int = 0
 
 
 @contextmanager
@@ -251,8 +253,11 @@ async def replay_week(
     rows: Rows,
     ids: dict[str, uuid.UUID],
     slugs: dict[uuid.UUID, str],
+    addons: list[AddOn] | None = None,
 ) -> Outcome:
-    """Send one simulated week through M3, M4 and M5."""
+    """Send one simulated week through M3, M4 and M5. `addons` (`uncommitted.week_demand`) go on
+    the approved box as add-on lines before the cut-off (M4 `set_addons`), so the top-up and the
+    cut-off's debit cover them."""
     out = Outcome()
     if cycle is None:
         return out
@@ -299,9 +304,11 @@ async def replay_week(
     if cycle.order_id is None:
         return out
     out.order_id = cycle.order_id
+    order = await orders_api.get(session, cycle.order_id, for_update=True)
+    if addons and order.status == "approved":
+        await place_addons(session, order, addons, ids, cutoff, out)
 
     # The cut-off: the wallet is topped up to cover the box, unless this is an unfunded week.
-    order = await orders_api.get(session, cycle.order_id, for_update=True)
     if rng.random() >= UNFUNDED and order.status == "approved":
         balance = await wallet.balance(session, user_id)
         short = order.total_paise + FUNDING_BUFFER_PAISE - balance
@@ -346,6 +353,37 @@ async def replay_week(
     return out
 
 
+async def place_addons(
+    session: AsyncSession,
+    order: orders_api.Order,
+    addons: list[AddOn],
+    ids: dict[str, uuid.UUID],
+    cutoff: datetime,
+    out: Outcome,
+) -> None:
+    """The household adds the week's add-ons to its approved box at T-2 10:00 IST, as the app's
+    `POST /v1/orders/{id}/addons` would: priced from the hub's list then, quantities set (not
+    added), so a replay leaves the same lines."""
+    lines = await orders_service.lines_of(session, order.id)
+    on_box = {line.product_id for line in lines if line.kind == "box"}
+    # The derivation leaves out the simulator's box; M3's may differ when an edit was refused.
+    items = {
+        ids[a.product]: a.qty for a in addons if a.product in ids and ids[a.product] not in on_box
+    }
+    if not items:
+        return
+    with simulated_time(cutoff - timedelta(hours=35)):
+        try:
+            async with session.begin_nested():
+                await orders_service.set_addons(
+                    session, order, items, expected_version=order.version
+                )
+        except ProblemError as exc:
+            out.refused.append(exc.code)
+            return
+    out.addon_lines, out.addon_steps = len(items), sum(items.values())
+
+
 async def delivery_dates(
     session: AsyncSession, society_id: uuid.UUID, first_monday: date, weeks: int
 ) -> list[date]:
@@ -373,4 +411,6 @@ def outcome_row(h: SimHousehold, week: int, outcome: Outcome) -> dict[str, Any]:
         "ops": outcome.ops,
         "refused": sorted(set(outcome.refused)),
         "feedback": outcome.feedback,
+        "addon_lines": outcome.addon_lines,
+        "addon_steps": outcome.addon_steps,
     }

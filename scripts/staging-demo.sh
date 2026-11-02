@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Load demo data into staging (handbook 12, "Staging demo data"): a Neon restore point, then the
-# seed (adds only), then simulated weeks through the real modules (`just sim --write-db`), all
-# data_source = synthetic, then the counts.
+# seed (adds only), then simulated weeks through the real modules (`just sim --write-db`, with each
+# week's add-ons on the box unless --no-uncommitted), all data_source = synthetic, then the counts.
 #
 #   infisical run --env=staging -- just staging-demo        # 1. shows the host, the plan; writes nothing
 #   GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-demo   # 2. loads it
@@ -25,6 +25,7 @@ usage: scripts/staging-demo.sh [options]
   --planner P      cpsat (default) or rules
   --seed N         simulator seed (default 7)
   --add-weeks      add only the weeks after the latest simulated one
+  --no-uncommitted boxes only: no add-on lines (default: each week's add-ons on the box, ADR-0031)
   --no-backup      skip the Neon restore point (not recommended)
   --skip-commit-check  write even if this checkout is not the commit staging runs (not recommended)
   --dry-run        show the host, counts and plan, then stop
@@ -38,6 +39,7 @@ adoption=0.015
 planner=cpsat
 seed=7
 add_weeks=""
+uncommitted=""
 backup=1
 dry_run=0
 commit_check=1
@@ -57,6 +59,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     --add-weeks) add_weeks=--add-weeks && shift ;;
+    --no-uncommitted) uncommitted=--no-uncommitted && shift ;;
     --no-backup) backup=0 && shift ;;
     --skip-commit-check) commit_check=0 && shift ;;
     --dry-run) dry_run=1 && shift ;;
@@ -108,7 +111,7 @@ elif [ "$status" != 0 ]; then
   exit "$status"
 fi
 read -r start sim_weeks <<<"$window"
-echo "plan: $sim_weeks week(s) from Monday $start, seed $seed, planner $planner, adoption $adoption"
+echo "plan: $sim_weeks week(s) from Monday $start, seed $seed, planner $planner, adoption $adoption, add-ons $([ -n "$uncommitted" ] && echo off || echo on)"
 echo "      $(helper estimate --weeks "$sim_weeks" --adoption "$adoption")"
 echo "unlocking societies the run adds households to:"
 helper unlock --adoption "$adoption"
@@ -154,9 +157,10 @@ echo "seed (adds only on a shared database):"
 uv run --quiet python -m gharbasket.tools.seed --allow-remote
 helper unlock --adoption "$adoption" >/dev/null # again, now that the seed's households are there
 echo "simulating $sim_weeks week(s) through the modules (subscriptions paused at the end):"
+# shellcheck disable=SC2086 # $uncommitted is empty or one word
 uv run --quiet python -m gharbasket_sim --write-db --allow-remote --pause-after --seed "$seed" \
   --weeks "$sim_weeks" --start "$start" --planner "$planner" --adoption "$adoption" \
-  --out "data/sim_truth/staging-$stamp"
+  --out "data/sim_truth/staging-$stamp" $uncommitted
 echo "after:"
 helper counts
 echo "done in $((SECONDS / 60)) min $((SECONDS % 60)) s"

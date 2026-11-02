@@ -7,7 +7,8 @@ Needs `just seed` first (the hub, societies, catalog and prices). Users and hous
 written through M1's onboarding service with `data_source='synthetic'` (ADR-0008); running it
 again keeps them as they are. The weeks (plans, edits, skips, consumption) go to
 data/sim_truth/; with `--write-db` they also go through M3, M4 and M5, a week at a time
-(through_modules.py).
+(through_modules.py), each week's add-ons as add-on lines on the approved box (uncommitted.py,
+the eval harness's derivation; `--no-uncommitted` leaves them out).
 
 Only for the local Docker database. A shared database (staging on Neon) is refused unless both
 `--allow-remote` is given and GB_ALLOW_REMOTE_SEED names its host: `scripts/staging-demo.sh`
@@ -17,7 +18,6 @@ does that for staging's demo data (handbook 12).
 import argparse
 import asyncio
 import os
-import random
 import uuid
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
@@ -45,6 +45,7 @@ from gharbasket.tools.seed import SEED_HUB_ID
 from gharbasket_sim import config as cohorts
 from gharbasket_sim import through_modules as through
 from gharbasket_sim import truth
+from gharbasket_sim import uncommitted as demand
 from gharbasket_sim.catalog import Catalog, load_catalog
 from gharbasket_sim.config import Shocks
 from gharbasket_sim.households import SimHousehold, sample
@@ -116,9 +117,12 @@ async def simulate_world(
     progress: Callable[[str], None] | None = None,
     adopt_real: bool = True,
     pause_after: bool = False,
+    place_uncommitted: bool = True,
 ) -> Run:
     """`pause_after` (staging) pauses the households' subscriptions once their weeks are written,
-    so staging's own weekly job leaves them alone; the next `--write-db` run resumes them."""
+    so staging's own weekly job leaves them alone; the next `--write-db` run resumes them.
+    `place_uncommitted` (`--write-db`) puts each week's add-ons (`uncommitted.week_demand`, the
+    eval harness's derivation) on the approved box through M4, before the cut-off."""
     first_monday = start - timedelta(days=start.weekday())
     last_day = first_monday + timedelta(weeks=weeks, days=-1)
     catalog = await load_catalog(session, SEED_HUB_ID, first_monday, last_day)
@@ -138,6 +142,7 @@ async def simulate_world(
         ids = await catalog_api.product_ids_by_slug(session, sorted(catalog.products))
         slugs = {pid: slug for slug, pid in ids.items()}
         plan_catalog = await catalog_api.plan_catalog(session, SEED_HUB_ID)
+    festival_days = demand.festival_days(catalog)
     async with through.ml_client() as http:
         for n, h in enumerate(households, 1):
             c = by_name[h.cohort]
@@ -174,7 +179,19 @@ async def simulate_world(
                         slugs=slugs,
                     )
                     sim.week(w, planned, drafted)
-                    rng = random.Random(f"gharbasket-sim:{seed}:{h.key}:{w}:db")
+                    addons = None
+                    if place_uncommitted:
+                        monday = first_monday + timedelta(weeks=w)
+                        addons, _ = demand.week_demand(  # tiffins: no menus yet (M2 §3.4)
+                            seed,
+                            h,
+                            one,
+                            catalog,
+                            w,
+                            weekly_prices(catalog, shocks, w),
+                            festival_days.get(monday, 0.0),
+                        )
+                    rng = demand.db_stream(seed, h.key, w)
                     outcome = await through.replay_week(
                         session,
                         settings,
@@ -187,6 +204,7 @@ async def simulate_world(
                         rows=one,
                         ids=ids,
                         slugs=slugs,
+                        addons=addons,
                     )
                     one.outcomes.append(through.outcome_row(h, w, outcome))
                 await session.commit()
@@ -299,6 +317,14 @@ def _summary(run: Run) -> list[str]:
             f"{sum(o['feedback'] for o in run.rows.outcomes)} pantry taps recorded; refused: "
             f"{_counts(code for o in run.rows.outcomes for code in o['refused']) or 'none'}"
         )
+        placed = [o for o in run.rows.outcomes if o["addon_lines"]]
+        sold = [o for o in placed if o["order_status"] == "delivered"]
+        lines.append(
+            f"add-ons: {sum(o['addon_lines'] for o in placed)} lines "
+            f"({sum(o['addon_steps'] for o in placed)} steps) on {len(placed)} boxes, "
+            f"{sum(o['addon_lines'] for o in sold)} lines delivered; tiffin orders: 0 "
+            "(no tiffin menus yet)"
+        )
     return lines
 
 
@@ -320,6 +346,7 @@ async def run(database_url: str, args: argparse.Namespace) -> Run:
                 progress=(lambda line: print(line, flush=True)) if args.write_db else None,
                 adopt_real=is_local_database(database_url),
                 pause_after=args.pause_after,
+                place_uncommitted=not args.no_uncommitted,
             )
             await session.commit()
             return result
@@ -353,6 +380,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="with --write-db: pause the households' subscriptions at the end (staging)",
     )
+    parser.add_argument(
+        "--no-uncommitted",
+        action="store_true",
+        help="with --write-db: boxes only, no add-on lines (default: the week's add-ons go on the "
+        "approved box through M4, the eval harness's derivation; ADR-0031)",
+    )
     args = parser.parse_args(argv)
     if args.pause_after and not args.write_db:
         parser.error("--pause-after needs --write-db")
@@ -379,6 +412,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "planner": args.planner,
         "shocks": not args.no_shocks,
         "write_db": args.write_db,
+        "uncommitted": args.write_db and not args.no_uncommitted,
         "adoption": args.adoption,
         "data_source": "synthetic",
     }
