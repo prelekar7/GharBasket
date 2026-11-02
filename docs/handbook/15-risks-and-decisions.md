@@ -16,7 +16,7 @@ Likelihood (L) and impact (I) are rated High / Medium / Low. Owners watch their 
 | R4 | Not enough real data for the paper | H | M | Simulator with stored ground truth; pilot data reported separately (`data_source`); honest framing in the paper | Prathamesh |
 | R5 | Migration conflicts and module coupling | M | H | Single Alembic head enforced in CI, import-linter contracts, CODEOWNERS reviews | Prathamesh |
 | R6 | Scope creep from new ideas | H | H | Every change needs an ADR and guide agreement; ideas go to a "later" backlog | Rhythm |
-| R7 | OSRM and maps setup pain | M | M | Mumbai Metropolitan Region clipped extract; OSRM data baked into the ML service image on the Hugging Face Space (D25); spike in S0 | Prathamesh |
+| R7 | OSRM and maps setup pain | M | M | Mumbai Metropolitan Region clipped extract; OSRM data baked into the full ML service image (D25); staging's ML service runs without OSRM on Render and prices routes with haversine (D30); spike in S0 | Prathamesh |
 | R8 | LLM cost overrun | L | M | Per-user daily caps, prompt caching, cheaper model chosen by eval if accuracy holds | Prathamesh |
 | R9 | Exams collide with milestones | H | M | Floating buffer sprint; S3 kept light; dates confirmed as soon as published | Manish |
 | R10 | Legal/compliance claims challenged in the viva | M | M | Closed-loop wallet design, simulated KYC, cite RBI, DPDP and FSSAI texts, guide sign-off | Rhythm |
@@ -49,7 +49,7 @@ quadrantChart
 
 ## 15.2 Decision log
 
-D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided between 2 and 4 October 2026 and D26 and D27 on 9 October 2026 and D28 on 20 October 2026. Each has an ADR with context, alternatives and consequences.
+D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided between 2 and 4 October 2026 and D26 and D27 on 9 October 2026, D28 on 20 October 2026 and D29 and D30 on 27 and 28 October 2026. Each has an ADR with context, alternatives and consequences.
 
 | ID | Decision | ADR |
 |---|---|---|
@@ -77,10 +77,12 @@ D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided b
 | D22 | Generated API client: openapi-typescript + openapi-fetch + openapi-react-query in `frontend/packages/api-client`; replaces Hey API | [ADR-0022](../adr/0022-api-client-openapi-fetch.md) |
 | D23 | Ownership: Prathamesh = all backend, infra, simulator and ML; Yash = all frontend and design; Rhythm and Manish unchanged; supersedes the code ownership in D9 | [ADR-0023](../adr/0023-ownership-backend-and-frontend.md) |
 | D24 | Sign-in: Firebase phone OTP, then our own tokens (15-minute access JWT, rotating refresh token); httpOnly cookies and CSRF checks for browsers | [ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md) |
-| D25 | ML runtime: the ML service and OSRM serve from one Hugging Face Space; training, forecasting and snapshots run in GitHub Actions (`backend/training`); R2 is the lake and the model registry (`latest.json`, `just promote`); MLflow local only; cron-job.org triggers minute-level jobs; settles the open item in D20 and refines D21 | [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md) |
+| D25 | ML runtime (serving host amended by D30): the ML service and OSRM were to serve from one Hugging Face Space; training, forecasting and snapshots run in GitHub Actions (`backend/training`); R2 is the lake and the model registry (`latest.json`, `just promote`); MLflow local only; cron-job.org triggers minute-level jobs; settles the open item in D20 and refines D21 | [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md) |
 | D26 | Operations contract: one unit set (`g, kg, ml, l, piece, bunch, pack`); order actors `packer`, `rider`, `captain`, `kitchen` alongside `customer`, `system`, `hub`; tiffins reuse the order statuses and events; M9 is the source of truth for Society Captains; M6 owns `hub_ops.hubs` (hub ids elsewhere without foreign keys); crates counted, not tracked — amended by D27 | [ADR-0026](../adr/0026-operations-contract.md) |
 | D27 | Operations contract amendments: a tiffin no kitchen accepts goes `locked → refunded` (system, `no_kitchen`); a box missed twice has its perishables refunded minus ₹20 and its non-perishables carried to the next delivery (`orders.api.carry_over`, up to 14 days, then refunded); the held bag stays overnight with the captain; captains earn ₹6 a bag at `orders.delivered` (none for tiffins); the extra M4 moves M7 needs; the booked menu's cook is honoured first, the rest fair-assigned | [ADR-0027](../adr/0027-operations-contract-amendments.md) |
 | D28 | M7 order moves: a hub manager who starts or completes a route for its rider moves the orders as `rider` (the rider's pay is unchanged); a redelivery no route picked up is rebooked or refunded by the hub (`redelivery → refunded`, system or hub) — accepted by the owner on 20 October 2026 | [ADR-0028](../adr/0028-m7-order-moves-by-hub-managers-and-orphan-redeliveries.md) |
+| D29 | The repository is public: GitHub Actions minutes are free, so CI and the staging deploy run on every change; nothing secret or personal may be committed | [ADR-0029](../adr/0029-public-repository.md) |
+| D30 | The staging ML service runs on a second free Render web service (`gharbasket-ml`, `backend/ml/Dockerfile.render`) without OSRM, because Hugging Face Docker Spaces now need a paid plan; routing and slot pricing use their haversine fallback, the CP-SAT weekly planner does not finish at 0.1 CPU so staging plans come from the rule planner, and no keep-alive pings are set up — accepted by the owner on 28 October 2026 | [ADR-0030](../adr/0030-ml-service-on-render-free.md) |
 
 ### How decisions change
 

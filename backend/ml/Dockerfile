@@ -1,14 +1,14 @@
-# The full ML service image (ADR-0025): uvicorn on port 7860 with osrm-routed as a
-# second process, the Mumbai Metropolitan Region road network baked in at build time (a free Space
-# has no persistent disk). Build locally with `just ml-lock && docker build -t gharbasket-ml backend/ml`
-# (requirements.lock is generated from uv.lock). Hugging Face now charges for Docker Spaces, so staging
-# runs Dockerfile.render instead (a free Render web service, no OSRM); this image is the full one for
-# a local run or a paid host.
+# The full ML service image (ADR-0025): uvicorn on port 7860 (the port a Hugging Face Space expects;
+# kept as the default) with osrm-routed as a second process, the Mumbai Metropolitan Region road
+# network baked in at build time (the image has no persistent disk). Build locally with `just ml-lock && docker build -t gharbasket-ml backend/ml`
+# (requirements.lock is generated from uv.lock). Hugging Face now charges for Docker Spaces (ADR-0030),
+# so staging runs Dockerfile.render instead (a free Render web service, no OSRM); this image is the
+# full one for a local run or a paid host.
 #
 # Stage 1 clips the OpenStreetMap extract to the MMR box and builds the OSRM (MLD) network, as
 # infra/osrm/prepare.sh does on a laptop. Stage 2 is the OSRM runtime image plus a uv-managed
 # Python and this package, installed from the locked versions: the two processes share one
-# container (handbook 12) and run as the non-root user 1000, as on a Space.
+# container (handbook 12) and run as the non-root user 1000, as a Hugging Face Space would.
 #
 # Every input is pinned except the OSM extract: Geofabrik publishes only "latest" under a stable
 # name, so the date of the data that was baked in is recorded in /data/mmr.osm-date and logged by
@@ -52,7 +52,7 @@ ARG PYTHON_VERSION
 LABEL org.opencontainers.image.source="https://github.com/prelekar7/GharBasket" \
       org.gharbasket.osm.source="${OSM_URL}" \
       org.gharbasket.osm.date-file="/data/mmr.osm-date"
-# Hugging Face runs a Space's container as user 1000; the image does the same.
+# Non-root user 1000 (what a Hugging Face Space uses); the image runs as it.
 RUN useradd --create-home --uid 1000 app
 ENV APP_ENV=prod \
     OSRM_URL=http://127.0.0.1:5000 \

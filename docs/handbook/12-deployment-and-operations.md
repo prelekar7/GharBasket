@@ -6,7 +6,7 @@
 > - **Deploys:** every green CI run on `main` triggers `deploy-staging.yml`, which runs `alembic upgrade head` on Neon, calls the Render deploy hook and runs a smoke test. CI on `main` cancels a superseded run, so only the newest commit deploys. The repository is public, so Actions minutes are free. Scheduled jobs are internal endpoints called by a GitHub Actions schedule for daily and weekly jobs (D21) and by **cron-job.org** for minute-level ones (D25). Training and data jobs run in GitHub Actions (`training-jobs.yml`, `backend/training`). Secrets live in **Infisical**.
 > - **Backups:** Neon's built-in point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow.
 > - **Observability:** structlog JSON logs, UptimeRobot (which also keeps the free API awake), PostHog. Explicit SLOs; runbooks are planned and written before the pilot (S10).
-> - **ML runtime (D25):** the ML service and OSRM run on one free **Hugging Face Space**; models and the data lake live on R2 with a `latest.json` pointer per model; MLflow stays local.
+> - **ML runtime (D25, serving host amended by D30):** the ML service is a second free **Render web service** (`gharbasket-ml`) without OSRM (routing uses haversine; Hugging Face Docker Spaces now need a paid plan, [ADR-0030](../adr/0030-ml-service-on-render-free.md)); models and the data lake live on R2 with a `latest.json` pointer per model; MLflow stays local. No keep-alive pings: both free web services share the workspace's 750 instance hours a month.
 > - **Still open:** paid plans plus the pilot database location (Neon Singapore or a paid Mumbai Postgres), decided before P6.
 
 ---
@@ -37,9 +37,8 @@ flowchart TB
 
     R2[("Cloudflare R2<br/>gb-staging-* buckets")]
 
-    subgraph HFS["Hugging Face Space (free CPU, D25; being set up)"]
-        MLS["ml<br/>FastAPI (planners, routing, inference)"]
-        OS["OSRM<br/>MMR road network baked into the image"]
+    subgraph MLR["Render free web service gharbasket-ml (Singapore, D30)"]
+        MLS["ml<br/>FastAPI (rule planner fallback, routing by haversine, inference)"]
     end
 
     subgraph EXT["External services"]
@@ -62,7 +61,6 @@ flowchart TB
     API --> VK
     API --> R2
     API -.-> MLS
-    MLS -.-> OS
     MLS -.->|"polls latest.json"| R2
     API --> FB
     API --> WA
@@ -87,7 +85,7 @@ flowchart TB
 | postgres | Neon (Singapore) | All module schemas, the outbox (the job queue, D21) | One shared database for `dev` and `staging` |
 | files | Cloudflare R2 (S3 API, region `auto`) | Media, private KYC files and proofs | SeaweedFS locally; the code uses the S3 API only |
 | PWA and console | Vercel | Static PWA build and the Next.js console | `/v1/*` rewrites to the API, so browser cookies are same-origin; preview deployment per PR |
-| ml + OSRM | Hugging Face Space (free CPU, Docker; ADR-0025) | Planners, the pantry twin, routing, forecasts' serving | One container: uvicorn on 7860 and `osrm-routed` with the MMR network baked in; `deploy-ml.yml` mirrors `backend/ml` with dependencies exported from `uv.lock` after CI on `main` (no commit, so no rebuild, when nothing changed); `start.sh` exits when either process dies, so the Space restarts; UptimeRobot keeps it awake; the API's fallbacks cover cold starts |
+| ml | Render free web service `gharbasket-ml` (Singapore, Docker `backend/ml/Dockerfile.render`; ADR-0030) | The pantry twin, routing, kitchen assignment, slot pricing, the basket ranker; the CP-SAT weekly planner is too slow at 0.1 CPU, so staging plans come from the rule planner | No OSRM: `OSRM_URL` is unset and routing prices with haversine. 512 MB and 0.1 CPU; sleeps after 15 idle minutes and wakes in about a minute, and the API's fallbacks cover that. Render deploys it by itself for each commit on `main` that changes `backend/ml/**`, `pyproject.toml`, `uv.lock` or `.dockerignore` (`autoDeployTrigger: commit` in `render.yaml`; no deploy hook). No keep-alive pings: it shares the 750 free instance hours with the API. `Smoke ML` (`smoke-ml.yml`) checks every endpoint by hand and daily at 06:40 IST. The full image with OSRM (`backend/ml/Dockerfile`) is for local runs and a paid host |
 | training and data jobs | GitHub Actions (`training-jobs.yml`, `backend/training`) | Data collection, training, forecasts, snapshots | Reads Neon (read-only role) and R2; hands results to the API's internal endpoints with `JOBS_TOKEN` |
 | models and lake | Cloudflare R2 (`gb-lake`, `gb-mlflow`) | Snapshots, external data, model versions with a `latest.json` pointer per model | Promotion is manual (`just promote`, D25); the ML service on Render follows `latest.json` every 10 minutes with a read-only token (`S3_*` on `gharbasket-ml`) |
 | MLflow | Local only (Docker Compose) | Experiment tracking | Never hosted (D25) |
@@ -107,7 +105,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 | Secrets | Infisical (`dev`, `staging`, `prod`) | `infisical run --env=…`; synced to GitHub Actions secrets; never in the repo |
 | Builds, migrations, schedules | GitHub Actions | CI, `alembic upgrade head` on Neon, Render deploy hook, daily and weekly job calls (`jobs-staging.yml`), training and data jobs (`training-jobs.yml`) |
 | Minute-level schedules | cron-job.org | The 21:00 cut-off, the outbox sweep every few minutes, proposal expiry: `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` (D25) |
-| ML serving | Hugging Face Space (free CPU) | The ML service and OSRM (D25) |
+| ML serving | Render free web service, a second one next to the API | The ML service, without OSRM (D30) |
 | DNS and TLS | Render and Vercel default URLs | No custom domain yet; TLS by the platforms |
 | Cost | Free tiers only until the pilot | Nothing here can bill us during development. The repository is public, so GitHub Actions minutes are free |
 
@@ -130,7 +128,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 4. Add the GitHub Actions secrets `DATABASE_URL_DIRECT` (Neon, direct), `RENDER_DEPLOY_HOOK_URL`, `JOBS_TOKEN` and `STAGING_API_URL` (done; the deploy workflow needs exactly these four).
 5. Add an UptimeRobot monitor on `/v1/health` every 10 minutes.
 6. Add a cron-job.org job (timezone Asia/Kolkata) for every `runner: cron-job.org` entry of `infra/jobs/schedule.yaml`, the one schedule of every job (a list of crons is one cron-job.org job each; the minute-level ones run only in short windows around the events that need them, to let Neon sleep; set the Neon compute to a fixed 0.25 CU). Each calls `POST <STAGING_API_URL>/v1/internal/jobs/<name>` with `Authorization: Bearer <JOBS_TOKEN>` and the body `{}`; the `actions` entries run from `jobs-staging.yml`. `scripts/cronjob_sync.py` does this: put a cron-job.org API key (Console → Settings → API) in Infisical `staging` as `CRONJOB_ORG_API_KEY`, then `infisical run --env=staging -- just cronjob-sync` shows the plan and `... just cronjob-sync --apply` makes it (75 jobs titled `gharbasket-staging <name>`; the free API allows 100 calls a day and 5 creations a minute, so the first sync takes about 15 minutes). Run it again after changing the schedule, and with `--rotate-token` after a new `JOBS_TOKEN`.
-7. Training jobs (`training-jobs.yml`, ADR-0025): add the GitHub Actions secrets `DATA_GOV_IN_API_KEY` (data.gov.in → My account → API key), `S3_ENDPOINT_URL`, `S3_ACCESS_KEY` and `S3_SECRET_KEY`: an R2 token that can read and write the staging buckets `gb-staging-lake` and `gb-staging-mlflow` (the `gb-lake` / `gb-mlflow` names are the local SeaweedFS defaults; staging's buckets are `gb-staging-*`, set in `training-jobs.yml`, `render.yaml` and `scripts/mandi-on-mac.sh`). Best its own token (Object Read & Write on those two buckets), kept in Infisical `staging` as `TRAINING_S3_ACCESS_KEY` / `TRAINING_S3_SECRET_KEY` and copied to the GitHub secrets without printing them; the Mac collector falls back to the API's `S3_*` keys when it is absent, and `DATABASE_URL_RO`: `infisical run --env=staging -- scripts/neon-ro-role.sh` creates the read-only role `gharbasket_ro` (SELECT on the catalog, subscriptions, orders and intel schemas and the two household tables only; every transaction read-only), checks it cannot write or read `identity.users`, and sets the secret without printing it. Running it again rotates the password. Until the secrets exist each job skips with a notice. `collect_mandi` cannot run on Actions (api.data.gov.in refuses connections from outside India): install it on a Mac in India with `scripts/mandi-on-mac.sh install` (daily 18:45, a missed run runs on wake; needs `infisical login`).
+7. Training jobs (`training-jobs.yml`, ADR-0025): add the GitHub Actions secrets `DATA_GOV_IN_API_KEY` (data.gov.in → My account → API key), `S3_ENDPOINT_URL`, `S3_ACCESS_KEY` and `S3_SECRET_KEY`: an R2 token that can read and write the staging buckets `gb-staging-lake` and `gb-staging-mlflow` (the `gb-lake` / `gb-mlflow` names are the local SeaweedFS defaults; staging's buckets are `gb-staging-*`, set in `training-jobs.yml`, `render.yaml` and `scripts/mandi-on-vm.sh` and `scripts/mandi-on-mac.sh`). Best its own token (Object Read & Write on those two buckets), kept in Infisical `staging` as `TRAINING_S3_ACCESS_KEY` / `TRAINING_S3_SECRET_KEY` and copied to the GitHub secrets without printing them; the VM and Mac collectors fall back to the API's `S3_*` keys when it is absent, and `DATABASE_URL_RO`: `infisical run --env=staging -- scripts/neon-ro-role.sh` creates the read-only role `gharbasket_ro` (SELECT on the catalog, subscriptions, orders and intel schemas and the two household tables only; every transaction read-only), checks it cannot write or read `identity.users`, and sets the secret without printing it. Running it again rotates the password. Until the secrets exist each job skips with a notice. `collect_mandi` cannot run on Actions (api.data.gov.in refuses connections from outside India): it runs on an Oracle Cloud Always Free VM in Mumbai (VM.Standard.E2.1.Micro, Ubuntu 24.04): `scripts/mandi-on-vm.sh setup <ip> <key>` installs it with a daily systemd timer at 18:45 IST (a run missed while the VM was down runs at boot; each run pulls `main` first), `infisical run --env=staging -- scripts/mandi-on-vm.sh env <ip> <key>` copies its secrets, and `run` and `status` show the log and the timer. A Mac in India with `scripts/mandi-on-mac.sh install` (launchd, daily 18:45; needs `infisical login`) is the fallback; it ran the job until the VM took over and is now uninstalled.
 
 ### Vercel projects (PWA and console)
 
@@ -176,7 +174,7 @@ The root `prepare` script installs the git hooks (`lefthook install`), which exi
 | Valkey | Not backed up | — | Nothing to restore: it only holds rate-limit counters and the sign-out deny-list |
 | R2 files | Staging holds test files only | — | Strategy decided with the pilot plans before P6 |
 | Models, lake | R2 (`gb-mlflow`, `gb-lake`); MLflow runs stay local | Every promoted model version is kept | Point `latest.json` back at the previous version |
-| OSRM | Baked into the ML Space image (D25) | — | Rebuilt from `infra/osrm/prepare.sh` |
+| OSRM | Baked into the full ML image (`backend/ml/Dockerfile`, local runs and a paid host); not on staging (ADR-0030) | — | Rebuilt from `infra/osrm/prepare.sh` |
 | Config | Dockerfile, Compose files and workflows in git; secrets in Infisical | git history | Redeploy-from-scratch drill once before the pilot |
 
 ## 12.5 Observability
@@ -185,7 +183,7 @@ The root `prepare` script installs the git hooks (`lefthook install`), which exi
 |---|---|---|
 | Errors and logs | structlog JSON logs (Render log view); OpenTelemetry → Grafana Cloud free tier, set up before the pilot | Errors and slow requests. Sentry is not used |
 | Jobs | GitHub Actions run history; cron-job.org execution history | Scheduled job calls and training runs that failed or ran late |
-| Uptime | UptimeRobot | `/v1/health` every 10 minutes (also keeps the free API awake); `/v1/ready` (operator token) checks the database and Valkey; the ML Space's `/health` every 10 minutes (keeps it awake) |
+| Uptime | UptimeRobot | `/v1/health` every 10 minutes (also keeps the free API awake); `/v1/ready` (operator token) checks the database and Valkey. The ML service is not pinged (ADR-0030: a keep-alive would starve the API of the shared 750 free hours); the daily `Smoke ML` run (06:40 IST) checks `/health` and every endpoint |
 | Product | PostHog | Funnels (onboarding, approve week), feature flags, A/B experiments. No names or phone numbers in events |
 | AI health | Console "AI health" page | Forecast WAPE vs actual, plan acceptance, waste %, model versions |
 
@@ -226,7 +224,7 @@ These runbooks are not written yet. They are planned for `docs/runbooks/` and ar
 
 | Area | Owner |
 |---|---|
-| Infra (Render, Neon, R2, Vercel projects, Infisical, Compose, the ML Space, OSRM, MLflow, cron-job.org), API, deploy, job and training workflows | Prathamesh Relekar |
+| Infra (Render, Neon, R2, Vercel projects, Infisical, Compose, the ML service, OSRM, MLflow, cron-job.org), API, deploy, job and training workflows | Prathamesh Relekar |
 | Mobile release builds (APK, AAB) | Yash Salunkhe |
 | Backup restore tests, runbook drills, uptime checks, load tests | Rhythm Thakur, Manish Raje |
 
@@ -235,7 +233,8 @@ These runbooks are not written yet. They are planned for `docs/runbooks/` and ar
 - **D6** — Postgres-centric data layer ([ADR-0006](../adr/0006-postgresql-centric-data-platform.md) in [`docs/adr/`](../adr/)).
 - **D20** — Free-tier hosting: Render, Vercel, Neon, Cloudflare R2, Infisical ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md); supersedes ADR-0011 and ADR-0015).
 - **D21** — Jobs without a broker until the pilot ([ADR-0021](../adr/0021-jobs-without-a-broker.md)).
-- **D25** — ML runtime: the ML service and OSRM on a Hugging Face Space, training in GitHub Actions, models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020).
+- **D25** — ML runtime: training in GitHub Actions, models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020).
+- **D30** — the ML service on a second free Render web service, without OSRM, replacing the Hugging Face Space of D25 ([ADR-0030](../adr/0030-ml-service-on-render-free.md)).
 - **Open:** paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before Phase 6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 11 — Engineering process](11-engineering-process.md) · [Chapter 13 — Security and compliance](13-security-and-compliance.md)

@@ -86,7 +86,7 @@ def test_models_and_ai_health_list_the_built_in_solvers(client: TestClient, tmp_
     }
 
 
-# --- the Space: the road network's status and the smoke check -----------------------------------
+# --- the service: the road network's status and the smoke check -----------------------------------
 
 
 @pytest.mark.anyio

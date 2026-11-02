@@ -19,9 +19,10 @@ no OSRM: `OSRM_URL` is unset, so `/route/solve` and `/slots/price` price with th
 free instance has 512 MB RAM and 0.1 CPU, sleeps after 15 minutes without traffic and needs about a
 minute to wake; both free web services share the workspace's 750 instance hours a month. While it is
 asleep, or when a call is slower than the API's timeouts, the API answers from its rule fallbacks
-(`source: "fallback"`), never an error. Render deploys it by itself once the commit's GitHub checks
-pass, and only when `backend/ml/**`, `pyproject.toml` or `uv.lock` changed (`autoDeployTrigger:
-checksPass` and a `buildFilter` in `render.yaml`); no deploy-hook secret is involved. In the Render
+(`source: "fallback"`), never an error. Render deploys it by itself for each commit on `main` that
+changes `backend/ml/**`, `pyproject.toml`, `uv.lock` or `.dockerignore` (`autoDeployTrigger: commit` and a
+`buildFilter` in `render.yaml`; not `checksPass`, because an informational check that fails on `main` would hold
+every ML deploy back); no deploy-hook secret is involved. It is not pinged to keep it awake (ADR-0030). In the Render
 dashboard set `ML_SERVICE_TOKEN` (the same value as the API's); `ANTHROPIC_API_KEY` stays unset, so
 the assistant answers 503 on staging. The API reaches it through `ML_SERVICE_URL` and
 `ML_SERVICE_TOKEN`. Measured on the free instance's limits (`docker run --memory=512m --cpus=0.1`), the

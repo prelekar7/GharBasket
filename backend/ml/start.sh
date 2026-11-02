@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Two processes in one Space (ADR-0025): the road network on 127.0.0.1:5000 and the service on
-# the port Hugging Face expects (7860). This script supervises both: when either exits, it stops
-# the other and exits with the first one's status, so the Space restarts the container. TERM and
-# INT (a Space restart or Ctrl-C) are forwarded to both. Needs bash 5.1+ (`wait -n` with ids).
+# Two processes in one container (ADR-0025; the full image, not the Render one of ADR-0030): the
+# road network on 127.0.0.1:5000 and the service on port 7860 (PORT overrides it). This script
+# supervises both: when either exits, it stops the other and exits with the first one's status, so
+# the host restarts the container. TERM and INT (a host restart or Ctrl-C) are forwarded to both. Needs bash 5.1+ (`wait -n` with ids).
 set -uo pipefail
 
 port="${PORT:-7860}"

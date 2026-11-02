@@ -319,6 +319,7 @@ flowchart LR
 - **D18** — Frontend in JavaScript, not TypeScript ([ADR-0018](../adr/0018-javascript-not-typescript-frontend.md)).
 - **D22** — Generated API client: openapi-typescript + openapi-fetch + openapi-react-query ([ADR-0022](../adr/0022-api-client-openapi-fetch.md)).
 - **D23** — Yash owns all frontend code; Prathamesh owns the backend ([ADR-0023](../adr/0023-ownership-backend-and-frontend.md)).
+- **Frontend ask before the pilot (M10 §3.3, 2 Nov 2026):** the pantry twin reads the mobile "Wasted" feedback tap as "a quarter of the box or more was left". The button's label should become "Wasted (¼ or more left)" (and its Hindi and Marathi strings with it) so the household means what the model assumes; `PANTRY_TWIN_ENABLED` stays off for the pilot until it does. No API change: the signal stays `wasted` (M3 §3). Owner: Yash.
 - **Open:** confirm OpenFreeMap vs MapTiler tiles; check that the logo and icon drafts from the canvas are distinctive enough (art-direction iterations in P0).
 
 Related: [Chapter 03 — Product and features](03-product-and-features.md) · [Chapter 04 — System architecture](04-system-architecture.md) · [`docs/FRONTEND_DESIGN.md`](../FRONTEND_DESIGN.md)
