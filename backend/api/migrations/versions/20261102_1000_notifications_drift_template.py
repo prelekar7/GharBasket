@@ -17,28 +17,29 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 KIND = "intel.drift_detected"
-# (locale, (title, body)); {live} and {backtest} are WAPE shown as a percentage. Reviewed by
+# (locale, (title, body)); {source} is the data source (synthetic, pilot, live); {live} and
+# {backtest} are WAPE shown as a percentage. Reviewed by
 # Rhythm Thakur and Manish Raje before release (M11 §9); edits go through
 # PUT /v1/admin/notification-templates.
 COPY: list[tuple[str, tuple[str, str]]] = [
     (
         "en-IN",
         (
-            "Forecast drift at {hub}",
+            "Forecast drift at {hub} ({source})",
             "Live WAPE {live} vs {backtest} in the backtest. Open AI health to look.",
         ),
     ),
     (
         "hi-IN",
         (
-            "{hub} पर फ़ोरकास्ट में गड़बड़ी",
+            "{hub} ({source}) पर फ़ोरकास्ट में गड़बड़ी",
             "लाइव WAPE {live}, बैकटेस्ट में {backtest}। देखने के लिए AI हेल्थ खोलें।",
         ),
     ),
     (
         "mr-IN",
         (
-            "{hub} येथे फोरकास्ट बिघडला",
+            "{hub} ({source}) येथे फोरकास्ट बिघडला",
             "लाइव्ह WAPE {live}, बॅकटेस्टमध्ये {backtest}. पाहण्यासाठी AI हेल्थ उघडा.",
         ),
     ),

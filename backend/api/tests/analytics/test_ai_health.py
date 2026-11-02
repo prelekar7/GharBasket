@@ -9,11 +9,12 @@ from datetime import UTC, date, datetime
 import httpx2
 import pytest
 import time_machine
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity.models import Household
+from gharbasket.modules.intel_gateway import api as intel_api
 from gharbasket.modules.intel_gateway import jobs
 from gharbasket.modules.intel_gateway.models import ModelMetric
 from gharbasket.modules.orders.models import Order, OrderLine, Slot
@@ -197,6 +198,8 @@ async def test_two_hubs_are_scored_per_source_against_their_own_backtest(
     )
     assert [a.payload for a in alerts] == [
         {
+            "model": MODEL,
+            "version": "forecast-lightgbm-v1",
             "hub_id": str(hub_a),
             "data_source": "synthetic",
             "metric": "wape",
@@ -253,6 +256,61 @@ async def test_two_hubs_are_scored_per_source_against_their_own_backtest(
     for phone in (PRIYA, VIKRAM, SANJAY):  # customer, hub manager, franchise owner
         auth, _ = await as_user(api, google, phone)
         assert (await api.get("/v1/analytics/ai-health", headers=auth)).status_code == 403
+
+
+@pytest.mark.anyio
+@pytest.mark.usefixtures("delivery")
+@pytest.mark.parametrize(
+    ("before", "alerts"),
+    [(None, 1), (0.0, 1), (1.0, 0)],
+    ids=["never compared", "was fine", "was already drifting"],
+)
+@time_machine.travel(NOW, tick=False)
+async def test_drift_is_announced_once_per_episode(
+    clients: ClientFactory,
+    db_session: AsyncSession,
+    before: float | None,
+    alerts: int,
+) -> None:
+    """A day drifts: the alert goes out only if the previous scored day of the same model, hub
+    and data source was not drifting."""
+    api: httpx2.AsyncClient = clients()
+    hub, product = SEED_HUB_ID, uuid.uuid4()
+    await _sell(db_session, hub, product, [("addon", "delivered", "synthetic", 6)])
+    await _backtest(api, hub, "synthetic", 0.05)
+    await _forecast(api, hub, "synthetic", product, 2)  # WAPE 0.6667: 10 points worse
+    if before is not None:
+        await intel_api.record_metrics(
+            db_session,
+            model_name=MODEL,
+            version="forecast-lightgbm-v1",
+            metrics={"wape": 0.5, "drift": before},
+            split="live",
+            data_source="synthetic",
+            details={"hub_id": str(hub), "for_date": "2026-10-08"},
+        )
+        # another hub's drifting day does not make this one a continuation
+        await intel_api.record_metrics(
+            db_session,
+            model_name=MODEL,
+            version="forecast-lightgbm-v1",
+            metrics={"drift": 1.0 - before},
+            split="live",
+            data_source="synthetic",
+            details={"hub_id": str(uuid.uuid4()), "for_date": "2026-10-08"},
+        )
+
+    ran = await api.post("/v1/internal/jobs/monitor_drift", json={"scheduled_for": NOW.isoformat()})
+
+    assert ran.status_code == 200, ran.text
+    assert ran.json()["summary"]["drifted"] == 1  # the day drifted either way
+    assert ran.json()["summary"]["alerts"] == alerts
+    sent = await db_session.scalar(
+        select(func.count())
+        .select_from(OutboxEvent)
+        .where(OutboxEvent.event_type == "intel.drift_detected")
+    )
+    assert sent == alerts
 
 
 @pytest.mark.anyio

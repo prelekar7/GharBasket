@@ -14,12 +14,16 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.notifications.kinds import KINDS
 from gharbasket.modules.notifications.render import format_value
+from gharbasket.platform.settings import get_settings
+
+log = structlog.get_logger("gharbasket.notifications")
 
 # Event field → the placeholders it fills.
 RENAMED: dict[str, tuple[str, ...]] = {
@@ -123,18 +127,28 @@ async def data_export_ready(session: AsyncSession, payload: dict[str, Any]) -> R
 
 
 async def drift_detected(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
-    """A model scored worse live than in its backtest (M10 §6): to every admin, naming the hub.
-    Only the two WAPE values are kept; the full numbers are on the AI health page."""
+    """A model's forecast began to drift (M10 §6, once per episode): to every admin, naming the hub
+    and the data source (`synthetic` drift on staging is not a pilot problem). Only the two WAPE
+    values are kept; the full numbers are on the AI health page. A hub that no longer exists is
+    logged and not told: there is no name to give in the reader's language. The link is the
+    console's absolute URL when CONSOLE_URL is set, so a push opens the browser."""
     admins = await identity_api.users_with_role(session, "admin")
     if not admins:
         return None
-    hub = await hub_ops_api.get_hub(session, uuid.UUID(str(payload["hub_id"])))
+    hub_id = uuid.UUID(str(payload["hub_id"]))
+    hub = await hub_ops_api.get_hub(session, hub_id)
+    if hub is None:
+        log.warning("drift_hub_missing", hub_id=str(hub_id))
+        return None
     values = {
-        "hub": "a hub" if hub is None else hub.name,
+        "hub": hub.name,
+        "source": payload["data_source"],
         "live": payload["live"],
         "backtest": payload["backtest"],
     }
-    return Route("intel.drift_detected", admins, checked("intel.drift_detected", values))
+    console = get_settings().console_url
+    link = f"{console.rstrip('/')}{KINDS['intel.drift_detected'].link}" if console else None
+    return Route("intel.drift_detected", admins, checked("intel.drift_detected", values), link=link)
 
 
 async def partner_verified(session: AsyncSession, payload: dict[str, Any]) -> Route | None:

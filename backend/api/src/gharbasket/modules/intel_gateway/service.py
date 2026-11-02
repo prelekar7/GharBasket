@@ -242,6 +242,32 @@ async def scored_already(
     return (await session.execute(stmt.limit(1))).scalar_one_or_none() is not None
 
 
+async def was_drifting(
+    session: AsyncSession,
+    model_name: str,
+    day: date,
+    hub_id: uuid.UUID,
+    data_source: str,
+) -> bool:
+    """Did the newest live `drift` row of this model, hub and data source before `day` say 1?
+    False when there is none (never compared) or it said 0: an episode of drift starts when this
+    is False and today's row says 1."""
+    value = await session.scalar(
+        select(ModelMetric.value)
+        .where(
+            ModelMetric.model_name == model_name,
+            ModelMetric.metric == "drift",
+            ModelMetric.split == "live",
+            ModelMetric.data_source == data_source,
+            ModelMetric.details["hub_id"].astext == str(hub_id),
+            ModelMetric.details["for_date"].astext < day.isoformat(),  # ISO dates sort as dates
+        )
+        .order_by(ModelMetric.details["for_date"].astext.desc(), ModelMetric.computed_at.desc())
+        .limit(1)
+    )
+    return value is not None and value >= 0.5
+
+
 async def model_names(session: AsyncSession) -> list[str]:
     rows = await session.execute(
         select(ModelMetric.model_name).distinct().order_by(ModelMetric.model_name)

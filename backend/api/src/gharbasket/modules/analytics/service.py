@@ -1,6 +1,7 @@
 """Business logic of M12 Console & Analytics: the AI health view over M10's metrics (the KPI,
 unit-economics, cohort and impact views follow with their materialised views)."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -54,8 +55,11 @@ async def ai_health(
     session: AsyncSession, http: httpx2.AsyncClient, settings: Settings
 ) -> AiHealthOut:
     now = datetime.now(UTC)
-    ml_service = await intel_api.ml_service_status(http, settings)
-    models, counts = await intel_api.model_health(session, since=now - timedelta(days=WINDOW_DAYS))
+    # The probe never touches the session, so it waits for the ML service while the database reads.
+    ml_service, (models, counts) = await asyncio.gather(
+        intel_api.ml_service_status(http, settings),
+        intel_api.model_health(session, since=now - timedelta(days=WINDOW_DAYS)),
+    )
     return AiHealthOut(
         generated_at=now,
         window_days=WINDOW_DAYS,

@@ -1,12 +1,14 @@
-"""Is the ML service up, and which models does it serve? (M10 §3.9; the AI health page, M12.)
+"""Is the ML service up, and which models does it serve? (M10 §3.10; the AI health page, M12.)
 
-One token-protected `GET /health/ai`, within `TIMEOUT_S`, never raising: whatever goes wrong
+One token-protected `GET /health/ai`, within `TIMEOUT_S` in all (a hard bound), never raising:
+whatever goes wrong
 (no connection, a slow or sleeping free instance, a refused token, a 5xx, a body that is not
 what it should be) is `down`. It does not touch the call paths' circuit breakers; customers are
 never waiting on it. The answer is kept in the process for `CACHE_S`, so an admin refreshing
 the page does not wake or hammer the service.
 """
 
+import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -97,12 +99,22 @@ async def _probe(http: httpx2.AsyncClient, settings: Settings) -> MlServiceStatu
     if settings.ml_service_token is not None:
         headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
     try:
-        response = await http.get(
-            f"{settings.ml_service_url.rstrip('/')}/health/ai", headers=headers, timeout=TIMEOUT_S
-        )
+        async with asyncio.timeout(TIMEOUT_S):  # a hard bound: httpx's timeouts are per phase
+            response = await http.get(
+                f"{settings.ml_service_url.rstrip('/')}/health/ai",
+                headers=headers,
+                timeout=TIMEOUT_S,
+            )
         response.raise_for_status()
         return _parse(response.json(), now)
-    except (httpx2.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
+    except (
+        httpx2.HTTPError,
+        TimeoutError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+    ) as exc:
         status = exc.response.status_code if isinstance(exc, httpx2.HTTPStatusError) else None
         log.warning(
             "ml_health_down",

@@ -138,6 +138,10 @@ class Settings(DatabaseSettings):
     # The customer app (PWA): a society page's join button opens APP_WEB_URL/join?s=<slug>
     # (M12 §3.7).
     app_web_url: str = "https://app.gharbasket.in"
+    # The staff console (Next.js on Vercel). A push to an admin's phone must open it in the browser,
+    # so the drift message links to CONSOLE_URL/ai-health (M11 §3.1). Unset: the relative path
+    # `/ai-health`, which only the console's own inbox can follow.
+    console_url: str | None = None
     # Kindness points each side of a referral earns on the neighbour's first delivered box (M9
     # §3.3, owner 2026-10-09): half a donated meal each.
     referral_points_referrer: int = Field(default=250, ge=0, le=5000)

@@ -2,6 +2,8 @@
 the admin console. One token-protected `GET /health/ai` within 3 s, never raising, kept for a
 minute."""
 
+import asyncio
+import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
@@ -158,6 +160,23 @@ async def test_a_refusal_or_an_unreadable_answer_is_down(answer: Any, status: in
     got = await Service(answer, status).status_of()
 
     assert got.status == "down" and got.served == []
+
+
+async def test_three_seconds_is_a_hard_bound_on_the_whole_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A service that trickles its answer in never trips httpx's per-phase timeouts."""
+    monkeypatch.setattr(ml_status, "TIMEOUT_S", 0.05)
+
+    async def slow(request: httpx2.Request) -> httpx2.Response:
+        await asyncio.sleep(5)
+        return httpx2.Response(200, json=SYNCED)
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(slow)) as http:
+        started = time.monotonic()
+        got = await api.ml_service_status(http, settings())
+
+    assert got.status == "down" and time.monotonic() - started < 2
 
 
 async def test_the_answer_is_kept_for_a_minute_then_asked_again(fresh_cache: Clock) -> None:

@@ -69,12 +69,13 @@ KINDS: dict[str, Kind] = {
         "billing.wallet_topped_up", "money", "/wallet", {"amount": "money"}
     ),
     "identity.data_export_ready": Kind("identity.data_export_ready", ACCOUNT, "/profile"),
-    # To the admins, not to a customer: opens the console's AI health page (M10 §6).
+    # To the admins, not to a customer: opens the console's AI health page (M10 §6); the link is
+    # absolute when CONSOLE_URL is set, so a push to a phone opens it in the browser.
     "intel.drift_detected": Kind(
         "intel.drift_detected",
         ACCOUNT,
         "/ai-health",
-        {"hub": "text", "live": "percent", "backtest": "percent"},
+        {"hub": "text", "source": "text", "live": "percent", "backtest": "percent"},
     ),
     # Partner messages are account messages: about the work itself, not a preference to turn
     # off. One text per partner kind, each opening that kind's home in the partner app.
