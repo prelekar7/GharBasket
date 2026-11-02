@@ -3,10 +3,11 @@
 On Neon the app connects through the pooled URL, which is PgBouncer in transaction mode. PgBouncer
 can hand each transaction to a different server connection, so asyncpg's prepared statements must
 not outlive a transaction: the statement caches are off and every statement gets a unique name.
-The same settings are used everywhere, so local runs behave like staging.
+The same settings are used everywhere, so local runs behave like staging; only a long one-off tool
+on the direct URL (the seed, the simulator) may keep its statements (`cache_statements`).
 """
 
-from collections.abc import AsyncIterator, Collection
+from collections.abc import AsyncIterator, Collection, Mapping
 from typing import Annotated, Any
 from uuid import uuid4
 
@@ -59,22 +60,37 @@ class Base(DeclarativeBase):
         return {attr.key: getattr(self, attr.key) for attr in attrs if attr.key not in exclude}
 
 
-def asyncpg_url(raw: str) -> tuple[URL, dict[str, Any]]:
+def is_pgbouncer(raw_url: str) -> bool:
+    """Neon's pooled host (`ep-…-pooler…`) is PgBouncer in transaction mode."""
+    return "-pooler" in (make_url(raw_url).host or "")
+
+
+def asyncpg_url(raw: str, *, cache_statements: bool = False) -> tuple[URL, dict[str, Any]]:
     """Turn a Postgres URL (as Neon or .env gives it) into an asyncpg URL plus connect arguments.
 
     asyncpg does not understand libpq's `sslmode` and `channel_binding` query parameters:
     `sslmode` becomes asyncpg's `ssl` argument, and `channel_binding` is dropped (asyncpg
     negotiates SCRAM itself).
+
+    `cache_statements` keeps asyncpg's prepared statements for the connection's life: about a
+    third of the round trips for a long tool run on the direct (non-PgBouncer) URL, such as the
+    staging demo data (`just sim --write-db` against Neon from India). Refused for a pooled URL.
     """
     url = make_url(raw)
     query = dict(url.query)
     sslmode = query.pop("sslmode", None)
     query.pop("channel_binding", None)
-    query["prepared_statement_cache_size"] = "0"
+    if cache_statements and is_pgbouncer(raw):
+        raise ValueError(
+            "prepared statements cannot be cached through PgBouncer: use the direct URL"
+        )
+    connect_args: dict[str, Any] = {}
+    if not cache_statements:
+        query["prepared_statement_cache_size"] = "0"
+        connect_args["statement_cache_size"] = 0
+        connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"
 
-    connect_args: dict[str, Any] = {
-        "statement_cache_size": 0,
-        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    connect_args |= {
         "timeout": 10,  # seconds to connect (a sleeping Neon compute wakes in about 1 s)
         # Client-side limit per statement: a runaway query is cancelled instead of holding a
         # pool slot. Set here, not as a server setting, because PgBouncer drops those.
@@ -97,9 +113,49 @@ def is_local_database(raw_url: str) -> bool:
     return make_url(raw_url).host in LOCAL_HOSTS
 
 
-def create_engine(raw_url: str, *, pooled: bool = True) -> AsyncEngine:
-    """The app uses a small pool; one-off tools (migrations, scripts) pass `pooled=False`."""
-    url, connect_args = asyncpg_url(raw_url)
+REMOTE_SEED_CONFIRMATION = "GB_ALLOW_REMOTE_SEED"
+
+
+class RemoteDatabaseRefused(Exception):
+    """The seed or the simulator was pointed at a shared database without both confirmations."""
+
+
+def synthetic_data_target(raw_url: str, *, allow_remote: bool, environ: Mapping[str, str]) -> str:
+    """The host that `just seed` and `just sim --write-db` may write synthetic data to.
+
+    The local Docker database always. A shared one (staging on Neon) only with both the tool's
+    `--allow-remote` flag and GB_ALLOW_REMOTE_SEED set to that very host, so a URL that points at
+    the wrong database by accident stops here (handbook 12, staging demo data). Raises
+    RemoteDatabaseRefused otherwise; the message names the host, never the URL or its password.
+    """
+    host = make_url(raw_url).host or ""
+    if host in LOCAL_HOSTS:
+        return host
+    if not allow_remote:
+        raise RemoteDatabaseRefused(
+            f"{host} is a shared database: synthetic data goes only to the local Docker database "
+            "(for staging, scripts/staging-demo.sh)"
+        )
+    confirmed = environ.get(REMOTE_SEED_CONFIRMATION, "").strip()
+    if not confirmed:
+        raise RemoteDatabaseRefused(
+            f"{host} is a shared database: confirm with {REMOTE_SEED_CONFIRMATION}={host}"
+        )
+    if confirmed != host:
+        raise RemoteDatabaseRefused(
+            f"{REMOTE_SEED_CONFIRMATION} names {confirmed}, but the database is {host}"
+        )
+    return host
+
+
+def create_engine(
+    raw_url: str, *, pooled: bool = True, cache_statements: bool = False
+) -> AsyncEngine:
+    """The app uses a small pool; one-off tools (migrations, scripts) pass `pooled=False`, and
+    the long ones on a direct URL may also cache their prepared statements (`asyncpg_url`)."""
+    if cache_statements and pooled:
+        raise ValueError("only one-off tools (pooled=False) cache prepared statements")
+    url, connect_args = asyncpg_url(raw_url, cache_statements=cache_statements)
     if not pooled:
         return sa_create_async_engine(url, connect_args=connect_args, poolclass=NullPool)
     return sa_create_async_engine(

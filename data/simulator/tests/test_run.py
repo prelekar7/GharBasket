@@ -112,3 +112,52 @@ def test_the_cli_refuses_a_shared_database(monkeypatch: pytest.MonkeyPatch) -> N
 
     with pytest.raises(SystemExit):
         sim.main(["--weeks", "1"])
+
+
+NEON = "postgresql+asyncpg://u:secret@ep-x.neon.tech/gharbasket"
+
+
+class Reached(Exception):
+    """The CLI got past its guard and would have connected."""
+
+
+@pytest.mark.parametrize(
+    ("argv", "confirmation"),
+    [
+        (["--allow-remote"], None),
+        (["--allow-remote"], "ep-other.neon.tech"),
+        ([], "ep-x.neon.tech"),
+    ],
+)
+def test_the_cli_needs_the_flag_and_the_typed_host_for_a_shared_database(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    confirmation: str | None,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL_DIRECT", NEON)
+    monkeypatch.delenv("GB_ALLOW_REMOTE_SEED", raising=False)
+    if confirmation is not None:
+        monkeypatch.setenv("GB_ALLOW_REMOTE_SEED", confirmation)
+
+    with pytest.raises(SystemExit) as exited:
+        sim.main(["--weeks", "1", "--write-db", *argv])
+
+    assert exited.value.code == 2
+    assert "secret" not in capsys.readouterr().err
+
+
+def test_the_cli_writes_to_a_shared_database_with_both_confirmations(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABASE_URL_DIRECT", NEON)
+    monkeypatch.setenv("GB_ALLOW_REMOTE_SEED", "ep-x.neon.tech")
+
+    async def connect(url: str, args: object) -> None:
+        raise Reached(url)
+
+    monkeypatch.setattr(sim, "run", connect)
+    with pytest.raises(Reached):
+        sim.main(["--weeks", "1", "--write-db", "--allow-remote"])
+
+    assert "simulating into the shared database at ep-x.neon.tech" in capsys.readouterr().out

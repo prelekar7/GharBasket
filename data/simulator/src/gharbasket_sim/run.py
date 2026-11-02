@@ -9,15 +9,18 @@ again keeps them as they are. The weeks (plans, edits, skips, consumption) go to
 data/sim_truth/; with `--write-db` they also go through M3, M4 and M5, a week at a time
 (through_modules.py).
 
-Only for the local Docker database: shared databases (staging) are always refused.
+Only for the local Docker database. A shared database (staging on Neon) is refused unless both
+`--allow-remote` is given and GB_ALLOW_REMOTE_SEED names its host: `scripts/staging-demo.sh`
+does that for staging's demo data (handbook 12).
 """
 
 import argparse
 import asyncio
+import os
 import random
 import uuid
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -30,7 +33,13 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity.households import create_household, household_of
 from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user
-from gharbasket.platform.db import create_engine, is_local_database
+from gharbasket.platform.db import (
+    RemoteDatabaseRefused,
+    create_engine,
+    is_local_database,
+    is_pgbouncer,
+    synthetic_data_target,
+)
 from gharbasket.platform.settings import DatabaseSettings
 from gharbasket.tools.seed import SEED_HUB_ID
 from gharbasket_sim import config as cohorts
@@ -91,6 +100,7 @@ async def simulate_world(
     adoption: float | None = None,
     shocks: Shocks | None = None,
     write_db: bool = False,
+    progress: Callable[[str], None] | None = None,
 ) -> Run:
     first_monday = start - timedelta(days=start.weekday())
     last_day = first_monday + timedelta(weeks=weeks, days=-1)
@@ -112,7 +122,7 @@ async def simulate_world(
         slugs = {pid: slug for slug, pid in ids.items()}
         plan_catalog = await catalog_api.plan_catalog(session, SEED_HUB_ID)
     async with through.ml_client() as http:
-        for h in households:
+        for n, h in enumerate(households, 1):
             c = by_name[h.cohort]
             sim = Simulation(
                 seed,
@@ -163,6 +173,8 @@ async def simulate_world(
                     )
                     one.outcomes.append(through.outcome_row(h, w, outcome))
                 await session.commit()
+                if progress is not None:
+                    progress(f"  {n}/{len(households)} {h.key}: {weeks} weeks through the modules")
             for name in (
                 "weeks",
                 "meals",
@@ -272,7 +284,9 @@ def _summary(run: Run) -> list[str]:
 
 
 async def run(database_url: str, args: argparse.Namespace) -> Run:
-    engine = create_engine(database_url, pooled=False)
+    engine = create_engine(
+        database_url, pooled=False, cache_statements=not is_pgbouncer(database_url)
+    )
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
             result = await simulate_world(
@@ -284,6 +298,7 @@ async def run(database_url: str, args: argparse.Namespace) -> Run:
                 adoption=args.adoption,
                 shocks=None if args.no_shocks else cohorts.load_shocks(),
                 write_db=args.write_db,
+                progress=(lambda line: print(line, flush=True)) if args.write_db else None,
             )
             await session.commit()
             return result
@@ -307,13 +322,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="send the weeks through M3, M4 and M5 (cycles, edits, orders, wallet, feedback)",
     )
+    parser.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="a shared database (staging); also needs GB_ALLOW_REMOTE_SEED=<its host>",
+    )
     args = parser.parse_args(argv)
 
     url = DatabaseSettings(_env_file=REPO_ROOT / ".env").migrations_url  # pyright: ignore[reportCallIssue]
     if url is None:
         parser.error("set DATABASE_URL (see .env.example)")
+    try:
+        host = synthetic_data_target(url, allow_remote=args.allow_remote, environ=os.environ)
+    except RemoteDatabaseRefused as refused:
+        parser.error(f"the simulator writes only to the local Docker database: {refused}")
     if not is_local_database(url):
-        parser.error("the simulator writes only to the local Docker database")
+        print(f"simulating into the shared database at {host} (data_source synthetic)")
 
     result = asyncio.run(run(url, args))
     out = args.out or REPO_ROOT / "data" / "sim_truth" / f"seed-{args.seed}"

@@ -8,11 +8,13 @@ from alembic import command
 from sqlalchemy import func, make_url, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog.models import Category, Product
 from gharbasket.modules.community.models import Captain, Society
+from gharbasket.modules.hub_ops.models import Hub
 from gharbasket.modules.identity.models import ROLES, Household, HouseholdMember, User, UserRole
 from gharbasket.modules.identity.service import find_or_create_user
-from gharbasket.modules.partners.models import Partner
-from gharbasket.platform.db import create_engine
+from gharbasket.modules.partners.models import Partner, TrainingModule
+from gharbasket.platform.db import REMOTE_SEED_CONFIRMATION, create_engine
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.platform.outbox import relay
 from gharbasket.platform.permissions import ROLE_SCOPE
@@ -23,10 +25,14 @@ from gharbasket.tools.seed import (
     SEED_HUB_ID,
     SEED_SOCIETY_ID,
     SOCIETIES,
+    Report,
     seed,
+    seed_catalog,
     seed_households,
+    seed_hubs,
     seed_partners,
     seed_societies,
+    seed_trainings,
 )
 from gharbasket.tools.seed import main as seed_command
 
@@ -191,6 +197,117 @@ def test_the_seed_command_refuses_a_shared_database(monkeypatch: pytest.MonkeyPa
         seed_command([])
 
     assert exited.value.code == 2
+
+
+NEON_HOST = "ep-x.ap-southeast-1.aws.neon.tech"
+
+
+@pytest.fixture
+def staging_seed(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, bool, bool]]:
+    """DATABASE_URL on a Neon host, and `run` replaced so nothing connects: the calls it got."""
+    neon = f"postgresql://app:pw@{NEON_HOST}/db"
+    monkeypatch.setenv("DATABASE_URL", neon)
+    monkeypatch.setenv("DATABASE_URL_DIRECT", neon)
+    monkeypatch.delenv(REMOTE_SEED_CONFIRMATION, raising=False)
+    calls: list[tuple[str, bool, bool]] = []
+
+    async def fake_run(url: str, *, refresh: bool = False, keep_existing: bool = False) -> Report:
+        calls.append((url, refresh, keep_existing))
+        return Report(people=[], societies=[], households=[], partners=[], products=[])
+
+    monkeypatch.setattr("gharbasket.tools.seed.run", fake_run)
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("argv", "confirmation"),
+    [
+        (["--allow-remote"], None),  # the flag without the host
+        (["--allow-remote"], "ep-other.neon.tech"),  # the host of another database
+        ([], NEON_HOST),  # the host without the flag
+        (["--allow-remote", "--refresh"], NEON_HOST),  # never a refresh there
+    ],
+)
+def test_the_seed_command_refuses_staging_without_both_confirmations(
+    staging_seed: list[tuple[str, bool, bool]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    confirmation: str | None,
+) -> None:
+    if confirmation is not None:
+        monkeypatch.setenv(REMOTE_SEED_CONFIRMATION, confirmation)
+
+    with pytest.raises(SystemExit) as exited:
+        seed_command(argv)
+
+    assert exited.value.code == 2
+    assert staging_seed == []
+    assert "pw@" not in capsys.readouterr().err
+
+
+def test_the_seed_command_only_adds_on_staging_with_both_confirmations(
+    staging_seed: list[tuple[str, bool, bool]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv(REMOTE_SEED_CONFIRMATION, NEON_HOST)
+
+    assert seed_command(["--allow-remote"]) == 0
+
+    assert staging_seed == [(f"postgresql://app:pw@{NEON_HOST}/db", False, True)]
+    out = capsys.readouterr().out
+    assert f"seeding the shared database at {NEON_HOST}: adds only" in out
+    assert "pw@" not in out
+
+
+async def test_keep_existing_adds_what_is_missing_and_keeps_every_existing_row(
+    db_session: AsyncSession,
+) -> None:
+    await seed_hubs(db_session)
+    await seed(db_session)
+    await seed_societies(db_session)
+    await seed_catalog(db_session)
+    await seed_trainings(db_session)
+    # Edited in the console since (none of these has `updated_by`), and one society is new.
+    hub = await db_session.get(Hub, SEED_HUB_ID)
+    assert hub is not None
+    hub.name = "Kharghar (edited)"
+    person = (await _seed_users(db_session))[0]
+    person.name = "Edited"
+    edited, missing = SLUGS[0], SLUGS[-1]
+    society = await db_session.scalar(select(Society).where(Society.slug == edited))
+    assert society is not None
+    society.name = "Edited society"
+    await db_session.delete(await db_session.scalar(select(Society).where(Society.slug == missing)))
+    category = await db_session.scalar(select(Category).order_by(Category.slug).limit(1))
+    assert category is not None
+    category.names = {**category.names, "en": "Edited"}
+    module = await db_session.scalar(select(TrainingModule).limit(1))
+    assert module is not None
+    module.minutes = 99
+    await db_session.flush()
+    products = await db_session.scalar(select(func.count()).select_from(Product))
+
+    await seed_hubs(db_session, keep_existing=True)
+    await seed(db_session, keep_existing=True)
+    societies = dict(await seed_societies(db_session, keep_existing=True))
+    added = await seed_catalog(db_session, keep_existing=True)
+    trainings = await seed_trainings(db_session, keep_existing=True)
+
+    for row in (hub, person, society, category, module):
+        await db_session.refresh(row)
+    assert hub.name == "Kharghar (edited)"
+    assert person.name == "Edited"
+    assert society.name == "Edited society"
+    assert category.names["en"] == "Edited"
+    assert module.minutes == 99
+    assert societies[missing] is True and societies[edited] is False
+    assert not any(created for _, created in added)
+    assert not any(created for _, created in trainings)
+    assert await db_session.scalar(select(func.count()).select_from(Product)) == products
+    with pytest.raises(ValueError, match="keep_existing"):
+        await seed_catalog(db_session, refresh=True, keep_existing=True)
 
 
 async def test_seed_captains_are_verified_partners_where_they_live(

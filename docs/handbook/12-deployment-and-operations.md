@@ -160,13 +160,48 @@ The root `prepare` script installs the git hooks (`lefthook install`), which exi
 - **Guardrails** on the shared database:
   - migrations reach Neon only from the GitHub Actions deploy workflow after merge (`GB_ALLOW_REMOTE_MIGRATIONS=1`);
   - downgrades on a remote database are refused;
-  - tests and `just seed` refuse any non-local database;
+  - tests refuse any non-local database; `just seed` and `just sim` refuse one unless the run has both `--allow-remote` and `GB_ALLOW_REMOTE_SEED=<the database host>` (only `scripts/staging-demo.sh` does that, below);
   - synthetic rows carry `data_source='synthetic'`.
 - **Latency:** Neon has no India region; it runs in Singapore, about 60 ms per round-trip from Mumbai. The API also runs in Singapore, so API-to-database calls are short; the user-to-API leg carries the distance. Mitigate by:
   - batching queries and avoiding N+1 ORM patterns;
   - connection pooling (Neon pooled endpoint);
   - caching hot reads (catalog, prices, slots) where it helps.
 - **Decision before Phase 6 (pilot):** keep the pilot database on Neon (Singapore) or move it to a paid Postgres in Mumbai (open question Q3).
+
+### Staging demo data (`just staging-demo`)
+
+Staging has the seed (people, societies, hub, catalog; copied from a local database on 27 Oct) but no activity of its own, so the training jobs (ranker, forecast, pantry refit) and the app demos have nothing to show. `scripts/staging-demo.sh` loads some, with everything marked `data_source='synthetic'`. The owner runs it from his machine, after the PR that added it is deployed: the M11 guard below runs in the deployed API.
+
+```
+infisical run --env=staging -- just staging-demo                                    # 1. host, counts, plan; writes nothing
+GB_ALLOW_REMOTE_SEED=<host it printed> infisical run --env=staging -- just staging-demo   # 2. loads it
+```
+
+What step 2 does, in order:
+1. **Restore point.** It makes a Neon branch `before-demo-<UTC time>` of the database's branch through the Neon API (`scripts/neon_restore_point.py`; needs `NEON_API_KEY`, with `NEON_PROJECT_ID` optional). The branch has no compute, so it costs only the storage of what changes afterwards. The script prints how to restore. `--no-backup` skips this; don't use it on staging.
+2. **Seed, adds only.** On a shared database `just seed` only creates what is missing and keeps every existing row as it is: hub, societies, people, categories, the price list, festival days and trainings. Products and recipes are only ever added, and `--refresh` is refused there, so nothing edited in the console is overwritten.
+3. **Simulated weeks.** It runs `just sim --write-db` (M3 → M4 → M5, as in the simulator README).
+   - The weeks are the last `--weeks` full weeks before this IST week (default 6), so every simulated delivery is in the past and the current week stays with staging's own jobs.
+   - The households are a small share of the seed societies' flats (`--adoption`, default 0.005: 4 households, phones +91 98001 0000x).
+   - The ground truth goes to `data/sim_truth/staging-<UTC time>/` on the owner's machine.
+4. **Counts.** It prints households, cycles, orders, box lines, edit feedback and pantry taps, before and after.
+
+**Safety.**
+- `just seed` and `just sim` write to a non-local database only with both `--allow-remote` and `GB_ALLOW_REMOTE_SEED` equal to that database's host. A URL pointing at the wrong database stops there.
+- The tools print the host, never the URL or a password.
+- A week that already has synthetic cycles is never simulated again: such a window is refused, and `--add-weeks` simulates only the weeks after the latest one.
+- Simulated people are synthetic accounts, and M11's `send_deliveries` skips push and WhatsApp for synthetic accounts outside dev and test (M11 §6). Their messages stay in their inbox, but none reaches a phone. That includes a team phone signed in to a seed account.
+- The simulated events go only to the simulated households' owners: every hub move is the `hub` actor, so no captain or rider earns from them.
+
+**Size and cost.** Measured locally through a proxy that adds Neon's 60 ms round trip, one household-week is about 280 statements, 170 rows and 30 s. On the direct (non-PgBouncer) URL the seed and the simulator keep their prepared statements (`create_engine(cache_statements=True)`), which makes them about three times faster.
+- The defaults (4 households × 6 weeks) come to about 4,000 rows (a few MB) and 10 to 16 minutes from India; the script prints its own estimate first.
+- Neon's compute stays awake only for the run, well inside the free plan's monthly compute hours.
+
+**Afterwards.** The simulated households keep their subscriptions, so from the next week staging's own jobs draft their boxes (and call the ML service for them). Nobody approves those boxes, so they stay `awaiting_approval`, and those weeks then count as taken for `--add-weeks`. **To undo** the load, restore the database's branch:
+- from the restore point's head: `neonctl branches restore <branch> <before-demo branch> --preserve-under-name <name>`, or the API call the script printed;
+- or, within Neon's history window, from its own history at the printed time (console → Branches → Restore).
+
+The connection string stays the same. Delete old `before-demo-*` branches in the console; the free plan allows 10 branches.
 
 ## 12.4 Backups and recovery
 
