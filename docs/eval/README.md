@@ -120,7 +120,14 @@ model, so the Recall@|basket| lead above is mostly the leak. Re-run at commit `c
 Under the serving view, which is what planner v2's learned preferences get, the trained model is far behind
 both baselines (Recall@|basket| −0.160 ± 0.055 against top frequency). Without `drafted` it is +0.003 ± 0.004
 against top frequency on Recall@|basket| and −0.005 ± 0.003 on NDCG@10, so no ranker beats top frequency
-there. The next full report carries the section.
+there.
+
+**After PR #482** (`drafted` dropped from the features; the job scores its holdout, and `just promote` gates,
+under serving conditions), same seeds, 15 s: `lambdarank` and `lambdarank_no_drafted` coincide (holdout view
+0.989 / 0.883, serving view 0.991 / 0.881, NDCG@10 / Recall@|basket|). The registered M-B verdict: NDCG@10
+model − repeat last week +0.026 ± 0.008, lower bound +0.019: **still does not hold**; against top frequency
+−0.007 ± 0.003. The gate refuses the model on every seed: not to be promoted. The next full report carries
+the section.
 
 ### routing-2026-11-01-624eb159 (M-F alone, 2 Nov 2026 IST)
 
