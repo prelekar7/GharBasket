@@ -29,6 +29,20 @@ just sim --weeks 4 --write-db                # v1b: the weeks go through M3, M4 
 
 6. **Through the modules (`--write-db`, v1b).** Each household subscribes (wallet); a week at a time, M3 generates the week's cycle at T-3 18:00 IST once the week before has been replayed, so its carry-over counts what was delivered (the CP-SAT planner runs in process behind the gateway for `cpsat`, the rules fallback for `rules`), and the household's behaviour runs against *that* plan and *those* lines: its box edits become `PATCH` line ops (with `edit_feedback`), it approves (an M4 order) or skips, its wallet is topped up to cover the box (one week in twenty is left short), the cut-off (the cycle's `cutoff_at`) debits and locks or fails and cancels, the outbox is relayed so M3's consumers mirror the order on the cycle, the order goes packed → dispatched → at society → delivered, and the pantry taps become `pantry_feedback`. The modules' clocks are set to the simulated instant for each step. `outcomes.parquet` records the cycle, order, statuses, ops and refusals per household-week. Prices through the modules are the hub's list prices (the shock episodes shape behaviour, not the price list).
 
+## Staging demo data
+The simulator writes only to the local Docker database. Staging gets its demo data through `scripts/staging-demo.sh` (`just staging-demo`, handbook 12 §12.3), which runs the seed and `--write-db --pause-after` against Neon. Its guards:
+- a shared database is refused unless the run has both `--allow-remote` and `GB_ALLOW_REMOTE_SEED=<the database host>`, typed out by the owner;
+- a Neon restore-point branch (`before-demo-<UTC time>`) is made before anything is written;
+- the weeks are the last full weeks before this IST week, so every simulated delivery is in the past;
+- a week the simulator already replayed is never simulated twice (`--add-weeks` adds only the weeks after the latest one);
+- a run that would take an `unlocking` society to its threshold is refused (simulated households count towards the unlock, M9 §3.6);
+- on a shared database a +91 98001 phone that belongs to a real account stops the run instead of being taken over;
+- the simulator shows each household only its own draft (`send_box_ready_notices(cycle_ids=…)`), never another household's;
+- `--pause-after` pauses the simulated subscriptions at the end, so staging's weekly job leaves them alone; the next `--write-db` run resumes them;
+- the ground truth goes to `data/sim_truth/staging-<UTC time>/`, not over a local `seed-<n>` run.
+
+The helpers it calls are in [`staging.py`](src/gharbasket_sim/staging.py): `host`, `window`, `estimate`, `unlock` and `counts`. Simulated people get no push or WhatsApp on staging: M11's `send_deliveries` skips synthetic accounts outside dev and test, and their inbox is kept. The data trains the ranker and the pantry refit; it cannot train the forecast, which models add-on and tiffin demand that `--write-db` does not make yet.
+
 ## Not yet
 - **Later:** real Vashi price episodes replayed from the mandi history (M10 F19), churn, partners and donations (handbook 05 §5.11, item 6).
 - **Review:** cohort numbers, `price_sensitivity`, `feedback_rate` and the shock episodes are assumptions until Rhythm Thakur and Manish Raje check them against the UX interviews and the 2023–25 APMC prices.

@@ -9,7 +9,7 @@ so the answer carries `order_id` and a full slot is refused on the spot; the
 
 import copy
 import uuid
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Collection, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -1631,26 +1631,29 @@ def _notice(cycle: WeeklyCycle, total_paise: int) -> dict[str, Any]:
 
 
 async def send_box_ready_notices(
-    session: AsyncSession, delivery_date: date, at: datetime
+    session: AsyncSession,
+    delivery_date: date,
+    at: datetime,
+    *,
+    cycle_ids: Collection[uuid.UUID] | None = None,
 ) -> dict[str, int]:
     """The `send_box_ready_notices` job's body: `draft` → `awaiting_approval`, `notice_sent_at`
     and one `subscriptions.box_ready` per cycle. Only drafts are taken, so a rerun sends nothing
     twice. An earlier delivery day's draft still before its cut-off is taken too: a generation
     run that came after its notice run would otherwise leave that box a draft for good.
 
-    The version stays: the box the customer may now edit is the one generated."""
+    `cycle_ids` limits it to those cycles: the simulator notices only its own, never another
+    household's draft on a shared database. The version stays: the box the customer may now
+    edit is the one generated."""
+    query = select(WeeklyCycle).where(
+        WeeklyCycle.status == "draft",
+        WeeklyCycle.delivery_date <= delivery_date,
+        WeeklyCycle.cutoff_at > at,
+    )
+    if cycle_ids is not None:
+        query = query.where(WeeklyCycle.id.in_(list(cycle_ids)))
     cycles = list(
-        (
-            await session.execute(
-                select(WeeklyCycle)
-                .where(
-                    WeeklyCycle.status == "draft",
-                    WeeklyCycle.delivery_date <= delivery_date,
-                    WeeklyCycle.cutoff_at > at,
-                )
-                .order_by(WeeklyCycle.delivery_date, WeeklyCycle.id)
-            )
-        ).scalars()
+        (await session.execute(query.order_by(WeeklyCycle.delivery_date, WeeklyCycle.id))).scalars()
     )
     totals = await _totals(session, [cycle.id for cycle in cycles])
     for cycle in cycles:

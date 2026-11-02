@@ -160,13 +160,69 @@ The root `prepare` script installs the git hooks (`lefthook install`), which exi
 - **Guardrails** on the shared database:
   - migrations reach Neon only from the GitHub Actions deploy workflow after merge (`GB_ALLOW_REMOTE_MIGRATIONS=1`);
   - downgrades on a remote database are refused;
-  - tests and `just seed` refuse any non-local database;
+  - tests refuse any non-local database; `just seed` and `just sim` refuse one unless the run has both `--allow-remote` and `GB_ALLOW_REMOTE_SEED=<the database host>` (only `scripts/staging-demo.sh` does that, below);
   - synthetic rows carry `data_source='synthetic'`.
 - **Latency:** Neon has no India region; it runs in Singapore, about 60 ms per round-trip from Mumbai. The API also runs in Singapore, so API-to-database calls are short; the user-to-API leg carries the distance. Mitigate by:
   - batching queries and avoiding N+1 ORM patterns;
   - connection pooling (Neon pooled endpoint);
   - caching hot reads (catalog, prices, slots) where it helps.
 - **Decision before Phase 6 (pilot):** keep the pilot database on Neon (Singapore) or move it to a paid Postgres in Mumbai (open question Q3).
+
+### Staging demo data (`just staging-demo`)
+
+Staging has the seed (people, societies, hub, catalog; copied from a local database on 27 Oct) but no activity of its own. So the ranker and the pantry refit have nothing to learn from, and the app demos are empty. `scripts/staging-demo.sh` loads activity, all of it marked `data_source='synthetic'`.
+
+**Before you run it.** The simulator drains staging's whole outbox (real users' events too) through the module consumers of your checkout. So:
+- run it from the exact commit staging runs, after its deploy has finished. The script compares `git rev-parse HEAD` with `/v1/health`'s `commit` and refuses a mismatch or uncommitted changes (`--skip-commit-check` overrides, not recommended);
+- merge nothing and run no migration while it runs. A deploy mid-run would put two versions of the code on one database.
+
+```
+infisical run --env=staging -- just staging-demo                                    # 1. host, counts, plan, unlock check; writes nothing
+GB_ALLOW_REMOTE_SEED=<host it printed> infisical run --env=staging -- just staging-demo   # 2. loads it
+```
+
+Both steps need `NEON_PROJECT_ID` in Infisical `staging`, next to `NEON_API_KEY`. Without it the script lists the projects the key sees. A personal key does not list an organisation's projects, so the lookup fails unless the key is an organisation key.
+
+What step 2 does, in order:
+1. **Restore point.** A Neon branch `before-demo-<UTC time>` of the database's branch, made through the Neon API (`scripts/neon_restore_point.py`). It has no compute, so it costs only the storage of what changes afterwards. The script prints how to restore. `--no-backup` skips this; don't use it on staging.
+2. **Seed, adds only.** On a shared database `just seed` only creates what is missing and leaves every existing row as it is: hub, societies, people (with their roles), categories, the price list, festival days and trainings. A role revoked in the console stays revoked. Products and recipes are only ever added, and `--refresh` is refused there, so nothing edited in the console is overwritten.
+3. **Simulated weeks.** `just sim --write-db --pause-after` (M3 → M4 → M5, as in the simulator README).
+   - The weeks are the last `--weeks` full weeks before this IST week (default 8). Every simulated delivery is in the past, and the current week stays with staging's own jobs.
+   - The households are a share of the seed societies' flats: `--adoption`, default 0.015, gives 13 households with phones +91 98001 00001 to 00013.
+   - At the end their subscriptions are paused (until 2099), so staging's weekly job drafts no boxes for them: no ML calls and no box-ready or reminder messages. The next run resumes them for its weeks.
+   - The ground truth goes to `data/sim_truth/staging-<UTC time>/` on the owner's machine.
+4. **Counts.** Households, cycles, orders, box lines, edit feedback and pantry taps, before and after.
+
+**Safety.**
+- **Two confirmations.** `just seed` and `just sim` write to a non-local database only with both `--allow-remote` and `GB_ALLOW_REMOTE_SEED` equal to that database's host, so a URL pointing at the wrong database stops there. The tools print the host, never the URL or a password.
+- **No double weeks.** A week the simulator already replayed (a locked, skipped or cancelled cycle of a +91 98001 household) is never simulated again. Such a window is refused, and `--add-weeks` simulates only the weeks after the latest one.
+- **No society unlock.** Simulated households count towards their society's unlock (M9 §3.6). If a run would take an `unlocking` society to its threshold, that society would go live for its real households too: `community.society_live` to their owners, and the end of their pre-live fee. Step 1 prints joined + new against the threshold for every `unlocking` society the run adds to, and the script refuses such a run (exit 5). It checks again after the seed. This is a check at one point in time: the simulated households stay in the count after the run, so a later threshold recompute (the weekly stop-cost job) or new real households can still tip the society live.
+- **No real account taken over.** On a shared database the simulator refuses a run in which a +91 98001 phone already belongs to a real account. That number may be a stranger's. The refusal comes before anything is committed.
+- **Only its own boxes.** The simulator shows the household only its own draft (`send_box_ready_notices(cycle_ids=…)`), never another household's draft that happens to be in the window.
+- **No pushes.** Simulated people are synthetic accounts. M11's `send_deliveries` skips push and WhatsApp for synthetic accounts outside dev and test (M11 §6), so their messages stay in their inbox and none reaches a phone. That includes a team phone signed in to a seed account.
+- **Who else is touched.** The simulated events themselves are addressed to the simulated owners only: every hub move is the `hub` actor, so no captain or rider earns from them. But the relay also delivers any real event that is pending at the time (see "Before you run it").
+- **Money.** The simulated wallet top-ups post to the platform accounts `razorpay_clearing` and `unearned_revenue` like real ones; only their reference (`sim:<household>:<date>`) tells them apart. Staging's reconciliation and M12's money figures include them, so subtract the `sim:` entries, or read staging's money figures as demo figures.
+
+**Size and cost.** One household-week is about 280 statements, 170 rows and 30 s, measured locally through a proxy that adds Neon's 60 ms round trip. On the direct (non-PgBouncer) URL the seed and the simulator keep their prepared statements (`create_engine(cache_statements=True)`), which makes them about three times faster.
+- The defaults (13 households × 8 weeks = 104 household-weeks) are about 18,000 rows and 44 to 68 minutes from India. `--weeks 6` is about 33 to 51 minutes. The script prints its own estimate first.
+- Neon's compute stays awake only for the run, inside the free plan's monthly compute hours.
+
+**What it trains.**
+- The ranker learns from the box edits.
+- The pantry refit learns from the taps: at least 3 tapping households per cohort and product (`MIN_HOUSEHOLDS`). At the default `--adoption 0.015` that gives priors for 2 of the 3 cohorts (small and medium; the large cohort has 1 household). All 3 need about `--adoption 0.025`, which is about 1.7 times the rows and time.
+- The **forecast cannot be trained from this data.** It models only the uncommitted demand (add-on and tiffin orders), `--write-db` makes box orders only, and its backtest needs about 11 weeks of history. That is a follow-up: add-on and tiffin orders in the simulator.
+
+**If a run fails** part-way, households are left partly simulated: some committed weeks, some not. A rerun of that window is refused, and `--add-weeks` cannot fill a gap before the latest replayed week. The run also resumed the simulated subscriptions at its start, and did not reach the pause at its end, so staging's weekly job will draft their boxes again. Either restore from the branch and run again, or at least pause them:
+
+```
+infisical run --env=staging -- sh -c 'psql "$DATABASE_URL_DIRECT" -c "UPDATE subscriptions.subscriptions SET status = '\''paused'\'', paused_until = '\''2099-12-31'\'' WHERE status <> '\''ended'\'' AND household_id IN (SELECT h.id FROM identity.households h JOIN identity.users u ON u.id = h.owner_user_id WHERE u.phone_e164 LIKE '\''+9198001%'\'')"'
+```
+
+**To undo** the load, restore the database's branch. The connection string stays the same.
+- From the restore point's head: `neonctl branches restore <branch> <before-demo branch> --preserve-under-name <name> --project-id <id>`, or the API call the script printed.
+- Within Neon's history window, from the branch's own history at the printed time: console → Branches → Restore. On the Free plan that window is 6 hours, so after that use the branch.
+
+Delete old `before-demo-*` branches in the console; the free plan allows 10 branches.
 
 ## 12.4 Backups and recovery
 

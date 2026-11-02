@@ -154,12 +154,38 @@ async def subscribe_all(
     households: list[SimHousehold],
     created: dict[str, tuple[uuid.UUID, bool]],
 ) -> None:
-    """Every simulated household subscribes (once) and sets its Budget Lock if it has one."""
+    """Every simulated household subscribes (once) and sets its Budget Lock if it has one. A
+    subscription an earlier staging run paused (`pause_all`) is resumed for the run."""
     for h in households:
         household_id = created[h.key][0]
-        if await subs_service.subscription_of(session, household_id) is None:
+        subscription = await subs_service.subscription_of(session, household_id)
+        if subscription is None:
             await subs_service.subscribe(
                 session, household_id, plan_code="autopilot", payment_mode="wallet"
+            )
+        elif subscription.paused_until is not None:
+            await subs_service.update_subscription(
+                session, subscription, set_pause=True, paused_until=None
+            )
+    await session.flush()
+
+
+PAUSED_UNTIL = date(2099, 12, 31)  # "until the next simulator run"
+
+
+async def pause_all(
+    session: AsyncSession,
+    households: list[SimHousehold],
+    created: dict[str, tuple[uuid.UUID, bool]],
+) -> None:
+    """After a staging run: pause every simulated subscription, so staging's weekly job drafts no
+    boxes for them (no ML calls, no box-ready or reminder messages) and every later week stays
+    free for `--add-weeks`."""
+    for h in households:
+        subscription = await subs_service.subscription_of(session, created[h.key][0])
+        if subscription is not None and subscription.status != "ended":
+            await subs_service.update_subscription(
+                session, subscription, set_pause=True, paused_until=PAUSED_UNTIL
             )
     await session.flush()
 
@@ -193,7 +219,11 @@ async def generate_week(
     # The week is a draft until M3's box-ready notice shows it to the household at 18:30 IST.
     notice_at = ist(delivery - timedelta(days=3), 18, 30)
     with simulated_time(notice_at):
-        await subs_service.send_box_ready_notices(session, delivery, notice_at)
+        # Only this household's cycle: the job's own body would take every draft in the window,
+        # real households' too, on a shared database.
+        await subs_service.send_box_ready_notices(
+            session, delivery, notice_at, cycle_ids=[generated.cycle.id]
+        )
     await session.flush()
     cycle = generated.cycle
     return planned_from_cycle(cycle), lines_from_cycle(generated.lines, slugs), cycle

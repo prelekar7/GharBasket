@@ -331,6 +331,13 @@ async def user_phone(session: AsyncSession, user_id: uuid.UUID) -> str | None:
     return await session.scalar(select(User.phone_e164).where(User.id == user_id))
 
 
+async def is_synthetic_user(session: AsyncSession, user_id: uuid.UUID) -> bool:
+    """A seed or simulator account (ADR-0008): M11 sends it no push or WhatsApp outside dev and
+    test (M11 §3.1)."""
+    source = await session.scalar(select(User.data_source).where(User.id == user_id))
+    return source == "synthetic"
+
+
 @dataclass(frozen=True)
 class PushTarget:
     session_id: uuid.UUID
