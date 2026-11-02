@@ -7,6 +7,11 @@ refuses to move (409 `orders.illegal_transition`) leaves the task unchanged. A t
 while it changes; `next` skips tasks another packer is claiming (`FOR UPDATE SKIP LOCKED`).
 """
 
+# Lazy annotations: `orders.api` imports this module's package while it initialises, so an
+# annotation naming one of its classes must not be evaluated at import (a cold `import
+# gharbasket.modules.orders.api` would otherwise fail on the cycle).
+from __future__ import annotations
+
 import re
 import uuid
 from dataclasses import dataclass
@@ -379,7 +384,7 @@ async def lines_of(session: AsyncSession, task_id: uuid.UUID) -> list[PackingLin
     return list(rows.scalars())
 
 
-def flat_label_of(task: PackingTask, society: "community_api.SocietyLabels | None") -> str | None:
+def flat_label_of(task: PackingTask, society: community_api.SocietyLabels | None) -> str | None:
     """ "B wing, B-402": the tower's label and the flat, never a name or a phone."""
     if task.flat is None:
         return None

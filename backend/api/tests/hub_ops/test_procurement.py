@@ -33,7 +33,8 @@ from .conftest import KAVITA, NEHA, PRIYA, SANJAY, VIKRAM, as_user, hub_body, ke
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("world")]
 
-NOW = datetime(2026, 10, 12, 16, 0, tzinfo=UTC)  # Mon 12 Oct, 21:30 IST
+NOW = datetime(2026, 10, 12, 16, 0, tzinfo=UTC)  # Mon 12 Oct, 21:30 IST: after Tue's cut-off
+EARLY = datetime(2026, 10, 12, 10, 0, tzinfo=UTC)  # Mon 15:30 IST: a plan built ahead of it
 DELIVERY = date(2026, 10, 13)
 AT_2110 = datetime(2026, 10, 12, 15, 40, tzinfo=UTC)  # 21:10 IST, for 13 Oct
 AT_2305 = datetime(2026, 10, 12, 17, 35, tzinfo=UTC)  # 23:05 IST, for 13 Oct
@@ -216,6 +217,7 @@ async def test_the_plan_counts_paid_box_and_addon_lines_and_shows_at_risk_ones(
     assert far.json()["code"] == "hub_ops.date_out_of_range"
 
 
+@time_machine.travel(EARLY, tick=False)
 async def test_a_forecast_changes_the_basis_of_the_lines_it_covers(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -292,7 +294,7 @@ async def plan_lines(db: AsyncSession, plan: ProcurementPlan | None) -> dict[str
     return {by_id[line.product_id]: line for line in rows}
 
 
-@time_machine.travel(NOW, tick=False)
+@time_machine.travel(EARLY, tick=False)
 async def test_the_stored_forecast_replaces_the_buffer_for_its_own_delivery_day(
     db_session: AsyncSession,
 ) -> None:
@@ -355,7 +357,7 @@ async def test_a_forecast_with_nothing_usable_for_the_day_leaves_the_buffer(
     )
 
 
-@time_machine.travel(NOW, tick=False)
+@time_machine.travel(EARLY, tick=False)
 async def test_add_on_orders_already_placed_are_counted_once(db_session: AsyncSession) -> None:
     # Tomato (500 g steps): boxes 4 steps (2 kg) and an add-on order of 2 steps (1 kg) = 3 kg.
     # Onion (1 kg steps): add-on orders only (2 steps), and 8 steps of a failed payment (at risk).
@@ -382,7 +384,7 @@ async def test_add_on_orders_already_placed_are_counted_once(db_session: AsyncSe
     assert (carrot.committed_qty, carrot.buffer_qty, carrot.suggested_qty) == (0, 1, 1)
 
 
-@time_machine.travel(NOW, tick=False)
+@time_machine.travel(EARLY, tick=False)
 async def test_add_on_lines_on_box_orders_are_counted_once(db_session: AsyncSession) -> None:
     # ADR-0031: an add-on line riding on a box order is uncommitted demand for M10 too, so it is
     # taken off the forecast like an add-on order. Tomato: a box of 4 steps and another box with
@@ -404,6 +406,36 @@ async def test_add_on_lines_on_box_orders_are_counted_once(db_session: AsyncSess
     )
     # Box lines are M10's committed demand: the whole forecast (2 steps = 2 kg) is the buffer.
     assert (onion.committed_qty, onion.buffer_qty, onion.suggested_qty) == (3, 2, 5)
+
+
+@pytest.mark.parametrize(
+    ("at", "basis", "buffer", "suggested"),
+    [
+        # After the cut-off every add-on is placed: the rule buffer, 10 % of the 3 kg ordered.
+        (NOW, "buffer", Decimal("0.3"), Decimal("3.3")),
+        # Ahead of it the forecast (5 steps = 2.5 kg) less the 1 kg of add-ons placed so far.
+        (EARLY, "forecast", Decimal("1.5"), Decimal("4.5")),
+    ],
+)
+async def test_after_the_cut_off_add_on_products_take_the_rule_buffer(
+    db_session: AsyncSession, at: datetime, basis: str, buffer: Decimal, suggested: Decimal
+) -> None:
+    # ADR-0031: M6 builds day T's plan at T-1 21:10, after the cut-off, when the add-ons M10
+    # forecasts are all placed. Apple (500 g steps): a box of 4 steps and an add-on line of 2.
+    with time_machine.travel(at, tick=False):
+        await order(db_session, "locked", {"apple": 4})
+        await order(db_session, "locked", {"apple": 2}, line_kind="addon")
+        await store_forecast(db_session, {"apple": (3, 5), "guava": (1, 2)})
+
+        plan, _ = await procurement.build(db_session, SEED_HUB_ID, DELIVERY)
+
+    assert plan is not None and (plan.source, plan.model) == ("ml", "AutoETS")
+    lines = await plan_lines(db_session, plan)
+    apple = lines["apple"]
+    assert (apple.committed_qty, apple.forecast_qtau) == (3, Decimal("2.5"))  # M10's, shown
+    assert (apple.basis, apple.buffer_qty, apple.suggested_qty) == (basis, buffer, suggested)
+    # A product only the forecast expects has a line until the cut-off, none after it.
+    assert ("guava" in lines) is (at == EARLY)
 
 
 @time_machine.travel(NOW, tick=False)
@@ -434,7 +466,9 @@ async def test_a_new_forecast_rebuilds_the_open_plan_and_not_a_closed_one(
     await db_session.refresh(closed)
 
     assert (open_plan.source, open_plan.model, open_plan.version) == ("ml", "AutoETS", 2)
-    assert (await plan_lines(db_session, open_plan))["tomato"].basis == "forecast"
+    tomato = (await plan_lines(db_session, open_plan))["tomato"]
+    # Built after its cut-off: the forecast is shown, the rule buffer is used (ADR-0031).
+    assert (tomato.basis, tomato.forecast_qtau) == ("buffer", 1)
     assert (closed.source, closed.version) == ("fallback", 1)
 
 

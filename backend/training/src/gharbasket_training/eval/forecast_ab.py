@@ -9,12 +9,13 @@ own outputs are untouched. Every draw is seeded per seed, household and week.
   times the week's price multiplier to the power `-PRICE_ELASTICITY` (shocks.json) and
   `1 + FESTIVAL_LIFT` per festival day of the week (seed festivals.json), capped at 1. The
   quantity is the shortfall in the product's steps (at least one, at most M4's
-  `MAX_ADDON_QTY`). Add-ons are placed as production can place them (ADR-0031, eval protocol §7
-  2026-11-02, third entry): as add-on lines on the week's box, so only in a week the household
-  ordered and funded (`funded`: the simulator's `--write-db` cut-off draw; a skipped or unfunded
-  week loses them), delivered on the box's day (the seed societies deliver on Tuesdays), never
-  for a product already on that box (M4 refuses it: the household edits the box line instead)
-  or without a price at the hub, and at most `MAX_ADDON_LINES` a box (first by product).
+  `MAX_ADDON_QTY`). Add-ons are placed as production can place them (ADR-0031, eval protocol §7,
+  the third M-E entry of 2026-11-02): as add-on lines on the week's box, so only in a week the
+  household ordered and funded (`funded`: the simulator's `--write-db` cut-off draw; a skipped
+  or unfunded week loses them), delivered on the box's day (the seed societies deliver on
+  Tuesdays), never for a product already on that box (M4 refuses it: the household edits the
+  box line instead) or without a price at the hub, and at most `MAX_ADDON_LINES` a box, in the
+  pantry rows' order.
 - **Tiffins:** a slot the plan leaves to a no-cook day (meal action `tiffin`) is ordered as a
   tiffin with probability `TIFFIN_TAKE`, one portion per member, product `tiffin-<slot>`.
 - **World:** every household the seed samples, one hub (the seed societies'), `WEEKS` weeks from
