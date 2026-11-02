@@ -65,6 +65,8 @@ FEATURES = (
 # before the household's MIN_RANKED_WEEKS-th final box, at most MAX_CANDIDATES items.
 MIN_RANKED_WEEKS = 2
 MAX_CANDIDATES = 500
+# The card's `holdout_view` when its metrics come from `serving` (`just promote` requires it).
+HOLDOUT_VIEW = "serving"
 MODEL_NAME = "basket_ranker"
 TOP_K = 3  # features kept per explained decision (the serving response's top_features too)
 EXPLAIN_SAMPLE = 50  # decisions stored per run in explanations.json

@@ -544,17 +544,52 @@ def test_the_card_and_the_gate_score_under_serving_conditions() -> None:
     assert t.card["metrics"] == train_ranker.scores(t.model, served)
     assert t.card["metrics_build_candidates"] == train_ranker.scores(t.model, test)
     assert "serving" in t.card["holdout"] and t.card["features"] == list(ranker.FEATURES)
+    assert t.card["holdout_view"] == ranker.HOLDOUT_VIEW == "serving"
     assert t.explanations["data"] == "holdout" and t.explanations["rows"] == len(served.rows)
     assert list(t.model.feature_name()) == list(ranker.FEATURES)
     # The gate reads the serving metrics: a model that loses to top frequency there is refused.
+    current = {"features": list(ranker.FEATURES), "holdout_view": ranker.HOLDOUT_VIEW}
     losing = {
         "lambdarank": {"ndcg_at_10": 0.99},
         "repeat_last_week": {"ndcg_at_10": 0.96},
         "top_frequency": {"ndcg_at_10": 0.996},
     }
     with pytest.raises(SystemExit, match="not promoted"):
-        promote.challenge("basket_ranker", {"metrics": losing}, force=False)
+        promote.challenge("basket_ranker", current | {"metrics": losing}, force=False)
     winning = losing | {"lambdarank": {"ndcg_at_10": 0.999}}
-    assert promote.challenge("basket_ranker", {"metrics": winning}, force=False).startswith(
-        "lambdarank NDCG@10 0.9990 >"
+    assert promote.challenge(
+        "basket_ranker", current | {"metrics": winning}, force=False
+    ).startswith("lambdarank NDCG@10 0.9990 >")
+
+
+def test_the_gate_refuses_an_old_format_ranker_card_unless_forced(tmp_path: Path) -> None:
+    """A card from before 2 Nov 2026 (features with `drafted`, a holdout on the training
+    candidates) is refused whatever its metrics say; `--force` still overrides."""
+    winning = {
+        "lambdarank": {"ndcg_at_10": 0.999},
+        "repeat_last_week": {"ndcg_at_10": 0.96},
+        "top_frequency": {"ndcg_at_10": 0.996},
+    }
+    old_features = [*ranker.FEATURES[:2], "drafted", *ranker.FEATURES[2:]]
+    for card, reason in (
+        ({"features": old_features, "holdout_view": "serving"}, "features"),
+        ({"features": list(ranker.FEATURES)}, "serving conditions"),  # no holdout_view
+        ({"features": list(ranker.FEATURES), "holdout_view": "build"}, "serving conditions"),
+        ({}, "features"),  # a v0 card without the fields at all
+    ):
+        with pytest.raises(SystemExit, match=f"not promoted: .*{reason}"):
+            promote.challenge("basket_ranker", card | {"metrics": winning}, force=False)
+        forced = promote.challenge("basket_ranker", card | {"metrics": winning}, force=True)
+        assert forced.startswith("forced: ") and reason in forced
+    # The pantry priors are not judged on a ranker's card format.
+    assert "features" not in promote.challenge("pantry_priors", {"metrics": {}}, force=True)
+    # Through the registry: an old card written next to its model is refused by `promote`.
+    registry = open_registry(Settings(), tmp_path)
+    registry.lake.write_bytes(registry.key("basket_ranker", "old", "model.txt"), b"tree")
+    registry.lake.write_bytes(
+        registry.key("basket_ranker", "old", "card.json"),
+        json.dumps({"features": old_features, "metrics": winning}).encode(),
     )
+    with pytest.raises(SystemExit, match="features"):
+        promote.promote(registry, "basket_ranker", "old")
+    assert not (tmp_path / "basket_ranker/latest.json").exists()

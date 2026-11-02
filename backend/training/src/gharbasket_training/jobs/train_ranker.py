@@ -107,6 +107,7 @@ def fit(tables: dict[str, list[dict[str, Any]]], version: str) -> list[Trained]:
         tagged = f"{version}-{source}"
         card = ranker.card(model, metrics, tagged, len(train.rows), source)
         card["holdout"] = HOLDOUT
+        card["holdout_view"] = ranker.HOLDOUT_VIEW  # `just promote` refuses a card without it
         card["metrics_build_candidates"] = scores(model, test)
         explained, data = (
             (served, "holdout")
