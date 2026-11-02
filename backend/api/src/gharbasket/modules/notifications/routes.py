@@ -16,6 +16,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.notifications.kinds import KINDS
 from gharbasket.modules.notifications.render import format_value
@@ -119,6 +120,21 @@ async def wallet_topped_up(session: AsyncSession, payload: dict[str, Any]) -> Ro
 async def data_export_ready(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
     """Opens Profile; never the download link (M1 §3.3)."""
     return _to_user("identity.data_export_ready", payload)
+
+
+async def drift_detected(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """A model scored worse live than in its backtest (M10 §6): to every admin, naming the hub.
+    Only the two WAPE values are kept; the full numbers are on the AI health page."""
+    admins = await identity_api.users_with_role(session, "admin")
+    if not admins:
+        return None
+    hub = await hub_ops_api.get_hub(session, uuid.UUID(str(payload["hub_id"])))
+    values = {
+        "hub": "a hub" if hub is None else hub.name,
+        "live": payload["live"],
+        "backtest": payload["backtest"],
+    }
+    return Route("intel.drift_detected", admins, checked("intel.drift_detected", values))
 
 
 async def partner_verified(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
@@ -238,6 +254,7 @@ ROUTES: dict[str, RouteFn] = {
     "orders.issue_resolved": issue_resolved,
     "billing.wallet_topped_up": wallet_topped_up,
     "identity.data_export_ready": data_export_ready,
+    "intel.drift_detected": drift_detected,
     "partners.verified": partner_verified,
     "community.captain_assigned": captain_assigned,
     "billing.points_credited": points_credited,

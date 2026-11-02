@@ -17,6 +17,7 @@ from gharbasket.modules.identity.models import Household
 from gharbasket.modules.intel_gateway import jobs
 from gharbasket.modules.intel_gateway.models import ModelMetric
 from gharbasket.modules.orders.models import Order, OrderLine, Slot
+from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
 from ..identity.conftest import ClientFactory
@@ -175,9 +176,36 @@ async def test_two_hubs_are_scored_per_source_against_their_own_backtest(
         "forecasts_scored": 3,
         "drifted": 1,
         "plans_scored": 0,
+        "alerts": 1,
     }
     again = await api.post("/v1/internal/jobs/monitor_drift", json=body)
     assert again.json()["summary"]["forecasts_scored"] == 0  # once per hub, source and day
+    assert again.json()["summary"]["alerts"] == 0  # and a drift is announced once
+    next_day = await api.post(
+        "/v1/internal/jobs/monitor_drift", json={"scheduled_for": "2026-10-11T00:00:00+05:30"}
+    )
+    assert next_day.json()["summary"]["alerts"] == 0
+
+    alerts = (
+        (
+            await db_session.execute(
+                select(OutboxEvent).where(OutboxEvent.event_type == "intel.drift_detected")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [a.payload for a in alerts] == [
+        {
+            "hub_id": str(hub_a),
+            "data_source": "synthetic",
+            "metric": "wape",
+            "live": 0.6667,
+            "backtest": 0.05,
+            "delta": 0.6167,
+            "window_end": YESTERDAY.isoformat(),
+        }
+    ]  # hub A only: hub B is inside the margin and the pilot hub has no backtest
 
     live = (
         (await db_session.execute(select(ModelMetric).where(ModelMetric.split == "live")))
@@ -205,6 +233,7 @@ async def test_two_hubs_are_scored_per_source_against_their_own_backtest(
     assert health.status_code == 200, health.text
     table = health.json()
     assert table["window_days"] == 7 and health.headers["Cache-Control"] == "no-store"
+    assert table["ml_service"]["status"] == "not_configured"  # these tests set no ML_SERVICE_URL
     model = next(m for m in table["models"] if m["model_name"] == MODEL)
     assert model["drift"] is True  # hub A drifted
     hubs = {(h["hub_id"], h["data_source"]): h for h in model["hubs"]}

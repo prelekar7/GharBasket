@@ -52,9 +52,36 @@ class PredictionCountOut(BaseModel):
     count: int
 
 
+class ServedModelOut(BaseModel):
+    model: str
+    version: str
+
+
+class RegistrySyncOut(BaseModel):
+    last_success_at: datetime | None
+    last_failure_at: datetime | None
+    last_error: str | None = Field(description="Why the last sync failed; no secrets")
+
+
+class MlServiceOut(BaseModel):
+    """The ML service as the API sees it right now (`GET /health/ai`, cached about a minute)."""
+
+    status: Literal["up", "down", "not_configured"] = Field(
+        description="`down`: no answer within 3 s (a sleeping free instance is down until it "
+        "wakes), a refused token or a failing service; customers get the rule-based fallbacks"
+    )
+    served: list[ServedModelOut] = Field(description="Empty unless `up`")
+    registry_sync: RegistrySyncOut | None = Field(
+        description="The service's last sync of promoted models from the registry; null when "
+        "it is not up or does not sync"
+    )
+    checked_at: datetime
+
+
 class AiHealthOut(BaseModel):
     generated_at: datetime
     window_days: int
+    ml_service: MlServiceOut
     models: list[ModelHealthOut]
     predictions: list[PredictionCountOut] = Field(
         description="How often each kind of prediction came from the ML service or the fallback"

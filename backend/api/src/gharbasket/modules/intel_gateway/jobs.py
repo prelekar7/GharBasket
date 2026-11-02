@@ -13,9 +13,15 @@ table (handbook 08 §8.1 monitoring).
   (`ml`, `fallback`) and per data source (a `real` cycle is labelled `settings.real_data_source`).
 - Rows carry the data source they were measured on; nothing is ever written as `mixed`.
 
+- Drift is announced: each hub, data source and metric that drifted on a day scored this run is
+  published once as `intel.drift_detected` (the newest such day), which M11 tells the admins.
+  Scoring a day happens once (`scored_already`), so a rerun publishes nothing it has published.
+
 Waste against the forecast waits for M6's receiving and cascade counts.
 """
 
+import uuid
+from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -23,9 +29,11 @@ from zoneinfo import ZoneInfo
 import structlog
 
 from gharbasket.modules.intel_gateway import service
+from gharbasket.modules.intel_gateway.events import DRIFT_DETECTED
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions import api as subscriptions_api
 from gharbasket.platform.jobs import JobContext, job
+from gharbasket.platform.outbox import publish
 
 log = structlog.get_logger("gharbasket.intel")
 IST = ZoneInfo("Asia/Kolkata")
@@ -58,8 +66,20 @@ def wape(actual: dict[str, float], predicted: dict[str, float]) -> float:
     return round(error / total, 4)
 
 
-async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int]:
-    scored = drifted = 0
+@dataclass(frozen=True)
+class Drift:
+    hub_id: uuid.UUID
+    data_source: str
+    metric: str
+    live: float
+    backtest: float
+    day: date
+
+
+async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, list[Drift]]:
+    """Score the day's forecasts; returns how many were scored and the ones that drifted."""
+    scored = 0
+    drifted: list[Drift] = []
     for prediction in await service.forecasts_on(ctx.session, day):
         label = prediction.payload.get("data_source")
         hub_id = prediction.subject_id
@@ -103,8 +123,8 @@ async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int]:
             },
         )
         scored += 1
-        if drift:
-            drifted += 1
+        if drift and baseline is not None:
+            drifted.append(Drift(hub_id, label, "wape", realised, baseline.value, day))
             log.warning(
                 "model_drift", model=model_name, hub_id=str(hub_id), source=label, wape=realised
             )
@@ -139,10 +159,28 @@ async def score_plans(ctx: JobContext, day: date) -> int:
 async def monitor_drift(ctx: JobContext) -> dict[str, Any]:
     today = ctx.scheduled_for.astimezone(IST).date()
     totals = {"days": LOOKBACK_DAYS, "forecasts_scored": 0, "drifted": 0, "plans_scored": 0}
-    for back in range(1, LOOKBACK_DAYS + 1):
+    newest: dict[tuple[uuid.UUID, str, str], Drift] = {}
+    for back in range(1, LOOKBACK_DAYS + 1):  # newest day first
         day = today - timedelta(days=back)
         scored, drifted = await score_forecasts(ctx, day)
         totals["forecasts_scored"] += scored
-        totals["drifted"] += drifted
+        totals["drifted"] += len(drifted)
+        for drift in drifted:
+            newest.setdefault((drift.hub_id, drift.data_source, drift.metric), drift)
         totals["plans_scored"] += await score_plans(ctx, day)
+    for drift in newest.values():
+        await publish(
+            ctx.session,
+            DRIFT_DETECTED,
+            {
+                "hub_id": str(drift.hub_id),
+                "data_source": drift.data_source,
+                "metric": drift.metric,
+                "live": drift.live,
+                "backtest": drift.backtest,
+                "delta": round(drift.live - drift.backtest, 4),
+                "window_end": drift.day.isoformat(),
+            },
+        )
+    totals["alerts"] = len(newest)
     return totals

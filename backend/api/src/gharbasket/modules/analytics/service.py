@@ -1,28 +1,65 @@
 """Business logic of M12 Console & Analytics: the AI health view over M10's metrics (the KPI,
 unit-economics, cohort and impact views follow with their materialised views)."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
+import httpx2
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.analytics.schemas import (
     AiHealthOut,
     HubDriftOut,
     MetricOut,
+    MlServiceOut,
     ModelHealthOut,
     PredictionCountOut,
+    RegistrySyncOut,
+    ServedModelOut,
 )
 from gharbasket.modules.intel_gateway import api as intel_api
+from gharbasket.platform.settings import Settings
 
 WINDOW_DAYS = 7
 
 
-async def ai_health(session: AsyncSession) -> AiHealthOut:
+@asynccontextmanager
+async def http_client(given: httpx2.AsyncClient | None) -> AsyncIterator[httpx2.AsyncClient]:
+    """The app's shared client, or a short-lived one (tools and tests without a lifespan)."""
+    if given is not None:
+        yield given
+        return
+    async with httpx2.AsyncClient() as client:
+        yield client
+
+
+def _ml_service(status: intel_api.MlServiceStatus) -> MlServiceOut:
+    sync = status.registry_sync
+    return MlServiceOut(
+        status=status.status,
+        served=[ServedModelOut(model=m.model, version=m.version) for m in status.served],
+        registry_sync=None
+        if sync is None
+        else RegistrySyncOut(
+            last_success_at=sync.last_success_at,
+            last_failure_at=sync.last_failure_at,
+            last_error=sync.last_error,
+        ),
+        checked_at=status.checked_at,
+    )
+
+
+async def ai_health(
+    session: AsyncSession, http: httpx2.AsyncClient, settings: Settings
+) -> AiHealthOut:
     now = datetime.now(UTC)
+    ml_service = await intel_api.ml_service_status(http, settings)
     models, counts = await intel_api.model_health(session, since=now - timedelta(days=WINDOW_DAYS))
     return AiHealthOut(
         generated_at=now,
         window_days=WINDOW_DAYS,
+        ml_service=_ml_service(ml_service),
         models=[
             ModelHealthOut(
                 model_name=m.model_name,
