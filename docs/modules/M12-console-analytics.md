@@ -468,11 +468,12 @@ GET /v1/public/societies/{slug}          no auth; Cache-Control: public, max-age
 - **Models.** For every model, its newest value per (metric, split, data source, hub) from `intel.model_metrics`.
 - **Drift per hub.** For each hub and data source, `monitor_drift`'s rows over 7 days (`hubs[]`): drift, drifted and scored days, the newest realised WAPE, and the backtest WAPE of the same hub and source that it was compared with. A model's `drift` is true when any hub drifted.
 - **ML or fallback.** How often each prediction kind came from the ML service or the fallback over 7 days.
+- **ML service** (C1, 2 Nov 2026). `ml_service: {status, served, registry_sync, checked_at}`. `status` is `up`, `down` (no answer in 3 s, a refused token, a failing service: the customers' calls fall back) or `not_configured` (`ML_SERVICE_URL` unset). `served` is `[{model, version}]` from the service's `/health/ai` (empty unless `up`). `registry_sync` is `{last_success_at, last_failure_at, last_error} | null` (null when the service is not up or does not sync from the registry). `checked_at` is when the probe ran; it is cached in the API process for 60 s. Read through `intel_gateway.api.ml_service_status` (M10 §3.10), which never fails the page. The console renders it later (Yash); the runbook for `down` is `docs/runbooks/ml-service-down.md`.
 
-It reads M10 only through `intel_gateway.api.model_health`, the pattern §3.1 generalises. It is unchanged by this draft.
+It reads M10 only through `intel_gateway.api.model_health` and `ml_service_status`, the pattern §3.1 generalises.
 
 ### 3.9 Common rules, limits and errors
-- **Read-only and synchronous.** M12 publishes no event and consumes only `identity.user_deleted` (§4). Requests never call the ML service.
+- **Read-only and synchronous.** M12 publishes no event and consumes only `identity.user_deleted` (§4). Requests never call the ML service, except the admin-only AI health probe (§3.8: 3 s timeout, cached for 60 s, never fails the page).
 - **Scope.** Every hub-scoped endpoint checks the `hub_id` against the caller's grants. The `analytics` fact tables carry `hub_id` under the same Row-Level Security policy as other hub-scoped tables (handbook 05 §5.9), as defence in depth.
 - **Performance.**
   - **Response times.** At pilot scale (5 hubs, 2 years), view-backed endpoints answer in p95 ≤ 300 ms, and the today board (live facade counts) in ≤ 800 ms.

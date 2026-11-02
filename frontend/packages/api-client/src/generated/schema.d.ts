@@ -736,7 +736,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin) */
+        /** Whether the ML service is up and what it serves, every model's newest metrics, per-hub drift and the ML-or-fallback share (admin) */
         get: operations["ai_health_v1_analytics_ai_health_get"];
         put?: never;
         post?: never;
@@ -5007,6 +5007,7 @@ export interface components {
              * Format: date-time
              */
             generated_at: string;
+            ml_service: components["schemas"]["MlServiceOut"];
             /** Models */
             models: components["schemas"]["ModelHealthOut"][];
             /**
@@ -10525,6 +10526,30 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * MlServiceOut
+         * @description The ML service as the API sees it right now (`GET /health/ai`, cached about a minute).
+         */
+        MlServiceOut: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** @description The service's last sync of promoted models from the registry; null when it is not up or does not sync */
+            registry_sync: components["schemas"]["RegistrySyncOut"] | null;
+            /**
+             * Served
+             * @description Empty unless `up`
+             */
+            served: components["schemas"]["ServedModelOut"][];
+            /**
+             * Status
+             * @description `down`: no answer within 3 s (a sleeping free instance is down until it wakes), a refused token or a failing service; customers get the rule-based fallbacks
+             * @enum {string}
+             */
+            status: "up" | "down" | "not_configured";
+        };
         /** ModelHealthOut */
         ModelHealthOut: {
             /**
@@ -14364,6 +14389,18 @@ export interface components {
              */
             name: string;
         };
+        /** RegistrySyncOut */
+        RegistrySyncOut: {
+            /**
+             * Last Error
+             * @description Why the last sync failed; no secrets
+             */
+            last_error: string | null;
+            /** Last Failure At */
+            last_failure_at: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+        };
         /** ReinstateIn */
         ReinstateIn: {
             /**
@@ -14930,6 +14967,13 @@ export interface components {
         SendBackIn: {
             /** Note */
             note: string;
+        };
+        /** ServedModelOut */
+        ServedModelOut: {
+            /** Model */
+            model: string;
+            /** Version */
+            version: string;
         };
         /** SessionOut */
         SessionOut: {
