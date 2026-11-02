@@ -13,9 +13,18 @@ table (handbook 08 §8.1 monitoring).
   (`ml`, `fallback`) and per data source (a `real` cycle is labelled `settings.real_data_source`).
 - Rows carry the data source they were measured on; nothing is ever written as `mixed`.
 
+- Drift is announced once per episode: days are scored oldest first, and a day whose `drift` is 1
+  while the previous scored day of the same model, hub and data source was not drifting (0, never
+  compared, or not scored within the last LOOKBACK_DAYS) starts an episode and is published as
+  `intel.drift_detected`, which M11 tells the admins. The next days of the same episode say
+  nothing. Scoring a day happens once (`scored_already`), so a rerun publishes nothing it has
+  published.
+
 Waste against the forecast waits for M6's receiving and cascade counts.
 """
 
+import uuid
+from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -23,9 +32,11 @@ from zoneinfo import ZoneInfo
 import structlog
 
 from gharbasket.modules.intel_gateway import service
+from gharbasket.modules.intel_gateway.events import DRIFT_DETECTED
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions import api as subscriptions_api
 from gharbasket.platform.jobs import JobContext, job
+from gharbasket.platform.outbox import publish
 
 log = structlog.get_logger("gharbasket.intel")
 IST = ZoneInfo("Asia/Kolkata")
@@ -58,8 +69,23 @@ def wape(actual: dict[str, float], predicted: dict[str, float]) -> float:
     return round(error / total, 4)
 
 
-async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int]:
+@dataclass(frozen=True)
+class Drift:
+    model: str
+    version: str
+    hub_id: uuid.UUID
+    data_source: str
+    metric: str
+    live: float
+    backtest: float
+    day: date
+
+
+async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int, list[Drift]]:
+    """Score the day's forecasts; returns how many were scored, how many drifted and the
+    episodes of drift that began on this day (the previous scored day was not drifting)."""
     scored = drifted = 0
+    began_today: list[Drift] = []
     for prediction in await service.forecasts_on(ctx.session, day):
         label = prediction.payload.get("data_source")
         hub_id = prediction.subject_id
@@ -84,12 +110,21 @@ async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int]:
         baseline = await service.latest_backtest(ctx.session, model_name, "wape", hub_id, label)
         metrics = {"wape": realised}
         drift = baseline is not None and realised - baseline.value > DRIFT_POINTS
+        version = prediction.model_version or prediction.model_name
+        began = drift and not await service.was_drifting(
+            ctx.session,
+            model_name,
+            day,
+            hub_id,
+            label,
+            since=day - timedelta(days=LOOKBACK_DAYS),
+        )
         if baseline is not None:
             metrics["drift"] = 1.0 if drift else 0.0
         await service.record_metrics(
             ctx.session,
             model_name=model_name,
-            version=prediction.model_version or prediction.model_name,
+            version=version,
             metrics=metrics,
             split="live",
             data_source=label,
@@ -103,12 +138,16 @@ async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int]:
             },
         )
         scored += 1
-        if drift:
+        if drift and baseline is not None:
             drifted += 1
+            if began:
+                began_today.append(
+                    Drift(model_name, version, hub_id, label, "wape", realised, baseline.value, day)
+                )
             log.warning(
                 "model_drift", model=model_name, hub_id=str(hub_id), source=label, wape=realised
             )
-    return scored, drifted
+    return scored, drifted, began_today
 
 
 async def score_plans(ctx: JobContext, day: date) -> int:
@@ -139,10 +178,29 @@ async def score_plans(ctx: JobContext, day: date) -> int:
 async def monitor_drift(ctx: JobContext) -> dict[str, Any]:
     today = ctx.scheduled_for.astimezone(IST).date()
     totals = {"days": LOOKBACK_DAYS, "forecasts_scored": 0, "drifted": 0, "plans_scored": 0}
-    for back in range(1, LOOKBACK_DAYS + 1):
+    episodes: list[Drift] = []
+    for back in range(LOOKBACK_DAYS, 0, -1):  # oldest day first: a day sees the one before it
         day = today - timedelta(days=back)
-        scored, drifted = await score_forecasts(ctx, day)
+        scored, drifted, began = await score_forecasts(ctx, day)
         totals["forecasts_scored"] += scored
         totals["drifted"] += drifted
+        episodes.extend(began)
         totals["plans_scored"] += await score_plans(ctx, day)
+    for drift in episodes:
+        await publish(
+            ctx.session,
+            DRIFT_DETECTED,
+            {
+                "model": drift.model,
+                "version": drift.version,
+                "hub_id": str(drift.hub_id),
+                "data_source": drift.data_source,
+                "metric": drift.metric,
+                "live": drift.live,
+                "backtest": drift.backtest,
+                "delta": round(drift.live - drift.backtest, 4),
+                "window_end": drift.day.isoformat(),
+            },
+        )
+    totals["alerts"] = len(episodes)
     return totals

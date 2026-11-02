@@ -39,6 +39,8 @@ SAMPLES: dict[PlaceholderType, Any] = {
     "clock": "06:30",
     "number": 12,
     "meal": "lunch",
+    "percent": 0.23,
+    "text": "Pune Central",
 }
 LANGUAGE: dict[str, Language] = {locale: lang for lang, locale in service.LOCALE.items()}
 

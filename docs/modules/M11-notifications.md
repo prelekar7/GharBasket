@@ -90,6 +90,7 @@ PUT  /v1/me/push-token    (M1)   { "push_token": "<FCM registration token>" | nu
 | `orders.issue_resolved` | money | `/orders` | yes | Credited or rejected; `issue_reported` sends nothing |
 | `billing.wallet_topped_up` | money | `/wallet` | yes | |
 | `identity.data_export_ready` (new, M1 `build_data_export`) | account | `/profile` | yes | Never carries the download link |
+| `intel.drift_detected` (M10 §5, new in C1) | account | `/ai-health`, or `CONSOLE_URL/ai-health` when `CONSOLE_URL` is set | always (account) | To every active user with the unscoped `admin` role (`identity.api.users_with_role`), each in their own language: "Forecast drift at <hub> (<data source>): live WAPE 41% vs 25% in the backtest". Published once per episode (M10 §5). The hub's name is read through `hub_ops.api.get_hub`; a hub that no longer exists is logged (`drift_hub_missing`) and nobody is told, because a fallback name would be English inside a Hindi or Marathi text. Placeholders `hub` and `source` (type `text`), `live` and `backtest` (type `percent`). The link is absolute (the console's Vercel URL) so that a phone's push opens it in the browser: the mobile inbox must open links that start with `http` in the browser instead of navigating inside the app (Yash). No one is told when there is no admin. Where the admin is a synthetic seed user, staging sends the inbox message only (the guard for synthetic users, #480) |
 | `billing.points_credited` (M5 §3.6) | kindness | `/kindness` | yes | To `user_id`: "You earned 1,200 Kindness points". Nothing when `source_type` is `donation`: `community.donation_verified` tells that one (M9 §3.4) |
 | `community.donation_verified` (M9 §3.4) | kindness | `/kindness` | yes | To the donor (`user_id`) with the `points` awarded |
 | `community.society_live` (M9 §3.6) | kindness | `/society/<society_id>` | yes | To the owner of every household in the society (`identity.api.society_owners`): delivery is now free. The hub managers' "set delivery days" console task is not a message |
@@ -209,7 +210,7 @@ Push tokens are not stored here: they stay on M1's `identity.sessions.push_token
 
 ## 5. Events
 **Published:** none (terminal consumer).
-**Consumed:** the event map in §3.1. Facades used: `identity.api` (`owner_of_household`, `household_hub`, `user_locale`, `user_phone`, `is_synthetic_user`, `active_push_tokens`, `clear_push_token`, `has_consent`).
+**Consumed:** the event map in §3.1. Facades used: `identity.api` (`owner_of_household`, `household_hub`, `user_locale`, `user_phone`, `is_synthetic_user`, `active_push_tokens`, `clear_push_token`, `has_consent`, `users_with_role`), `hub_ops.api` (`get_hub`).
 
 ## 6. Jobs
 | Job | Trigger | Notes |

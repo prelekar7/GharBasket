@@ -4,14 +4,14 @@ type plus a variant when one event reads differently by outcome (an issue credit
 
 Placeholder types decide how a raw value from the event is shown: `money` (paise → ₹1,234),
 `weekday` (an ISO date → "Monday"), `time` (an ISO timestamp → "9 PM", in IST), `clock` (an IST
-"HH:MM" → "6:30 AM"), `number` (a count or points → 1,200) and `meal` (lunch or dinner → the
-word in the reader's language).
+"HH:MM" → "6:30 AM"), `number` (a count or points → 1,200), `meal` (lunch or dinner → the
+word in the reader's language), `percent` (a fraction → 23%) and `text` (a name, as it is).
 """
 
 from dataclasses import dataclass, field
 from typing import Literal
 
-PlaceholderType = Literal["money", "weekday", "time", "clock", "number", "meal"]
+PlaceholderType = Literal["money", "weekday", "time", "clock", "number", "meal", "percent", "text"]
 
 # The order the preferences screen lists them in (§3.1).
 CATEGORIES = ("weekly_box", "delivery", "money", "kindness", "offers")
@@ -69,6 +69,14 @@ KINDS: dict[str, Kind] = {
         "billing.wallet_topped_up", "money", "/wallet", {"amount": "money"}
     ),
     "identity.data_export_ready": Kind("identity.data_export_ready", ACCOUNT, "/profile"),
+    # To the admins, not to a customer: opens the console's AI health page (M10 §6); the link is
+    # absolute when CONSOLE_URL is set, so a push to a phone opens it in the browser.
+    "intel.drift_detected": Kind(
+        "intel.drift_detected",
+        ACCOUNT,
+        "/ai-health",
+        {"hub": "text", "source": "text", "live": "percent", "backtest": "percent"},
+    ),
     # Partner messages are account messages: about the work itself, not a preference to turn
     # off. One text per partner kind, each opening that kind's home in the partner app.
     **{

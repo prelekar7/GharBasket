@@ -260,15 +260,15 @@ Delete old `before-demo-*` branches in the console; the free plan allows 10 bran
 | Uptime | 99% during the pilot |
 | Cut-off on time | 100% of delivery days |
 
-## 12.7 Runbooks (planned)
+## 12.7 Runbooks
 
-These runbooks are not written yet. They are planned for `docs/runbooks/` and are written before the pilot starts (S10, P6):
+Written so far: [`ml-service-down.md`](../runbooks/ml-service-down.md) (2 Nov 2026). The others are planned for `docs/runbooks/` and are written before the pilot starts (S10, P6):
 
 | Runbook | Covers |
 |---|---|
 | `cutoff-failed.md` | Re-run the cut-off job safely through its internal job endpoint (advisory lock, idempotent), verify ledger totals, notify the hub |
 | `razorpay-down.md` | Switch default to wallet, queue top-ups, reconcile later |
-| `ml-service-down.md` | Confirm the rule-based fallback is active (`ml_fallback` log lines; `circuit_open` means the API's breaker is skipping the service for 60 s, handbook 08 §8.2); restart the service; point `latest.json` back at the previous version if a promotion caused it. `smoke-ml.yml` runs daily at 06:40 IST and names the endpoint that broke |
+| [`ml-service-down.md`](../runbooks/ml-service-down.md) (written) | Confirm the rule-based fallback is active (`ml_fallback` log lines; `circuit_open` means the API's breaker is skipping the service for 60 s, handbook 08 §8.2); restart the service; point `latest.json` back at the previous version if a promotion caused it. `smoke-ml.yml` runs daily at 06:40 IST and names the endpoint that broke |
 | `route-solve-failed.md` | Fall back to the previous day's route template or nearest-neighbour; manual adjustment in the console |
 | `restore-from-backup.md` | Neon point-in-time restore steps; verification queries |
 | `rotate-secrets.md` | Rotating API keys and JWT signing keys in Infisical, then redeploying |

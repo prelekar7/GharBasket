@@ -92,6 +92,10 @@ def format_value(kind: PlaceholderType, raw: Any, lang: Language) -> str:
             return clock_of_day(str(raw), lang)
         case "number":
             return number(int(raw))
+        case "percent":  # a fraction: 0.2345 becomes 23%
+            return f"{round(float(raw) * 100)}%"
+        case "text":
+            return str(raw)
         case "meal":
             return MEALS[lang][str(raw)]  # KeyError for anything but lunch and dinner
 

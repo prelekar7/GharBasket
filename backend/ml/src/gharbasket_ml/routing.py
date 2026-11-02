@@ -355,8 +355,8 @@ def waves(inst: Instance, limit_s: float) -> list[Trip] | None:
     earliest = min(inst.nodes[i].window[0] for i in drops)
     early = [i for i in drops if inst.nodes[i].window[0] == earliest]
     late = [i for i in drops if i not in early]
-    if not late:
-        return solve_wave(inst, limit_s)
+    if not late:  # one wave: still half the limit, so no wave runs longer than with two
+        return solve_wave(inst, limit_s / 2)
     first, order1 = subset(inst, early)
     one = solve_wave(first, limit_s / 2)
     if one is None:

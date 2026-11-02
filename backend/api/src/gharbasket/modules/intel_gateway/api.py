@@ -19,6 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.breaker import JobBudget, ml_breakers
 from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
+from gharbasket.modules.intel_gateway.ml_status import (  # re-exported
+    MlServiceStatus,
+    RegistrySync,
+    ServedModel,
+    ml_service_status,
+)
 from gharbasket.modules.intel_gateway.models import FeatureSnapshot, ModelMetric, Prediction
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     AssignRequest,
@@ -63,6 +69,7 @@ __all__ = [
     "JobBudget",
     "KitchenAssignment",
     "MetricRow",
+    "MlServiceStatus",
     "ModelHealth",
     "PantryItem",
     "PantryObservation",
@@ -74,8 +81,10 @@ __all__ = [
     "RankRequest",
     "RankResponse",
     "RankedOut",
+    "RegistrySync",
     "RoutePlan",
     "RouteRequest",
+    "ServedModel",
     "SlotCandidate",
     "SlotDay",
     "SlotPrices",
@@ -86,6 +95,7 @@ __all__ = [
     "delete_for_user",
     "latest_metrics",
     "latest_prediction",
+    "ml_service_status",
     "model_health",
     "next_recipe",
     "pantry_priors",

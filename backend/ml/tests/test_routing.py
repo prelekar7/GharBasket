@@ -88,6 +88,30 @@ def test_two_waves_serve_every_society_on_time_within_capacity() -> None:
     assert len(vans) > len(set(vans)) or checked.vans <= 3
 
 
+def test_each_wave_gets_half_the_limit_even_a_single_wave(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """M7 sends 20 s as two waves of 10 s (the ≤ 10 s a wave guardrail, eval protocol §4): a
+    morning with one window must not give its only wave the whole 20 s."""
+    limits: list[float] = []
+    solve = routing.solve_wave
+
+    def spy(inst: routing.Instance, limit_s: float, free_from: list[int] | None = None):
+        limits.append(limit_s)
+        return solve(inst, limit_s, free_from)
+
+    monkeypatch.setattr(routing, "solve_wave", spy)
+    req = request(n=8, donations=0)
+    routing.waves(instance(req), 4.0)
+    assert limits == [2.0, 2.0]
+
+    limits.clear()
+    early = [s.model_dump() | {"window_start_s": T(7), "window_end_s": T(9)} for s in req.stops]
+    one = request(n=8, donations=0, stops=early)
+    trips = routing.waves(instance(one), 4.0)
+    assert limits == [2.0] and trips is not None
+
+
 def test_the_checker_catches_a_bad_plan() -> None:
     req = request(n=6, donations=1)
     inst = instance(req)
