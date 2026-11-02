@@ -78,9 +78,10 @@ def test_a_seed_trains_through_the_jobs_fit_deterministically(
 ) -> None:
     rows, _, _ = ranker_eval.tables(7, catalog, **SMALL)  # pyright: ignore[reportArgumentType]
     (job,) = train_ranker.fit(rows, "eval-7")
-    assert {arm: small.metrics[arm] for arm in ARMS} == {
-        arm: job.card["metrics"][arm] for arm in ARMS
-    }
+    # The card's holdout over the job's own candidates (its `metrics`, or once the card scores
+    # under serving conditions, `metrics_build_candidates`).
+    card = job.card.get("metrics_build_candidates", job.card["metrics"])
+    assert {arm: small.metrics[arm] for arm in ARMS} == {arm: card[arm] for arm in ARMS}
     assert small.train_rows == job.card["train_rows"]
     assert small.shap_share == job.explanations["mean_abs_shap_share"]
     again = ranker_eval.run_ranker(7, catalog, **SMALL)  # pyright: ignore[reportArgumentType]

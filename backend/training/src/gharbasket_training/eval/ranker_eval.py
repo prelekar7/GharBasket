@@ -291,16 +291,18 @@ def run_ranker(
         seed, catalog, weeks=weeks, start=start, adoption=adoption, shocks=shocks, planner=planner
     )
     (trained,) = train_ranker.fit(rows, f"eval-{seed}")  # one data source
-    card = trained.card["metrics"]
-    if not card:
-        raise RuntimeError(f"seed {seed}: no household has two baskets ({weeks} week(s))")
     baskets = ranker.baskets_from_rows(
         rows["box_lines"], rows["edit_feedback"], rows["weekly_cycles"]
     )
-    # The split `fit` made (it does not return it): the same call on the same rows.
+    # The split `fit` made (it does not return it): the same call on the same rows. The holdout
+    # view is scored here, not read from the card, whose metrics may be the serving view's.
     train, test = ranker.build(baskets, holdout_last=True, prices=ranker.price_book(rows["prices"]))
+    if not test.groups:
+        raise RuntimeError(f"seed {seed}: no household has two baskets ({weeks} week(s))")
     blind = ranker.train(without_drafted(train))
-    metrics = {arm: dict(card[arm]) for arm in ARMS}
+    metrics = {MODEL: ranker.evaluate(test, ranker.predict(trained.model, test))} | {
+        base: ranker.evaluate(test, ranker.baseline_scores(test, base)) for base in BASELINES
+    }
     metrics[NO_DRAFTED] = ranker.evaluate(test, ranker.predict(blind, without_drafted(test)))
     metrics[DRAFTED_BOX] = ranker.evaluate(test, drafted_box_scores(test))
     serve = serving_view(test, baskets)
