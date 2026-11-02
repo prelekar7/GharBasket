@@ -584,6 +584,8 @@ def html(report: dict[str, Any]) -> str:
         "hyperparameters and seed). <strong>drafted is rebuilt from the final box: a label "
         "leak</strong>; the simulator drafting the box (every cooked dish's ingredients back on "
         "it) favours the model. The serving view is what the planner's learned preferences get. "
+        "Once drafted leaves the model's features (PR #482), lambdarank and "
+        "lambdarank_no_drafted coincide; both are kept for history. "
         "Recall counts the basket's items among the candidates; candidate coverage is the share "
         "of the final box they contain (eval protocol §7, 2026-10-08 and 2026-11-02).</p>"
     )

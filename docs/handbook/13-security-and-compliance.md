@@ -36,7 +36,7 @@ flowchart LR
         VK[("Valkey (Render Key Value)\nrate-limit counters, sign-out deny-list")]
     end
 
-    subgraph Space["Hugging Face Space (D25)"]
+    subgraph MLhost["Render free web service, ML (D30)"]
         ML["ml service\nstateless; service token required;\nno personal data sent to it"]
     end
 
@@ -67,7 +67,7 @@ flowchart LR
     API -- "templated messages" --> WA
     API -- "scrubbed text and a trimmed week; intents back" --> LLM
 ```
-*Figure 13.1 — Trust boundaries and main data flows. Everything before the platform TLS edge (Vercel, Render) is untrusted; the data stores are never exposed publicly. The ML service runs on a Hugging Face Space (D25): it answers only calls that carry the service token, and no household ids or other personal data are sent to it.*
+*Figure 13.1 — Trust boundaries and main data flows. Everything before the platform TLS edge (Vercel, Render) is untrusted; the data stores are never exposed publicly. The ML service runs on a free Render web service (D30): it answers only calls that carry the service token, and no household ids or other personal data are sent to it.*
 
 ## 13.3 Authentication
 

@@ -175,7 +175,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 flowchart LR
     subgraph GB["GharBasket platform (Render, Vercel, Neon)"]
         API["api<br/>outbox handlers + jobs"]
-        ML["ml service<br/>(Hugging Face Space)"]
+        ML["ml service<br/>(Render free web service)"]
     end
     MOB["Mobile app<br/>(Capacitor)"] --> FBA["Firebase Auth<br/>phone OTP"]
     MOB --> API

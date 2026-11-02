@@ -210,13 +210,13 @@ Push tokens are not stored here: they stay on M1's `identity.sessions.push_token
 
 ## 5. Events
 **Published:** none (terminal consumer).
-**Consumed:** the event map in §3.1. Facades used: `identity.api` (`owner_of_household`, `household_hub`, `user_locale`, `user_phone`, `active_push_tokens`, `clear_push_token`, `has_consent`, `users_with_role`), `hub_ops.api` (`get_hub`).
+**Consumed:** the event map in §3.1. Facades used: `identity.api` (`owner_of_household`, `household_hub`, `user_locale`, `user_phone`, `is_synthetic_user`, `active_push_tokens`, `clear_push_token`, `has_consent`, `users_with_role`), `hub_ops.api` (`get_hub`).
 
 ## 6. Jobs
 | Job | Trigger | Notes |
 |---|---|---|
 | Outbox consumers (one per mapped event) | Per event (ADR-0021) | Write the message and its deliveries only; no network calls inside the consumer, because a failed event is retried as a whole |
-| `send_deliveries` | Every minute (cron-job.org → `POST /v1/internal/jobs/send_deliveries`) | Sends due `queued`/`held` deliveries in batches: pushes through FCM, WhatsApp through the Cloud API (§3.2); FCM `UNREGISTERED` clears that token in M1; retries after 1, 5 and 30 minutes, then `failed` |
+| `send_deliveries` | Every minute (cron-job.org → `POST /v1/internal/jobs/send_deliveries`) | Sends due `queued`/`held` deliveries in batches: pushes through FCM, WhatsApp through the Cloud API (§3.2); FCM `UNREGISTERED` clears that token in M1; retries after 1, 5 and 30 minutes, then `failed`. Outside dev and test (`APP_ENV` staging or prod), a synthetic account's (seed or simulator, ADR-0008) push and WhatsApp deliveries are `skipped` with the reason "synthetic account": the message stays in its inbox, but the demo data loaded into staging (`scripts/staging-demo.sh`, handbook 12) never reaches a phone, even one signed in to a seed account |
 | `purge_notifications` | Daily 04:33 IST | Deletes messages older than 180 days with their deliveries, and webhook events as old |
 
 The time-of-day notices are M3's jobs (`send_box_ready_notices` T-3 18:30, `remind_unapproved` T-1 19:00), which publish `subscriptions.box_ready` and `subscriptions.cutoff_reminder`.
@@ -229,7 +229,7 @@ The time-of-day notices are M3's jobs (`send_box_ready_notices` T-3 18:30, `remi
 
 ## 9. Tests required
 - Unit: rendering per locale with fallback; placeholders checked against the event's list; quiet-hours window across midnight.
-- Integration: a duplicate event creates one message and one delivery per channel; a consumer never makes a network call; quiet hours hold a push and `send_deliveries` sends it at `quiet_end`; delivery-critical events skip quiet hours; FCM success, `UNREGISTERED` (token cleared) and 5xx (retried, then `failed`) with an `httpx2.MockTransport`; WhatsApp only with preference, consent and the setting all on; inbox reads are own-only; unknown category 422; WhatsApp without consent 403.
+- Integration: a duplicate event creates one message and one delivery per channel; a consumer never makes a network call; quiet hours hold a push and `send_deliveries` sends it at `quiet_end`; delivery-critical events skip quiet hours; FCM success, `UNREGISTERED` (token cleared) and 5xx (retried, then `failed`) with an `httpx2.MockTransport`; WhatsApp only with preference, consent and the setting all on; on staging a synthetic account's push and WhatsApp are skipped (inbox kept) and a real account's still go; inbox reads are own-only; unknown category 422; WhatsApp without consent 403.
 - Content review: every template exists in en-IN, hi-IN, mr-IN before release (Rhythm, Manish).
 
 ## 10. Dependencies

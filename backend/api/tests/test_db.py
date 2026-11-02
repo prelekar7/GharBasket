@@ -8,7 +8,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from gharbasket.main import create_app
-from gharbasket.platform.db import SCHEMAS, asyncpg_url, create_engine
+from gharbasket.platform.db import (
+    REMOTE_SEED_CONFIRMATION,
+    SCHEMAS,
+    RemoteDatabaseRefused,
+    asyncpg_url,
+    create_engine,
+    is_pgbouncer,
+    synthetic_data_target,
+)
 
 from .conftest import add_test_routes, alembic_config, make_settings
 
@@ -42,6 +50,56 @@ def test_migrations_prefer_the_direct_url() -> None:
 
     assert settings.migrations_url == "postgresql://direct"
     assert make_settings(database_url="postgresql://pooled").migrations_url == "postgresql://pooled"
+
+
+def test_a_long_tool_run_on_the_direct_url_may_keep_its_prepared_statements() -> None:
+    direct = NEON_POOLED.replace("-pooler", "")
+    url, connect_args = asyncpg_url(direct, cache_statements=True)
+
+    assert "prepared_statement_cache_size" not in url.query
+    assert "statement_cache_size" not in connect_args
+    assert "prepared_statement_name_func" not in connect_args
+    assert connect_args["ssl"] == "require"
+    assert not is_pgbouncer(direct) and is_pgbouncer(NEON_POOLED)
+    assert is_pgbouncer(NEON_POOLED.replace("-pooler", "-POOLER"))  # hosts ignore case
+    with pytest.raises(ValueError, match="PgBouncer"):
+        asyncpg_url(NEON_POOLED, cache_statements=True)
+    with pytest.raises(ValueError, match="pooled=False"):
+        create_engine(direct, cache_statements=True)
+
+
+NEON_HOST = "ep-cool-name.ap-southeast-1.aws.neon.tech"
+NEON_DIRECT = f"postgresql://app:pw@{NEON_HOST}/neondb?sslmode=require"
+
+
+def test_synthetic_data_may_always_go_to_the_local_database() -> None:
+    local = "postgresql+asyncpg://gb:gb@localhost:5432/gharbasket"
+    assert synthetic_data_target(local, allow_remote=False, environ={}) == "localhost"
+
+
+@pytest.mark.parametrize(
+    ("allow_remote", "environ", "reason"),
+    [
+        (False, {REMOTE_SEED_CONFIRMATION: NEON_HOST}, "only to the local Docker database"),
+        (True, {}, f"confirm with {REMOTE_SEED_CONFIRMATION}={NEON_HOST}"),
+        (True, {REMOTE_SEED_CONFIRMATION: "  "}, "confirm with"),
+        (True, {REMOTE_SEED_CONFIRMATION: "ep-other.neon.tech"}, "names ep-other.neon.tech"),
+        (True, {REMOTE_SEED_CONFIRMATION: "1"}, "but the database is"),
+    ],
+)
+def test_a_shared_database_needs_the_flag_and_its_host_typed_out(
+    allow_remote: bool, environ: dict[str, str], reason: str
+) -> None:
+    with pytest.raises(RemoteDatabaseRefused, match=reason) as refused:
+        synthetic_data_target(NEON_DIRECT, allow_remote=allow_remote, environ=environ)
+    assert "pw" not in str(refused.value)  # never the password or the URL
+
+
+def test_a_shared_database_with_both_confirmations_is_allowed() -> None:
+    environ = {REMOTE_SEED_CONFIRMATION: f" {NEON_HOST} "}
+    assert synthetic_data_target(NEON_DIRECT, allow_remote=True, environ=environ) == NEON_HOST
+    typed = {REMOTE_SEED_CONFIRMATION: NEON_HOST.upper()}
+    assert synthetic_data_target(NEON_DIRECT, allow_remote=True, environ=typed) == NEON_HOST
 
 
 def test_migrations_have_a_single_head() -> None:

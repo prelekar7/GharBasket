@@ -7,10 +7,13 @@
 - **`send_deliveries`** (every minute) sends what is due: pushes through FCM, retried after 1, 5
   and 30 minutes and then `failed`; a token FCM no longer knows is cleared in M1. WhatsApp goes
   the same way through the Cloud API once it is set up (§3.2), and is `skipped` until then.
+  Outside dev and test, a synthetic account's (seed, simulator; ADR-0008) push and WhatsApp are
+  `skipped`, inbox only: simulated weeks on staging never reach a phone (§3.1).
 - **`purge_notifications`** (daily) deletes messages after 180 days, with their deliveries, and
   WhatsApp's webhook events as old.
 """
 
+import uuid
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -41,6 +44,7 @@ from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
 
 BATCH = 200
+SYNTHETIC = "synthetic account (ADR-0008): inbox only outside dev and test"
 RETRY_AFTER = (timedelta(minutes=1), timedelta(minutes=5), timedelta(minutes=30))
 RETENTION = timedelta(days=180)
 ERROR_LENGTH = 300
@@ -176,6 +180,7 @@ async def send_deliveries(ctx: JobContext) -> dict[str, Any]:
             token = settings.whatsapp_token.get_secret_value()
             whatsapp = WhatsAppClient(http, token, settings.whatsapp_phone_number_id)
         templates: dict[tuple[str, Language], dict[tuple[str, str], Template]] = {}
+        synthetic: dict[uuid.UUID, bool] = {}  # per person, for this run
         while True:
             # Every row taken leaves the due set (sent, failed, skipped or due later), so this ends.
             rows = (
@@ -194,6 +199,14 @@ async def send_deliveries(ctx: JobContext) -> dict[str, Any]:
             if not rows:
                 break
             for delivery, message in rows:
+                if not settings.is_local:
+                    if message.user_id not in synthetic:
+                        synthetic[message.user_id] = await identity_api.is_synthetic_user(
+                            ctx.session, message.user_id
+                        )
+                    if synthetic[message.user_id]:
+                        counts[_finish(delivery, "skipped", SYNTHETIC)] += 1
+                        continue
                 if delivery.channel == "whatsapp":
                     counts[await _whatsapp(ctx.session, whatsapp, delivery, message)] += 1
                 else:

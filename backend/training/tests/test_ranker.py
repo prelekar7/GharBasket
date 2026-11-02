@@ -1,6 +1,6 @@
 """The next-basket ranker: baskets from the simulator's approved boxes and edits, features that
 only use earlier weeks and the price list at the cut-off, LambdaRank trained and evaluated
-leave-last-basket-out against the baselines, the registry layout the Space reads."""
+leave-last-basket-out against the baselines, the registry layout the ML service reads."""
 
 import hashlib
 import json
@@ -417,7 +417,7 @@ def test_the_job_trains_per_source_publishes_without_promoting(tmp_path: Path) -
 
 
 def test_the_ml_service_loads_what_the_job_writes_to_out(tmp_path: Path) -> None:
-    """`--out X` then `MODELS_DIR=X`: the Space's loader finds and serves the model."""
+    """`--out X` then `MODELS_DIR=X`: the ML service's loader finds and serves the model."""
     from gharbasket_ml import ranker as serving
     from gharbasket_ml.schemas import RankRequest
 
