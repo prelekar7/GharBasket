@@ -9,7 +9,8 @@ table (handbook 08 §8.1 monitoring).
   on a box counts), read from the orders of the
   forecast's own data source (`synthetic`, or `real` for `pilot`/`live`). `drift` = 1 when the
   realised WAPE is more than DRIFT_POINTS worse than the newest backtest WAPE of the same model,
-  hub and data source; without such a backtest only `wape` is written.
+  hub and data source; without such a backtest only `wape` is written. A hub, source and day
+  with no sold order of that source at all is not scored (no actuals is not a 100 % error).
 - Plans: the share of the day's offered weeks that were approved or locked, per plan source
   (`ml`, `fallback`) and per data source (a `real` cycle is labelled `settings.real_data_source`).
 - Rows carry the data source they were measured on; nothing is ever written as `mixed`.
@@ -95,8 +96,14 @@ async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int, list[Dr
         model_name = metric_model_name(prediction.model_name)
         if await service.scored_already(ctx.session, model_name, "wape", day, hub_id, label):
             continue
+        sold = await orders_api.sold_lines(ctx.session, hub_id, day, ORDER_SOURCE[label])
+        if not sold:
+            # No order of this source at all (a staging hub between simulator runs, a day without
+            # deliveries): nothing happened to score against, which is not a 100 % error.
+            log.info("forecast_without_orders", hub_id=str(hub_id), for_date=str(day), source=label)
+            continue
         actual: dict[str, float] = {}
-        for line in await orders_api.sold_lines(ctx.session, hub_id, day, ORDER_SOURCE[label]):
+        for line in sold:
             if line.demand_kind in orders_api.UNCOMMITTED_KINDS:  # add-on lines and tiffins
                 key = str(line.product_id)
                 actual[key] = actual.get(key, 0.0) + line.qty

@@ -8,6 +8,9 @@ the 12:30 run offers on (a returned bag is never packed for another customer). A
 lot) or the hub manager loses it (`lost`, refunded by M4).
 """
 
+# Lazy annotations, as in packing.py: `orders.api` may still be initialising when this imports.
+from __future__ import annotations
+
 import re
 import uuid
 from collections import Counter

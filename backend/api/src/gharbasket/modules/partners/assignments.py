@@ -12,6 +12,8 @@ A kitchen accepts or declines an offer while it is open; declined and expired of
 their orders (`partners.assignment_released`) for the next round.
 """
 
+from __future__ import annotations  # `orders.api` may still be initialising
+
 import time as clock
 import uuid
 from collections import defaultdict

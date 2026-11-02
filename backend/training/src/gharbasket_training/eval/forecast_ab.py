@@ -2,11 +2,12 @@
 
 The simulator's weeks are boxes (committed demand); the uncommitted demand (add-on lines and
 tiffins) comes from `gharbasket_sim.uncommitted`, the one derivation `--write-db` shares (take
-rates, elasticity, festival lift, the per-week streams and production's rules for add-ons,
-ADR-0031). The harness also applies the cut-off: a week the simulator leaves unfunded
-(`uncommitted.funded`) loses its add-ons with its box. An add-on line rides on the week's box: its
-order and the box's day (the seed societies deliver on Tuesdays); a tiffin is product
-`tiffin-<slot>` on its meal's day.
+rates, elasticity, festival lift, the per-week streams and production's rules for add-ons:
+ADR-0031; eval protocol §7, the third M-E entry of 2026-11-02). The harness also applies the
+cut-off: a week the simulator leaves unfunded (`uncommitted.funded`) loses its add-ons with its
+box. An add-on line rides on the week's box: its order and the box's day (the seed societies
+deliver on Tuesdays); a tiffin is product `tiffin-<slot>` on its meal's day.
+
 - **World:** every household the seed samples, one hub (the seed societies'), `WEEKS` weeks from
   `START` with the rules planner and the price shocks. Exogenous inputs: the festival calendar by
   week and the shock multiplier as the price index (1.0 = usual; production reads the 4-week

@@ -291,6 +291,36 @@ async def test_two_hubs_are_scored_per_source_against_their_own_backtest(
 
 @pytest.mark.anyio
 @pytest.mark.usefixtures("delivery")
+@time_machine.travel(NOW, tick=False)
+async def test_a_day_without_orders_of_the_source_is_not_scored_or_alerted(
+    clients: ClientFactory, db_session: AsyncSession
+) -> None:
+    """Staging between simulator runs: a synthetic forecast and no synthetic order that day. No
+    actuals is not a 100 % error, so no live row and no drift alert; a real order does not count
+    for the synthetic forecast."""
+    api: httpx2.AsyncClient = clients()
+    hub, product = SEED_HUB_ID, uuid.uuid4()
+    await _sell(db_session, hub, product, [("addon", "delivered", "real", 4)])
+    await _backtest(api, hub, "synthetic", 0.05)
+    await _forecast(api, hub, "synthetic", product, 2)
+
+    ran = await api.post("/v1/internal/jobs/monitor_drift", json={"scheduled_for": NOW.isoformat()})
+
+    assert ran.status_code == 200, ran.text
+    summary = ran.json()["summary"]
+    assert (summary["forecasts_scored"], summary["drifted"], summary["alerts"]) == (0, 0, 0)
+    live = (
+        await db_session.execute(select(ModelMetric).where(ModelMetric.split == "live"))
+    ).scalars()
+    assert [m for m in live if m.model_name == MODEL] == []
+    alerts = await db_session.execute(
+        select(OutboxEvent).where(OutboxEvent.event_type == "intel.drift_detected")
+    )
+    assert alerts.scalars().all() == []
+
+
+@pytest.mark.anyio
+@pytest.mark.usefixtures("delivery")
 @pytest.mark.parametrize(
     ("before", "alerts"),
     [(None, 1), (0.0, 1), (1.0, 0)],

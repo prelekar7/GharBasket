@@ -315,7 +315,13 @@ async def build(
     session: AsyncSession, hub_id: uuid.UUID, day: date, *, existing_only: bool = False
 ) -> tuple[ProcurementPlan | None, str]:
     """Build the hub's plan for `day`, or rebuild it (§3.3). Returns the plan (None when
-    `existing_only` and there is none) and what happened: built, rebuilt, unchanged, closed."""
+    `existing_only` and there is none) and what happened: built, rebuilt, unchanged, closed.
+
+    After `day`'s cut-off (the T-1 21:10 build and later) its orders are final: every add-on is
+    placed (M4 refuses add-ons after the cut-off) and M10's uncommitted demand for a stocked
+    product is add-on lines only (ADR-0031), so each line takes the rule buffer, with the placed
+    add-ons in `committed`; the forecast's numbers are kept on the line for reference. Before the
+    cut-off (a plan built ahead) the forecast is the buffer, less the add-ons already placed."""
     hub = await service.get_hub(session, hub_id, for_update=True)  # one build per hub at a time
     plan = await session.scalar(
         select(ProcurementPlan)
@@ -333,8 +339,12 @@ async def build(
     at_risk = _sum_demand(await _demand_by_kind(session, hub.id, day, AT_RISK))
     forecast = await _forecast_for(session, hub.id, day)
     items = {uuid.UUID(str(i["product_id"])): i for i in (forecast or {}).get("items", [])}
+    final = datetime.now(UTC) >= orders_api.cutoff_for(day)  # the day's orders are all in
     wanted = {*committed, *at_risk}
-    wanted |= {p for p, i in items.items() if i["uncommitted_q50"] > 0 or i["uncommitted_qtau"] > 0}
+    if not final:  # a product only the forecast expects is worth a line until the cut-off
+        wanted |= {
+            p for p, i in items.items() if i["uncommitted_q50"] > 0 or i["uncommitted_qtau"] > 0
+        }
     lines = (
         {} if plan is None else {line.product_id: line for line in await lines_of(session, plan.id)}
     )
@@ -386,7 +396,7 @@ async def build(
         line.forecast_qtau = None if item is None else to_ops(item["uncommitted_qtau"], *step)
         line.basis, line.buffer_qty, line.suggested_qty = quantities(
             line.committed_qty,
-            line.forecast_qtau,
+            None if final else line.forecast_qtau,  # after the cut-off: the rule buffer
             plan.buffer_pct,
             product.shelf_life_h,
             on_hand.get(product_id, ZERO),
