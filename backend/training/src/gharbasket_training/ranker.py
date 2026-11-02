@@ -10,20 +10,30 @@ box this week, learnt from what households kept, removed and added.
   drafted lines.
 - **Features** (as of the week's cut-off, never from the final box): weeks since the item was
   last bought (capped at `WEEKS_SINCE_NEVER`, also the value for never bought, the same cap the
-  serving schema documents), share of past baskets it was in, whether it was drafted this week,
-  whether it was removed last time, the item's share among all households last week (cohort
-  popularity), and the unit price from the hub's price list valid at the cut-off (else the
-  newest earlier list holding the item, else 0).
+  serving schema documents), share of past baskets it was in, whether it was removed last time,
+  the item's share among all households last week (cohort popularity), and the unit price from
+  the hub's price list valid at the cut-off (else the newest earlier list holding the item,
+  else 0).
 - **Dropped in v0: `drafted_rule`** (drafted by the rule table, `reason_code = daily_use`). The
   reason code is only known for lines still in the final box: a removed line loses it, so the
   feature was 1 almost only for kept items and leaked the label. A later version can restore it
   from a snapshot of the draft taken before the household edits it.
+- **Dropped on 2 Nov 2026: `drafted`** (eval protocol §7; review of PR #481). `baskets_from_rows`
+  rebuilds the draft from the *final* box (its non-customer lines) plus the lines removed or
+  swapped out, so every kept item counts as drafted: P(final | drafted) 0.93 against 0.02 on
+  simulated holdouts. And serving never has it: M3 ranks before the draft exists and sends
+  `drafted` false. It returns, with `drafted_rule`, once a snapshot of the draft before the
+  household's edits exists. `build` still emits it (with the rebuilt draft still feeding the
+  candidates), for the eval harness's leak diagnostics; it is not a model feature.
 - `build` also emits `in_last_basket` (in the household's previous approved or locked basket),
   which the "repeat last week" baseline ranks on; it is not a model feature.
-- **Model:** LightGBM LambdaRank grouped by basket; **leave-last-basket-out** evaluation with
+- **Model:** LightGBM LambdaRank grouped by basket, trained on `build`'s candidates.
+  **Leave-last-basket-out** evaluation under **serving conditions** (`serving`): each household's
+  last basket ranked over the candidates production sends (M3's `ranker_candidates`: its own past
+  items, from its `MIN_RANKED_WEEKS`-th earlier final box, at most `MAX_CANDIDATES`), with
   NDCG@10, Recall@10 and Recall@|basket| (R-precision; eval protocol §7, 8 Oct 2026) against
-  "repeat last week" and "top frequency" (eval protocol §4). One model per `data_source`:
-  synthetic and pilot baskets are never pooled.
+  "repeat last week" and "top frequency" (eval protocol §4); `just promote`'s gate reads these.
+  One model per `data_source`: synthetic and pilot baskets are never pooled.
 - The model and its card go to the registry (`<name>/<version>/` under `models/` in the
   `gb-mlflow` bucket, ADR-0025); promotion (`latest.json`) is a separate, manual step.
 """
@@ -47,11 +57,14 @@ WEEKS_SINCE_NEVER = 52.0
 FEATURES = (
     "weeks_since",
     "frequency",
-    "drafted",
     "removed_last",
     "popularity",
     "price_paise",
 )
+# What M3's `ranker_candidates` sends (subscriptions.service; a test keeps them equal): nothing
+# before the household's MIN_RANKED_WEEKS-th final box, at most MAX_CANDIDATES items.
+MIN_RANKED_WEEKS = 2
+MAX_CANDIDATES = 500
 MODEL_NAME = "basket_ranker"
 TOP_K = 3  # features kept per explained decision (the serving response's top_features too)
 EXPLAIN_SAMPLE = 50  # decisions stored per run in explanations.json
@@ -234,6 +247,37 @@ def build(
             target.groups.append(len(candidates))
             target.basket_sizes.append(len(basket.final))
     return train, test
+
+
+def serving(ds: Dataset, baskets: list[Basket]) -> Dataset:
+    """`ds`'s baskets as production ranks them (M3's `ranker_candidates`): only the household's
+    own past items (frequency > 0: in an earlier final box), only once it has `MIN_RANKED_WEEKS`
+    earlier final boxes, at most `MAX_CANDIDATES` (the most often, then most recently, kept), and
+    `drafted` false (serving has no draft yet). A basket keeps its final box's size, so
+    `candidate_coverage` shows what the own-items candidates miss."""
+    weeks: dict[str, list[date]] = defaultdict(list)
+    for b in baskets:
+        weeks[b.household].append(b.week)
+    out, start = Dataset(), 0
+    for size, basket_size in zip(ds.groups, ds.basket_sizes, strict=True):
+        idx = range(start, start + size)
+        start += size
+        household, week, _ = ds.keys[idx[0]]
+        if sum(w < week for w in weeks[household]) < MIN_RANKED_WEEKS:
+            continue
+        own = [i for i in idx if ds.rows[i]["frequency"] > 0]
+        if len(own) > MAX_CANDIDATES:
+            rows = ds.rows
+            kept = sorted(own, key=lambda i: (-rows[i]["frequency"], rows[i]["weeks_since"], i))
+            own = sorted(kept[:MAX_CANDIDATES])
+        if not own:
+            continue
+        out.rows += [{**ds.rows[i], "drafted": 0.0} for i in own]
+        out.labels += [ds.labels[i] for i in own]
+        out.keys += [ds.keys[i] for i in own]
+        out.groups.append(len(own))
+        out.basket_sizes.append(basket_size)
+    return out
 
 
 def _matrix(ds: Dataset) -> np.ndarray:

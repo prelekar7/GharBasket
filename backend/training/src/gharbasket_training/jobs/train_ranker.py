@@ -1,7 +1,10 @@
 """`python -m gharbasket_training.jobs.train_ranker` (weekly, Sun 03:00 IST on Actions; ADR-0025):
 train the next-basket ranker on every household's approved and locked boxes and their edits
 (read-only role), one model per `data_source` (synthetic and pilot are never pooled), evaluate
-each leave-last-basket-out against the baselines, write the models and their cards to the
+each leave-last-basket-out against the baselines under serving conditions (the candidates M3
+sends, `ranker.serving`; the card's `metrics` and `just promote`'s gate; the holdout over
+`build`'s own candidates is kept as `metrics_build_candidates`, reference only, never pushed),
+write the models and their cards to the
 registry (`s3://gb-mlflow/models/basket_ranker/<version>-<data_source>/`; beside `model.txt` and
 `card.json`, `explanations.json` holds the model's SHAP importances and sampled decisions) and the
 metrics to the API.
@@ -64,6 +67,22 @@ async def rows(session: AsyncSession) -> dict[str, list[dict[str, Any]]]:
     return out
 
 
+HOLDOUT = (
+    "leave-last-basket-out under serving conditions: each household's last basket ranked over "
+    "the candidates M3 sends (own past items, from the 2nd earlier final box, at most 500)"
+)
+
+
+def scores(model: Any, ds: ranker.Dataset) -> dict[str, dict[str, float]]:
+    """The model and both baselines on one dataset; empty when it has no basket."""
+    if not ds.groups:
+        return {}
+    out = {"lambdarank": ranker.evaluate(ds, ranker.predict(model, ds))}
+    for kind in ("repeat_last_week", "top_frequency"):
+        out[kind] = ranker.evaluate(ds, ranker.baseline_scores(ds, kind))
+    return out
+
+
 def fit(tables: dict[str, list[dict[str, Any]]], version: str) -> list[Trained]:
     """One model per data source found in the rows; a source without enough baskets is left
     out. Versions are `<version>-<data_source>`."""
@@ -80,24 +99,29 @@ def fit(tables: dict[str, list[dict[str, Any]]], version: str) -> list[Trained]:
         if not train.groups:
             continue
         model = ranker.train(train)
-        metrics: dict[str, dict[str, float]] = {}
-        if test.groups:
-            metrics["lambdarank"] = ranker.evaluate(test, ranker.predict(model, test))
-            for kind in ("repeat_last_week", "top_frequency"):
-                metrics[kind] = ranker.evaluate(test, ranker.baseline_scores(test, kind))
-        explained = test if test.groups else train
+        # The card's metrics (and `just promote`'s gate) are under serving conditions: the
+        # candidates M3 sends. `build`'s holdout (its candidates hold the rebuilt draft, which
+        # serving never has) is kept beside them for reference only.
+        served = ranker.serving(test, mine)
+        metrics = scores(model, served)
         tagged = f"{version}-{source}"
+        card = ranker.card(model, metrics, tagged, len(train.rows), source)
+        card["holdout"] = HOLDOUT
+        card["metrics_build_candidates"] = scores(model, test)
+        explained, data = (
+            (served, "holdout")
+            if served.groups
+            else (test, "holdout_build")
+            if test.groups
+            else (train, "train")
+        )
         out.append(
             Trained(
                 source,
                 tagged,
                 model,
-                ranker.card(model, metrics, tagged, len(train.rows), source),
-                {
-                    **ranker.explain(model, explained),
-                    "version": tagged,
-                    "data": "holdout" if test.groups else "train",
-                },
+                card,
+                {**ranker.explain(model, explained), "version": tagged, "data": data},
             )
         )
     if not out:
