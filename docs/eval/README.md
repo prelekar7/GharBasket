@@ -52,6 +52,19 @@ What a report holds (v0, October 2026):
   `python -m gharbasket_training.eval.routing --out <dir>` runs it alone and writes
   `routing-<date>-<commit>.json` and `.html` there.
 
+- **M-B — basket ranker** (`eval/ranker_eval.py`, added 2 Nov 2026; protocol §7, 2026-11-02): per
+  seed, every sampled household's simulated weeks (8 by default, `--ranker-weeks`; the rules planner,
+  `--ranker-planner`), in memory, written as the snapshot rows `train_ranker` reads and trained and
+  scored by the job's own `train_ranker.fit` (LambdaRank, leave-last-basket-out; deterministic per
+  seed). The model (`lambdarank`) and both baselines (`repeat_last_week`, `top_frequency`): NDCG@10,
+  Recall@10, Recall@|basket|, candidate coverage and holdout baskets; the model minus each baseline
+  paired by seed; mean |SHAP| share per feature over the seeds. The M-B target holds when the paired
+  NDCG@10 gap to repeat last week has a 95 % CI lower bound ≥ 0.05 (the mean is reported beside
+  it); Recall@|basket| has no target; no verdict below 5 seeds. Rows go to `model_metrics` as
+  `ranker_<arm>` (split `holdout`) and `ranker_lambdarank` `<metric>_vs_<baseline>`. `--no-ranker`
+  skips it (about 10 s for the five seeds); `python -m gharbasket_training.eval.ranker_eval --out
+  <dir>` runs it alone and writes `ranker-<date>-<commit>.json` and `.html` there.
+
 `just eval-assistant` (M13) is separate: it scores Ghar Saathi on `data/eval/assistant_utterances.jsonl` per
 candidate model (intent accuracy, slot F1, no write on injection fixtures, cost a turn with cache reads
 and writes priced apart) and writes
@@ -66,9 +79,28 @@ the gap to seasonal naive ≥ 0.10 on the paired CI lower bound, none below 5 se
 RQ3's newsvendor cost against both baselines; stock-out and waste reported against their ceilings, not judged,
 eval protocol §7, 2 Nov) and, when a
 basket-ranker run's `explanations.json` is passed with
-`--ranker-explanations`, **ranker explanations** (global mean |SHAP| per feature and sampled decisions).
+`--ranker-explanations` (a weekly job's run, e.g. on pilot data; the M-B arm has its own SHAP summary),
+**ranker explanations** (global mean |SHAP| per feature and sampled decisions).
 
 ## Published reports
+
+### 2 Nov 2026: the M-B verdict (ranker part only; no report committed)
+
+`python -m gharbasket_training.eval.ranker_eval --out <scratch>` at commit `742d6ef1` (the arm and its
+verdict rule, eval protocol §7, 2026-11-02), the protocol's five seeds, 8 weeks from 2026-10-05, rules
+planner, default adoption (87 households, 87 holdout baskets a seed), shocks on; 10 s on an arm64 Mac.
+
+| | lambdarank | repeat last week | top frequency | model − repeat (paired) | model − top freq. (paired) |
+|---|---|---|---|---|---|
+| NDCG@10 | 0.992 ± 0.013 | 0.963 ± 0.006 | 0.996 ± 0.002 | +0.029 ± 0.016 (lower +0.014) | −0.004 ± 0.012 |
+| Recall@\|basket\| | 0.943 ± 0.007 | 0.827 ± 0.005 | 0.864 ± 0.007 | +0.116 ± 0.010 | +0.079 ± 0.011 |
+| Recall@10 | 0.320 ± 0.010 | 0.311 ± 0.013 | 0.322 ± 0.011 | +0.010 ± 0.008 | −0.002 ± 0.006 |
+
+**The M-B target (NDCG@10 ≥ repeat last week + 0.05) does not hold**, on the paired lower bound or on the
+mean. On boxes of about 40 items NDCG@10 is near 1 for every ranker, so +0.05 is out of reach on simulated
+data (the protocol's §7 entry; the reviewers decide whether another cut-off replaces it). On Recall@|basket|
+(no target) the model is ahead of both baselines with paired intervals above 0. The next full report
+carries the section.
 
 ### routing-2026-11-01-624eb159 (M-F alone, 2 Nov 2026 IST)
 
