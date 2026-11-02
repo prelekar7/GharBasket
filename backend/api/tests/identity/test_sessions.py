@@ -217,9 +217,10 @@ async def test_refreshed_access_tokens_carry_the_current_roles(db_session: Async
     db_session.add(UserRole(user_id=user.id, role="packer", scope_type="hub", scope_id=hub))
     await db_session.flush()
 
-    refreshed = await rotate(db_session, SETTINGS, first, now=datetime.now(UTC))
-
-    claims = verify_access_token(SETTINGS, refreshed.access_token)
+    # A minute after T0, inside the session's 30 days (the wall clock left them on 2 Nov 2026).
+    with time_machine.travel(T0 + timedelta(minutes=1), tick=False):
+        refreshed = await rotate(db_session, SETTINGS, first, now=datetime.now(UTC))
+        claims = verify_access_token(SETTINGS, refreshed.access_token)
     assert claims.roles == ("customer", f"packer:{hub}")
     assert claims.user_id == user.id
 
