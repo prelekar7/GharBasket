@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from gharbasket_ml.pantry import WASTED_SHARE, WEEK_SIGMA, posterior
 from gharbasket_ml.schemas import PantryItemIn
-from gharbasket_training import pantry_priors
+from gharbasket_training import pantry_priors, ranker
 from gharbasket_training.jobs import promote
 from gharbasket_training.jobs import refit_pantry as job
 from gharbasket_training.lake import open_registry
@@ -324,11 +324,14 @@ def test_the_ranker_challenger_must_beat_both_baselines(tmp_path: Path) -> None:
             registry.key("basket_ranker", version, "card.json"),
             json.dumps(
                 {
+                    # A current-format card: the served features, scored under serving conditions.
+                    "features": list(ranker.FEATURES),
+                    "holdout_view": ranker.HOLDOUT_VIEW,
                     "metrics": {
                         "lambdarank": {"ndcg_at_10": ndcg},
                         "repeat_last_week": {"ndcg_at_10": 0.6},
                         "top_frequency": {"ndcg_at_10": 0.55},
-                    }
+                    },
                 }
             ).encode(),
         )
