@@ -62,7 +62,7 @@ class Base(DeclarativeBase):
 
 def is_pgbouncer(raw_url: str) -> bool:
     """Neon's pooled host (`ep-…-pooler…`) is PgBouncer in transaction mode."""
-    return "-pooler" in (make_url(raw_url).host or "")
+    return "-pooler" in (make_url(raw_url).host or "").lower()
 
 
 def asyncpg_url(raw: str, *, cache_statements: bool = False) -> tuple[URL, dict[str, Any]]:
@@ -141,7 +141,7 @@ def synthetic_data_target(raw_url: str, *, allow_remote: bool, environ: Mapping[
         raise RemoteDatabaseRefused(
             f"{host} is a shared database: confirm with {REMOTE_SEED_CONFIRMATION}={host}"
         )
-    if confirmed != host:
+    if confirmed.lower() != host.lower():
         raise RemoteDatabaseRefused(
             f"{REMOTE_SEED_CONFIRMATION} names {confirmed}, but the database is {host}"
         )

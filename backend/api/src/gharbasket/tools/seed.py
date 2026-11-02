@@ -23,8 +23,8 @@ Later module PRs add their rows here and use the hub, society and NGO ids below.
 Only for the local Docker database. A shared database (staging on Neon) is refused unless both
 `--allow-remote` is given and GB_ALLOW_REMOTE_SEED names its host (`scripts/staging-demo.sh`,
 handbook 12); there the seed only adds what is missing and keeps every existing row as it is (no
-refresh of the hub, societies, people, categories, prices, festivals or trainings, and never
-`--refresh`), so nothing edited in the console is overwritten.
+refresh of the hub, societies, people or their roles, categories, prices, festivals or trainings,
+and never `--refresh`), so nothing edited in the console is overwritten.
 """
 
 import argparse
@@ -373,8 +373,9 @@ class Seeded:
 
 
 async def seed(session: AsyncSession, *, keep_existing: bool = False) -> list[Seeded]:
-    """Create or refresh the synthetic people (with `keep_existing`, an existing person is left as
-    they are; missing roles are still granted). Commits nothing; the caller does."""
+    """Create or refresh the synthetic people. With `keep_existing` (a shared database) an
+    existing person is left exactly as they are, roles included: a role revoked in the console
+    stays revoked. Commits nothing; the caller does."""
     seeded: list[Seeded] = []
     for person in PEOPLE:
         user, created = await find_or_create_user(session, person.phone)
@@ -384,7 +385,7 @@ async def seed(session: AsyncSession, *, keep_existing: bool = False) -> list[Se
             user.senior_mode = person.senior_mode
             user.data_source = "synthetic"
             await session.flush()
-        for role, scope_id in person.roles:
+        for role, scope_id in person.roles if created or not keep_existing else ():
             try:
                 await grant_role(
                     session,

@@ -61,6 +61,7 @@ def test_a_long_tool_run_on_the_direct_url_may_keep_its_prepared_statements() ->
     assert "prepared_statement_name_func" not in connect_args
     assert connect_args["ssl"] == "require"
     assert not is_pgbouncer(direct) and is_pgbouncer(NEON_POOLED)
+    assert is_pgbouncer(NEON_POOLED.replace("-pooler", "-POOLER"))  # hosts ignore case
     with pytest.raises(ValueError, match="PgBouncer"):
         asyncpg_url(NEON_POOLED, cache_statements=True)
     with pytest.raises(ValueError, match="pooled=False"):
@@ -97,6 +98,8 @@ def test_a_shared_database_needs_the_flag_and_its_host_typed_out(
 def test_a_shared_database_with_both_confirmations_is_allowed() -> None:
     environ = {REMOTE_SEED_CONFIRMATION: f" {NEON_HOST} "}
     assert synthetic_data_target(NEON_DIRECT, allow_remote=True, environ=environ) == NEON_HOST
+    typed = {REMOTE_SEED_CONFIRMATION: NEON_HOST.upper()}
+    assert synthetic_data_target(NEON_DIRECT, allow_remote=True, environ=typed) == NEON_HOST
 
 
 def test_migrations_have_a_single_head() -> None:

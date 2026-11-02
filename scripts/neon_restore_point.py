@@ -3,8 +3,9 @@ its branch, with no compute (it costs storage only for what changes afterwards).
 
     infisical run --env=staging -- uv run python scripts/neon_restore_point.py before-demo
 
-Used by scripts/staging-demo.sh before it loads demo data (handbook 12). Needs NEON_API_KEY;
-NEON_PROJECT_ID is optional (else the project that owns the URL's endpoint is looked up). The
+Used by scripts/staging-demo.sh before it loads demo data (handbook 12). Needs NEON_API_KEY and,
+for a personal key, NEON_PROJECT_ID: without it the projects the key lists are searched for the
+URL's endpoint, and `GET /projects` without `org_id` does not list an organisation's projects. The
 branch is named `<prefix>-<UTC timestamp>`, e.g. `before-demo-20261102T0530Z`, and the script prints
 how to restore from it. It never prints the key or the database URL.
 """
@@ -108,7 +109,10 @@ def find_endpoint(call: Call, endpoint: str, project_id: str | None) -> tuple[st
             continue
         found = _ok(status, body, f"endpoint {endpoint} in project {candidate}")["endpoint"]
         return candidate, found["branch_id"]
-    raise NeonError(f"no project this NEON_API_KEY sees has the endpoint {endpoint}")
+    raise NeonError(
+        f"no project this NEON_API_KEY lists has the endpoint {endpoint}: set NEON_PROJECT_ID "
+        "(a personal key does not list an organisation's projects)"
+    )
 
 
 def create_restore_point(
@@ -137,8 +141,8 @@ def restore_help(point: RestorePoint) -> list[str]:
         f"restore point: branch {point.branch_name} ({point.branch_id}) of "
         f"{point.parent_name} ({point.parent_id}), project {point.project_id}, at {at}",
         f"to undo the demo data, restore {point.parent_name} (the URL stays the same):",
-        f"  within Neon's history window: console > Branches > {point.parent_name} > Restore > "
-        f"from history, {at}",
+        f"  within Neon's history window (6 hours on the Free plan): console > Branches > "
+        f"{point.parent_name} > Restore > from history, {at}",
         f"  any time, from the branch's head: neonctl branches restore {point.parent_id} "
         f"{point.branch_id} --preserve-under-name {point.parent_name}-with-demo "
         f"--project-id {point.project_id}",

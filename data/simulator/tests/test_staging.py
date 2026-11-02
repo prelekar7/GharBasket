@@ -159,3 +159,26 @@ def test_the_script_dry_run_on_the_local_database_writes_nothing(database_url: s
     assert "plan: 2 week(s) from Monday" in done.stdout
     assert "dry run: nothing written" in done.stdout
     assert staging.counts(database_url) == before
+
+
+@pytest.mark.services
+def test_the_script_refuses_a_checkout_that_is_not_the_deployed_commit(database_url: str) -> None:
+    # `localhost.` is the same server, but not a local host name: the shared-database path.
+    shared = database_url.replace("@localhost:", "@localhost.:")
+    before = staging.counts(database_url)
+    done = script(
+        "--weeks",
+        "1",
+        env={
+            "DATABASE_URL": shared,
+            "DATABASE_URL_DIRECT": shared,
+            "GB_ALLOW_REMOTE_SEED": "localhost.",
+            "STAGING_API_URL": "http://127.0.0.1:9",  # nothing answers: an unknown commit
+            "NEON_API_KEY": "",
+        },
+    )
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert "database host: localhost. (shared)" in done.stdout
+    assert "unlocking societies the run adds households to:" in done.stdout
+    assert "runs an unknown commit" in done.stderr
+    assert staging.counts(database_url) == before

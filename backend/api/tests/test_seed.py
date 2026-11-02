@@ -261,6 +261,30 @@ def test_the_seed_command_only_adds_on_staging_with_both_confirmations(
     assert "pw@" not in out
 
 
+async def test_keep_existing_never_gives_back_a_role_revoked_in_the_console(
+    db_session: AsyncSession,
+) -> None:
+    await seed(db_session)
+    neha = next(p for p in PEOPLE if ("admin", None) in p.roles)
+    user = await db_session.scalar(select(User).where(User.phone_e164 == neha.phone))
+    assert user is not None
+    revoked = await db_session.scalar(
+        select(UserRole).where(UserRole.user_id == user.id, UserRole.role == "admin")
+    )
+    assert revoked is not None
+    await db_session.delete(revoked)  # what the console's revoke does (staff_admin.revoke_grant)
+    await db_session.flush()
+
+    await seed(db_session, keep_existing=True)
+
+    roles = await db_session.scalars(select(UserRole.role).where(UserRole.user_id == user.id))
+    assert "admin" not in roles.all()
+    # Locally the seed puts its people back as they were, roles included.
+    await seed(db_session)
+    roles = await db_session.scalars(select(UserRole.role).where(UserRole.user_id == user.id))
+    assert "admin" in roles.all()
+
+
 async def test_keep_existing_adds_what_is_missing_and_keeps_every_existing_row(
     db_session: AsyncSession,
 ) -> None:

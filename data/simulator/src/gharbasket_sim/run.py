@@ -69,13 +69,26 @@ class Run:
     prices: list[dict[str, Any]]
 
 
+class RealUserOnSimulatorPhone(LookupError):
+    """A simulator phone (+91 98001 …) belongs to a real account on a shared database."""
+
+
 async def populate(
-    session: AsyncSession, households: list[SimHousehold]
+    session: AsyncSession, households: list[SimHousehold], *, adopt_real: bool = True
 ) -> dict[str, tuple[uuid.UUID, bool]]:
-    """A user and a household for each, through M1's services; existing ones are kept."""
+    """A user and a household for each, through M1's services; existing ones are kept.
+
+    Locally a real account on a simulator phone (signed in by hand) becomes the synthetic one, as
+    the seed does for its phones. On a shared database (`adopt_real=False`) that account may be a
+    stranger who owns the number, so the run is refused instead, before anything is committed."""
     done: dict[str, tuple[uuid.UUID, bool]] = {}
     for h in households:
-        user, _ = await find_or_create_user(session, h.phone)
+        user, created = await find_or_create_user(session, h.phone)
+        if not created and user.data_source != "synthetic" and not adopt_real:
+            raise RealUserOnSimulatorPhone(
+                f"{h.phone} is a real account on a shared database: the simulator leaves it alone "
+                "(use a lower --adoption, or move the account first)"
+            )
         user.name = f"Sim {h.key}"
         user.locale = h.locale
         user.data_source = "synthetic"
@@ -101,14 +114,18 @@ async def simulate_world(
     shocks: Shocks | None = None,
     write_db: bool = False,
     progress: Callable[[str], None] | None = None,
+    adopt_real: bool = True,
+    pause_after: bool = False,
 ) -> Run:
+    """`pause_after` (staging) pauses the households' subscriptions once their weeks are written,
+    so staging's own weekly job leaves them alone; the next `--write-db` run resumes them."""
     first_monday = start - timedelta(days=start.weekday())
     last_day = first_monday + timedelta(weeks=weeks, days=-1)
     catalog = await load_catalog(session, SEED_HUB_ID, first_monday, last_day)
     if not catalog.recipes:
         raise LookupError("the catalog is empty: run `just seed` first")
     households = sample(seed, cohorts.load(), catalog, adoption)
-    created = await populate(session, households)
+    created = await populate(session, households, adopt_real=adopt_real)
     plan = cached(PLANNERS[planner])
     by_name = {c.name: c for c in cohorts.load().cohorts}
     rows = Rows([], [], [])
@@ -186,6 +203,8 @@ async def simulate_world(
                 "outcomes",
             ):
                 getattr(rows, name).extend(getattr(one, name))
+    if write_db and pause_after:
+        await through.pause_all(session, households, created)
     prices = [
         {"week": w, "product": slug, "price_paise": price, "multiplier": factor[slug]}
         for w in range(weeks)
@@ -299,6 +318,8 @@ async def run(database_url: str, args: argparse.Namespace) -> Run:
                 shocks=None if args.no_shocks else cohorts.load_shocks(),
                 write_db=args.write_db,
                 progress=(lambda line: print(line, flush=True)) if args.write_db else None,
+                adopt_real=is_local_database(database_url),
+                pause_after=args.pause_after,
             )
             await session.commit()
             return result
@@ -327,7 +348,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="a shared database (staging); also needs GB_ALLOW_REMOTE_SEED=<its host>",
     )
+    parser.add_argument(
+        "--pause-after",
+        action="store_true",
+        help="with --write-db: pause the households' subscriptions at the end (staging)",
+    )
     args = parser.parse_args(argv)
+    if args.pause_after and not args.write_db:
+        parser.error("--pause-after needs --write-db")
 
     url = DatabaseSettings(_env_file=REPO_ROOT / ".env").migrations_url  # pyright: ignore[reportCallIssue]
     if url is None:
