@@ -1,15 +1,20 @@
 """RQ3 (M-E): forecast v0 against v1 on a seeded synthetic uncommitted demand.
 
-The simulator draws boxes (committed demand) only, so this module derives the uncommitted orders
-(add-ons and tiffins) from what it already produces, for the harness only: the simulator's own
-outputs are untouched. Every draw is seeded per seed, household and week.
+The simulator's weeks are boxes (committed demand), so this module derives the uncommitted demand
+(add-on lines and tiffins) from what it already produces, for the harness only: the simulator's
+own outputs are untouched. Every draw is seeded per seed, household and week.
 
 - **Add-ons:** a product a household ran short of in a week (the simulator's pantry
   `bought_elsewhere`, bought outside its box) becomes an add-on with probability `ADDON_TAKE`,
   times the week's price multiplier to the power `-PRICE_ELASTICITY` (shocks.json) and
   `1 + FESTIVAL_LIFT` per festival day of the week (seed festivals.json), capped at 1. The
-  quantity is the shortfall in the product's steps (at least one), delivered on a day drawn
-  from the week.
+  quantity is the shortfall in the product's steps (at least one, at most M4's
+  `MAX_ADDON_QTY`). Add-ons are placed as production can place them (ADR-0031, eval protocol §7
+  2026-11-02, third entry): as add-on lines on the week's box, so only in a week the household
+  ordered and funded (`funded`: the simulator's `--write-db` cut-off draw; a skipped or unfunded
+  week loses them), delivered on the box's day (the seed societies deliver on Tuesdays), never
+  for a product already on that box (M4 refuses it: the household edits the box line instead)
+  or without a price at the hub, and at most `MAX_ADDON_LINES` a box (first by product).
 - **Tiffins:** a slot the plan leaves to a no-cook day (meal action `tiffin`) is ordered as a
   tiffin with probability `TIFFIN_TAKE`, one portion per member, product `tiffin-<slot>`.
 - **World:** every household the seed samples, one hub (the seed societies'), `WEEKS` weeks from
@@ -59,6 +64,8 @@ from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import sample, societies
 from gharbasket_sim.weeks import PLANNERS, cached, simulate
 
+from gharbasket.modules.orders.api import MAX_ADDON_LINES, MAX_ADDON_QTY
+from gharbasket.tools.seed import SEED_DELIVERY_WEEKDAY
 from gharbasket_training import forecast
 from gharbasket_training.eval.stats import Estimate, estimate
 from gharbasket_training.jobs.forecast import prices_frame, weeks_frame
@@ -67,6 +74,7 @@ ADDON_TAKE = 0.5  # share of shortfalls ordered as an add-on rather than at the 
 PRICE_ELASTICITY = 1.0
 FESTIVAL_LIFT = 0.1  # per festival day of the week
 TIFFIN_TAKE = 0.7  # share of no-cook slots ordered as a tiffin
+UNFUNDED = 0.05  # the simulator's --write-db: a week's wallet left short at the cut-off
 WEEKS = 20  # room for the 8 origins after the 7 weeks a series needs and the 2-week horizon
 START = date(2026, 9, 7)  # the first week of the seed festival calendar
 V1 = "LightGBM"
@@ -120,6 +128,9 @@ def assumptions() -> dict[str, Any]:
         "price_elasticity": PRICE_ELASTICITY,
         "festival_lift_per_day": FESTIVAL_LIFT,
         "tiffin_take": TIFFIN_TAKE,
+        # ADR-0031: add-ons ride on the week's ordered and funded box, on its day.
+        "addons_on_box": True,
+        "unfunded": UNFUNDED,
         "planner": "rules",
         "costs": {"underage": forecast.Costs().underage, "overage": forecast.Costs().overage},
     }
@@ -127,6 +138,13 @@ def assumptions() -> dict[str, Any]:
 
 def _stream(seed: int, household: str, week: int) -> random.Random:
     return random.Random(f"gharbasket-eval-forecast:{seed}:{household}:{week}")  # noqa: S311 (seeded)
+
+
+def funded(seed: int, household: str, week: int) -> bool:
+    """Whether the household's wallet covers the week's box at the cut-off: the first draw of the
+    simulator's per-week `--write-db` stream (run.py, through_modules.replay_week)."""
+    rng = random.Random(f"gharbasket-sim:{seed}:{household}:{week}:db")  # noqa: S311 (seeded)
+    return rng.random() >= UNFUNDED
 
 
 def take(multiplier: float, festival_days: float) -> float:
@@ -159,6 +177,11 @@ def demand(
     for h in households:
         rows = simulate(seed, h, catalog, start, weeks, plan, shocks)
         hub = hub_of[h.society_id]
+        ordered = {b["week"] for b in rows.boxes if b["ordered"]}
+        on_box: dict[int, set[str]] = {}
+        for line in rows.box_lines:
+            on_box.setdefault(line["week"], set()).add(line["product"])
+        placed: dict[int, int] = {}  # add-on lines on each week's box
         rngs: dict[int, random.Random] = {}  # one stream per week, drawn in the rows' order
         rng = lambda w: rngs.setdefault(w, _stream(seed, h.key, w))  # noqa: B023, E731
         for p in rows.pantry:
@@ -167,15 +190,26 @@ def demand(
             chance = take(factors[w][slug], festival_days.get(monday, 0.0))
             if short <= 0 or rng(w).random() >= chance:
                 continue
-            step = catalog.products[slug].step or 1
+            product = catalog.products[slug]
+            if (
+                w not in ordered
+                or not funded(seed, h.key, w)
+                or slug in on_box.get(w, set())
+                or pantry_sim.price_of(product, factors[w]) is None
+                or placed.get(w, 0) >= MAX_ADDON_LINES
+            ):
+                continue  # production has no box to put it on, or M4 refuses it
+            placed[w] = placed.get(w, 0) + 1
+            step = product.step or 1
             lines.append(
                 {
                     "hub_id": hub,
+                    # An add-on line rides on the week's box: the box's order and delivery day.
                     "product_id": slug,
-                    "order_id": f"{h.key}-{w}-addon",
-                    "delivery_date": monday + timedelta(days=rng(w).randrange(7)),
+                    "order_id": f"{h.key}-{w}-box",
+                    "delivery_date": monday + timedelta(days=SEED_DELIVERY_WEEKDAY),
                     "order_kind": "addon",
-                    "qty": float(max(1, math.ceil(short / step))),
+                    "qty": float(min(MAX_ADDON_QTY, max(1, math.ceil(short / step)))),
                 }
             )
         for m in rows.meals:

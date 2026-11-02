@@ -131,6 +131,7 @@ async def _sell(
     product: uuid.UUID,
     sales: list[tuple[str, str, str, int]],  # (order kind, status, data source, qty)
     on: date = YESTERDAY,
+    line_kind: str | None = None,  # default: an add-on order's add-on line, else a box line
 ) -> None:
     slot = (await session.execute(select(Slot).limit(1))).scalar_one()
     for kind, status, source, qty in sales:
@@ -153,7 +154,7 @@ async def _sell(
             OrderLine(
                 order_id=order.id,
                 product_id=product,
-                kind="addon",  # also inside a box order: the order's kind decides
+                kind=line_kind or ("addon" if kind == "addon" else "box"),
                 qty=qty,
                 step_qty=1,
                 step_unit="piece",
@@ -171,19 +172,23 @@ async def test_two_hubs_are_scored_per_source_against_their_own_backtest(
 ) -> None:
     api: httpx2.AsyncClient = clients()
     hub_a, hub_b, product = SEED_HUB_ID, uuid.uuid4(), uuid.uuid4()
-    # Hub A sells 4 + 2 synthetic add-on/tiffin units (a refunded order was still bought for);
-    # a cancelled add-on, a box order and a real add-on are not synthetic uncommitted demand.
+    # Hub A sells 3 + 1 + 2 synthetic add-on/tiffin units (an add-on line riding on a box order
+    # counts, ADR-0031; a refunded order was still bought for); a cancelled add-on, a box order's
+    # box line and a real add-on are not synthetic uncommitted demand.
     await _sell(
         db_session,
         hub_a,
         product,
         [
-            ("addon", "delivered", "synthetic", 4),
+            ("addon", "delivered", "synthetic", 3),
             ("tiffin", "refunded", "synthetic", 2),
             ("addon", "cancelled", "synthetic", 50),
             ("box", "delivered", "synthetic", 9),
             ("addon", "delivered", "real", 30),
         ],
+    )
+    await _sell(
+        db_session, hub_a, product, [("box", "delivered", "synthetic", 1)], line_kind="addon"
     )
     await _sell(db_session, hub_b, product, [("addon", "undelivered", "synthetic", 5)])
     # Backtests, oldest first: B's own (0.2), a newer B pilot one (0.01) and the newest of all,

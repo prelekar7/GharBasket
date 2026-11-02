@@ -63,9 +63,11 @@ async def order(
     day: date = DELIVERY,
     hub_id: uuid.UUID = SEED_HUB_ID,
     substitutes: dict[str, str] | None = None,
+    line_kind: str | None = None,
 ) -> uuid.UUID:
     """An order in `status` with lines {slug: steps or (steps, short)}; `substitutes` maps a
-    slug on the order to the product it replaced at packing. Committed."""
+    slug on the order to the product it replaced at packing; `line_kind` (default: `addon` on an
+    add-on order, else `box`) is the lines' kind. Committed."""
     slot = await order_service.create_slot(
         db,
         hub_id=hub_id,
@@ -100,7 +102,7 @@ async def order(
             OrderLine(
                 order_id=row.id,
                 product_id=product.id,
-                kind="addon" if kind == "addon" else "box",
+                kind=line_kind or ("addon" if kind == "addon" else "box"),
                 qty=qty,
                 step_qty=product.step_qty,
                 step_unit=product.step_unit,
@@ -378,6 +380,30 @@ async def test_add_on_orders_already_placed_are_counted_once(db_session: AsyncSe
     assert (onion.basis, onion.buffer_qty, onion.suggested_qty) == ("forecast", 0, 2)
     # No add-on orders for carrot: the whole forecast (2 steps = 1 kg) is the buffer.
     assert (carrot.committed_qty, carrot.buffer_qty, carrot.suggested_qty) == (0, 1, 1)
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_add_on_lines_on_box_orders_are_counted_once(db_session: AsyncSession) -> None:
+    # ADR-0031: an add-on line riding on a box order is uncommitted demand for M10 too, so it is
+    # taken off the forecast like an add-on order. Tomato: a box of 4 steps and another box with
+    # a 2-step add-on line (1 kg) = 3 kg committed; the box lines are not taken off.
+    await order(db_session, "locked", {"tomato": 4})
+    await order(db_session, "locked", {"tomato": 2}, line_kind="addon")
+    await order(db_session, "locked", {"onion": 3})  # box lines only
+    await store_forecast(db_session, {"tomato": (3, 5), "onion": (1, 2)})
+
+    plan, _ = await procurement.build(db_session, SEED_HUB_ID, DELIVERY)
+
+    lines = await plan_lines(db_session, plan)
+    tomato, onion = lines["tomato"], lines["onion"]
+    assert tomato.committed_qty == 3
+    assert (tomato.forecast_qtau, tomato.buffer_qty, tomato.suggested_qty) == (
+        Decimal("2.5"),
+        Decimal("1.5"),
+        Decimal("4.5"),
+    )
+    # Box lines are M10's committed demand: the whole forecast (2 steps = 2 kg) is the buffer.
+    assert (onion.committed_qty, onion.buffer_qty, onion.suggested_qty) == (3, 2, 5)
 
 
 @time_machine.travel(NOW, tick=False)

@@ -54,6 +54,8 @@ from gharbasket.modules.orders.models import (
     OrderLine,
 )
 from gharbasket.modules.orders.service import (
+    MAX_ADDON_LINES,
+    MAX_ADDON_QTY,
     ApprovedCycle,
     CycleLine,
     OrderSummary,
@@ -79,11 +81,14 @@ __all__ = [
     "DELIVERY_FAILED",
     "DISPATCHED",
     "LOCKED",
+    "MAX_ADDON_LINES",
+    "MAX_ADDON_QTY",
     "NOT_SOLD",
     "PACKED",
     "PAYMENT_FAILED",
     "SOLD",
     "TIFFIN_BOOKED",
+    "UNCOMMITTED_KINDS",
     "ApprovedCycle",
     "CarriedLine",
     "CarryOver",
@@ -112,6 +117,7 @@ __all__ = [
     "carry_target",
     "create_from_cycle",
     "cutoff_for",
+    "demand_kind",
     "export_for_user",
     "fees_of",
     "first_delivery_date",
@@ -346,12 +352,30 @@ NOT_SOLD = ("approved", "payment_failed", "cancelled")
 SOLD = tuple(s for s in STATUSES if s not in NOT_SOLD)
 
 
+# Demand that was not planned in a box (M10 §3.6, ADR-0031): add-on lines, wherever they ride
+# (add-ons ride on a box, §3.5), and tiffin orders. Everything else is a box's planned demand.
+UNCOMMITTED_KINDS = ("addon", "tiffin")
+
+
+def demand_kind(order_kind: str, line_kind: str) -> str:
+    """What a line counts as for the forecast (M10) and procurement (M6), ADR-0031: `addon` for an
+    add-on line wherever it rides, else the order's kind (`box` | `tiffin`; an `addon`-kind
+    order's lines are add-on lines)."""
+    return "addon" if line_kind == "addon" else order_kind
+
+
 @dataclass(frozen=True)
 class SoldLine:
     product_id: uuid.UUID
-    order_kind: str  # the order's kind (box | addon | tiffin): an add-on inside a box is committed
+    order_kind: str  # the order's kind (box | addon | tiffin)
     qty: int  # steps
     data_source: str  # real | synthetic
+    line_kind: str = "box"  # the line's kind (box | addon): an add-on on a box order is `addon`
+
+    @property
+    def demand_kind(self) -> str:
+        """box | addon | tiffin as M10 counts it (`demand_kind`, ADR-0031)."""
+        return demand_kind(self.order_kind, self.line_kind)
 
 
 async def sold_lines(
@@ -361,11 +385,14 @@ async def sold_lines(
     data_source: str | None = None,
 ) -> list[SoldLine]:
     """Every line of the hub's orders past `locked` on a delivery day (`SOLD`), with the order's
-    kind, optionally of one data source (`real` | `synthetic`): what was really sold, for scoring
-    forecasts (M10 `monitor_drift`), counted as the forecast job counts it."""
+    and the line's kind, optionally of one data source (`real` | `synthetic`): what was really
+    sold, for scoring forecasts (M10 `monitor_drift`), counted as the forecast job counts it
+    (`SoldLine.demand_kind`)."""
     summaries = await service.orders_for_delivery(session, hub_id, delivery_date, statuses=SOLD)
     return [
-        SoldLine(line.product_id, summary.order.kind, line.qty, summary.order.data_source)
+        SoldLine(
+            line.product_id, summary.order.kind, line.qty, summary.order.data_source, line.kind
+        )
         for summary in summaries
         if data_source is None or summary.order.data_source == data_source
         for line in summary.lines

@@ -4,8 +4,9 @@ table (handbook 08 §8.1 monitoring).
 
 - Forecasts (kind `forecast`, one row per hub, delivery day and data source; `for_date` is the
   delivery day): realised WAPE of that day's uncommitted q50 per product against that day's
-  sold lines of add-on and tiffin orders (`orders.api.sold_lines`: every status past `locked`,
-  classified by the order's kind, as the forecast job counts them), read from the orders of the
+  sold add-on lines and tiffin orders (`orders.api.sold_lines`: every status past `locked`,
+  classified by `SoldLine.demand_kind` as the forecast job counts them, ADR-0031: an add-on line
+  on a box counts), read from the orders of the
   forecast's own data source (`synthetic`, or `real` for `pilot`/`live`). `drift` = 1 when the
   realised WAPE is more than DRIFT_POINTS worse than the newest backtest WAPE of the same model,
   hub and data source; without such a backtest only `wape` is written.
@@ -42,7 +43,6 @@ log = structlog.get_logger("gharbasket.intel")
 IST = ZoneInfo("Asia/Kolkata")
 LOOKBACK_DAYS = 7
 DRIFT_POINTS = 0.10  # eval protocol §4 monitoring: WAPE worse than the backtest by > 10 points
-UNCOMMITTED_KINDS = ("addon", "tiffin")
 # The eval protocol's label → the orders table's `data_source` (as the forecast job's flag).
 ORDER_SOURCE = {"synthetic": "synthetic", "pilot": "real", "live": "real"}
 
@@ -97,7 +97,7 @@ async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int, list[Dr
             continue
         actual: dict[str, float] = {}
         for line in await orders_api.sold_lines(ctx.session, hub_id, day, ORDER_SOURCE[label]):
-            if line.order_kind in UNCOMMITTED_KINDS:
+            if line.demand_kind in orders_api.UNCOMMITTED_KINDS:  # add-on lines and tiffins
                 key = str(line.product_id)
                 actual[key] = actual.get(key, 0.0) + line.qty
         predicted: dict[str, float] = {}

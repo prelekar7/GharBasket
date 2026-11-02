@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.intel_gateway.models import PriceIndex
-from gharbasket.modules.orders.api import SOLD
+from gharbasket.modules.orders.api import SOLD, demand_kind
 from gharbasket.modules.orders.models import Order, OrderLine
 from gharbasket.platform.db import create_engine
 from gharbasket_training import forecast
@@ -50,7 +50,10 @@ ORDER_SOURCE = {"synthetic": "synthetic", "pilot": "real", "live": "real"}
 
 
 async def order_lines(session: AsyncSession, data_source: str = "synthetic") -> pd.DataFrame:
-    """Sold order lines of one data source, with the order's kind (box, addon, tiffin)."""
+    """Sold order lines of one data source, each with what it counts as (`order_kind`: box,
+    addon or tiffin; `orders.api.demand_kind`, ADR-0031): an add-on line is `addon` wherever it
+    rides, so an add-on on a box order is uncommitted demand; every other line has its order's
+    kind."""
     rows = (
         await session.execute(
             select(
@@ -59,6 +62,7 @@ async def order_lines(session: AsyncSession, data_source: str = "synthetic") -> 
                 Order.id,
                 Order.delivery_date,
                 Order.kind,
+                OrderLine.kind,
                 OrderLine.qty,
             )
             .join(Order, Order.id == OrderLine.order_id)
@@ -72,10 +76,10 @@ async def order_lines(session: AsyncSession, data_source: str = "synthetic") -> 
                 "product_id": str(product),
                 "order_id": str(order),
                 "delivery_date": day,
-                "order_kind": kind,
+                "order_kind": demand_kind(kind, line_kind),
                 "qty": float(qty),
             }
-            for hub, product, order, day, kind, qty in rows
+            for hub, product, order, day, kind, line_kind, qty in rows
         ],
         columns=forecast.LINE_COLUMNS,
     )

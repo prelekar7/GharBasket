@@ -122,8 +122,9 @@ def quantities(
     placed_addons: Decimal = ZERO,
 ) -> tuple[str, Decimal, Decimal]:
     """(basis, buffer_qty, suggested_qty) of one line, by §3.3's rules. `placed_addons` is the
-    part of `committed` that came from add-on orders: M10's uncommitted demand counts those orders
-    too, so the forecast buffer is only what is still expected beyond them."""
+    part of `committed` that came from add-on lines (on box orders or add-on orders): M10's
+    uncommitted demand counts those lines too (ADR-0031), so the forecast buffer is only what is
+    still expected beyond them."""
     basis, buffer = (
         ("buffer", committed * buffer_pct / 100)
         if qtau is None
@@ -223,8 +224,9 @@ async def _last_costs(
 async def _demand_by_kind(
     session: AsyncSession, hub_id: uuid.UUID, day: date, statuses: tuple[str, ...]
 ) -> dict[str, dict[uuid.UUID, Decimal]]:
-    """Steps not short of each line's current product (a substitute counts as itself), by the
-    order's kind."""
+    """Steps not short of each line's current product (a substitute counts as itself), by what
+    the line counts as for M10 (`orders.api.demand_kind`, ADR-0031): `addon` for an add-on line,
+    on a box order or an add-on order, else `box`."""
     found: dict[str, dict[uuid.UUID, Decimal]] = {
         kind: defaultdict(Decimal) for kind in ORDER_KINDS
     }
@@ -232,9 +234,8 @@ async def _demand_by_kind(
         for line in order.lines:
             steps = line.qty - (line.shortage_qty or 0)
             if steps > 0:
-                found[order.order.kind][line.product_id] += to_ops(
-                    steps, line.step_qty, line.step_unit
-                )
+                kind = orders_api.demand_kind(order.order.kind, line.kind)
+                found[kind][line.product_id] += to_ops(steps, line.step_qty, line.step_unit)
     return found
 
 
@@ -327,7 +328,8 @@ async def build(
         return plan, "closed"
     committed_by_kind = await _demand_by_kind(session, hub.id, day, COMMITTED)
     committed = _sum_demand(committed_by_kind)
-    placed_addons = committed_by_kind["addon"]  # also in M10's uncommitted demand, so not twice
+    # Add-on lines (on box orders too) are also in M10's uncommitted demand: not counted twice.
+    placed_addons = committed_by_kind["addon"]
     at_risk = _sum_demand(await _demand_by_kind(session, hub.id, day, AT_RISK))
     forecast = await _forecast_for(session, hub.id, day)
     items = {uuid.UUID(str(i["product_id"])): i for i in (forecast or {}).get("items", [])}
