@@ -14,10 +14,11 @@ table (handbook 08 §8.1 monitoring).
 - Rows carry the data source they were measured on; nothing is ever written as `mixed`.
 
 - Drift is announced once per episode: days are scored oldest first, and a day whose `drift` is 1
-  while the previous scored day of the same model, hub and data source was not drifting (0, or
-  never compared) starts an episode and is published as `intel.drift_detected`, which M11 tells
-  the admins. The next days of the same episode say nothing. Scoring a day happens once
-  (`scored_already`), so a rerun publishes nothing it has published.
+  while the previous scored day of the same model, hub and data source was not drifting (0, never
+  compared, or not scored within the last LOOKBACK_DAYS) starts an episode and is published as
+  `intel.drift_detected`, which M11 tells the admins. The next days of the same episode say
+  nothing. Scoring a day happens once (`scored_already`), so a rerun publishes nothing it has
+  published.
 
 Waste against the forecast waits for M6's receiving and cascade counts.
 """
@@ -111,7 +112,12 @@ async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int, list[Dr
         drift = baseline is not None and realised - baseline.value > DRIFT_POINTS
         version = prediction.model_version or prediction.model_name
         began = drift and not await service.was_drifting(
-            ctx.session, model_name, day, hub_id, label
+            ctx.session,
+            model_name,
+            day,
+            hub_id,
+            label,
+            since=day - timedelta(days=LOOKBACK_DAYS),
         )
         if baseline is not None:
             metrics["drift"] = 1.0 if drift else 0.0

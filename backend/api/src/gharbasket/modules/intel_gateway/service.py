@@ -248,10 +248,13 @@ async def was_drifting(
     day: date,
     hub_id: uuid.UUID,
     data_source: str,
+    *,
+    since: date,
 ) -> bool:
-    """Did the newest live `drift` row of this model, hub and data source before `day` say 1?
-    False when there is none (never compared) or it said 0: an episode of drift starts when this
-    is False and today's row says 1."""
+    """Did the newest live `drift` row of this model, hub and data source from `since` up to
+    (not including) `day` say 1? False when there is none (never compared, or only an older one:
+    a gap in the scoring ends an episode) or it said 0: an episode of drift starts when this is
+    False and today's row says 1."""
     value = await session.scalar(
         select(ModelMetric.value)
         .where(
@@ -260,7 +263,8 @@ async def was_drifting(
             ModelMetric.split == "live",
             ModelMetric.data_source == data_source,
             ModelMetric.details["hub_id"].astext == str(hub_id),
-            ModelMetric.details["for_date"].astext < day.isoformat(),  # ISO dates sort as dates
+            ModelMetric.details["for_date"].astext >= since.isoformat(),  # ISO dates sort as dates
+            ModelMetric.details["for_date"].astext < day.isoformat(),
         )
         .order_by(ModelMetric.details["for_date"].astext.desc(), ModelMetric.computed_at.desc())
         .limit(1)

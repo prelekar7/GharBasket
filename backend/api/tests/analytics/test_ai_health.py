@@ -4,7 +4,7 @@ plan acceptance is scored per data source; the console reads `GET /v1/analytics/
 (M12), admins only."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import httpx2
 import pytest
@@ -100,11 +100,37 @@ async def _forecast(
     assert answer.status_code == 200, answer.text
 
 
+async def _forecast_days(
+    api: httpx2.AsyncClient, hub: uuid.UUID, product: uuid.UUID, q50_by_day: dict[date, float]
+) -> None:
+    item = {
+        "product_id": str(product),
+        "committed": 10,
+        "uncommitted_qtau": 9,
+        "order_qty": 20,
+        "model": "LightGBM",
+    }
+    answer = await api.post(
+        "/v1/internal/intel/forecasts",
+        json={
+            "hub_id": str(hub),
+            "model": "forecast-lightgbm-v1",
+            "data_source": "synthetic",
+            "items": [
+                {**item, "for_date": day.isoformat(), "uncommitted_q50": q50}
+                for day, q50 in q50_by_day.items()
+            ],
+        },
+    )
+    assert answer.status_code == 200, answer.text
+
+
 async def _sell(
     session: AsyncSession,
     hub: uuid.UUID,
     product: uuid.UUID,
     sales: list[tuple[str, str, str, int]],  # (order kind, status, data source, qty)
+    on: date = YESTERDAY,
 ) -> None:
     slot = (await session.execute(select(Slot).limit(1))).scalar_one()
     for kind, status, source, qty in sales:
@@ -113,7 +139,7 @@ async def _sell(
             hub_id=hub,
             society_id=SEED_SOCIETY_ID,
             kind=kind,
-            delivery_date=YESTERDAY,
+            delivery_date=on,
             slot_id=slot.id,
             cutoff_at=datetime(2026, 10, 8, 15, 30, tzinfo=UTC),
             status=status,
@@ -311,6 +337,94 @@ async def test_drift_is_announced_once_per_episode(
         .where(OutboxEvent.event_type == "intel.drift_detected")
     )
     assert sent == alerts
+
+
+@pytest.mark.anyio
+@pytest.mark.usefixtures("delivery")
+@pytest.mark.parametrize(
+    ("pattern", "alerts"),
+    [
+        ("DD", 1),  # drift, drift: one episode
+        ("DDD", 1),
+        ("DOD", 2),  # drift, no drift, drift: two episodes
+        ("DODOD", 3),
+        ("OOD", 1),
+        ("OD", 1),
+    ],
+)
+@time_machine.travel(NOW, tick=False)
+async def test_several_days_in_one_run_alert_once_per_episode(
+    clients: ClientFactory, db_session: AsyncSession, pattern: str, alerts: int
+) -> None:
+    """D: the day drifts (WAPE 0.6667 against a 0.05 backtest), O: it does not (WAPE 0)."""
+    api: httpx2.AsyncClient = clients()
+    hub, product = SEED_HUB_ID, uuid.uuid4()
+    days = [YESTERDAY - timedelta(days=len(pattern) - 1 - i) for i in range(len(pattern))]
+    for day in days:
+        await _sell(db_session, hub, product, [("addon", "delivered", "synthetic", 6)], on=day)
+    await _backtest(api, hub, "synthetic", 0.05)
+    await _forecast_days(
+        api,
+        hub,
+        product,
+        {d: (2.0 if k == "D" else 6.0) for d, k in zip(days, pattern, strict=True)},
+    )
+
+    ran = await api.post("/v1/internal/jobs/monitor_drift", json={"scheduled_for": NOW.isoformat()})
+
+    summary = ran.json()["summary"]
+    assert summary["forecasts_scored"] == len(pattern)
+    assert summary["drifted"] == pattern.count("D")
+    assert summary["alerts"] == alerts
+    sent = (
+        (
+            await db_session.execute(
+                select(OutboxEvent).where(OutboxEvent.event_type == "intel.drift_detected")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(sent) == alerts
+    began = [
+        days[i].isoformat() for i, k in enumerate(pattern) if k == "D" and pattern[i - 1 : i] != "D"
+    ]
+    assert sorted(e.payload["window_end"] for e in sent) == began
+
+
+@pytest.mark.anyio
+@pytest.mark.usefixtures("delivery")
+@pytest.mark.parametrize(
+    ("model", "source", "for_date"),
+    [
+        ("forecast_autoets", "synthetic", "2026-10-08"),  # another model
+        (MODEL, "pilot", "2026-10-08"),  # another data source
+        (MODEL, "synthetic", "2026-10-01"),  # more than 7 days before 9 Oct: a gap in the scoring
+    ],
+    ids=["other model", "other data source", "older than the lookback"],
+)
+@time_machine.travel(NOW, tick=False)
+async def test_a_drifting_row_of_another_series_or_an_older_one_is_not_a_continuation(
+    clients: ClientFactory, db_session: AsyncSession, model: str, source: str, for_date: str
+) -> None:
+    api: httpx2.AsyncClient = clients()
+    hub, product = SEED_HUB_ID, uuid.uuid4()
+    await _sell(db_session, hub, product, [("addon", "delivered", "synthetic", 6)])
+    await _backtest(api, hub, "synthetic", 0.05)
+    await _forecast(api, hub, "synthetic", product, 2)  # WAPE 0.6667
+    await intel_api.record_metrics(
+        db_session,
+        model_name=model,
+        version="v",
+        metrics={"drift": 1.0},
+        split="live",
+        data_source=source,
+        details={"hub_id": str(hub), "for_date": for_date},
+    )
+
+    ran = await api.post("/v1/internal/jobs/monitor_drift", json={"scheduled_for": NOW.isoformat()})
+
+    assert ran.json()["summary"]["alerts"] == 1  # a new episode
 
 
 @pytest.mark.anyio
