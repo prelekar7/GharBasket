@@ -1,6 +1,6 @@
 {
-  "about": "Agmarknet (data.gov.in) commodity names → GharBasket product slugs. Names are matched case-insensitively after trimming. Verified against the API's own spelling on the dates in `verified`; an unmapped name is logged by the collector, never guessed.",
-  "verified": ["2026-11-01"],
+  "about": "Agmarknet (data.gov.in) commodity names → GharBasket product slugs. Names are matched ignoring case and every space. Verified against the API's own spelling on the dates in `verified`; an unmapped name is logged by the collector, never guessed.",
+  "verified": ["2026-11-01", "2026-11-02"],
   "map": {
     "Tomato": "tomato",
     "Onion": "onion",
@@ -62,6 +62,15 @@
     "Onion Green": "spring-onion",
     "Peas Wet": "green-peas",
     "Sweet Pumpkin": "red-pumpkin",
-    "Seetapal": "custard-apple"
+    "Seetapal": "custard-apple",
+    "Black Gram Dal(Urd Dal)": "urad-dal",
+    "Black Gram(Urd Beans)(Whole)": "sabut-urad",
+    "Green Gram(Moong)(Whole)": "whole-moong",
+    "Red gram split/Arhar dal/Tur dal": "toor-dal",
+    "Ground Nut Seed": "groundnuts",
+    "Mustard": "mustard-seeds",
+    "Sabu Dan": "sabudana",
+    "Tamarind Fruit": "tamarind",
+    "Coconut": "coconut"
   }
 }

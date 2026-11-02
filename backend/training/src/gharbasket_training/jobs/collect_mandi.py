@@ -61,9 +61,16 @@ SCHEMA = pa.schema(
 )
 
 
+def name_key(commodity: str) -> str:
+    """A commodity name as matched: case and every space ignored. Agmarknet writes the same name
+    with and without a space before a bracket: "French Beans (Frasbean)", "French Beans(Frasbean)".
+    """
+    return "".join(commodity.split()).casefold()
+
+
 def commodity_map() -> dict[str, str | None]:
     raw = json.loads(COMMODITIES.read_text())["map"]
-    return {name.strip().lower(): slug for name, slug in raw.items()}
+    return {name_key(name): slug for name, slug in raw.items()}
 
 
 def _paise_per_kg(rupees_per_quintal: Any) -> int | None:
@@ -137,8 +144,8 @@ def normalise(
     unmapped: set[str] = set()
     for r in records:
         commodity = str(r.get("commodity", "")).strip()
-        slug = names.get(commodity.lower())
-        if commodity.lower() not in names:
+        slug = names.get(name_key(commodity))
+        if name_key(commodity) not in names:
             unmapped.add(commodity)
         modal = _paise_per_kg(r.get("modal_price"))
         if modal is None:
