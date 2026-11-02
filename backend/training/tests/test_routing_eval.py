@@ -251,7 +251,15 @@ def test_the_cli_runs_routing_unless_told_not_to(
     monkeypatch.setattr(cli.pantry_baseline, "run_pantry", lambda *a, **k: None)
     monkeypatch.setattr(cli.report, "build", lambda *a, **k: k)
     monkeypatch.setattr(cli.report, "write", _stop)
-    flags = ["--seeds", "7", "11", "--no-learned", "--no-forecast", "--no-assignment"]
+    flags = [
+        "--seeds",
+        "7",
+        "11",
+        "--no-learned",
+        "--no-forecast",
+        "--no-assignment",
+        "--no-ranker",
+    ]
     flags += ["--out", str(tmp_path)]
     with pytest.raises(_Stop) as stop:
         cli.main(flags)

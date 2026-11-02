@@ -18,6 +18,7 @@ from gharbasket_training.eval import (
     forecast_ab,
     pantry_baseline,
     planner_ab,
+    ranker_eval,
     report,
 )
 from gharbasket_training.eval import routing as routing_eval
@@ -95,7 +96,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--ranker-explanations",
         type=Path,
         help="a basket ranker run's explanations.json (written next to its model.txt by "
-        "train_ranker): adds the 'Ranker explanations' section to the report",
+        "train_ranker, e.g. on pilot data): adds the 'Ranker explanations' section to the report",
+    )
+    # M-B (eval/ranker_eval.py): the ranker trained per seed as train_ranker does, against the
+    # baselines, leave-last-basket-out.
+    parser.add_argument("--no-ranker", action="store_true", help="skip the M-B ranker arm")
+    parser.add_argument(
+        "--ranker-weeks",
+        type=int,
+        default=ranker_eval.WEEKS,
+        help="simulated weeks a seed for the ranker; the last basket is the holdout (default 8)",
+    )
+    parser.add_argument(
+        "--ranker-planner",
+        choices=sorted(PLANNERS),
+        default=ranker_eval.PLANNER,
+        help="the planner behind the ranker's simulated boxes (default rules: CP-SAT takes "
+        "minutes a seed)",
     )
     # M-F routing (eval/routing.py): production's plan() against nearest neighbour.
     parser.add_argument("--no-routing", action="store_true", help="skip the M-F routing arm")
@@ -144,6 +161,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.planners = [p for p in args.planners if not p.startswith("cpsat")]
         args.forecast_weeks = 11  # the fewest with three backtest origins
         args.routing_sizes, args.routing_time_limit, args.routing_short_limit = [30], 1.0, 0.0
+        args.ranker_weeks, args.ranker_planner = ranker_eval.SMOKE_WEEKS, ranker_eval.PLANNER
+    ranker_eval.check_args(parser, args.ranker_weeks)
     routing_eval.check_args(
         parser, args.routing_sizes, args.routing_time_limit, args.routing_short_limit
     )
@@ -219,6 +238,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             for size in sorted(set(args.routing_sizes))
             for seed in args.seeds
         ]
+    ranker_runs = []
+    if not args.no_ranker:
+        ranker_runs = [
+            ranker_eval.run_ranker(
+                seed,
+                catalog,
+                weeks=args.ranker_weeks,
+                start=args.start,
+                adoption=args.adoption,
+                shocks=shocks,
+                planner=args.ranker_planner,
+            )
+            for seed in args.seeds
+        ]
     built = report.build(
         planner_runs,
         pantry_runs,
@@ -246,8 +279,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "routing_sizes": None if args.no_routing else sorted(set(args.routing_sizes)),
             "routing_time_limit": args.routing_time_limit,
             "routing_short_limit": args.routing_short_limit,
+            "ranker_weeks": None if args.no_ranker else args.ranker_weeks,
+            "ranker_planner": None if args.no_ranker else args.ranker_planner,
         },
         routing_runs=routing_runs,
+        ranker_runs=ranker_runs,
     )
     html_path, json_path = report.write(built, args.out)
     for planner, metrics in built["planner"].items():
@@ -375,6 +411,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "reported, not the target)"
             )
     for line in routing_eval.lines(built):
+        print(line)
+    for line in ranker_eval.lines(built):
         print(line)
     print(f"report: {html_path} ({json_path.name})")
     if args.push:

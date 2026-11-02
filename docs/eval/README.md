@@ -52,6 +52,24 @@ What a report holds (v0, October 2026):
   `python -m gharbasket_training.eval.routing --out <dir>` runs it alone and writes
   `routing-<date>-<commit>.json` and `.html` there.
 
+- **M-B — basket ranker** (`eval/ranker_eval.py`, added 2 Nov 2026; protocol §7, 2026-11-02): per
+  seed, every sampled household's simulated weeks (8 by default, `--ranker-weeks`; the rules planner,
+  `--ranker-planner`), in memory, written as the snapshot rows `train_ranker` reads and trained and
+  scored by the job's own `train_ranker.fit` (LambdaRank, leave-last-basket-out; deterministic per
+  seed). The model (`lambdarank`) and both baselines (`repeat_last_week`, `top_frequency`): NDCG@10,
+  Recall@10, Recall@|basket|, candidate coverage and holdout baskets; the model minus each baseline
+  paired by seed; mean |SHAP| share per feature over the seeds. Because `drafted` is rebuilt from the
+  final box (a label leak, review of PR #481), the holdout view also has `drafted_box` (drafted +
+  0.001 × frequency) and `lambdarank_no_drafted` (trained with `drafted` held at 0), with leak
+  diagnostics; and a **serving view** scores the same holdout baskets on the candidates production
+  sends (M3's `ranker_candidates`: own past items, `drafted` never set). The M-B target holds when the
+  paired NDCG@10 gap to repeat last week (holdout view) has a 95 % CI lower bound ≥ 0.05 (the mean is
+  reported beside it); everything else is reported, not judged; no verdict below 5 seeds. Rows go to
+  `model_metrics` as `eval_ranker_<arm>` and `eval_ranker_serving_<arm>` (split `holdout`; never the
+  weekly job's `ranker_<arm>`, which AI health shows) with `<metric>_vs_<arm>` for the model arms'
+  paired gaps. `--no-ranker` skips it (about 15 s for the five seeds); `python -m gharbasket_training.eval.ranker_eval --out
+  <dir>` runs it alone and writes `ranker-<date>-<commit>.json` and `.html` there.
+
 `just eval-assistant` (M13) is separate: it scores Ghar Saathi on `data/eval/assistant_utterances.jsonl` per
 candidate model (intent accuracy, slot F1, no write on injection fixtures, cost a turn with cache reads
 and writes priced apart) and writes
@@ -66,9 +84,43 @@ the gap to seasonal naive ≥ 0.10 on the paired CI lower bound, none below 5 se
 RQ3's newsvendor cost against both baselines; stock-out and waste reported against their ceilings, not judged,
 eval protocol §7, 2 Nov) and, when a
 basket-ranker run's `explanations.json` is passed with
-`--ranker-explanations`, **ranker explanations** (global mean |SHAP| per feature and sampled decisions).
+`--ranker-explanations` (a weekly job's run, e.g. on pilot data; the M-B arm has its own SHAP summary),
+**ranker explanations** (global mean |SHAP| per feature and sampled decisions).
 
 ## Published reports
+
+### 2 Nov 2026: the M-B verdict (ranker part only; no report committed)
+
+`python -m gharbasket_training.eval.ranker_eval --out <scratch>` at commit `742d6ef1` (the arm and its
+verdict rule, eval protocol §7, 2026-11-02), the protocol's five seeds, 8 weeks from 2026-10-05, rules
+planner, default adoption (87 households, 87 holdout baskets a seed), shocks on; 10 s on an arm64 Mac.
+
+| | lambdarank | repeat last week | top frequency | model − repeat (paired) | model − top freq. (paired) |
+|---|---|---|---|---|---|
+| NDCG@10 | 0.992 ± 0.013 | 0.963 ± 0.006 | 0.996 ± 0.002 | +0.029 ± 0.016 (lower +0.014) | −0.004 ± 0.012 |
+| Recall@\|basket\| | 0.943 ± 0.007 | 0.827 ± 0.005 | 0.864 ± 0.007 | +0.116 ± 0.010 | +0.079 ± 0.011 |
+| Recall@10 | 0.320 ± 0.010 | 0.311 ± 0.013 | 0.322 ± 0.011 | +0.010 ± 0.008 | −0.002 ± 0.006 |
+
+**The M-B target (NDCG@10 ≥ repeat last week + 0.05) does not hold**, on the paired lower bound or on the
+mean, and **top frequency (0.996) beats the model on NDCG@10**. On boxes of about 40 items NDCG@10 is near 1
+for every ranker (at least 13 kept items in every holdout basket), so +0.05 is out of reach on simulated
+data (the protocol's §7 entry; the reviewers decide whether another cut-off replaces it).
+
+**`drafted` is rebuilt from the final box: a label leak** (review of PR #481). `baskets_from_rows` counts
+every kept non-customer line as drafted, and the simulator re-adds every cooked dish's ingredients as `ai`
+lines: the rebuilt draft holds 33.9 lines against the simulator's true 15.9, P(final | drafted) is 0.93
+against 0.02 for the rest, and 99 % of kept items are "drafted". The simulator drafting the box favours the
+model, so the Recall@|basket| lead above is mostly the leak. Re-run at commit `c199633e` (14 s), same seeds:
+
+| Recall@\|basket\| (NDCG@10) | lambdarank | without drafted | drafted box | repeat last week | top frequency |
+|---|---|---|---|---|---|
+| holdout view (the job's candidates) | 0.943 (0.992) | 0.883 (0.989) | 0.927 (0.969) | 0.827 (0.963) | 0.864 (0.996) |
+| serving view (own past items, drafted never set) | **0.719 ± 0.056 (0.734 ± 0.186)** | 0.881 (0.991) | — | 0.841 (0.963) | 0.879 (0.996) |
+
+Under the serving view, which is what planner v2's learned preferences get, the trained model is far behind
+both baselines (Recall@|basket| −0.160 ± 0.055 against top frequency). Without `drafted` it is +0.003 ± 0.004
+against top frequency on Recall@|basket| and −0.005 ± 0.003 on NDCG@10, so no ranker beats top frequency
+there. The next full report carries the section.
 
 ### routing-2026-11-01-624eb159 (M-F alone, 2 Nov 2026 IST)
 
