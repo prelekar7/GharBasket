@@ -165,7 +165,15 @@ async def test_write_db_places_the_eval_derivations_add_ons_on_the_boxes(
             await db_session.execute(select(OrderLine).where(OrderLine.order_id == order.id))
         ).scalars()
         assert order.subtotal_paise == sum(line.qty * line.unit_price_paise for line in lines)
-    assert any("add-ons:" in line for line in sim.summary(run))
+    # The funding gap: funded weeks with derived add-ons that the database did not deliver.
+    gap = sum(
+        1
+        for o in run.rows.outcomes
+        if o["addons_derived"]
+        and o["order_status"] != "delivered"
+        and uncommitted.funded(7, o["household"], o["week"])
+    )
+    assert any(f"{gap} funded weeks lost theirs" in line for line in sim.summary(run))
 
 
 @pytest.mark.anyio

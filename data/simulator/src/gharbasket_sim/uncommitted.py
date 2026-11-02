@@ -1,7 +1,7 @@
 """The uncommitted demand a simulated household orders beside its box (M10 §3.6, ADR-0031): add-on
 lines and tiffins. This is the one derivation behind both the eval harness's RQ3
 (`gharbasket_training.eval.forecast_ab`) and `--write-db` (through_modules.py places the add-ons
-through M4), so the two see the same quantities for a seed.
+through M4), so the two share one derivation for a seed.
 
 - **Add-ons:** a product the household ran short of in a week (the pantry's `bought_elsewhere`,
   bought outside its box) becomes an add-on with probability `ADDON_TAKE`, times the week's price
@@ -10,9 +10,13 @@ through M4), so the two see the same quantities for a seed.
   one, at most M4's `MAX_ADDON_QTY`). An add-on is a line on the week's box (add-on-only orders
   are refused, M4 §3.5), so it exists only in a week the household ordered; never for a product
   already on that box (M4 refuses it: the household edits the box line instead) or without a
-  price at the hub; at most `MAX_ADDON_LINES` a box, first by product. It is delivered with the
-  box. Whether the box is paid is the cut-off's business: `funded` is the simulator's own draw
-  for it, which the harness applies (an unfunded box and its add-ons are cancelled).
+  price at the hub; at most `MAX_ADDON_LINES` a box, in the pantry rows' order. It is delivered
+  with the box. Whether the box is paid is the cut-off's business: `funded` is the simulator's
+  own draw for it, which the harness applies (an unfunded box and its add-ons are cancelled).
+  **The funding gap:** the database path can still lose a funded week's add-ons where the
+  harness keeps them: when M3 refuses the approval (no order to ride on), when the top-up hits
+  the wallet's monthly cap (`billing.wallet_limit`, the box then fails at the cut-off), or when
+  M4 refuses the add-ons themselves. `--write-db`'s summary counts those weeks.
 - **Tiffins:** a slot the plan leaves to a no-cook day (meal action `tiffin`) is ordered as a
   tiffin with probability `TIFFIN_TAKE`, one portion per member. `--write-db` does not place
   them yet: no tiffin menus or products exist in any environment (M2 §3.4).

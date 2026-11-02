@@ -206,7 +206,9 @@ async def simulate_world(
                         slugs=slugs,
                         addons=addons,
                     )
-                    one.outcomes.append(through.outcome_row(h, w, outcome))
+                    row = through.outcome_row(h, w, outcome)
+                    row["addons_derived"] = len(addons or [])
+                    one.outcomes.append(row)
                 await session.commit()
                 if progress is not None:
                     progress(f"  {n}/{len(households)} {h.key}: {weeks} weeks through the modules")
@@ -319,11 +321,20 @@ def _summary(run: Run) -> list[str]:
         )
         placed = [o for o in run.rows.outcomes if o["addon_lines"]]
         sold = [o for o in placed if o["order_status"] == "delivered"]
+        # Weeks the harness keeps add-ons for (funded) that the database did not deliver: a
+        # refused approval, the wallet cap at the top-up, or M4 refusing the add-ons.
+        gap = [
+            o
+            for o in run.rows.outcomes
+            if o.get("addons_derived")
+            and o["order_status"] != "delivered"
+            and demand.funded(run.seed, o["household"], o["week"])
+        ]
         lines.append(
             f"add-ons: {sum(o['addon_lines'] for o in placed)} lines "
             f"({sum(o['addon_steps'] for o in placed)} steps) on {len(placed)} boxes, "
-            f"{sum(o['addon_lines'] for o in sold)} lines delivered; tiffin orders: 0 "
-            "(no tiffin menus yet)"
+            f"{sum(o['addon_lines'] for o in sold)} lines delivered, {len(gap)} funded weeks "
+            "lost theirs; tiffin orders: 0 (no tiffin menus yet)"
         )
     return lines
 
