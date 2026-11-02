@@ -166,7 +166,8 @@ def test_the_leak_arms() -> None:
         train.basket_sizes,
     )
     assert np.allclose(ranker.predict(model, train), ranker.predict(model, flipped))
-    assert model.feature_importance()[ranker.FEATURES.index("drafted")] == 0
+    importance = dict(zip(ranker.FEATURES, model.feature_importance(), strict=True))
+    assert importance.get("drafted", 0) == 0  # (no column at all once it leaves FEATURES)
 
 
 def _run(seed: int, ndcg_gap: float, *, repeat: float = 0.9) -> RankerRun:
