@@ -17,18 +17,34 @@ weeks through M3, M4 and M5 into a scratch database (`just sim --write-db`) woul
 database round trip and differ in two ways the arm does not need: M3 drafts the box instead of
 the simulator, and an unfunded week's order is cancelled (dropping that basket).
 
-**The arms**, as named in the model card: `lambdarank` (the model), `repeat_last_week` and
-`top_frequency` (the protocol's baselines). §4 also lists TIFU-KNN; it is not an arm: production
-has no TIFU-KNN scorer (its neighbour items are part of the candidate set every arm ranks).
-**Metrics** per seed, means over the holdout baskets: NDCG@10, Recall@10, Recall@|basket|, the
-candidates' coverage of the final box and the number of baskets; SHAP (mean |SHAP| share per
-feature over the holdout candidates) per seed, summarised over the seeds.
+**`drafted` leaks the label** (review of PR #481). `baskets_from_rows` rebuilds a basket's draft
+from the *final* box (its non-customer lines) plus the lines removed or swapped out, so every item
+the household kept counts as drafted; and the simulator's `edit_box` puts every cooked dish's
+ingredients back on the box as `ai` lines, so the rebuilt draft is about twice the true one. Two
+views and three extra arms show what that is worth:
+
+- **holdout** (leave-last-basket-out on `build`'s candidates, as the job scores it): the model
+  (`lambdarank`), the protocol's baselines, `drafted_box` (score = drafted + 0.001 x frequency: the
+  leak alone) and `lambdarank_no_drafted` (the same training with `drafted` held at 0, a constant
+  LightGBM cannot split on, so the trees are those of a model without it);
+- **serving** (what production sends `POST /basket/rank`: M3's `ranker_candidates` offers only the
+  household's own past items, from its `MIN_RANKED_WEEKS`-th final box on, at most
+  `MAX_CANDIDATES`, and never sets `drafted`): the same holdout baskets, candidates with frequency
+  > 0, `drafted` = 0, scored by the trained models and both baselines.
+
+Leak diagnostics per seed: P(final | drafted) and P(final | not drafted) over the holdout
+candidates, the share of positives drafted, the true and the rebuilt draft size, and the fewest
+positives in a holdout basket (NDCG@10's ceiling).
 
 **The M-B verdict** (fixed before the first protocol run, §7 2026-11-02): over at least 5 seeds,
-the per-seed paired NDCG@10 difference, model - repeat last week, has a 95 % t-CI **lower** bound
-≥ 0.05 (the harness's paired-CI-bound convention, as M-C v2, M-E, M-F and M-G); whether the mean
-alone clears 0.05 is reported beside it. Recall@|basket| is reported with no target (§7
-2026-10-08); the model against top frequency is reported, not judged. No verdict below 5 seeds.
+the per-seed paired NDCG@10 difference, model - repeat last week, on the holdout view, has a 95 %
+t-CI **lower** bound ≥ 0.05 (the harness's paired-CI-bound convention, as M-C v2, M-E, M-F and
+M-G); whether the mean alone clears 0.05 is reported beside it. Recall@|basket| is reported with
+no target (§7 2026-10-08); everything else (top frequency, the extra arms, the serving view) is
+reported, not judged. No verdict below 5 seeds.
+
+`model_metrics` rows are named `eval_ranker_<arm>` (holdout) and `eval_ranker_serving_<arm>`, never
+the weekly job's `ranker_<arm>`, so AI health's latest job metrics never show eval numbers.
 """
 
 import argparse
@@ -36,12 +52,14 @@ import hashlib
 import json
 import sys
 import time
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from gharbasket_sim import config
 from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import sample
@@ -49,6 +67,7 @@ from gharbasket_sim.pantry import price_of, weekly_prices
 from gharbasket_sim.weeks import PLANNERS, cached, simulate
 
 from gharbasket.modules.orders import api as orders_api
+from gharbasket.modules.subscriptions.service import MAX_CANDIDATES, MIN_RANKED_WEEKS
 from gharbasket.tools.seed import SEED_DELIVERY_WEEKDAY, SEED_HUB_ID
 from gharbasket_training import ranker
 from gharbasket_training.eval.stats import Estimate, estimate
@@ -61,11 +80,26 @@ START = date(2026, 10, 5)  # the harness's start, a Monday
 DATA_SOURCE = "synthetic"
 MIN_SEEDS = 5  # the protocol's five; fewer → no verdict
 NDCG_MARGIN = 0.05  # §4: NDCG@10 ≥ repeat-last-week + 0.05
-MODEL = "lambdarank"
-BASELINES = ("repeat_last_week", "top_frequency")
-ARMS = (MODEL, *BASELINES)  # the model card's names; model_metrics adds the `ranker_` prefix
+MODEL = "lambdarank"  # the model card's names
+NO_DRAFTED = "lambdarank_no_drafted"
+DRAFTED_BOX = "drafted_box"
+BASELINES = ("repeat_last_week", "top_frequency")  # the protocol's
+ARMS = (MODEL, *BASELINES)  # the card's arms
+MODELS = (MODEL, NO_DRAFTED)  # the arms paired against the others
+VIEWS = {
+    "holdout": (MODEL, NO_DRAFTED, DRAFTED_BOX, *BASELINES),
+    "serving": (MODEL, NO_DRAFTED, *BASELINES),
+}
 METRICS = ("ndcg_at_10", "recall_at_10", "recall_at_basket", "candidate_coverage", "baskets")
 PAIRED = ("ndcg_at_10", "recall_at_10", "recall_at_basket")
+LEAK = (
+    "p_final_if_drafted",
+    "p_final_if_not_drafted",
+    "positives_drafted",
+    "true_draft_lines",
+    "rebuilt_draft_lines",
+    "min_positives",
+)
 TOL = 1e-9  # `ranker.evaluate` rounds to 4 decimals
 
 
@@ -78,12 +112,14 @@ class RankerRun:
     baskets: int  # approved or locked baskets, every week
     train_rows: int
     holdout_rows: int
-    metrics: dict[str, dict[str, float]]  # arm → metric (the card's `metrics`)
+    metrics: dict[str, dict[str, float]]  # holdout view: arm → metric
+    serving: dict[str, dict[str, float]] = field(default_factory=dict)  # serving view
+    leak: dict[str, float] = field(default_factory=dict)  # `LEAK` diagnostics
     shap_share: dict[str, float] = field(default_factory=dict)  # feature → mean |SHAP| share
     model_sha256: str = ""  # the trained model's text: the same seed gives the same model
 
-    def value(self, arm: str, metric: str) -> float:
-        return float(self.metrics[arm][metric])
+    def value(self, arm: str, metric: str, view: str = "holdout") -> float:
+        return float((self.metrics if view == "holdout" else self.serving)[arm][metric])
 
 
 def _cycle_id(seed: int, household: str, week: int) -> str:
@@ -103,9 +139,11 @@ def tables(
     adoption: float | None = None,
     shocks: config.Shocks | None = None,
     planner: str = PLANNER,
-) -> tuple[dict[str, list[dict[str, Any]]], int]:
+) -> tuple[dict[str, list[dict[str, Any]]], int, list[int]]:
     """The rows `train_ranker` reads (`weekly_cycles`, `box_lines`, `edit_feedback`, `prices`),
-    built from the simulated weeks of every household the seed samples, and the households."""
+    built from the simulated weeks of every household the seed samples; the households; and the
+    true draft's line count of every ordered week (the simulator's, before the household's
+    edits: what `baskets_from_rows` cannot see)."""
     cohorts = config.load()
     households = sample(seed, cohorts, catalog, adoption)
     by_name = {c.name: c for c in cohorts.cohorts}
@@ -114,6 +152,7 @@ def tables(
     cycles: list[dict[str, Any]] = []
     lines: list[dict[str, Any]] = []
     edits: list[dict[str, Any]] = []
+    drafts: list[int] = []
     for h in households:
         c = by_name[h.cohort]
         rows = simulate(
@@ -158,6 +197,7 @@ def tables(
             }
             for e in rows.edits
         ]
+        drafts += [int(b["drafted_lines"]) for b in rows.boxes if b["ordered"] and b["lines"]]
     prices = [
         {
             "hub_id": hub,
@@ -171,7 +211,68 @@ def tables(
         if (price := price_of(p, factor)) is not None
     ]
     out = {"weekly_cycles": cycles, "box_lines": lines, "edit_feedback": edits, "prices": prices}
-    return out, len(households)
+    return out, len(households), drafts
+
+
+def without_drafted(ds: ranker.Dataset) -> ranker.Dataset:
+    """The same candidates with `drafted` = 0 (what serving sends, and the no-drafted model's
+    training data: a constant column the trees cannot split on)."""
+    rows = [{**row, "drafted": 0.0} for row in ds.rows]
+    return ranker.Dataset(rows, list(ds.labels), list(ds.groups), list(ds.keys), ds.basket_sizes)
+
+
+def drafted_box_scores(ds: ranker.Dataset) -> np.ndarray:
+    """The leak alone: drafted items first, then the household's most frequent."""
+    return np.array([row["drafted"] + 0.001 * row["frequency"] for row in ds.rows])
+
+
+def serving_view(ds: ranker.Dataset, baskets: list[ranker.Basket]) -> ranker.Dataset:
+    """The holdout baskets as production would rank them (M3's `ranker_candidates`): only the
+    household's own past items (frequency > 0), only once it has `MIN_RANKED_WEEKS` earlier final
+    boxes, at most `MAX_CANDIDATES` (the most often, then most recently, kept), `drafted` never
+    set. A basket's size (for coverage) stays its final box's."""
+    weeks: dict[str, list[date]] = defaultdict(list)
+    for b in baskets:
+        weeks[b.household].append(b.week)
+    out, start = ranker.Dataset(), 0
+    for size, basket_size in zip(ds.groups, ds.basket_sizes, strict=True):
+        idx = range(start, start + size)
+        start += size
+        household, week, _ = ds.keys[idx[0]]
+        if sum(w < week for w in weeks[household]) < MIN_RANKED_WEEKS:
+            continue
+        own = [i for i in idx if ds.rows[i]["frequency"] > 0]
+        if len(own) > MAX_CANDIDATES:
+            row = ds.rows
+            kept = sorted(own, key=lambda i: (-row[i]["frequency"], row[i]["weeks_since"], i))
+            own = sorted(kept[:MAX_CANDIDATES])
+        if not own:
+            continue
+        out.rows += [{**ds.rows[i], "drafted": 0.0} for i in own]
+        out.labels += [ds.labels[i] for i in own]
+        out.keys += [ds.keys[i] for i in own]
+        out.groups.append(len(own))
+        out.basket_sizes.append(basket_size)
+    return out
+
+
+def leak(ds: ranker.Dataset, baskets: list[ranker.Basket], drafts: list[int]) -> dict[str, float]:
+    """How much `drafted` says about the label on the holdout candidates, and why (`LEAK`)."""
+    d = np.array([row["drafted"] for row in ds.rows])
+    y = np.array(ds.labels)
+    positives, start = [], 0
+    for size in ds.groups:
+        positives.append(int(y[start : start + size].sum()))
+        start += size
+    mean = lambda a: round(float(a.mean()), 4) if a.size else 0.0  # noqa: E731
+    return {
+        "p_final_if_drafted": mean(y[d == 1]),
+        "p_final_if_not_drafted": mean(y[d == 0]),
+        "positives_drafted": mean(d[y == 1]),
+        "true_draft_lines": round(float(np.mean(drafts)), 2) if drafts else 0.0,
+        "rebuilt_draft_lines": round(float(np.mean([len(b.drafted) for b in baskets])), 2),
+        "min_positives": float(min(positives, default=0)),
+    }
 
 
 def run_ranker(
@@ -184,19 +285,34 @@ def run_ranker(
     shocks: config.Shocks | None = None,
     planner: str = PLANNER,
 ) -> RankerRun:
-    """One seed: the simulated rows, then the weekly job's `fit` (train, leave-last-basket-out
-    scores of the model and both baselines, SHAP)."""
-    rows, households = tables(
+    """One seed: the simulated rows, the weekly job's `fit` (the model, its holdout scores
+    against both baselines, SHAP), then the extra arms and the serving view on the same split."""
+    rows, households, drafts = tables(
         seed, catalog, weeks=weeks, start=start, adoption=adoption, shocks=shocks, planner=planner
     )
     (trained,) = train_ranker.fit(rows, f"eval-{seed}")  # one data source
-    metrics = trained.card["metrics"]
-    if not metrics:
+    card = trained.card["metrics"]
+    if not card:
         raise RuntimeError(f"seed {seed}: no household has two baskets ({weeks} week(s))")
-    ex = trained.explanations
     baskets = ranker.baskets_from_rows(
         rows["box_lines"], rows["edit_feedback"], rows["weekly_cycles"]
     )
+    # The split `fit` made (it does not return it): the same call on the same rows.
+    train, test = ranker.build(baskets, holdout_last=True, prices=ranker.price_book(rows["prices"]))
+    blind = ranker.train(without_drafted(train))
+    metrics = {arm: dict(card[arm]) for arm in ARMS}
+    metrics[NO_DRAFTED] = ranker.evaluate(test, ranker.predict(blind, without_drafted(test)))
+    metrics[DRAFTED_BOX] = ranker.evaluate(test, drafted_box_scores(test))
+    serve = serving_view(test, baskets)
+    serving: dict[str, dict[str, float]] = {}
+    if serve.groups:
+        serving = {
+            MODEL: ranker.evaluate(serve, ranker.predict(trained.model, serve)),
+            NO_DRAFTED: ranker.evaluate(serve, ranker.predict(blind, serve)),
+        } | {
+            base: ranker.evaluate(serve, ranker.baseline_scores(serve, base)) for base in BASELINES
+        }
+    ex = trained.explanations
     return RankerRun(
         seed=seed,
         households=households,
@@ -205,26 +321,45 @@ def run_ranker(
         baskets=len(baskets),
         train_rows=int(trained.card["train_rows"]),
         holdout_rows=int(ex.get("rows", 0)),
-        metrics={arm: dict(metrics[arm]) for arm in ARMS},
+        metrics={arm: metrics[arm] for arm in VIEWS["holdout"]},
+        serving=serving,
+        leak=leak(test, baskets, drafts),
         shap_share=dict(ex.get("mean_abs_shap_share", {})),
         model_sha256=hashlib.sha256(trained.model.model_to_string().encode()).hexdigest(),
     )
 
 
-def summarise(runs: list[RankerRun]) -> dict[str, dict[str, Estimate]]:
-    """Arm → metric: mean ± 95 % t-CI over the seeds."""
-    return {arm: {m: estimate([r.value(arm, m) for r in runs]) for m in METRICS} for arm in ARMS}
+def _scored(runs: list[RankerRun], view: str) -> list[RankerRun]:
+    """The runs that have the view (a run too short for M3's minimum has no serving view)."""
+    return [r for r in runs if view == "holdout" or r.serving]
 
 
-def gap(run: RankerRun, base: str, metric: str) -> float:
-    """The model minus a baseline within a seed (both rank the same candidates)."""
-    return run.value(MODEL, metric) - run.value(base, metric)
-
-
-def paired(runs: list[RankerRun]) -> dict[str, dict[str, Estimate]]:
-    """Baseline → metric: the per-seed paired difference, model - baseline, mean ± 95 % t-CI."""
+def summarise(runs: list[RankerRun], view: str = "holdout") -> dict[str, dict[str, Estimate]]:
+    """Arm → metric: mean ± 95 % t-CI over the seeds, for one view."""
+    these = _scored(runs, view)
     return {
-        base: {m: estimate([gap(r, base, m) for r in runs]) for m in PAIRED} for base in BASELINES
+        arm: {m: estimate([r.value(arm, m, view) for r in these]) for m in METRICS}
+        for arm in VIEWS[view]
+    }
+
+
+def gap(run: RankerRun, base: str, metric: str, arm: str = MODEL, view: str = "holdout") -> float:
+    """An arm minus a baseline within a seed (both rank the same candidates)."""
+    return run.value(arm, metric, view) - run.value(base, metric, view)
+
+
+def paired(
+    runs: list[RankerRun], view: str = "holdout"
+) -> dict[str, dict[str, dict[str, Estimate]]]:
+    """Model arm → other arm → metric: the per-seed paired difference, mean ± 95 % t-CI."""
+    these = _scored(runs, view)
+    return {
+        arm: {
+            base: {m: estimate([gap(r, base, m, arm, view) for r in these]) for m in PAIRED}
+            for base in VIEWS[view]
+            if base not in MODELS
+        }
+        for arm in MODELS
     }
 
 
@@ -234,9 +369,14 @@ def shap(runs: list[RankerRun]) -> dict[str, Estimate]:
     return dict(sorted(out.items(), key=lambda kv: -kv[1].mean))
 
 
+def leaks(runs: list[RankerRun]) -> dict[str, Estimate]:
+    return {k: estimate([r.leak[k] for r in runs if k in r.leak]) for k in LEAK}
+
+
 def verdict(runs: list[RankerRun]) -> dict[str, Any]:
-    """The M-B target (module docstring): the NDCG@10 gap to repeat last week, paired 95 % CI
-    lower bound ≥ 0.05; no verdict (None) below `MIN_SEEDS` seeds. Recall@|basket| beside it."""
+    """The M-B target (module docstring): the NDCG@10 gap to repeat last week on the holdout
+    view, paired 95 % CI lower bound ≥ 0.05; no verdict (None) below `MIN_SEEDS` seeds.
+    Recall@|basket| beside it."""
     e = estimate([gap(r, BASELINES[0], "ndcg_at_10") for r in runs])
     lower = e.mean - e.ci
     top = estimate([gap(r, BASELINES[1], "ndcg_at_10") for r in runs])
@@ -254,9 +394,9 @@ def verdict(runs: list[RankerRun]) -> dict[str, Any]:
             arm: estimate([r.value(arm, "recall_at_basket") for r in runs]).as_dict()
             for arm in ARMS
         },
-        "rule": f"over >= {MIN_SEEDS} seeds: NDCG@10 model - repeat last week, per-seed paired "
-        f"95 % t-CI lower bound >= {NDCG_MARGIN}; Recall@|basket| reported, no target; "
-        "the gap to top frequency reported, not judged",
+        "rule": f"over >= {MIN_SEEDS} seeds: NDCG@10 model - repeat last week (holdout view), "
+        f"per-seed paired 95 % t-CI lower bound >= {NDCG_MARGIN}; Recall@|basket| reported, no "
+        "target; top frequency, the extra arms and the serving view reported, not judged",
     }
 
 
@@ -275,6 +415,8 @@ def settings(runs: list[RankerRun]) -> dict[str, Any]:
         "features": list(ranker.FEATURES),
         "k_neighbours": ranker.K_NEIGHBOURS,
         "neighbour_items": ranker.NEIGHBOUR_ITEMS,
+        "serving": f"own past items (frequency > 0), from {MIN_RANKED_WEEKS} earlier final boxes, "
+        f"at most {MAX_CANDIDATES}, drafted = 0 (subscriptions.service.ranker_candidates)",
         "explain_method": ranker.EXPLAIN_METHOD,
         "ranker_sha256": hashlib.sha256(Path(ranker.__file__).read_bytes()).hexdigest(),
     }
@@ -284,26 +426,48 @@ def section(runs: list[RankerRun]) -> dict[str, Any]:
     """The report's `ranker` section; empty without runs."""
     if not runs:
         return {}
+
+    def view(name: str) -> dict[str, Any]:
+        return {
+            "n": len(_scored(runs, name)),
+            "arms": {
+                a: {m: e.as_dict() for m, e in ms.items()}
+                for a, ms in summarise(runs, name).items()
+            },
+            "paired": {
+                a: {b: {m: e.as_dict() for m, e in ms.items()} for b, ms in vs.items()}
+                for a, vs in paired(runs, name).items()
+            },
+        }
+
     return {
         "settings": settings(runs),
-        "arms": {a: {m: e.as_dict() for m, e in ms.items()} for a, ms in summarise(runs).items()},
-        "paired": {b: {m: e.as_dict() for m, e in ms.items()} for b, ms in paired(runs).items()},
+        "views": {name: view(name) for name in VIEWS},
+        "leak": {k: e.as_dict() for k, e in leaks(runs).items()},
         "shap_share": {f: e.as_dict() for f, e in shap(runs).items()},
         "verdict": verdict(runs),
     }
 
 
+def model_name(arm: str, view: str) -> str:
+    """Never the weekly job's `ranker_<arm>`: AI health reads those as the job's latest."""
+    return f"eval_ranker_{arm}" if view == "holdout" else f"eval_ranker_{view}_{arm}"
+
+
 def metrics_rows(report: dict[str, Any], details: dict[str, Any]) -> list[dict[str, Any]]:
-    """`intel.model_metrics` rows under the weekly job's model names (`ranker_<arm>`, split
-    `holdout`: leave-last-basket-out), each arm's metrics and the model's paired gaps."""
+    """`intel.model_metrics` rows (split `holdout`: leave-last-basket-out): each arm's metrics in
+    each view, and the model arms' paired gaps (`<metric>_vs_<arm>`)."""
     sec = report.get("ranker") or {}
     runs = report.get("runs", {}).get("ranker", [])
     if not sec:
         return []
 
-    def row(arm: str, metric: str, e: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    def of(r: dict[str, Any], view: str) -> dict[str, dict[str, float]]:
+        return r["metrics"] if view == "holdout" else r.get("serving") or {}
+
+    def row(name: str, metric: str, e: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
         return {
-            "model_name": f"ranker_{arm}",
+            "model_name": name,
             "version": report["commit"],
             "metric": metric,
             "value": e["mean"],
@@ -312,20 +476,25 @@ def metrics_rows(report: dict[str, Any], details: dict[str, Any]) -> list[dict[s
             "details": {**details, "eval_harness": True, "ci95": e["ci95"], **extra},
         }
 
-    rows = [
-        row(arm, m, e, {"per_seed": {str(r["seed"]): r["metrics"][arm][m] for r in runs}})
-        for arm, ms in sec["arms"].items()
-        for m, e in ms.items()
-        if m != "baskets"
-    ]
-    for base, ms in sec["paired"].items():
-        for m, e in ms.items():
-            per_seed = {
-                str(r["seed"]): round(r["metrics"][MODEL][m] - r["metrics"][base][m], 4)
-                for r in runs
-            }
-            extra = {"per_seed": per_seed, "verdict": sec["verdict"]}
-            rows.append(row(MODEL, f"{m}_vs_{base}", e, extra))
+    rows = []
+    for view, v in sec["views"].items():
+        scored = [r for r in runs if of(r, view)]
+        for arm, ms in v["arms"].items():
+            for m, e in ms.items():
+                if m != "baskets" and e["n"]:
+                    per_seed = {str(r["seed"]): of(r, view)[arm][m] for r in scored}
+                    rows.append(row(model_name(arm, view), m, e, {"per_seed": per_seed}))
+        for arm, vs in v["paired"].items():
+            for base, ms in vs.items():
+                for m, e in ms.items():
+                    if not e["n"]:
+                        continue
+                    per_seed = {
+                        str(r["seed"]): round(of(r, view)[arm][m] - of(r, view)[base][m], 4)
+                        for r in scored
+                    }
+                    extra = {"per_seed": per_seed, "verdict": sec["verdict"]}
+                    rows.append(row(model_name(arm, view), f"{m}_vs_{base}", e, extra))
     return rows
 
 
@@ -336,22 +505,36 @@ def html(report: dict[str, Any]) -> str:
     sec = report.get("ranker")
     if not sec:
         return ""
-    arms, pairs, v = sec["arms"], sec["paired"], sec["verdict"]
-    table = _table(
-        "M-B — next-basket ranker, leave-last-basket-out on simulated boxes (train_ranker's own "
-        "code path): per seed, means over the holdout baskets, then mean ± 95 % t-CI",
-        ["metric", *ARMS, *(f"{MODEL} - {b} (paired)" for b in BASELINES)],
-        [
-            [
-                m,
-                *(_cell(arms[a][m]) for a in ARMS),
-                *(_cell(pairs[b][m]) if m in pairs[b] else "—" for b in BASELINES),
-            ]
-            for m in METRICS
-        ],
-    )
+    v = sec["verdict"]
+    cell = lambda e: _cell(e) if e and e["n"] else "—"  # noqa: E731
+    captions = {
+        "holdout": "M-B — next-basket ranker, holdout view: leave-last-basket-out on the job's "
+        "candidates (train_ranker's own code path; drafted is rebuilt from the final box, a "
+        "label leak)",
+        "serving": "M-B — serving view: the same holdout baskets with the candidates production "
+        "sends (own past items, drafted never set; subscriptions.ranker_candidates)",
+    }
+    tables = []
+    for name, view in sec["views"].items():
+        arms = list(view["arms"])
+        pairs = [(a, b) for a, vs in view["paired"].items() for b in vs]
+        tables.append(
+            _table(
+                captions[name] + f": per seed, then mean ± 95 % t-CI over {view['n']} seed(s)",
+                ["metric", *arms, *(f"{a} - {b}" for a, b in pairs)],
+                [
+                    [
+                        m,
+                        *(cell(view["arms"][a][m]) for a in arms),
+                        *(cell(view["paired"][a][b].get(m)) for a, b in pairs),
+                    ]
+                    for m in METRICS
+                ],
+            )
+        )
     checks = _table(
-        "M-B hypothesis: NDCG@10 ≥ repeat last week + 0.05 (paired 95 % CI lower bound)",
+        "M-B hypothesis: NDCG@10 ≥ repeat last week + 0.05 (holdout view, paired 95 % CI lower "
+        "bound)",
         ["check", "mean ± 95 % CI", "lower bound", "rule", "holds"],
         [
             [
@@ -374,6 +557,11 @@ def html(report: dict[str, Any]) -> str:
             ),
         ],
     )
+    leak_table = _table(
+        "M-B — the drafted leak on the holdout candidates (per seed, then over the seeds)",
+        ["diagnostic", "mean ± 95 % CI"],
+        [[k, cell(e)] for k, e in sec["leak"].items()],
+    )
     shares = _table(
         "M-B — what the model leans on: mean |SHAP| share per feature over each seed's holdout "
         "candidates (TreeSHAP), then mean ± 95 % t-CI over the seeds",
@@ -391,11 +579,13 @@ def html(report: dict[str, Any]) -> str:
         f'<p class="note">M-B target (seeds {v["seeds"]}): {said}. Data: {st["weeks"]} simulated '
         f"weeks a seed, the {st['planner']} planner, every household the seed samples, written "
         "as the snapshot rows train_ranker reads and trained by its fit (same features, "
-        "hyperparameters and seed); the simulator drafts the box (M3 drafts it in production). "
+        "hyperparameters and seed). <strong>drafted is rebuilt from the final box: a label "
+        "leak</strong>; the simulator drafting the box (every cooked dish's ingredients back on "
+        "it) favours the model. The serving view is what the planner's learned preferences get. "
         "Recall counts the basket's items among the candidates; candidate coverage is the share "
         "of the final box they contain (eval protocol §7, 2026-10-08 and 2026-11-02).</p>"
     )
-    return table + checks + shares + note
+    return "".join(tables) + checks + leak_table + shares + note
 
 
 def lines(report: dict[str, Any]) -> list[str]:
@@ -403,13 +593,18 @@ def lines(report: dict[str, Any]) -> list[str]:
     sec = report.get("ranker") or {}
     if not sec:
         return []
-    arms, v = sec["arms"], sec["verdict"]
-    out = [
-        f"ranker  {arm:16} NDCG@10 {ms['ndcg_at_10']['mean']:.3f} ± {ms['ndcg_at_10']['ci95']:.3f}"
-        f"  Recall@|basket| {ms['recall_at_basket']['mean']:.3f}  Recall@10 "
-        f"{ms['recall_at_10']['mean']:.3f}  coverage {ms['candidate_coverage']['mean']:.3f}"
-        for arm, ms in arms.items()
-    ]
+    out = []
+    for name, view in sec["views"].items():
+        for arm, ms in view["arms"].items():
+            if not ms["ndcg_at_10"]["n"]:
+                continue
+            out.append(
+                f"ranker  {name:7} {arm:21} NDCG@10 {ms['ndcg_at_10']['mean']:.3f} ± "
+                f"{ms['ndcg_at_10']['ci95']:.3f}  Recall@|basket| "
+                f"{ms['recall_at_basket']['mean']:.3f} ± {ms['recall_at_basket']['ci95']:.3f}  "
+                f"coverage {ms['candidate_coverage']['mean']:.3f}"
+            )
+    v = sec["verdict"]
     e, top = v["ndcg_gap_vs_repeat_last_week"], v["ndcg_gap_vs_top_frequency"]
     if v["holds"] is None:
         said = f"no verdict: {v['n']} seed(s)"
@@ -421,6 +616,12 @@ def lines(report: dict[str, Any]) -> list[str]:
         f"M-B NDCG@10 vs repeat last week {e['mean']:+.3f} ± {e['ci95']:.3f} (lower "
         f"{v['lower']:+.3f}, needs >= {NDCG_MARGIN}): {said}; vs top frequency "
         f"{top['mean']:+.3f} ± {top['ci95']:.3f} (reported)"
+    )
+    lk = sec["leak"]
+    out.append(
+        f"M-B drafted leak: P(final | drafted) {lk['p_final_if_drafted']['mean']:.3f}, "
+        f"P(final | not) {lk['p_final_if_not_drafted']['mean']:.3f}; draft lines true "
+        f"{lk['true_draft_lines']['mean']:.1f}, rebuilt {lk['rebuilt_draft_lines']['mean']:.1f}"
     )
     return out
 
