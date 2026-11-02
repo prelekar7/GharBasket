@@ -161,6 +161,11 @@ gen-api: openapi
 sim *args:
     uv run python -m gharbasket_sim {{args}}
 
+# Load demo data into staging (handbook 12): Neon restore point, seed (adds only), simulated weeks.
+# First `infisical run --env=staging -- just staging-demo` (shows the host and plan), then again with GB_ALLOW_REMOTE_SEED=<host>
+staging-demo *args:
+    ./scripts/staging-demo.sh {{args}}
+
 # Pin the OSRM ML image's dependencies: backend/ml/requirements.lock from uv.lock (git-ignored; the Render image reads uv.lock itself)
 ml-lock:
     uv export --quiet --package gharbasket-ml --frozen --no-dev --no-emit-project -o backend/ml/requirements.lock

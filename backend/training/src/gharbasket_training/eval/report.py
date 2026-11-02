@@ -19,7 +19,7 @@ import httpx2
 from gharbasket_sim import config
 from gharbasket_sim.catalog import SEED_FILES
 
-from gharbasket_training.eval import assignment_sweep, forecast_ab
+from gharbasket_training.eval import assignment_sweep, forecast_ab, ranker_eval
 from gharbasket_training.eval import routing as routing_eval
 from gharbasket_training.eval.pantry_baseline import PantryRun
 from gharbasket_training.eval.planner_ab import (
@@ -88,8 +88,10 @@ def build(
     forecast_runs: list[forecast_ab.ForecastRun] | None = None,
     ranker_explanations: dict[str, Any] | None = None,
     routing_runs: list[routing_eval.RoutingRun] | None = None,
+    ranker_runs: list[ranker_eval.RankerRun] | None = None,
 ) -> dict[str, Any]:
     routing_runs = routing_runs or []
+    ranker_runs = ranker_runs or []
     summary = summarise(planner_runs)
     diffs = paired(planner_runs)
     later = paired(planner_runs, later=True, arms=(V2,))
@@ -122,6 +124,7 @@ def build(
             | {r.seed for r in sweep_runs}
             | {r.seed for r in forecast_runs}
             | {r.seed for r in routing_runs}
+            | {r.seed for r in ranker_runs}
         ),
         # M-F: van routing against nearest neighbour per size (eval/routing.py).
         "routing": routing_eval.section(routing_runs),
@@ -192,8 +195,11 @@ def build(
         },
         "assignment_targets": assignment_sweep.against_target(sweep_runs),
         "forecast": _forecast(forecast_runs),
-        # The basket ranker's `explanations.json` (TreeSHAP, handbook 08 §8.4); None when the
-        # harness was not given one.
+        # M-B: the basket ranker against both baselines, leave-last-basket-out per seed, and the
+        # M-B verdict (eval/ranker_eval.py).
+        "ranker": ranker_eval.section(ranker_runs),
+        # A weekly job run's `explanations.json` (TreeSHAP, handbook 08 §8.4), e.g. on pilot data;
+        # None when the harness was not given one.
         "ranker_explanations": ranker_explanations,
         "runs": {
             "planner": [asdict(r) for r in planner_runs],
@@ -201,6 +207,7 @@ def build(
             "assignment": [asdict(r) for r in sweep_runs],
             "forecast": [asdict(r) for r in forecast_runs],
             "routing": [asdict(r) for r in routing_runs],
+            "ranker": [asdict(r) for r in ranker_runs],
         },
     }
 
@@ -430,6 +437,7 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     rows += routing_eval.metrics_rows(report, details)
+    rows += ranker_eval.metrics_rows(report, details)
     return rows
 
 
@@ -616,7 +624,7 @@ def to_html(report: dict[str, Any]) -> str:
         "true daily use, which the app never sees (the twin sees boxes and taps). The twin's "
         "tap meanings and its week-to-week spread match the simulator's own (protocol change "
         "log, 1 Nov 2026).</p>"
-        f"{sweep_table}{_forecast_html(report)}{_ranker_html(report)}"
+        f"{sweep_table}{_forecast_html(report)}{ranker_eval.html(report)}{_ranker_html(report)}"
         f"{routing_eval.html(report)}</body></html>\n"
     )
 

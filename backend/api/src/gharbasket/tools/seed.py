@@ -20,12 +20,17 @@ and one default vendor, so every hub id above points at a real `hub_ops.hubs` ro
 The partner training modules (M8) come from data/seeds/trainings, placeholders until reviewed.
 Later module PRs add their rows here and use the hub, society and NGO ids below.
 
-Only for the local Docker database: shared databases (staging) are always refused.
+Only for the local Docker database. A shared database (staging on Neon) is refused unless both
+`--allow-remote` is given and GB_ALLOW_REMOTE_SEED names its host (`scripts/staging-demo.sh`,
+handbook 12); there the seed only adds what is missing and keeps every existing row as it is (no
+refresh of the hub, societies, people or their roles, categories, prices, festivals or trainings,
+and never `--refresh`), so nothing edited in the console is overwritten.
 """
 
 import argparse
 import asyncio
 import json
+import os
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
@@ -37,7 +42,14 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.catalog.models import NUTRITION_SOURCES, PriceList, Product, Recipe
+from gharbasket.modules.catalog.models import (
+    NUTRITION_SOURCES,
+    Category,
+    Festival,
+    PriceList,
+    Product,
+    Recipe,
+)
 from gharbasket.modules.catalog.pricing import save_price_list
 from gharbasket.modules.catalog.recipes import (
     IngredientData,
@@ -53,6 +65,7 @@ from gharbasket.modules.catalog.service import (
     save_category,
     save_product,
 )
+from gharbasket.modules.community.models import Society
 from gharbasket.modules.community.service import SocietyData, save_society
 from gharbasket.modules.hub_ops import service as hub_service
 from gharbasket.modules.hub_ops.models import Hub
@@ -64,10 +77,17 @@ from gharbasket.modules.orders import service as orders_service
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.partners import service as partners_service
 from gharbasket.modules.partners import training as partners_training
+from gharbasket.modules.partners.models import TrainingModule
 from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions import service as subscriptions_service
 from gharbasket.platform import outbox
-from gharbasket.platform.db import create_engine, is_local_database
+from gharbasket.platform.db import (
+    RemoteDatabaseRefused,
+    create_engine,
+    is_local_database,
+    is_pgbouncer,
+    synthetic_data_target,
+)
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.geo import LatLng
 from gharbasket.platform.settings import DatabaseSettings
@@ -352,17 +372,20 @@ class Seeded:
     created: bool
 
 
-async def seed(session: AsyncSession) -> list[Seeded]:
-    """Create or refresh the synthetic people. Commits nothing; the caller does."""
+async def seed(session: AsyncSession, *, keep_existing: bool = False) -> list[Seeded]:
+    """Create or refresh the synthetic people. With `keep_existing` (a shared database) an
+    existing person is left exactly as they are, roles included: a role revoked in the console
+    stays revoked. Commits nothing; the caller does."""
     seeded: list[Seeded] = []
     for person in PEOPLE:
         user, created = await find_or_create_user(session, person.phone)
-        user.name = person.name
-        user.locale = person.locale
-        user.senior_mode = person.senior_mode
-        user.data_source = "synthetic"
-        await session.flush()
-        for role, scope_id in person.roles:
+        if created or not keep_existing:
+            user.name = person.name
+            user.locale = person.locale
+            user.senior_mode = person.senior_mode
+            user.data_source = "synthetic"
+            await session.flush()
+        for role, scope_id in person.roles if created or not keep_existing else ():
             try:
                 await grant_role(
                     session,
@@ -379,11 +402,14 @@ async def seed(session: AsyncSession) -> list[Seeded]:
     return seeded
 
 
-async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
+async def seed_hubs(
+    session: AsyncSession, *, keep_existing: bool = False
+) -> list[tuple[str, bool]]:
     """Create or refresh the seed hub, and give it its vendors once: (slug, created).
 
     Commits nothing. A refresh puts the hub back as SEED_HUB describes it (version + 1 only if
-    something had changed); an existing vendor of that name is kept as it is.
+    something had changed), unless `keep_existing`; an existing vendor of that name is kept as it
+    is.
     """
     hub = await session.get(Hub, SEED_HUB_ID)
     created = hub is None
@@ -391,7 +417,7 @@ async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
         hub = await hub_service.create_hub(
             session, SEED_HUB, hub_id=SEED_HUB_ID, data_source="synthetic"
         )
-    else:
+    elif not keep_existing:
         fields = SEED_HUB.model_dump(
             exclude={
                 "slug",
@@ -411,10 +437,18 @@ async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
     return [(hub.slug, created)]
 
 
-async def seed_societies(session: AsyncSession) -> list[tuple[str, bool]]:
-    """Create or refresh the synthetic societies: (slug, created) each. Commits nothing."""
+async def seed_societies(
+    session: AsyncSession, *, keep_existing: bool = False
+) -> list[tuple[str, bool]]:
+    """Create or refresh the synthetic societies (with `keep_existing`, only create the missing
+    ones): (slug, created) each. Commits nothing."""
     saved: list[tuple[str, bool]] = []
     for data in SOCIETIES:
+        if keep_existing and await session.scalar(
+            select(Society.id).where(Society.slug == data.slug)
+        ):
+            saved.append((data.slug, False))
+            continue
         society, created = await save_society(session, replace(data, data_source="synthetic"))
         saved.append((society.slug, created))
     return saved
@@ -461,11 +495,17 @@ async def seed_partners(session: AsyncSession) -> list[tuple[str, bool]]:
     return done
 
 
-async def seed_trainings(session: AsyncSession) -> list[tuple[str, bool]]:
+async def seed_trainings(
+    session: AsyncSession, *, keep_existing: bool = False
+) -> list[tuple[str, bool]]:
     """Create or refresh the partner training modules (M8 §3.2) from data/seeds/trainings:
-    placeholders until Rhythm and Manish write the real ones. (code, created) each."""
+    placeholders until Rhythm and Manish write the real ones (with `keep_existing`, only the
+    missing ones). (code, created) each."""
     saved: list[tuple[str, bool]] = []
     for data in json.loads(TRAININGS_SEED.read_text())["modules"]:
+        if keep_existing and await session.get(TrainingModule, (data["code"], data["version"])):
+            saved.append((data["code"], False))
+            continue
         module, created = await partners_training.save_module(session, data)
         saved.append((module.code, created))
     return saved
@@ -478,16 +518,25 @@ async def _kept(session: AsyncSession, model: Any, slug: str, refresh: bool) -> 
     return row if row is not None and (row.updated_by is not None or not refresh) else None
 
 
-async def seed_catalog(session: AsyncSession, *, refresh: bool = False) -> list[tuple[str, bool]]:
+async def seed_catalog(
+    session: AsyncSession, *, refresh: bool = False, keep_existing: bool = False
+) -> list[tuple[str, bool]]:
     """Add data/seeds/catalog: categories, products, the seed hub's price list, recipes and
     festival days.
 
     Products and recipes are only added (by slug); with `refresh` the seed files' values are
-    re-applied to the rows nobody edited in the console (M2 §3.3). Returns (slug, created) for
-    each product.
+    re-applied to the rows nobody edited in the console (M2 §3.3). With `keep_existing` (a shared
+    database) categories, the price list and festival days are only added too. Returns
+    (slug, created) for each product.
     """
+    if refresh and keep_existing:
+        raise ValueError("refresh rewrites rows; keep_existing promises not to")
     categories = json.loads((CATALOG_SEED / "categories.json").read_text())["categories"]
     for category in categories:
+        if keep_existing and await session.scalar(
+            select(Category.id).where(Category.slug == category["slug"])
+        ):
+            continue
         await save_category(session, CategoryData(**category))
     saved: list[tuple[str, bool]] = []
     ids: dict[str, uuid.UUID] = {}
@@ -521,14 +570,12 @@ async def seed_catalog(session: AsyncSession, *, refresh: bool = False) -> list[
 
     prices = json.loads((CATALOG_SEED / "prices.json").read_text())
     valid_from = date.fromisoformat(prices["valid_from"])
-    replaced_in_console = await session.scalar(
-        select(PriceList.id).where(
-            PriceList.hub_id == SEED_HUB_ID,
-            PriceList.valid_from == valid_from,
-            PriceList.updated_by.is_not(None),
-        )
+    kept_list = select(PriceList.id).where(
+        PriceList.hub_id == SEED_HUB_ID, PriceList.valid_from == valid_from
     )
-    if not replaced_in_console:
+    if not keep_existing:
+        kept_list = kept_list.where(PriceList.updated_by.is_not(None))  # replaced in the console
+    if not await session.scalar(kept_list):
         await save_price_list(
             session,
             SEED_HUB_ID,
@@ -578,9 +625,14 @@ async def seed_catalog(session: AsyncSession, *, refresh: bool = False) -> list[
     if refresh:  # refreshed tags may change the rules of recipes edited in the console
         await recompute_rules(session, list(ids.values()), None)
     for festival in json.loads((CATALOG_SEED / "festivals.json").read_text())["festivals"]:
+        day = date.fromisoformat(festival["date"])
+        if keep_existing and await session.get(
+            Festival, (day, festival["code"], festival["region"])
+        ):
+            continue
         await save_festival(
             session,
-            day=date.fromisoformat(festival["date"]),
+            day=day,
             code=festival["code"],
             region=festival["region"],
             names=festival["names"],
@@ -640,19 +692,24 @@ class Report:
     hubs: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
 
 
-async def run(database_url: str, *, refresh: bool = False) -> Report:
+async def run(database_url: str, *, refresh: bool = False, keep_existing: bool = False) -> Report:
+    """The whole seed in one transaction, then the relay. `keep_existing` (always on a shared
+    database) only adds what is missing."""
     load_modules()  # the relay at the end needs every module's consumers
-    engine = create_engine(database_url, pooled=False)
+    engine = create_engine(
+        database_url, pooled=False, cache_statements=not is_pgbouncer(database_url)
+    )
+    keep = keep_existing
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
             report = Report(
-                hubs=await seed_hubs(session),
-                people=await seed(session),
-                societies=await seed_societies(session),
+                hubs=await seed_hubs(session, keep_existing=keep),
+                people=await seed(session, keep_existing=keep),
+                societies=await seed_societies(session, keep_existing=keep),
                 households=await seed_households(session),
                 partners=await seed_partners(session),
-                products=await seed_catalog(session, refresh=refresh),
-                trainings=await seed_trainings(session),
+                products=await seed_catalog(session, refresh=refresh, keep_existing=keep),
+                trainings=await seed_trainings(session, keep_existing=keep),
                 delivery=await seed_delivery(session),
             )
             await session.commit()
@@ -671,15 +728,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="re-apply the catalog seed files to products and recipes nobody edited in the console",
     )
+    parser.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="a shared database (staging), adds only; also needs GB_ALLOW_REMOTE_SEED=<its host>",
+    )
     args = parser.parse_args(argv)
 
     url = DatabaseSettings(_env_file=REPO_ROOT / ".env").migrations_url  # pyright: ignore[reportCallIssue]
     if url is None:
         parser.error("set DATABASE_URL (see .env.example)")
-    if not is_local_database(url):
-        parser.error("seed data is only for the local Docker database")
+    try:
+        host = synthetic_data_target(url, allow_remote=args.allow_remote, environ=os.environ)
+    except RemoteDatabaseRefused as refused:
+        parser.error(f"seed data is only for the local Docker database: {refused}")
+    remote = not is_local_database(url)
+    if remote and args.refresh:
+        parser.error("--refresh rewrites catalog rows: never on a shared database")
+    if remote:
+        print(f"seeding the shared database at {host}: adds only, existing rows are kept")
 
-    report = asyncio.run(run(url, refresh=args.refresh))
+    report = asyncio.run(run(url, refresh=args.refresh, keep_existing=remote))
     for slug, created in report.hubs:
         print(f"hub {slug} ({SEED_HUB_ID}) {'new' if created else 'kept'}")
     seeded, societies = report.people, report.societies

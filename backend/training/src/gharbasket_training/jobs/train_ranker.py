@@ -9,14 +9,14 @@ registry (`s3://gb-mlflow/models/basket_ranker/<version>-<data_source>/`; beside
 `card.json`, `explanations.json` holds the model's SHAP importances and sampled decisions) and the
 metrics to the API.
 
-The job does **not** promote: the Space serves what `basket_ranker/latest.json` points at, and
+The job does **not** promote: the ML service serves what `basket_ranker/latest.json` points at, and
 moving that pointer is a manual decision after reading the card (ADR-0025):
 `just promote basket_ranker <version>-<data_source>` is the only thing that moves it.
 
     uv run --directory backend/training python -m gharbasket_training.jobs.train_ranker \\
         [--out data/models] [--push] [--version 2026-10-05]
 
-`--out` is a local folder with the layout the Space's `MODELS_DIR` expects
+`--out` is a local folder with the layout the ML service's `MODELS_DIR` expects
 (`basket_ranker/latest.json`, `basket_ranker/<version>/model.txt`).
 """
 

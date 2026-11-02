@@ -113,7 +113,7 @@ def open_lake(settings: Settings, local: Path | None) -> Lake:
 @dataclass(frozen=True)
 class Registry:
     """The model registry (ADR-0025): `s3://gb-mlflow/models/<name>/<version>/` with a
-    `<name>/latest.json` pointer, or a local folder with the layout the Space's `MODELS_DIR`
+    `<name>/latest.json` pointer, or a local folder with the layout the ML service's `MODELS_DIR`
     expects (`<name>/latest.json`, `<name>/<version>/model.txt`)."""
 
     lake: Lake

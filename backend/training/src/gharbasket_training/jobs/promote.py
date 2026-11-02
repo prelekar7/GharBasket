@@ -10,7 +10,7 @@ score above the rule table's on the same held-out taps); `--force` promotes anyw
 in the pointer.
 
 How serving follows the pointer:
-- `basket_ranker`: the Space re-reads `basket_ranker/latest.json` every `MODELS_RELOAD_S`.
+- `basket_ranker`: the ML service re-reads `basket_ranker/latest.json` every `MODELS_RELOAD_S`.
 - `pantry_priors`: M3 reads `intel.pantry_priors`, so promotion first pushes the version's
   priors to `POST /v1/internal/intel/pantry-priors` (replacing the stored ones; needs `API_URL`
   and `JOBS_TOKEN`) and moves the pointer only once the API took them. `--no-push` moves the

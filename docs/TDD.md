@@ -125,7 +125,7 @@ GharBasket is a 4-person B.Tech major project (accepted 13 Aug 2026), built coll
   └──────────────────┘  └────────┘  └───────────┘         └──────────┘  └──────────┘
 ```
 
-Staging runs on free tiers (ADR-0020): the API is a Render free web service (Singapore) with Render Free Key Value for Valkey; Postgres is on Neon (Singapore); files are on Cloudflare R2; the PWA and console are on Vercel. The ML service and OSRM run on a Hugging Face Space, training and data jobs in GitHub Actions (`backend/training`), models and the lake on R2, and MLflow stays local (ADR-0025); locally everything runs under Docker Compose.
+Staging runs on free tiers (ADR-0020): the API is a Render free web service (Singapore) with Render Free Key Value for Valkey; Postgres is on Neon (Singapore); files are on Cloudflare R2; the PWA and console are on Vercel. The ML service runs as a second free Render web service without OSRM (ADR-0030), training and data jobs in GitHub Actions (`backend/training`), models and the lake on R2, and MLflow stays local (ADR-0025); locally everything runs under Docker Compose.
 
 ### 2.3 Architecture principles
 
@@ -248,7 +248,7 @@ Staging runs on free tiers (ADR-0020): the API is a Render free web service (Sin
 | Files and data lake | Cloudflare R2 (S3 API, region `auto`, `gb-staging-*` buckets); SeaweedFS locally. Code uses the S3 API only. The data lake (`gb-lake`) and the model registry (`gb-mlflow`) are on R2 too (ADR-0025) |
 | Road network | OSRM with OpenStreetMap clipped to the Mumbai Metropolitan Region (osmium) |
 | API hosting | Render free web service (Singapore); Render builds the Docker image from the repo; UptimeRobot calls `/v1/health` every 10 minutes to keep it awake (750 free hours a month cover 24×7) |
-| ML service, MLflow, OSRM hosting | ML service + OSRM on a Hugging Face Space (free CPU, Docker); training, forecasts and snapshots in GitHub Actions (`backend/training`); R2 as lake and model registry; MLflow local only (ADR-0025). Locally they run in Docker Compose |
+| ML service, MLflow, OSRM hosting | ML service on a second free Render web service (Docker, `backend/ml/Dockerfile.render`, no OSRM: haversine routing; ADR-0030); training, forecasts and snapshots in GitHub Actions (`backend/training`); R2 as lake and model registry; MLflow local only (ADR-0025). Locally they run in Docker Compose, with OSRM |
 | TLS | By Render and Vercel (no reverse proxy of our own) |
 | Secrets | Infisical (`dev`, `staging`, `prod`), synced to GitHub Actions secrets; `.env.example` committed; gitleaks in CI |
 | Backups | Neon point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow |
@@ -647,7 +647,7 @@ Only `ci.yml` and `claude.yml` exist today; the other workflows are planned and 
 |---|---|---|---|---|
 | Local | Docker Postgres (tests and `just seed` refuse any non-local database) | `just dev`; ML, MLflow, OSRM in Docker Compose | `next dev` / Vite | Vite / Android emulator |
 | Preview (PR) | Shared Neon database (no branch per PR) | Shared staging API | Vercel preview | Debug APK |
-| Staging | Neon (Singapore), one database for the Infisical `dev` and `staging` environments | Render free web service; ML service and OSRM on a Hugging Face Space (ADR-0025) | Vercel | Internal track |
+| Staging | Neon (Singapore), one database for the Infisical `dev` and `staging` environments | Render free web services for the API and the ML service, no OSRM (ADR-0030) | Vercel | Internal track |
 | Production (pilot) | Decided before P6 (Section 19) | Paid plans decided before P6 | Vercel | Internal / closed testing |
 
 ### 10.6 Definitions
@@ -790,7 +790,7 @@ GharBasket uses a **service-based architecture**: one modular monolith plus a sm
 | Auth / push | Firebase Phone Auth + FCM; own JWT sessions (PyJWT, rotating refresh tokens, httpOnly cookies for browsers) | ADR-0024 |
 | Payments | Razorpay (Checkout top-ups, Route; UPI Autopay in the pilot phase) — test mode, own thin client | |
 | Maps / routing | MapLibre + OpenFreeMap/MapTiler; self-hosted OSRM | No Google Maps billing |
-| Hosting | Render (API, Key Value) + Vercel (PWA, console) + Neon + Cloudflare R2; Infisical for secrets | Free tiers, no bill possible (ADR-0020); ML service and OSRM on a Hugging Face Space, training in GitHub Actions, MLflow local only (ADR-0025) |
+| Hosting | Render (API, Key Value) + Vercel (PWA, console) + Neon + Cloudflare R2; Infisical for secrets | Free tiers, no bill possible (ADR-0020); ML service on a second free Render web service, training in GitHub Actions, MLflow local only (ADR-0025, ADR-0030) |
 | CI/CD | GitHub Actions (CI; migrations then the Render deploy hook; job schedule); Docker Compose locally | |
 | Observability | structlog, OpenTelemetry → Grafana Cloud, UptimeRobot, PostHog | |
 | Architecture | Service-based: modular monolith + ML service + scheduled jobs (workers at the pilot) | Not microservices (Section 17) |

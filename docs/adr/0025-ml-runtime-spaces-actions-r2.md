@@ -1,6 +1,6 @@
 # ADR-0025 — ML runtime: serve on Hugging Face Spaces, train in GitHub Actions, store on R2
 
-- **Status:** Accepted (settles the open item in ADR-0020; refines ADR-0021 for minute-level jobs; replaces the MLflow registry wording of handbook 08 §8.2)
+- **Status:** Accepted; the serving host ("one Hugging Face Space") and the rejected alternative "Render free for the ML service" are amended by [ADR-0030](0030-ml-service-on-render-free.md): staging serves the ML service from a free Render web service without OSRM. Everything else stands. (Settles the open item in ADR-0020; refines ADR-0021 for minute-level jobs; replaces the MLflow registry wording of handbook 08 §8.2)
 - **Date:** 2026-10-04
 - **Decision ID:** D25
 
