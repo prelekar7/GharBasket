@@ -367,7 +367,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not is_local_database(url):
         print(f"simulating into the shared database at {host} (data_source synthetic)")
 
-    result = asyncio.run(run(url, args))
+    try:
+        result = asyncio.run(run(url, args))
+    except RealUserOnSimulatorPhone as refused:  # nothing was committed
+        parser.error(str(refused))
     out = args.out or REPO_ROOT / "data" / "sim_truth" / f"seed-{args.seed}"
     manifest = {
         "seed": args.seed,

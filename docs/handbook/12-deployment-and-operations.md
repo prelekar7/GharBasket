@@ -196,7 +196,7 @@ What step 2 does, in order:
 **Safety.**
 - **Two confirmations.** `just seed` and `just sim` write to a non-local database only with both `--allow-remote` and `GB_ALLOW_REMOTE_SEED` equal to that database's host, so a URL pointing at the wrong database stops there. The tools print the host, never the URL or a password.
 - **No double weeks.** A week the simulator already replayed (a locked, skipped or cancelled cycle of a +91 98001 household) is never simulated again. Such a window is refused, and `--add-weeks` simulates only the weeks after the latest one.
-- **No society unlock.** Simulated households count towards their society's unlock (M9 §3.6). If a run would take an `unlocking` society to its threshold, that society would go live for its real households too: `community.society_live` to their owners, and the end of their pre-live fee. Step 1 prints joined + new against the threshold for every `unlocking` society the run adds to, and the script refuses such a run (exit 5). It checks again after the seed.
+- **No society unlock.** Simulated households count towards their society's unlock (M9 §3.6). If a run would take an `unlocking` society to its threshold, that society would go live for its real households too: `community.society_live` to their owners, and the end of their pre-live fee. Step 1 prints joined + new against the threshold for every `unlocking` society the run adds to, and the script refuses such a run (exit 5). It checks again after the seed. This is a check at one point in time: the simulated households stay in the count after the run, so a later threshold recompute (the weekly stop-cost job) or new real households can still tip the society live.
 - **No real account taken over.** On a shared database the simulator refuses a run in which a +91 98001 phone already belongs to a real account. That number may be a stranger's. The refusal comes before anything is committed.
 - **Only its own boxes.** The simulator shows the household only its own draft (`send_box_ready_notices(cycle_ids=…)`), never another household's draft that happens to be in the window.
 - **No pushes.** Simulated people are synthetic accounts. M11's `send_deliveries` skips push and WhatsApp for synthetic accounts outside dev and test (M11 §6), so their messages stay in their inbox and none reaches a phone. That includes a team phone signed in to a seed account.
@@ -209,10 +209,14 @@ What step 2 does, in order:
 
 **What it trains.**
 - The ranker learns from the box edits.
-- The pantry refit learns from the taps: at least 3 tapping households per cohort and product (`MIN_HOUSEHOLDS`), which is why the default is 13 households and not 4.
+- The pantry refit learns from the taps: at least 3 tapping households per cohort and product (`MIN_HOUSEHOLDS`). At the default `--adoption 0.015` that gives priors for 2 of the 3 cohorts (small and medium; the large cohort has 1 household). All 3 need about `--adoption 0.025`, which is about 1.7 times the rows and time.
 - The **forecast cannot be trained from this data.** It models only the uncommitted demand (add-on and tiffin orders), `--write-db` makes box orders only, and its backtest needs about 11 weeks of history. That is a follow-up: add-on and tiffin orders in the simulator.
 
-**If a run fails** part-way, households are left partly simulated: some committed weeks, some not. A rerun of that window is refused, and `--add-weeks` cannot fill a gap before the latest replayed week. Restore from the branch and run again.
+**If a run fails** part-way, households are left partly simulated: some committed weeks, some not. A rerun of that window is refused, and `--add-weeks` cannot fill a gap before the latest replayed week. The run also resumed the simulated subscriptions at its start, and did not reach the pause at its end, so staging's weekly job will draft their boxes again. Either restore from the branch and run again, or at least pause them:
+
+```
+infisical run --env=staging -- sh -c 'psql "$DATABASE_URL_DIRECT" -c "UPDATE subscriptions.subscriptions SET status = '\''paused'\'', paused_until = '\''2099-12-31'\'' WHERE status <> '\''ended'\'' AND household_id IN (SELECT h.id FROM identity.households h JOIN identity.users u ON u.id = h.owner_user_id WHERE u.phone_e164 LIKE '\''+9198001%'\'')"'
+```
 
 **To undo** the load, restore the database's branch. The connection string stays the same.
 - From the restore point's head: `neonctl branches restore <branch> <before-demo branch> --preserve-under-name <name> --project-id <id>`, or the API call the script printed.

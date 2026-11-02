@@ -161,3 +161,22 @@ def test_the_cli_writes_to_a_shared_database_with_both_confirmations(
         sim.main(["--weeks", "1", "--write-db", "--allow-remote"])
 
     assert "simulating into the shared database at ep-x.neon.tech" in capsys.readouterr().out
+
+
+def test_a_real_account_on_a_simulator_phone_is_a_one_line_refusal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABASE_URL_DIRECT", NEON)
+    monkeypatch.setenv("GB_ALLOW_REMOTE_SEED", "ep-x.neon.tech")
+
+    async def refuse(url: str, args: object) -> None:
+        raise sim.RealUserOnSimulatorPhone("+919800100004 is a real account on a shared database")
+
+    monkeypatch.setattr(sim, "run", refuse)
+    with pytest.raises(SystemExit) as exited:
+        sim.main(["--weeks", "1", "--write-db", "--allow-remote"])
+
+    assert exited.value.code == 2
+    err = capsys.readouterr().err
+    assert "error: +919800100004 is a real account on a shared database" in err
+    assert "Traceback" not in err
