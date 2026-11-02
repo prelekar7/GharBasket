@@ -27,7 +27,6 @@ from gharbasket_training.eval.ranker_eval import (
 from gharbasket_training.jobs import train_ranker
 
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.subscriptions.service import MAX_CANDIDATES, MIN_RANKED_WEEKS
 from gharbasket.tools.seed import SEED_HUB_ID
 
 SMALL = {"weeks": 4, "adoption": 0.03}  # a handful of households: quick, the same code path
@@ -102,6 +101,7 @@ def test_every_arm_has_the_metrics_in_both_views(small: RankerRun) -> None:
         assert len({small.value(a, "candidate_coverage", view) for a in arms}) == 1
         assert len({small.value(a, "baskets", view) for a in arms}) == 1
     assert small.households > 0 and small.baskets > 0 and small.holdout_rows > 0
+    assert 0 < small.serving_rows <= small.holdout_rows
     assert set(small.shap_share) == set(ranker.FEATURES)
     assert abs(sum(small.shap_share.values()) - 1) < 0.01
     # Serving offers only the household's own past items: they cover less of the final box.
@@ -135,18 +135,20 @@ def _basket(household: str, week: date) -> ranker.Basket:
 def test_the_serving_view_is_what_m3_sends() -> None:
     week = date(2026, 10, 27)
     ds = _ds([_row(0.5), _row(0.0), _row(1.0, 0.0)], [1, 1, 0], [3])
-    history = [_basket("h", week - timedelta(weeks=k)) for k in range(MIN_RANKED_WEEKS + 1)]
+    history = [_basket("h", week - timedelta(weeks=k)) for k in range(ranker.MIN_RANKED_WEEKS + 1)]
     serve = ranker_eval.serving_view(ds, history)
     # Own past items only (frequency > 0), drafted never set; the basket size is kept.
     assert serve.groups == [2] and serve.labels == [1, 0]
     assert all(row["drafted"] == 0.0 for row in serve.rows)
     assert serve.basket_sizes == ds.basket_sizes
-    # Fewer than MIN_RANKED_WEEKS earlier final boxes: M3 sends nothing.
-    assert ranker_eval.serving_view(ds, history[:MIN_RANKED_WEEKS]).groups == []
-    # At most MAX_CANDIDATES: the most often kept first.
-    many = _ds([_row(0.1)] * MAX_CANDIDATES + [_row(0.9)], [0] * MAX_CANDIDATES + [1], [501])
+    # Fewer than ranker.MIN_RANKED_WEEKS earlier final boxes: M3 sends nothing.
+    assert ranker_eval.serving_view(ds, history[: ranker.MIN_RANKED_WEEKS]).groups == []
+    # At most ranker.MAX_CANDIDATES: the most often kept first.
+    many = _ds(
+        [_row(0.1)] * ranker.MAX_CANDIDATES + [_row(0.9)], [0] * ranker.MAX_CANDIDATES + [1], [501]
+    )
     capped = ranker_eval.serving_view(many, history)
-    assert capped.groups == [MAX_CANDIDATES] and 1 in capped.labels
+    assert capped.groups == [ranker.MAX_CANDIDATES] and 1 in capped.labels
 
 
 def test_the_leak_arms() -> None:
@@ -166,8 +168,8 @@ def test_the_leak_arms() -> None:
         train.basket_sizes,
     )
     assert np.allclose(ranker.predict(model, train), ranker.predict(model, flipped))
-    importance = dict(zip(ranker.FEATURES, model.feature_importance(), strict=True))
-    assert importance.get("drafted", 0) == 0  # (no column at all once it leaves FEATURES)
+    importance: dict[str, int] = dict(zip(ranker.FEATURES, model.feature_importance(), strict=True))
+    assert importance.get("drafted", 0) == 0  # no column at all: it left FEATURES on 2 Nov
 
 
 def _run(seed: int, ndcg_gap: float, *, repeat: float = 0.9) -> RankerRun:

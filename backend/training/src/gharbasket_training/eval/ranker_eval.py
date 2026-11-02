@@ -28,9 +28,11 @@ views and three extra arms show what that is worth:
   leak alone) and `lambdarank_no_drafted` (the same training with `drafted` held at 0, a constant
   LightGBM cannot split on, so the trees are those of a model without it);
 - **serving** (what production sends `POST /basket/rank`: M3's `ranker_candidates` offers only the
-  household's own past items, from its `MIN_RANKED_WEEKS`-th final box on, at most
-  `MAX_CANDIDATES`, and never sets `drafted`): the same holdout baskets, candidates with frequency
-  > 0, `drafted` = 0, scored by the trained models and both baselines.
+  household's own past items, from its `ranker.MIN_RANKED_WEEKS`-th final box on, at most
+  `ranker.MAX_CANDIDATES`, and never sets `drafted`): the same holdout baskets through the job's
+  own `ranker.serving` (candidates with frequency > 0, `drafted` = 0), scored by the trained models
+  and both baselines. Since `drafted` left the features (2 Nov 2026), `lambdarank` and
+  `lambdarank_no_drafted` coincide; both are kept for history.
 
 Leak diagnostics per seed: P(final | drafted) and P(final | not drafted) over the holdout
 candidates, the share of positives drafted, the true and the rebuilt draft size, and the fewest
@@ -52,7 +54,6 @@ import hashlib
 import json
 import sys
 import time
-from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -67,7 +68,6 @@ from gharbasket_sim.pantry import price_of, weekly_prices
 from gharbasket_sim.weeks import PLANNERS, cached, simulate
 
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.subscriptions.service import MAX_CANDIDATES, MIN_RANKED_WEEKS
 from gharbasket.tools.seed import SEED_DELIVERY_WEEKDAY, SEED_HUB_ID
 from gharbasket_training import ranker
 from gharbasket_training.eval.stats import Estimate, estimate
@@ -111,8 +111,9 @@ class RankerRun:
     planner: str
     baskets: int  # approved or locked baskets, every week
     train_rows: int
-    holdout_rows: int
+    holdout_rows: int  # candidates in the holdout view (`build`'s), counted here, not the card's
     metrics: dict[str, dict[str, float]]  # holdout view: arm → metric
+    serving_rows: int = 0  # candidates in the serving view (what the job's SHAP now covers)
     serving: dict[str, dict[str, float]] = field(default_factory=dict)  # serving view
     leak: dict[str, float] = field(default_factory=dict)  # `LEAK` diagnostics
     shap_share: dict[str, float] = field(default_factory=dict)  # feature → mean |SHAP| share
@@ -227,33 +228,10 @@ def drafted_box_scores(ds: ranker.Dataset) -> np.ndarray:
 
 
 def serving_view(ds: ranker.Dataset, baskets: list[ranker.Basket]) -> ranker.Dataset:
-    """The holdout baskets as production would rank them (M3's `ranker_candidates`): only the
-    household's own past items (frequency > 0), only once it has `MIN_RANKED_WEEKS` earlier final
-    boxes, at most `MAX_CANDIDATES` (the most often, then most recently, kept), `drafted` never
-    set. A basket's size (for coverage) stays its final box's."""
-    weeks: dict[str, list[date]] = defaultdict(list)
-    for b in baskets:
-        weeks[b.household].append(b.week)
-    out, start = ranker.Dataset(), 0
-    for size, basket_size in zip(ds.groups, ds.basket_sizes, strict=True):
-        idx = range(start, start + size)
-        start += size
-        household, week, _ = ds.keys[idx[0]]
-        if sum(w < week for w in weeks[household]) < MIN_RANKED_WEEKS:
-            continue
-        own = [i for i in idx if ds.rows[i]["frequency"] > 0]
-        if len(own) > MAX_CANDIDATES:
-            row = ds.rows
-            kept = sorted(own, key=lambda i: (-row[i]["frequency"], row[i]["weeks_since"], i))
-            own = sorted(kept[:MAX_CANDIDATES])
-        if not own:
-            continue
-        out.rows += [{**ds.rows[i], "drafted": 0.0} for i in own]
-        out.labels += [ds.labels[i] for i in own]
-        out.keys += [ds.keys[i] for i in own]
-        out.groups.append(len(own))
-        out.basket_sizes.append(basket_size)
-    return out
+    """The holdout baskets as production would rank them: the job's own `ranker.serving` (M3's
+    `ranker_candidates`: own past items, from the `ranker.MIN_RANKED_WEEKS`-th earlier final box,
+    at most `ranker.MAX_CANDIDATES`, `drafted` never set), so the arm and the job's card agree."""
+    return ranker.serving(ds, baskets)
 
 
 def leak(ds: ranker.Dataset, baskets: list[ranker.Basket], drafts: list[int]) -> dict[str, float]:
@@ -322,8 +300,9 @@ def run_ranker(
         planner=planner,
         baskets=len(baskets),
         train_rows=int(trained.card["train_rows"]),
-        holdout_rows=int(ex.get("rows", 0)),
+        holdout_rows=len(test.rows),
         metrics={arm: metrics[arm] for arm in VIEWS["holdout"]},
+        serving_rows=len(serve.rows),
         serving=serving,
         leak=leak(test, baskets, drafts),
         shap_share=dict(ex.get("mean_abs_shap_share", {})),
@@ -417,8 +396,9 @@ def settings(runs: list[RankerRun]) -> dict[str, Any]:
         "features": list(ranker.FEATURES),
         "k_neighbours": ranker.K_NEIGHBOURS,
         "neighbour_items": ranker.NEIGHBOUR_ITEMS,
-        "serving": f"own past items (frequency > 0), from {MIN_RANKED_WEEKS} earlier final boxes, "
-        f"at most {MAX_CANDIDATES}, drafted = 0 (subscriptions.service.ranker_candidates)",
+        "serving": "own past items (frequency > 0), from "
+        f"{ranker.MIN_RANKED_WEEKS} earlier final boxes, at most {ranker.MAX_CANDIDATES}, "
+        "drafted = 0 (ranker.serving, as M3 sends)",
         "explain_method": ranker.EXPLAIN_METHOD,
         "ranker_sha256": hashlib.sha256(Path(ranker.__file__).read_bytes()).hexdigest(),
     }

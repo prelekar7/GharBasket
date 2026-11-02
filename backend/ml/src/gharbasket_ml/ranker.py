@@ -32,10 +32,12 @@ from gharbasket_ml.schemas import (
 
 log = logging.getLogger(__name__)
 
+# The training job's features, in its order. `drafted` was dropped on 2 Nov 2026 (eval protocol
+# §7: rebuilt from the final box, a label leak); a model trained with it is refused (BadModel),
+# so the last good model or the fallback answers. Requests may still carry `drafted`: ignored.
 FEATURES = (
     "weeks_since",
     "frequency",
-    "drafted",
     "removed_last",
     "popularity",
     "price_paise",
@@ -133,7 +135,6 @@ def _row(c: RankCandidate) -> list[float]:
     return [
         min(float(c.weeks_since), WEEKS_SINCE_NEVER),
         float(c.frequency),
-        float(c.drafted),
         float(c.removed_last),
         float(c.popularity),
         float(c.price_paise),

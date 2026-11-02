@@ -4,7 +4,8 @@ the prefix, as `train_ranker --out` and `refit_pantry --out` write it). The same
 back to an older version.
 
 Champion/challenger: a version is promoted only when its card says it beats its baseline out of
-sample (the basket ranker: NDCG@10 above both baselines; the pantry priors: a held-out tap log
+sample (the basket ranker: NDCG@10 above both baselines under serving conditions, on a card with
+the served features; the pantry priors: a held-out tap log
 score above the rule table's on the same held-out taps); `--force` promotes anyway and records it
 in the pointer.
 
@@ -31,6 +32,7 @@ from typing import Any
 
 import httpx2
 
+from gharbasket_training import ranker
 from gharbasket_training.lake import Registry, open_registry
 from gharbasket_training.pantry_priors import beats_rule_table
 from gharbasket_training.settings import Settings
@@ -66,10 +68,27 @@ def card(registry: Registry, model: str, version: str) -> dict[str, Any]:
     return json.loads(body) if body else {}
 
 
+def _ranker_card_stale(document: dict[str, Any]) -> str | None:
+    """Why a basket ranker card cannot be judged (None when it can): a card from before 2 Nov 2026
+    lists other features (with `drafted`, which the ML service now refuses) and scored its holdout
+    on the training candidates, not under serving conditions (eval protocol §7)."""
+    features = document.get("features")
+    if features != list(ranker.FEATURES):
+        return f"the card's features {features} are not the served {list(ranker.FEATURES)}"
+    if document.get("holdout_view") != ranker.HOLDOUT_VIEW:
+        return "the card's holdout was not scored under serving conditions"
+    return None
+
+
 def challenge(model: str, document: dict[str, Any], *, force: bool) -> str:
-    """The champion/challenger check: the reason, or SystemExit unless `force`."""
+    """The champion/challenger check: the reason, or SystemExit unless `force`. A basket ranker
+    card of an older format (other features, or a holdout not scored under serving conditions)
+    is refused before its metrics are read."""
     metrics = document.get("metrics") or {}
     beats, why = (_ranker_beats if model == "basket_ranker" else beats_rule_table)(metrics)
+    stale = _ranker_card_stale(document) if model == "basket_ranker" else None
+    if stale is not None:
+        beats, why = False, f"{stale}; {why}"
     if not beats and not force:
         raise SystemExit(f"not promoted: {why}; pass --force to promote it anyway")
     return why if beats else f"forced: {why}"

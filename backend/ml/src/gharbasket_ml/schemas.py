@@ -567,7 +567,13 @@ class RankCandidate(BaseModel):
         ),
     )
     frequency: float = Field(ge=0, le=1, description="Share of past weeks it was bought")
-    drafted: bool = False
+    drafted: bool = Field(
+        default=False,
+        description=(
+            "Ignored: not a model feature since 2 Nov 2026 (a label leak in training, and M3 "
+            "ranks before the draft exists); accepted so existing callers stay valid."
+        ),
+    )
     removed_last: bool = False
     popularity: float = Field(default=0, ge=0, le=1, description="Share of households last week")
     price_paise: int = Field(default=0, ge=0)

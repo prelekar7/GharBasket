@@ -345,7 +345,8 @@ def test_shap_contributions_add_up_to_the_score_and_the_artefact_is_deterministi
     assert first["rows"] == len(test.rows) and first["baskets"] == len(test.groups)
     assert set(first["mean_abs_shap"]) == set(ranker.FEATURES)
     assert abs(sum(first["mean_abs_shap_share"].values()) - 1) < 0.01
-    assert first["mean_abs_shap"]["drafted"] > 0 or first["mean_abs_shap"]["frequency"] > 0
+    assert "drafted" not in first["mean_abs_shap"]  # dropped: a label leak (§7, 2 Nov 2026)
+    assert sum(first["mean_abs_shap"].values()) > 0
     assert len(first["decisions"]) == 10
     json.dumps(first)  # an artefact: plain JSON types only
     for d in first["decisions"]:
@@ -358,7 +359,7 @@ def test_shap_contributions_add_up_to_the_score_and_the_artefact_is_deterministi
 
 
 def test_top_contributions_order_by_size_and_break_ties_in_feature_order() -> None:
-    top = ranker.top_contributions([0.1, -0.5, 0.0, 0.0, 0.5, 0.0], [1, 2, 3, 4, 5, 6])
+    top = ranker.top_contributions([0.1, -0.5, 0.0, 0.5, 0.0], [1, 2, 3, 4, 5])
     assert [(t["feature"], t["contribution"]) for t in top] == [
         ("frequency", -0.5),
         ("popularity", 0.5),
@@ -491,3 +492,104 @@ async def test_the_job_reads_cycles_boxes_edits_and_prices(db_session: AsyncSess
     assert {b.data_source for b in baskets} == {"synthetic"}
     book = ranker.price_book(tables["prices"])
     assert all(book.as_of(b.hub, b.as_of or b.week, p) > 0 for b in baskets for p in b.final)
+
+
+def test_the_serving_view_is_what_m3_sends() -> None:
+    """`ranker.serving`: M3's `ranker_candidates` (own past items, from the household's 2nd
+    earlier final box, at most 500, `drafted` never set), with M3's own numbers."""
+    from gharbasket.modules.subscriptions import service as m3
+
+    assert (ranker.MIN_RANKED_WEEKS, ranker.MAX_CANDIDATES) == (
+        m3.MIN_RANKED_WEEKS,
+        m3.MAX_CANDIDATES,
+    )
+    assert "drafted" not in ranker.FEATURES  # rebuilt from the final box: a label leak
+    history = [
+        basket("h", 0, {"milk", "dal"}),
+        basket("h", 1, {"milk"}),
+        basket("h", 2, {"milk", "chikoo"}, drafted={"milk", "chikoo", "palak"}),
+        basket("g", 0, {"rice"}),
+        basket("g", 1, {"rice", "chikoo"}),
+    ]
+    _, test = ranker.build(history, holdout_last=True)
+    served = ranker.serving(test, history)
+    # g's holdout comes after one final box only: M3 sends nothing for it yet.
+    assert {k[0] for k in served.keys} == {"h"} and len(served.groups) == 1
+    # h: only items it kept before (milk, dal); the drafted chikoo and palak are not offered.
+    assert sorted(k[2] for k in served.keys) == ["dal", "milk"]
+    assert all(row["drafted"] == 0.0 for row in served.rows)
+    assert served.basket_sizes == [2]  # coverage still counts chikoo, which serving misses
+    scores = ranker.evaluate(served, np.zeros(len(served.rows)))
+    assert scores["candidate_coverage"] == 0.5
+    # At most MAX_CANDIDATES: the most often kept first.
+    many = ranker.Dataset(
+        [{"frequency": 0.1, "weeks_since": 1.0, "drafted": 1.0}] * ranker.MAX_CANDIDATES
+        + [{"frequency": 0.9, "weeks_since": 1.0, "drafted": 1.0}],
+        [0] * ranker.MAX_CANDIDATES + [1],
+        [ranker.MAX_CANDIDATES + 1],
+        [("h", START + timedelta(weeks=2), f"p{i}") for i in range(ranker.MAX_CANDIDATES + 1)],
+        [1],
+    )
+    capped = ranker.serving(many, history)
+    assert capped.groups == [ranker.MAX_CANDIDATES] and capped.labels[-1] == 1
+
+
+def test_the_card_and_the_gate_score_under_serving_conditions() -> None:
+    tables = simulated_rows(weeks=5, households=12)
+    (t,) = train_ranker.fit(tables, "2026-11-02")
+    baskets = baskets_of(tables)
+    _, test = ranker.build(baskets, holdout_last=True, prices=ranker.price_book(tables["prices"]))
+    served = ranker.serving(test, baskets)
+    assert served.groups
+    assert t.card["metrics"] == train_ranker.scores(t.model, served)
+    assert t.card["metrics_build_candidates"] == train_ranker.scores(t.model, test)
+    assert "serving" in t.card["holdout"] and t.card["features"] == list(ranker.FEATURES)
+    assert t.card["holdout_view"] == ranker.HOLDOUT_VIEW == "serving"
+    assert t.explanations["data"] == "holdout" and t.explanations["rows"] == len(served.rows)
+    assert list(t.model.feature_name()) == list(ranker.FEATURES)
+    # The gate reads the serving metrics: a model that loses to top frequency there is refused.
+    current = {"features": list(ranker.FEATURES), "holdout_view": ranker.HOLDOUT_VIEW}
+    losing = {
+        "lambdarank": {"ndcg_at_10": 0.99},
+        "repeat_last_week": {"ndcg_at_10": 0.96},
+        "top_frequency": {"ndcg_at_10": 0.996},
+    }
+    with pytest.raises(SystemExit, match="not promoted"):
+        promote.challenge("basket_ranker", current | {"metrics": losing}, force=False)
+    winning = losing | {"lambdarank": {"ndcg_at_10": 0.999}}
+    assert promote.challenge(
+        "basket_ranker", current | {"metrics": winning}, force=False
+    ).startswith("lambdarank NDCG@10 0.9990 >")
+
+
+def test_the_gate_refuses_an_old_format_ranker_card_unless_forced(tmp_path: Path) -> None:
+    """A card from before 2 Nov 2026 (features with `drafted`, a holdout on the training
+    candidates) is refused whatever its metrics say; `--force` still overrides."""
+    winning = {
+        "lambdarank": {"ndcg_at_10": 0.999},
+        "repeat_last_week": {"ndcg_at_10": 0.96},
+        "top_frequency": {"ndcg_at_10": 0.996},
+    }
+    old_features = [*ranker.FEATURES[:2], "drafted", *ranker.FEATURES[2:]]
+    for card, reason in (
+        ({"features": old_features, "holdout_view": "serving"}, "features"),
+        ({"features": list(ranker.FEATURES)}, "serving conditions"),  # no holdout_view
+        ({"features": list(ranker.FEATURES), "holdout_view": "build"}, "serving conditions"),
+        ({}, "features"),  # a v0 card without the fields at all
+    ):
+        with pytest.raises(SystemExit, match=f"not promoted: .*{reason}"):
+            promote.challenge("basket_ranker", card | {"metrics": winning}, force=False)
+        forced = promote.challenge("basket_ranker", card | {"metrics": winning}, force=True)
+        assert forced.startswith("forced: ") and reason in forced
+    # The pantry priors are not judged on a ranker's card format.
+    assert "features" not in promote.challenge("pantry_priors", {"metrics": {}}, force=True)
+    # Through the registry: an old card written next to its model is refused by `promote`.
+    registry = open_registry(Settings(), tmp_path)
+    registry.lake.write_bytes(registry.key("basket_ranker", "old", "model.txt"), b"tree")
+    registry.lake.write_bytes(
+        registry.key("basket_ranker", "old", "card.json"),
+        json.dumps({"features": old_features, "metrics": winning}).encode(),
+    )
+    with pytest.raises(SystemExit, match="features"):
+        promote.promote(registry, "basket_ranker", "old")
+    assert not (tmp_path / "basket_ranker/latest.json").exists()

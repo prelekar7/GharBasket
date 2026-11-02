@@ -42,10 +42,10 @@ def candidates() -> RankRequest:
 def tiny_registry(
     root: Path, version: str = "v1", features: tuple[str, ...] = ranker.FEATURES
 ) -> Path:
-    """A LambdaRank model that prefers drafted items, saved the way the training job does."""
+    """A LambdaRank model that prefers frequent items, saved the way the training job does."""
     rng = np.random.default_rng(7)
     x = rng.random((40, len(features)))
-    y = (x[:, 2] > 0.5).astype(int)  # the "drafted" column decides
+    y = (x[:, features.index("frequency")] > 0.5).astype(int)  # frequency decides
     data = lgb.Dataset(x, label=y, group=[10, 10, 10, 10], feature_name=list(features))
     booster = lgb.train(
         {"objective": "lambdarank", "verbose": -1, "min_data_in_leaf": 2, "num_threads": 1},
@@ -94,8 +94,8 @@ def test_a_ranked_item_carries_its_top_three_shap_features(tmp_path: Path) -> No
         assert [t.feature for t in top] == [f for f, _ in expected[:3]]
         assert [t.contribution for t in top] == [round(float(c), 4) for _, c in expected[:3]]
         assert abs(top[0].contribution) >= abs(top[-1].contribution)
-    # the tiny model splits on "drafted"; the explanation of a drafted item leads with it
-    assert answer.ranked[0].top_features[0].feature == "drafted"  # pyright: ignore[reportOptionalSubscript]
+    # the tiny model splits on "frequency"; the explanation of a frequent item leads with it
+    assert answer.ranked[0].top_features[0].feature == "frequency"  # pyright: ignore[reportOptionalSubscript]
 
 
 def test_the_fallback_has_no_explanation_and_the_old_fields_are_unchanged() -> None:
@@ -177,11 +177,41 @@ def test_a_corrupt_model_file_falls_back(tmp_path: Path) -> None:
 
 
 def test_a_model_with_other_features_is_not_served(tmp_path: Path) -> None:
-    """A v0 model trained with `drafted_rule` (seven features) must not be fed six columns."""
+    """A model trained with another feature (here `drafted_rule`) is never fed the wrong
+    columns."""
     old = (*ranker.FEATURES[:3], "drafted_rule", *ranker.FEATURES[3:])
     root = tiny_registry(tmp_path, features=old)
     assert ranker.load(root) is None
     assert ranker.rank(candidates(), root).source == "fallback"
+
+
+def test_a_model_trained_with_drafted_is_refused_and_drafted_is_ignored(tmp_path: Path) -> None:
+    """`drafted` left the features on 2 Nov 2026 (a label leak): a model trained with the old six
+    features is never fed five columns. With nothing else promoted the fallback answers; after a
+    good model, the pointer moved to an old one keeps the good one serving."""
+    assert "drafted" not in ranker.FEATURES
+    old = (*ranker.FEATURES[:2], "drafted", *ranker.FEATURES[2:])  # the old order
+    stale = tiny_registry(tmp_path / "stale", "old", features=old)
+    assert ranker.load(stale) is None
+    assert ranker.rank(candidates(), stale).source == "fallback"
+
+    root = tiny_registry(tmp_path / "root", "v1")
+    assert ranker.rank(candidates(), root).model == "basket_ranker-v1"
+    tiny_registry(root, "old", features=old)  # promoted: the pointer now names it
+    loaded = ranker.load(root, force=True)
+    assert loaded is not None and loaded.version == "v1"
+    # A request that still says `drafted` is accepted, and `drafted` does not move the score.
+    with_draft = ranker.rank(candidates(), root)
+    plain = RankRequest.model_validate(
+        {
+            "candidates": [c.model_dump() | {"drafted": False} for c in candidates().candidates],
+            "top_k": 2,
+        }
+    )
+    assert [(r.product, r.score) for r in ranker.rank(plain, root).ranked] == [
+        (r.product, r.score) for r in with_draft.ranked
+    ]
+    assert len(ranker._row(candidates().candidates[0])) == len(ranker.FEATURES)
 
 
 def test_a_failing_predict_falls_back(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
