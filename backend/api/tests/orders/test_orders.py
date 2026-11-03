@@ -314,6 +314,44 @@ async def test_addons_are_priced_now_versioned_and_refused_after_the_cutoff(
     assert cancel_late.json()["code"] == "orders.cutoff_passed"
 
 
+async def test_an_add_on_line_is_uncommitted_demand_wherever_it_rides() -> None:
+    # ADR-0031 (M10 §3.6): add-on lines and tiffins are uncommitted; a box's own lines are not.
+    assert orders_api.demand_kind("box", "box") == "box"
+    assert orders_api.demand_kind("box", "addon") == "addon"
+    assert orders_api.demand_kind("addon", "addon") == "addon"
+    assert orders_api.demand_kind("tiffin", "box") == "tiffin"
+    assert orders_api.UNCOMMITTED_KINDS == ("addon", "tiffin")
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_sold_lines_carry_the_line_kind_so_a_box_add_on_counts_as_an_add_on(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    _, priya_id = await as_user(api, google, PRIYA)
+    vikram, _ = await as_user(api, google, VIKRAM)
+    slot = await make_slot(api, vikram)
+    household = await identity_api.household_for_user(db_session, priya_id)
+    assert household is not None
+    order = await orders_api.create_from_cycle(
+        db_session, await approved_cycle(db_session, household, uuid.UUID(slot["id"]), "tomato")
+    )
+    ids = await catalog_api.product_ids_by_slug(db_session, ["paneer", "tomato"])
+    await service.set_addons(db_session, order, {ids["paneer"]: 2}, expected_version=1)
+    assert await orders_api.sold_lines(db_session, SEED_HUB_ID, DELIVERY) == []  # not locked
+    await orders_api.transition(db_session, order.id, "locked", actor="system")
+
+    sold = {
+        line.product_id: line
+        for line in await orders_api.sold_lines(db_session, SEED_HUB_ID, DELIVERY)
+    }
+
+    tomato, paneer = sold[ids["tomato"]], sold[ids["paneer"]]
+    assert (tomato.order_kind, tomato.line_kind, tomato.demand_kind) == ("box", "box", "box")
+    assert (paneer.order_kind, paneer.line_kind, paneer.demand_kind) == ("box", "addon", "addon")
+    assert paneer.qty == 2
+
+
 @time_machine.travel(NOW, tick=False)
 async def test_cancel_frees_the_slot_and_locked_orders_cannot_be_cancelled(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession

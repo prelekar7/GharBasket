@@ -14,8 +14,10 @@ from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("societies")]
 
 IST = ZoneInfo("Asia/Kolkata")
-TUESDAY = date(2026, 11, 3)
-AT = datetime(2026, 11, 3, 23, 50, tzinfo=IST)  # late on Tuesday IST, Tuesday evening UTC
+# A Tuesday in the past: the seed marks its live societies live "now", so on the day itself
+# (it was 3 Nov 2026) another seed society went live too and joined the facts.
+TUESDAY = date(2026, 9, 1)
+AT = datetime(2026, 9, 1, 23, 50, tzinfo=IST)  # late on Tuesday IST, Tuesday evening UTC
 
 
 def _donation(status: str, items: list[dict[str, object]], **values: object) -> Donation:
