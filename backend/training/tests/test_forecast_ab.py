@@ -68,6 +68,44 @@ def test_the_demand_is_add_ons_and_tiffins_seeded_and_grounded_in_the_simulator(
     assert tomato[pd.Timestamp(start)] == 1.0
 
 
+def test_add_ons_ride_on_the_weeks_ordered_and_funded_box_as_production_places_them(
+    catalog: Catalog,
+) -> None:
+    # ADR-0031: an add-on is a line on the week's box, so only where M4 would take it.
+    from gharbasket_sim.households import sample
+    from gharbasket_sim.weeks import PLANNERS, cached, simulate
+
+    from gharbasket.modules.orders.api import MAX_ADDON_LINES, MAX_ADDON_QTY
+    from gharbasket.tools.seed import SEED_DELIVERY_WEEKDAY
+
+    shocks, start, weeks = config.load_shocks(), forecast_ab.START, 6
+    lines, _, _ = forecast_ab.demand(
+        7, catalog, weeks=weeks, start=start, adoption=0.02, shocks=shocks
+    )
+    addons = lines[lines["order_kind"] == "addon"]
+    assert not addons.empty
+    plan = cached(PLANNERS["rules"])
+    lost = 0
+    for h in sample(7, config.load(), catalog, 0.02):
+        rows = simulate(7, h, catalog, start, weeks, plan, shocks)
+        for box in rows.boxes:
+            w = box["week"]
+            mine = cast(pd.DataFrame, addons[addons["order_id"] == f"{h.key}-{w}-box"])
+            usable = box["ordered"] and forecast_ab.funded(7, h.key, w)
+            short = [p for p in rows.pantry if p["week"] == w and p["bought_elsewhere"] > 0]
+            if not usable:
+                assert mine.empty  # a skipped or unfunded week has no box to ride on
+                lost += len(short)
+                continue
+            on_box = {line["product"] for line in rows.box_lines if line["week"] == w}
+            assert not set(mine["product_id"]) & on_box  # M4 refuses a box line as an add-on
+            assert len(mine) <= MAX_ADDON_LINES and (mine["qty"] <= MAX_ADDON_QTY).all()
+            assert mine["product_id"].is_unique
+            day = start + timedelta(weeks=w, days=SEED_DELIVERY_WEEKDAY)
+            assert (mine["delivery_date"] == day).all()  # the box's day
+    assert lost > 0  # the seed has skipped or unfunded weeks with shortfalls
+
+
 def test_the_backtest_scores_v0_v1_and_the_champion_on_the_same_windows(
     small: list[ForecastRun],
 ) -> None:

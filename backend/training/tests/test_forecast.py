@@ -534,12 +534,13 @@ def test_the_cli_documents_its_flags(capsys: pytest.CaptureFixture[str]) -> None
 
 @pytest.mark.anyio
 @pytest.mark.services
-async def test_the_job_reads_sold_lines_by_order_kind_and_m6_reads_a_delivery_day(
+async def test_the_job_reads_sold_lines_by_demand_kind_and_m6_reads_a_delivery_day(
     db_session: AsyncSession,
 ) -> None:
     from gharbasket_sim.run import simulate_world
     from sqlalchemy import select
 
+    from gharbasket.modules.catalog.models import Product
     from gharbasket.modules.intel_gateway import api as gateway
     from gharbasket.modules.intel_gateway.router import ForecastsIn, put_forecasts
     from gharbasket.modules.orders.models import Order, OrderLine
@@ -587,27 +588,52 @@ async def test_the_job_reads_sold_lines_by_order_kind_and_m6_reads_a_delivery_da
     cancelled, real = order("addon", "cancelled"), order("addon", "delivered", "real")
     db_session.add_all([addon, refunded, cancelled, real])
     await db_session.flush()
-    for o in (addon, refunded, cancelled, real):
+    extra = (  # a product no order has sold yet
+        await db_session.execute(
+            select(Product.id)
+            .where(Product.id.not_in(select(OrderLine.product_id)))
+            .order_by(Product.slug)
+            .limit(1)
+        )
+    ).scalar_one()
+
+    def add(o: Order, kind: str, product: object = line.product_id) -> None:
         db_session.add(
             OrderLine(
                 order_id=o.id,
-                product_id=line.product_id,
-                kind="addon",  # the line kind of an add-on order and of a box order's add-on
+                product_id=product,
+                kind=kind,
                 qty=3,
                 step_qty=line.step_qty,
                 step_unit=line.step_unit,
                 unit_price_paise=0,
             )
         )
+
+    add(addon, "addon")  # the line kind of an add-on order
+    add(refunded, "box")  # a tiffin's line is its main line (M4 §3.5)
+    add(cancelled, "addon")
+    add(real, "addon")
+    add(box, "addon", extra)  # an add-on riding on the box (M4 §3.5)
     await db_session.flush()
 
     frame = await job.order_lines(db_session, "synthetic")
 
-    kinds = dict(zip(frame["order_id"], frame["order_kind"], strict=True))
-    assert kinds[str(addon.id)] == "addon" and kinds[str(refunded.id)] == "tiffin"
-    assert kinds[str(box.id)] == "box"  # classified by the order, not the line
-    assert str(cancelled.id) not in kinds and str(real.id) not in kinds
+    kinds: dict[tuple[str, str], str] = {
+        (o, p): k
+        for o, p, k in zip(frame["order_id"], frame["product_id"], frame["order_kind"], strict=True)
+    }
+    assert kinds[str(addon.id), str(line.product_id)] == "addon"
+    assert kinds[str(refunded.id), str(line.product_id)] == "tiffin"
+    # On the box order: its box lines are committed, its add-on line uncommitted (ADR-0031).
+    assert kinds[str(box.id), str(line.product_id)] == "box"
+    assert kinds[str(box.id), str(extra)] == "addon"
+    orders = {o for o, _ in kinds}
+    assert str(cancelled.id) not in orders and str(real.id) not in orders
     assert (await job.order_lines(db_session, "pilot"))["order_id"].tolist() == [str(real.id)]
+    week = forecast.weekly_series(frame, forecast.monday_of(box.delivery_date))
+    extra_week = week[(week["product_id"] == str(extra)) & (week["hub_id"] == str(box.hub_id))]
+    assert (extra_week["uncommitted"].sum(), extra_week["committed"].sum()) == (3, 0)
 
     today = forecast.monday_of(box.delivery_date) + timedelta(weeks=1)  # the next Monday
     series = forecast.weekly_series(frame, forecast.last_complete_week(today))

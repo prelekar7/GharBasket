@@ -1,16 +1,18 @@
 """Demand forecast v0/v1 with newsvendor procurement quantities (handbook 08 M-E, M10 §3.6).
 
 Committed demand is known exactly at the cut-off (the locked boxes); the forecast is for the
-**uncommitted** part — add-on and tiffin orders — per hub x product x delivery day. With v0's
+**uncommitted** part — add-on lines and tiffin orders — per hub x product x delivery day. With v0's
 data (the simulator) the uncommitted series are sparse, so the models are the intermittent-demand
 ones next to AutoETS and the two baselines.
 
 - Series: weekly buckets (the Monday of each delivery week) per hub x product from the orders
-  that have passed `locked` (every status after it, delivered or not); `committed` = the lines of
-  box orders, `uncommitted` = the lines of add-on and tiffin orders (by `Order.kind`). Only
-  complete weeks count: the run's current week is still filling, so it is left out of training
-  and of `committed`. Every series runs to the run's last complete week (zeros where nothing was
-  sold); a series with no sales in the last `STALE_WEEKS` weeks is dropped (a stopped product).
+  that have passed `locked` (every status after it, delivered or not); `uncommitted` = add-on
+  lines, wherever they ride (add-ons ride on boxes, M4 §3.5), and the lines of tiffin orders;
+  `committed` = the other lines of box orders (ADR-0031; `order_kind` of a line is what it counts
+  as, `orders.api.demand_kind`). Only complete weeks count: the run's current week is still
+  filling, so it is left out of training and of `committed`. Every series runs to the run's last
+  complete week (zeros where nothing was sold); a series with no sales in the last
+  `STALE_WEEKS` weeks is dropped (a stopped product).
 - Models (StatsForecast): AutoETS, CrostonOptimized, SeasonalNaive(4) and Naive ("buy last
   week"); the protocol's baselines (SeasonalNaive, Naive) compete for champion like the others.
 - v1 adds a global LightGBM per hub (one booster over every series of the hub; the series id is

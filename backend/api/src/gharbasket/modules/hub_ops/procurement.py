@@ -122,8 +122,9 @@ def quantities(
     placed_addons: Decimal = ZERO,
 ) -> tuple[str, Decimal, Decimal]:
     """(basis, buffer_qty, suggested_qty) of one line, by §3.3's rules. `placed_addons` is the
-    part of `committed` that came from add-on orders: M10's uncommitted demand counts those orders
-    too, so the forecast buffer is only what is still expected beyond them."""
+    part of `committed` that came from add-on lines (on box orders or add-on orders): M10's
+    uncommitted demand counts those lines too (ADR-0031), so the forecast buffer is only what is
+    still expected beyond them."""
     basis, buffer = (
         ("buffer", committed * buffer_pct / 100)
         if qtau is None
@@ -223,8 +224,9 @@ async def _last_costs(
 async def _demand_by_kind(
     session: AsyncSession, hub_id: uuid.UUID, day: date, statuses: tuple[str, ...]
 ) -> dict[str, dict[uuid.UUID, Decimal]]:
-    """Steps not short of each line's current product (a substitute counts as itself), by the
-    order's kind."""
+    """Steps not short of each line's current product (a substitute counts as itself), by what
+    the line counts as for M10 (`orders.api.demand_kind`, ADR-0031): `addon` for an add-on line,
+    on a box order or an add-on order, else `box`."""
     found: dict[str, dict[uuid.UUID, Decimal]] = {
         kind: defaultdict(Decimal) for kind in ORDER_KINDS
     }
@@ -232,9 +234,8 @@ async def _demand_by_kind(
         for line in order.lines:
             steps = line.qty - (line.shortage_qty or 0)
             if steps > 0:
-                found[order.order.kind][line.product_id] += to_ops(
-                    steps, line.step_qty, line.step_unit
-                )
+                kind = orders_api.demand_kind(order.order.kind, line.kind)
+                found[kind][line.product_id] += to_ops(steps, line.step_qty, line.step_unit)
     return found
 
 
@@ -314,7 +315,13 @@ async def build(
     session: AsyncSession, hub_id: uuid.UUID, day: date, *, existing_only: bool = False
 ) -> tuple[ProcurementPlan | None, str]:
     """Build the hub's plan for `day`, or rebuild it (§3.3). Returns the plan (None when
-    `existing_only` and there is none) and what happened: built, rebuilt, unchanged, closed."""
+    `existing_only` and there is none) and what happened: built, rebuilt, unchanged, closed.
+
+    After `day`'s cut-off (the T-1 21:10 build and later) its orders are final: every add-on is
+    placed (M4 refuses add-ons after the cut-off) and M10's uncommitted demand for a stocked
+    product is add-on lines only (ADR-0031), so each line takes the rule buffer, with the placed
+    add-ons in `committed`; the forecast's numbers are kept on the line for reference. Before the
+    cut-off (a plan built ahead) the forecast is the buffer, less the add-ons already placed."""
     hub = await service.get_hub(session, hub_id, for_update=True)  # one build per hub at a time
     plan = await session.scalar(
         select(ProcurementPlan)
@@ -327,12 +334,17 @@ async def build(
         return plan, "closed"
     committed_by_kind = await _demand_by_kind(session, hub.id, day, COMMITTED)
     committed = _sum_demand(committed_by_kind)
-    placed_addons = committed_by_kind["addon"]  # also in M10's uncommitted demand, so not twice
+    # Add-on lines (on box orders too) are also in M10's uncommitted demand: not counted twice.
+    placed_addons = committed_by_kind["addon"]
     at_risk = _sum_demand(await _demand_by_kind(session, hub.id, day, AT_RISK))
     forecast = await _forecast_for(session, hub.id, day)
     items = {uuid.UUID(str(i["product_id"])): i for i in (forecast or {}).get("items", [])}
+    final = datetime.now(UTC) >= orders_api.cutoff_for(day)  # the day's orders are all in
     wanted = {*committed, *at_risk}
-    wanted |= {p for p, i in items.items() if i["uncommitted_q50"] > 0 or i["uncommitted_qtau"] > 0}
+    if not final:  # a product only the forecast expects is worth a line until the cut-off
+        wanted |= {
+            p for p, i in items.items() if i["uncommitted_q50"] > 0 or i["uncommitted_qtau"] > 0
+        }
     lines = (
         {} if plan is None else {line.product_id: line for line in await lines_of(session, plan.id)}
     )
@@ -384,7 +396,7 @@ async def build(
         line.forecast_qtau = None if item is None else to_ops(item["uncommitted_qtau"], *step)
         line.basis, line.buffer_qty, line.suggested_qty = quantities(
             line.committed_qty,
-            line.forecast_qtau,
+            None if final else line.forecast_qtau,  # after the cut-off: the rule buffer
             plan.buffer_pct,
             product.shelf_life_h,
             on_hand.get(product_id, ZERO),

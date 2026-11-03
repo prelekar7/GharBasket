@@ -102,3 +102,17 @@ def test_platform_may_not_depend_on_a_module(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "BROKEN" in result.stdout
+
+
+@pytest.mark.parametrize("module", MODULES)
+def test_each_facade_imports_cold_on_its_own(module: str) -> None:
+    # A fresh interpreter per facade, as a script that imports only it (the simulator imports
+    # `orders.api` first): an annotation evaluated mid-cycle would fail here.
+    done = subprocess.run(
+        [sys.executable, "-c", f"import gharbasket.modules.{module}.api"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
