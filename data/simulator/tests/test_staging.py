@@ -89,6 +89,7 @@ def test_the_estimate_command_needs_no_database(capsys: pytest.CaptureFixture[st
 def test_counts_and_weeks_read_the_database(database_url: str) -> None:
     counts = staging.counts(database_url)
     assert set(counts) == set(staging.COUNTS)
+    assert "add-on lines (synthetic)" in counts  # the forecast's data (ADR-0031)
     assert all(isinstance(n, int) and n >= 0 for n in counts.values())
     weeks = staging.simulated_weeks(database_url)
     assert all(isinstance(d, date) and d.weekday() == 0 for d in weeks)
@@ -143,6 +144,7 @@ def test_the_script_explains_itself() -> None:
     done = script("--help")
     assert done.returncode == 0
     assert "GB_ALLOW_REMOTE_SEED" in done.stdout
+    assert "--no-uncommitted" in done.stdout  # passed through to `just sim` (ADR-0031)
 
 
 @pytest.mark.services

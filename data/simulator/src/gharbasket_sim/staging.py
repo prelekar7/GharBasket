@@ -55,6 +55,11 @@ COUNTS = {
         "SELECT count(*) FROM subscriptions.weekly_cycles WHERE data_source = 'synthetic'"
     ),
     "orders (synthetic)": "SELECT count(*) FROM orders.orders WHERE data_source = 'synthetic'",
+    # The forecast's uncommitted demand (ADR-0031): add-on lines on the simulated boxes.
+    "add-on lines (synthetic)": (
+        "SELECT count(*) FROM orders.order_lines l JOIN orders.orders o ON o.id = l.order_id "
+        "WHERE o.data_source = 'synthetic' AND l.kind = 'addon'"
+    ),
     "box lines (synthetic)": (
         "SELECT count(*) FROM subscriptions.box_lines l JOIN subscriptions.weekly_cycles c "
         "ON c.id = l.cycle_id WHERE c.data_source = 'synthetic'"

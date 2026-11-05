@@ -180,3 +180,21 @@ def test_a_real_account_on_a_simulator_phone_is_a_one_line_refusal(
     err = capsys.readouterr().err
     assert "error: +919800100004 is a real account on a shared database" in err
     assert "Traceback" not in err
+
+
+@pytest.mark.parametrize(("argv", "places"), [([], True), (["--no-uncommitted"], False)])
+def test_the_cli_places_the_add_ons_unless_told_not_to(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str], places: bool
+) -> None:
+    monkeypatch.setenv("DATABASE_URL_DIRECT", "postgresql+asyncpg://u:p@localhost:5432/x")
+    seen: dict[str, object] = {}
+
+    async def simulate(session: object, **kwargs: object) -> None:
+        seen.update(kwargs)
+        raise Reached("simulated")
+
+    monkeypatch.setattr(sim, "simulate_world", simulate)
+    with pytest.raises(Reached):
+        sim.main(["--weeks", "1", "--write-db", *argv])
+
+    assert seen["place_uncommitted"] is places
