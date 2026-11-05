@@ -34,10 +34,11 @@ Each ADR records one significant decision: the context, what we decided, the alt
 | [0022](0022-api-client-openapi-fetch.md) | Generated API client: openapi-typescript + openapi-fetch + openapi-react-query | Accepted |
 | [0023](0023-ownership-backend-and-frontend.md) | Ownership: Prathamesh all backend, infra and ML; Yash all frontend | Accepted |
 | [0024](0024-sign-in-firebase-otp-own-tokens.md) | Sign-in: Firebase phone OTP, then our own rotating tokens; cookies + CSRF for browsers | Accepted |
-| [0025](0025-ml-runtime-spaces-actions-r2.md) | ML runtime: serve on Hugging Face Spaces, train in GitHub Actions, R2 lake and registry, cron-job.org for minute-level jobs | Accepted (amended by 0029, 0030) |
+| [0025](0025-ml-runtime-spaces-actions-r2.md) | ML runtime: serve on Hugging Face Spaces, train in GitHub Actions, R2 lake and registry, cron-job.org for minute-level jobs | Accepted (amended by 0029, 0030, 0032) |
 | [0026](0026-operations-contract.md) | Operations contract: units, order actors, tiffin states, Society Captains in M9, hubs in M6 | Accepted (amended by 0027) |
 | [0027](0027-operations-contract-amendments.md) | Operations contract amendments: unassigned tiffins refunded, boxes missed twice (perishables refunded, the rest carried over), captain pay at `delivered`, M7's order moves, the preferred cook | Accepted |
 | [0028](0028-m7-order-moves-by-hub-managers-and-orphan-redeliveries.md) | M7 order moves: a hub manager's tap for a rider moves the orders as `rider`; a redelivery no route picked up can be refunded (`redelivery → refunded`) | Accepted |
 | [0029](0029-public-repository.md) | The repository is public: Actions minutes are free, so CI and the staging deploy run on every change; nothing secret or personal may be committed | Accepted |
 | [0030](0030-ml-service-on-render-free.md) | The staging ML service runs on a free Render web service without OSRM; Hugging Face Docker Spaces now need a paid plan | Accepted |
 | [0031](0031-uncommitted-demand-is-add-on-lines-and-tiffins.md) | Uncommitted demand is add-on lines (wherever they ride) plus tiffin orders: one `demand_kind` for the forecast, drift monitor, procurement and eval | Accepted |
+| [0032](0032-scheduled-jobs-from-the-oracle-vm.md) | Staging's minute-level jobs are called from the Oracle VM in Mumbai (`scripts/jobs_scheduler.py`), not cron-job.org, whose calls Render's edge turned away | Accepted |

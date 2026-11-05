@@ -167,7 +167,7 @@ R = Responsible, A = Accountable, C = Consulted, I = Informed.
 | Item | Cost (approx.) | Notes |
 |---|---|---|
 | Render (API, Key Value), Neon, Vercel, Cloudflare R2, Infisical, PostHog, UptimeRobot, Firebase (test numbers) | ₹0 | Free tiers that cannot bill us; free tiers only until the pilot (D20) |
-| Render free web service (ML service, no OSRM), GitHub Actions (training), cron-job.org (minute-level jobs) | ₹0 | Free tier, no card; MLflow stays local (Docker Compose), never hosted; decided in D25 ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)), the ML host moved from a Hugging Face Space to Render by D30 ([ADR-0030](../adr/0030-ml-service-on-render-free.md)) |
+| Render free web service (ML service, no OSRM), GitHub Actions (training), an Oracle Cloud Always Free VM (minute-level jobs, mandi collector; D32) | ₹0 | Free tier, no card; MLflow stays local (Docker Compose), never hosted; decided in D25 ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)), the ML host moved from a Hugging Face Space to Render by D30 ([ADR-0030](../adr/0030-ml-service-on-render-free.md)) |
 | Paid plans for the pilot (Render Starter for the API, a worker, Firebase Blaze for real OTPs; the pilot database, Q3) | To be decided before P6 | |
 | Domain name (optional) | ≈ ₹800/year | Not bought yet; Render and Vercel default URLs for now |
 | Claude API (assistant) | ≈ ₹350–1,300/week at demo scale | Model chosen after the S8 eval; per-user caps |

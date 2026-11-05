@@ -580,7 +580,7 @@ POST /v1/stops/{id}/collect       the route's rider; Idempotency-Key
 - `field_events.action` gains `collect`, and `route_plans.source` gains `nearest`.
 
 **Jobs** (to add to §6 and `infra/jobs/schedule.yaml`):
-- **`solve_tiffin_routes`**, T 09:35 IST (cron-job.org, `"35 9 * * *"`). For every active hub it solves a `tiffin` plan for **today** (the IST date of `scheduled_for`). It skips a hub that already has a published plan or a job plan (`has_job_plan`), runs each hub in its own savepoint and also solves manual tiffin plans still queued (as `solve_routes`).
+- **`solve_tiffin_routes`**, T 09:35 IST (VM scheduler, `"35 9 * * *"`). For every active hub it solves a `tiffin` plan for **today** (the IST date of `scheduled_for`). It skips a hub that already has a published plan or a job plan (`has_job_plan`), runs each hub in its own savepoint and also solves manual tiffin plans still queued (as `solve_routes`).
   - Why 09:35: manual assignment closes and `refund_unassigned_tiffins` runs at 09:30, so nothing is added after that.
   - It shares Neon's 09:30 wake, and it is 2 hours before `ready_by`.
 - **`persist_gps_pings`** gains `"30 12,14 * * *"`. During the lunch run the pings wait in the Valkey stream and are moved at the 12:30 and 14:30 wakes, which already exist; no minute-level window is added (the 8-hour Neon budget). Live tracking reads Valkey, so it is not affected.
@@ -715,12 +715,12 @@ Foreign keys stay inside `logistics`; hub, order, society, slot and user ids are
 ## 6. Jobs
 | Job | Trigger (IST) | Notes |
 |---|---|---|
-| `solve_routes` | T-1 23:15 (cron-job.org → `POST /v1/internal/jobs/solve_routes`) | Every active hub: solves a `box` plan for T (each hub in its own savepoint), and any manual plan still queued; auto-publish rule in §3.2. Re-solves on demand through `POST /v1/hubs/{id}/route-plans` (the old T 07:00 solve) |
-| `solve_tiffin_routes` | T 09:35 (cron-job.org) | Every active hub: solves a `tiffin` plan for today from M8's assignments (§3.7); auto-publish rule as §3.2 |
-| `persist_gps_pings` | Every minute in the morning window, plus 12:30 and 14:30 for the lunch run (cron-job.org) | Valkey stream → `logistics.gps_pings`; idempotent on (rider, at) |
-| `hold_expiry` | T 20:30 (cron-job.org) | Still `at_society` → `undelivered` (actor `system`): `not_home` for held bags, `not_confirmed` for the rest (§3.4) |
-| `schedule_redeliveries` | T 20:45 (cron-job.org) | First miss → `redelivery` for T+1; second miss → perishables `refunded` minus the fee, non-perishables carried to the next delivery (§3.4) |
-| `close_routes` | T 16:00 (cron-job.org) | Completes routes still `in_progress` (actor `system` on the orders, reason `returned_to_hub`) and stops their location; tiffins still out go to triage instead (§3.7) |
+| `solve_routes` | T-1 23:15 (VM scheduler → `POST /v1/internal/jobs/solve_routes`) | Every active hub: solves a `box` plan for T (each hub in its own savepoint), and any manual plan still queued; auto-publish rule in §3.2. Re-solves on demand through `POST /v1/hubs/{id}/route-plans` (the old T 07:00 solve) |
+| `solve_tiffin_routes` | T 09:35 (VM scheduler) | Every active hub: solves a `tiffin` plan for today from M8's assignments (§3.7); auto-publish rule as §3.2 |
+| `persist_gps_pings` | Every minute in the morning window, plus 12:30 and 14:30 for the lunch run (VM scheduler) | Valkey stream → `logistics.gps_pings`; idempotent on (rider, at) |
+| `hold_expiry` | T 20:30 (VM scheduler) | Still `at_society` → `undelivered` (actor `system`): `not_home` for held bags, `not_confirmed` for the rest (§3.4) |
+| `schedule_redeliveries` | T 20:45 (VM scheduler) | First miss → `redelivery` for T+1; second miss → perishables `refunded` minus the fee, non-perishables carried to the next delivery (§3.4) |
+| `close_routes` | T 16:00 (VM scheduler) | Completes routes still `in_progress` (actor `system` on the orders, reason `returned_to_hub`) and stops their location; tiffins still out go to triage instead (§3.7) |
 | `purge_gps_pings` | Daily 03:43 (GitHub Actions) | Deletes pings older than 90 days; drops a month's partition once it is empty |
 
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day follows from it), not the run time (ADR-0021, ADR-0025).

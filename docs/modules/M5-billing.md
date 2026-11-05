@@ -220,7 +220,7 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 - **On a deleting account,** a failed part is moved once to the next top-up that can take it, and otherwise to `unclaimed`. The customer can still claim it through support, and the money stays a liability, never revenue.
 - **Unclaimed balances** (owner, 2026-10-09). Wallet money that cannot go back to a source goes to `unclaimed_balances` as above. Prof. Kranti Bade confirms this rule against RBI's closed-wallet (closed-system PPI) rules before the pilot.
 
-**`send_refunds`** (every 5 minutes, cron-job.org) handles parts that are `pending`, in batches of 50:
+**`send_refunds`** (every 5 minutes, the VM scheduler) handles parts that are `pending`, in batches of 50:
 1. **It calls Razorpay's refund API** with `amount`, `speed: "normal"` and `receipt: <part id>`, using our httpx2 client (the existing `RazorpayClient.refund` gains `receipt`).
 2. **The part becomes `sent`** with the `rfnd_…` id.
 3. **Before resending,** a part that was tried without an answer (a timeout or a crash after the call) first lists the payment's refunds and matches the `receipt`. A lost response is therefore never refunded twice.
@@ -546,7 +546,7 @@ GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit=
 |---|---|---|
 | `process_webhooks` | Outbox consumer after the webhook is stored | Idempotent by event_id |
 | `send_pre_debit_notices` | T-3 18:30 | Autopay only; not in this phase (§3.7) |
-| `send_refunds` | Every 5 minutes (cron-job.org) | Sends pending refund-to-source parts to Razorpay; receipt-matched before any resend (§3.3) |
+| `send_refunds` | Every 5 minutes (VM scheduler) | Sends pending refund-to-source parts to Razorpay; receipt-matched before any resend (§3.3) |
 | `reconcile_payments` | Hourly at :17 | Razorpay payments and refunds vs our records; heals lost webhooks, opens items (§3.4) |
 | `expire_kindness_points` | Daily 00:30 IST | Oldest lot first (§3.6) |
 | `weekly_payouts` | Monday 10:00 IST | Partner payables up to Sunday 23:59 IST; eligible partners only; the simulated provider in the prototype (§3.5) |

@@ -485,7 +485,7 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
 ## 6. Jobs
 | Job | Trigger | Notes |
 |---|---|---|
-| `build_data_export` | Every 10 minutes (cron-job.org); takes `queued` exports | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; publishes `identity.data_export_ready` for M11. A job rather than the consumer of `identity.data_export_requested`, because outbox consumers get no object storage |
+| `build_data_export` | Every 10 minutes (VM scheduler); takes `queued` exports | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; publishes `identity.data_export_ready` for M11. A job rather than the consumer of `identity.data_export_requested`, because outbox consumers get no object storage |
 | `expire_data_exports` | Daily (04:23 IST, before `sweep_uploads` the next night) | Marks exports past `expires_at` (7 days) `expired`; M0's `sweep_uploads` deletes the file (`delete_after`) |
 | `expire_pending_grants` | Daily 04:18 IST (GitHub Actions) | Deletes pending role grants past `expires_at` (§3.6): a phone number is personal data |
 | `purge_deleted_users` | Daily 03:33 IST (GitHub Actions) | Deletions past `purge_on` (30 days after the request): checks the preconditions, calls each module's `delete_for_user` / `anonymise_for_user`, then deletes M1's rows and the user's files; not ready → `blocked`, retried nightly (§3.5) |

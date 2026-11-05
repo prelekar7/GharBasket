@@ -1,4 +1,4 @@
-"""Scheduled jobs of M13 (spec §6): `expire_proposals` every 10 minutes (cron-job.org)."""
+"""Scheduled jobs of M13 (spec §6): `expire_proposals` every 10 minutes (the VM scheduler)."""
 
 from typing import Any
 

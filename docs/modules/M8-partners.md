@@ -860,10 +860,10 @@ The draft's `intel.assignment_ready` is dropped: the assignment is a synchronous
 ## 6. Jobs
 | Job | Trigger (IST) | Notes |
 |---|---|---|
-| `assign_kitchens` | T-1 21:30 (cron-job.org → `POST /v1/internal/jobs/assign_kitchens`) | Round 1 for every active hub, both meals of T; ML with greedy fallback; idempotent per order (§3.4) |
-| `assignment_acceptance_timeout` | Every 15 min, T-1 21:45 → T 00:30 (cron-job.org) | Expires offers past `respond_by` (22:30 for round 1), then runs the next round for released and late-locked orders; no new round after T 00:00 |
-| `refund_unassigned_tiffins` | T 09:30 for lunch (`ready_by` 11:30 − 2 h), and `ready_by` − 2 h for a dinner slot (cron-job.org) | Locked tiffins of the meal with no live assignment → `refunded` in full (actor `system`, reason `no_kitchen`; §3.4) |
-| `prompt_tiffin_ratings` | T 14:30 (cron-job.org) | `partners.rating_requested` for lunch tiffins delivered today and not yet rated |
+| `assign_kitchens` | T-1 21:30 (VM scheduler → `POST /v1/internal/jobs/assign_kitchens`) | Round 1 for every active hub, both meals of T; ML with greedy fallback; idempotent per order (§3.4) |
+| `assignment_acceptance_timeout` | Every 15 min, T-1 21:45 → T 00:30 (VM scheduler) | Expires offers past `respond_by` (22:30 for round 1), then runs the next round for released and late-locked orders; no new round after T 00:00 |
+| `refund_unassigned_tiffins` | T 09:30 for lunch (`ready_by` 11:30 − 2 h), and `ready_by` − 2 h for a dinner slot (VM scheduler) | Locked tiffins of the meal with no live assignment → `refunded` in full (actor `system`, reason `no_kitchen`; §3.4) |
+| `prompt_tiffin_ratings` | T 14:30 (VM scheduler) | `partners.rating_requested` for lunch tiffins delivered today and not yet rated |
 
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day T follows from it), not the run time (ADR-0021, ADR-0025). The weekly statement and payouts are M5's jobs (§3.7).
 

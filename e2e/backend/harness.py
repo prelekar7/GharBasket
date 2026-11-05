@@ -311,7 +311,7 @@ class JobLog:
 
 @dataclass
 class App:
-    """The API as a phone or cron-job.org reaches it: HTTP into the real app (its own sessions,
+    """The API as a phone or the job scheduler reaches it: HTTP into the real app (its own sessions,
     its own commits, its after-commit relay), started and stopped with its lifespan."""
 
     config: Config

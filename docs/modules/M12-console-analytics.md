@@ -120,7 +120,7 @@ Each view has a unique index on its grain, so `REFRESH MATERIALIZED VIEW CONCURR
 
 | Job | Schedule | What it does |
 |---|---|---|
-| `refresh_analytics` | Every 15 minutes (cron-job.org) | Pulls facts for delivery dates today − 3 … today + 1 (IST) and community facts since the last run. It upserts them by source id, changing `synced_at` only when a value changed, then refreshes `mv_daily_hub_kpis` and `mv_impact_monthly`. Budget: under 20 s at pilot scale |
+| `refresh_analytics` | Every 15 minutes (VM scheduler) | Pulls facts for delivery dates today − 3 … today + 1 (IST) and community facts since the last run. It upserts them by source id, changing `synced_at` only when a value changed, then refreshes `mv_daily_hub_kpis` and `mv_impact_monthly`. Budget: under 20 s at pilot scale |
 | `refresh_analytics_nightly` | 02:40 IST (GitHub Actions) | The same over today − 35 … today, which covers 48-hour issue credits, redeliveries and the 14-day carry-over refunds (M7 §3.4). It also refreshes every household fact, partner weeks for the last 6 ISO weeks and assignment runs, then every view. Budget: under 3 minutes |
 | `rebuild_analytics` | By hand | Every date since the first order, in 7-day chunks, then every view. Used after a facade change or a bug fix |
 
@@ -509,7 +509,7 @@ The `analytics` schema: the fact tables, `assumptions`, `assumption_changes`, `a
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
-| `refresh_analytics` | Every 15 minutes (cron-job.org) | §3.2: last 4 delivery dates; refreshes `mv_daily_hub_kpis`, `mv_impact_monthly` |
+| `refresh_analytics` | Every 15 minutes (VM scheduler) | §3.2: last 4 delivery dates; refreshes `mv_daily_hub_kpis`, `mv_impact_monthly` |
 | `refresh_analytics_nightly` | 02:40 IST (GitHub Actions) | §3.2: last 35 days, all households, partner weeks; every view `CONCURRENTLY` |
 | `rebuild_analytics` | By hand | §3.2: full history in 7-day chunks |
 
@@ -600,7 +600,7 @@ No open questions remain for §3.1–§3.9.
   - ~~`data_source` values? Transactional tables store `real | synthetic`; handbook 05 §5.10 says `synthetic | pilot | live`; M10's tables use `synthetic | pilot | live | mixed`; the console mocks use `simulator`/`sim` and `pilot`.~~ Decided: M12 takes the stored `real | synthetic`, and the console labels `real` as "Pilot" until launch (§3.3). Renaming `real` to `pilot` across the schemas before the pilot would be a later ADR, at one migration per module.
   - ~~Experiments endpoint?~~ Decided: cut from S9. Nothing assigns experiments, and the B9 uplift offers are a stretch feature. The simulator A/B lives in the eval harness.
   - ~~Hub managers and P&L?~~ Decided: no. P&L and unit economics are for franchise owners and admins; hub managers get KPIs and the today board (§3.4, §7).
-  - ~~Refresh cadence on the free tier?~~ Decided: every 15 minutes for the daily views (96 short runs a day on cron-job.org) and nightly for the rest (§6). If Neon compute hours run short, `refresh_analytics` moves to 30 minutes, since nothing else depends on it.
+  - ~~Refresh cadence on the free tier?~~ Decided: every 15 minutes for the daily views (96 short runs a day from the VM scheduler) and nightly for the rest (§6). If Neon compute hours run short, `refresh_analytics` moves to 30 minutes, since nothing else depends on it.
   - ~~The small-number threshold for partner distributions, impact and the public page?~~ Decided: 5, shared with M9 §3.7.
   - ~~Default assumptions?~~ Decided: the console mock's numbers (AOV ₹620, margin 24 %, delivery ₹40, packing ₹30, payment fee 1.2 %, CAC ₹13), with the captain at the decided ₹6 (§3.4). They are hypotheses (handbook 02 §5), shown as "assumed" until measured.
   - ~~Boxes before a society is live (asked in M9 §11)?~~ Decided, changing M9's recommendation: households in a society that is not yet live get boxes with a per-box delivery fee (per hub, proposed default ₹30) until it goes live (M9 §3.6). For M12 the fee is revenue: `delivery_fee_paise` per box in unit economics and a `delivery_fee_revenue` line in the P&L (§3.4), from `fees_paise` in `order_facts` (§3.1, §10).

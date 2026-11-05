@@ -723,10 +723,10 @@ Packing publishes nothing of its own: M4 publishes `orders.packed` and `orders.s
 ## 6. Jobs
 | Job | Trigger (IST) | Notes |
 |---|---|---|
-| `build_packing_tasks` | T 05:00 (cron-job.org → `POST /v1/internal/jobs/build_packing_tasks`) | Every active hub; idempotent per order; §3.2 |
-| `build_procurement_plan` | T-1 21:10 (cron-job.org) | Every active hub: builds or rebuilds T's plan with the stored forecast or the buffer; §3.3 |
-| `refresh_procurement_plan` | T-1 23:05 (cron-job.org) | Rebuilds T's existing plans that are not closed, after `payment_grace_expiry` (23:00); §3.3 |
-| `surplus_cascade` | T 12:30 (cron-job.org) | Every active hub: draws down packing (§3.4), closes the day's POs and plan, moves open offers on, offers new surplus (§3.5) |
+| `build_packing_tasks` | T 05:00 (VM scheduler → `POST /v1/internal/jobs/build_packing_tasks`) | Every active hub; idempotent per order; §3.2 |
+| `build_procurement_plan` | T-1 21:10 (VM scheduler) | Every active hub: builds or rebuilds T's plan with the stored forecast or the buffer; §3.3 |
+| `refresh_procurement_plan` | T-1 23:05 (VM scheduler) | Rebuilds T's existing plans that are not closed, after `payment_grace_expiry` (23:00); §3.3 |
+| `surplus_cascade` | T 12:30 (VM scheduler) | Every active hub: draws down packing (§3.4), closes the day's POs and plan, moves open offers on, offers new surplus (§3.5) |
 | `compute_vendor_scores` | Monday 03:33 (GitHub Actions) | The previous IST week; §3.4 |
 
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day follows from it), not the run time (ADR-0021, ADR-0025).

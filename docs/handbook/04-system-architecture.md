@@ -57,7 +57,7 @@ flowchart TB
     CON["frontend/console<br/>Next.js 16<br/>console + public site"]
   end
   VER["Vercel<br/>hosts PWA + console,<br/>same-origin /v1/* rewrite"]
-  GHA["GitHub Actions schedule + cron-job.org<br/>call internal job endpoints;<br/>backend/training jobs (D25)"]
+  GHA["GitHub Actions schedule + the Oracle VM scheduler<br/>call internal job endpoints;<br/>backend/training jobs (D25, D32)"]
   subgraph Backend["Backend (Python 3.13)"]
     API["backend/api<br/>FastAPI modular monolith<br/>13 modules, on Render<br/>outbox relay + jobs inside"]
     ML["backend/ml (Render free web service, D30)<br/>FastAPI, stateless: planners,<br/>routing, assignment, LLM, inference"]
@@ -218,7 +218,7 @@ flowchart LR
 | Web console + public site | Next.js 16 | Server rendering for dashboards and SEO landing/referral pages; route groups; `proxy.js` sign-in gate (cookies are set and refreshed by the API, D24). A Vite SPA cannot do SEO pages well |
 | Backend API | FastAPI (Python 3.13) modular monolith | The ML/optimisation ecosystem is Python; async + Pydantic + automatic OpenAPI → generated API client (D22). NestJS rejected (second backend language); Django rejected (sync-first, heavier) |
 | ML / optimisation | Separate FastAPI service: OR-Tools, StatsForecast, LightGBM, NumPyro, Chronos-2, MLflow | Isolated heavy dependencies; CPU-only training in GitHub Actions (`backend/training`); serving on a free Render web service (D30; Docker Compose locally) |
-| Background jobs | Postgres outbox (`FOR UPDATE SKIP LOCKED`) relayed by the API after each commit; scheduled jobs as `POST /v1/internal/jobs/<name>` called by a GitHub Actions schedule (D21) and, for minute-level jobs, cron-job.org (D25). Taskiq + Valkey from the pilot | Free and durable; APScheduler rejected (misses jobs while the free API sleeps); Celery rejected (sync-first) |
+| Background jobs | Postgres outbox (`FOR UPDATE SKIP LOCKED`) relayed by the API after each commit; scheduled jobs as `POST /v1/internal/jobs/<name>` called by a GitHub Actions schedule (D21) and, for minute-level jobs, a scheduler on the staging Oracle VM (D32). Taskiq + Valkey from the pilot | Free and durable; APScheduler rejected (misses jobs while the free API sleeps); Celery rejected (sync-first) |
 | Database | PostgreSQL 18 (+ PostGIS, pgvector, pg_trgm), Valkey, S3-compatible storage, DuckDB | Relational integrity for money and orders; geo, vector and fuzzy search in one database |
 | API contract | OpenAPI → openapi-typescript (`schema.d.ts` types) + openapi-fetch + openapi-react-query (TanStack Query hooks) (D22) | Generated contract between Yash and Prathamesh; CI fails on drift |
 | LLM | Claude via the Anthropic SDK (model chosen after the Sprint 8 evaluation) | Tool calling, multilingual |

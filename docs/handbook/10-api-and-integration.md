@@ -117,23 +117,23 @@ flowchart LR
 
 ## 10.4 Scheduled jobs (IST, per hub; T = delivery day)
 
-Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by the `JOBS_TOKEN` secret and called by a GitHub Actions scheduled workflow for daily and weekly jobs (`jobs-staging.yml`, D21) and by cron-job.org for minute-level ones (D25). Jobs are idempotent, take a Postgres advisory lock and use the scheduled time, not the run time. Long ML jobs (`retrain_models`, forecasts, snapshots) run in `backend/training` on GitHub Actions (`training-jobs.yml`, D25), never inside the ML service or an API request.
+Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by the `JOBS_TOKEN` secret and called by a GitHub Actions scheduled workflow for daily and weekly jobs (`jobs-staging.yml`, D21) and by a scheduler on the staging Oracle VM for minute-level ones (`scripts/jobs_scheduler.py`, D32). Jobs are idempotent, take a Postgres advisory lock and use the scheduled time, not the run time. Long ML jobs (`retrain_models`, forecasts, snapshots) run in `backend/training` on GitHub Actions (`training-jobs.yml`, D25), never inside the ML service or an API request.
 
 | When | Job | Module |
 |---|---|---|
-| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts; cron-job.org) | intel → subscriptions |
-| T-3 18:30 | `send_box_ready_notices` (draft → awaiting approval; publishes `subscriptions.box_ready`; M11 notifies; cron-job.org) | subscriptions → notify |
-| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder` once per unapproved box auto-approve will not take; cron-job.org) | subscriptions → notify |
-| every minute | `send_deliveries` (push and WhatsApp, cron-job.org) | notify |
+| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts; VM scheduler) | intel → subscriptions |
+| T-3 18:30 | `send_box_ready_notices` (draft → awaiting approval; publishes `subscriptions.box_ready`; M11 notifies; VM scheduler) | subscriptions → notify |
+| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder` once per unapproved box auto-approve will not take; VM scheduler) | subscriptions → notify |
+| every minute | `send_deliveries` (push and WhatsApp, VM scheduler) | notify |
 | T-1 20:55 | `apply_auto_approve` | subscriptions |
-| **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |
-| T-1 23:00 | `payment_grace_expiry` (cron-job.org) | orders |
-| T-1 23:15 | `solve_routes` (a box plan per active hub for T; published when M7's check finds no problems, else `logistics.plan_needs_review`; also solves manual plans left queued; cron-job.org) | logistics ← intel |
-| T 09:35 | `solve_tiffin_routes` (a lunch `tiffin` plan per active hub for T from M8's assignments, kitchens first then societies, in M7 without the ML service; published when M7's check is clean; cron-job.org; M7 §3.7) | logistics ← partners |
-| every minute | `persist_gps_pings` (riders' pings from the Valkey stream into `logistics.gps_pings`; every minute in the morning window, plus 12:30 and 14:30 for the lunch tiffin run; cron-job.org) | logistics |
-| T 16:00 | `close_routes` (completes routes still in progress; their bags ride back; cron-job.org) | logistics |
-| T 20:30 | `hold_expiry` (bags still at the society become undelivered; cron-job.org) | logistics |
-| T 20:45 | `schedule_redeliveries` (the one free redelivery for T+1, or the second miss refunded; cron-job.org) | logistics |
+| **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; VM scheduler) | orders / billing |
+| T-1 23:00 | `payment_grace_expiry` (VM scheduler) | orders |
+| T-1 23:15 | `solve_routes` (a box plan per active hub for T; published when M7's check finds no problems, else `logistics.plan_needs_review`; also solves manual plans left queued; VM scheduler) | logistics ← intel |
+| T 09:35 | `solve_tiffin_routes` (a lunch `tiffin` plan per active hub for T from M8's assignments, kitchens first then societies, in M7 without the ML service; published when M7's check is clean; VM scheduler; M7 §3.7) | logistics ← partners |
+| every minute | `persist_gps_pings` (riders' pings from the Valkey stream into `logistics.gps_pings`; every minute in the morning window, plus 12:30 and 14:30 for the lunch tiffin run; VM scheduler) | logistics |
+| T 16:00 | `close_routes` (completes routes still in progress; their bags ride back; VM scheduler) | logistics |
+| T 20:30 | `hold_expiry` (bags still at the society become undelivered; VM scheduler) | logistics |
+| T 20:45 | `schedule_redeliveries` (the one free redelivery for T+1, or the second miss refunded; VM scheduler) | logistics |
 | Daily 03:43 | `purge_gps_pings` (pings older than 90 days; GitHub Actions) | logistics |
 | T-1 21:10 | `forecast_uncommitted` → `build_procurement_plan` | intel → ops |
 | T-1 21:30 | `assign_kitchens` (tiffin for day T) | intel → partners |
@@ -142,13 +142,13 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Daily 02:00 | `export_snapshots` (Postgres → Parquet in object storage, S3 API) + data-quality checks | intel |
 | Sun 03:00 | `retrain_models` (champion/challenger) | training (GitHub Actions) |
 | Hourly / daily / Mon 10:00 | `reconcile_payments` (hourly); `expire_kindness_points` (daily); `weekly_payouts` (partners' payables up to Sunday, eligible partners only, the simulated provider; GitHub Actions; M5 §3.5) | billing ← partners |
-| Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
+| Every 10 min / daily | `build_data_export` (VM scheduler); `expire_data_exports` (daily) | identity |
 | Daily 04:18 | `expire_pending_grants` (staff role grants for numbers that never signed in, after 30 days; GitHub Actions; M1 §3.6) | identity |
 | Daily 03:33 | `purge_deleted_users` (accounts 30 days after `DELETE /v1/me`; M1 §3.5) | identity |
 | Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
-| Every 10 min | `expire_proposals` (cron-job.org) | assistant |
+| Every 10 min | `expire_proposals` (VM scheduler) | assistant |
 | Daily 03:33 | `monitor_drift` (realised WAPE per hub, delivery day and data source, acceptance per source → `model_metrics`, drift flags against the same hub and source's backtest) | intel |
-| Every 15 min / daily 02:40 | `refresh_analytics` (facts for delivery dates T-3 to T+1 and community facts since its last run, then the daily KPI and impact views; cron-job.org); `refresh_analytics_nightly` (the last 35 days, every household, 6 weeks of partner earnings, assignment runs, then every view; GitHub Actions); `rebuild_analytics` by hand (M12 §3.2) | analytics ← every module's facade |
+| Every 15 min / daily 02:40 | `refresh_analytics` (facts for delivery dates T-3 to T+1 and community facts since its last run, then the daily KPI and impact views; VM scheduler); `refresh_analytics_nightly` (the last 35 days, every household, 6 weeks of partner earnings, assignment runs, then every view; GitHub Actions); `rebuild_analytics` by hand (M12 §3.2) | analytics ← every module's facade |
 
 ## 10.5 Key endpoints per module (v1)
 

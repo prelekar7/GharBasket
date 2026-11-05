@@ -4,18 +4,17 @@
 # crons here and the `on.schedule` lines of `.github/workflows/jobs-staging.yml` differ.
 #
 # Read by `.github/workflows/jobs-staging.yml` (the `actions` entries, picked by their cron) and
-# by `scripts/cronjob_sync.py` (`just cronjob-sync`), which creates, updates and deletes the
-# cron-job.org jobs from the `cron-job.org` entries. To add a job: register it, add an entry
+# by `scripts/jobs_scheduler.py` on the staging VM (the `vm` entries, ADR-0032), which re-reads
+# this file every minute and pulls main every 15 minutes. To add a job: register it, add an entry
 # here, and for `actions` add the literal cron to `on.schedule` of the workflow (GitHub accepts
-# nothing else); for `cron-job.org`, run `just cronjob-sync --apply` after the merge.
+# nothing else); a `vm` entry needs nothing more than the merge.
 #
 # Fields:
 #   name    the job name (snake_case, as in `@job("name")`)
-#   runner  cron-job.org | actions | manual
-#   cron    5 fields (minute hour day-of-month month day-of-week), or a list of them (one
-#           cron-job.org job each). IST for cron-job.org entries (the jobs are created with the
-#           timezone Asia/Kolkata); UTC for `actions` entries, because GitHub runs UTC. A
-#           `manual` entry has no cron.
+#   runner  vm | actions | manual
+#   cron    5 fields (minute hour day-of-month month day-of-week), or a list of them. IST for `vm`
+#           entries (the scheduler reads them in Asia/Kolkata); UTC for `actions` entries,
+#           because GitHub runs UTC. A `manual` entry has no cron.
 #   ist     `actions` entries only: the same time in IST, for people
 #   why     one line: where the time comes from
 #
@@ -40,13 +39,13 @@
 # reconcile_payments rides the same wakes (M5 says hourly; see its `why`).
 # Estimated awake time: about 7.8 hours a day, about 59 CU-hours a month at 0.25 CU, before
 # people and deploys. `test_job_schedule.py` computes it (run with `-s`) and fails above 8 hours.
-# The Render API stays awake on UptimeRobot's /v1/health ping (handbook 12), so cron-job.org's
-# 30-second timeout does not meet a cold start.
+# The VM scheduler waits up to 5 minutes for an answer, so a Render cold start (~1 minute) needs
+# no keep-alive ping.
 
 jobs:
   # --- M0 platform ------------------------------------------------------------------------
   - name: outbox_sweep
-    runner: cron-job.org
+    runner: vm
     cron:
       - "*/5 6-7 * * *"
       - "0-45/5 8 * * *"
@@ -72,7 +71,7 @@ jobs:
 
   # --- M1 identity ------------------------------------------------------------------------
   - name: build_data_export
-    runner: cron-job.org
+    runner: vm
     cron:
       - "*/10 6-7 * * *"
       - "0-45/10 8 * * *"
@@ -104,44 +103,44 @@ jobs:
 
   # --- M3 subscriptions -------------------------------------------------------------------
   - name: generate_weekly_plans
-    runner: cron-job.org
+    runner: vm
     cron: "0 18 * * *"
     why: handbook 10 §10.4 T-3 18:00
 
   - name: send_box_ready_notices
-    runner: cron-job.org
+    runner: vm
     cron: "30 18 * * *"
     why: handbook 10 §10.4 T-3 18:30 (the 24 h pre-debit notice)
 
   - name: remind_unapproved
-    runner: cron-job.org
+    runner: vm
     cron: "0 19 * * *"
     why: handbook 10 §10.4 T-1 19:00
 
   - name: apply_auto_approve
-    runner: cron-job.org
+    runner: vm
     cron: "55 20 * * *"
     why: handbook 10 §10.4 T-1 20:55, five minutes before the cut-off
 
   # --- M4 orders --------------------------------------------------------------------------
   - name: cutoff_lock
-    runner: cron-job.org
+    runner: vm
     cron: "0 21 * * *"
     why: M4 §3.1 the cut-off, T-1 21:00 IST
 
   - name: payment_grace_expiry
-    runner: cron-job.org
+    runner: vm
     cron: "0 23 * * *"
     why: handbook 10 §10.4 T-1 23:00, after the 2 h grace
 
   - name: expire_carry_overs
-    runner: cron-job.org
+    runner: vm
     cron: "40 2 * * *"
     why: M4 §6 daily 02:40 IST (Neon is awake then anyway for refresh_analytics_nightly)
 
   # --- M5 billing -------------------------------------------------------------------------
   - name: send_refunds
-    runner: cron-job.org
+    runner: vm
     cron:
       - "*/5 6-7 * * *"
       - "0-45/5 8 * * *"
@@ -173,22 +172,22 @@ jobs:
 
   # --- M6 hub ops -------------------------------------------------------------------------
   - name: build_packing_tasks
-    runner: cron-job.org
+    runner: vm
     cron: "0 5 * * *"
     why: M6 §6 T 05:00
 
   - name: surplus_cascade
-    runner: cron-job.org
+    runner: vm
     cron: "30 12 * * *"
     why: M6 §6 T 12:30
 
   - name: build_procurement_plan
-    runner: cron-job.org
+    runner: vm
     cron: "10 21 * * *"
     why: M6 §6 T-1 21:10
 
   - name: refresh_procurement_plan
-    runner: cron-job.org
+    runner: vm
     cron: "5 23 * * *"
     why: M6 §6 T-1 23:05, after payment_grace_expiry (23:00)
 
@@ -200,17 +199,17 @@ jobs:
 
   # --- M7 logistics -----------------------------------------------------------------------
   - name: solve_routes
-    runner: cron-job.org
+    runner: vm
     cron: "15 23 * * *"
     why: M7 §6 T-1 23:15
 
   - name: solve_tiffin_routes
-    runner: cron-job.org
+    runner: vm
     cron: "35 9 * * *"
     why: M7 §3.7 T 09:35, five minutes after manual tiffin assignment closes (09:30); shares the 09:30 wake
 
   - name: persist_gps_pings
-    runner: cron-job.org
+    runner: vm
     cron:
       - "* 6-7 * * *"
       - "0-45 8 * * *"
@@ -218,17 +217,17 @@ jobs:
     why: M7 §6 every minute on delivery mornings; the lunch tiffin run's pings wait in Valkey for the 12:30 and 14:30 wakes (§3.7), and close_routes (16:00) ends strays
 
   - name: close_routes
-    runner: cron-job.org
+    runner: vm
     cron: "0 16 * * *"
     why: M7 §6 T 16:00
 
   - name: hold_expiry
-    runner: cron-job.org
+    runner: vm
     cron: "30 20 * * *"
     why: M7 §6 T 20:30
 
   - name: schedule_redeliveries
-    runner: cron-job.org
+    runner: vm
     cron: "45 20 * * *"
     why: M7 §6 T 20:45
 
@@ -240,12 +239,12 @@ jobs:
 
   # --- M8 partners ------------------------------------------------------------------------
   - name: assign_kitchens
-    runner: cron-job.org
+    runner: vm
     cron: "30 21 * * *"
     why: M8 §6 T-1 21:30, round 1
 
   - name: assignment_acceptance_timeout
-    runner: cron-job.org
+    runner: vm
     cron:
       - "45 21 * * *"
       - "0,15,30,45 22-23 * * *"
@@ -253,14 +252,14 @@ jobs:
     why: M8 §6 every 15 minutes from T-1 21:45 to T 00:30 (no new round after 00:00)
 
   - name: refund_unassigned_tiffins
-    runner: cron-job.org
+    runner: vm
     cron:
       - "30 9 * * *"
       - "0 18 * * *"
     why: M8 §6 T 09:30 for lunch (ready_by 11:30 - 2 h); the 18:00 run is for dinner, whose slot M8 gives no time for (it covers slots up to 21:00; a run before a meal closes refunds nothing, a later one only refunds later)
 
   - name: prompt_tiffin_ratings
-    runner: cron-job.org
+    runner: vm
     cron: "30 14 * * *"
     why: M8 §6 T 14:30
 
@@ -278,7 +277,7 @@ jobs:
     why: M9 daily 03:10 IST
 
   - name: sweep_missed_pickups
-    runner: cron-job.org
+    runner: vm
     cron: "30 22 * * *"
     why: M9 daily 22:30 IST
 
@@ -291,7 +290,7 @@ jobs:
 
   # --- M11 notifications ------------------------------------------------------------------
   - name: send_deliveries
-    runner: cron-job.org
+    runner: vm
     cron:
       - "* 6-7 * * *"
       - "0-45 8 * * *"
@@ -311,7 +310,7 @@ jobs:
 
   # --- M12 analytics ----------------------------------------------------------------------
   - name: refresh_analytics
-    runner: cron-job.org
+    runner: vm
     cron:
       - "*/15 6-7 * * *"
       - "0-45/15 8 * * *"
@@ -335,7 +334,7 @@ jobs:
 
   # --- M13 assistant ----------------------------------------------------------------------
   - name: expire_proposals
-    runner: cron-job.org
+    runner: vm
     cron:
       - "*/10 6-7 * * *"
       - "0-45/10 8 * * *"

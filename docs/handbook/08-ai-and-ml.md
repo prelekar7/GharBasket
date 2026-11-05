@@ -335,7 +335,7 @@ Data sources (all free; fetch dates recorded with every run): IFCT 2017 and ICMR
 - **D8** — Simulator first; `data_source` tagging ([ADR-0008](../adr/0008-simulator-first-data-source-tagging.md)).
 - **D13** — Assistant model chosen after the S8 eval ([ADR-0013](../adr/0013-assistant-model-chosen-by-eval.md)).
 - **D21** — Jobs without a broker until the pilot; long ML jobs never run inside an API request ([ADR-0021](../adr/0021-jobs-without-a-broker.md)); D25 puts them in GitHub Actions (`backend/training`).
-- **D25** — ML runtime: GitHub Actions for training, R2 for the lake and registry, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)); its serving host, a Hugging Face Space, is replaced by a free Render web service without OSRM (D30, [ADR-0030](../adr/0030-ml-service-on-render-free.md)).
+- **D25** — ML runtime: GitHub Actions for training, R2 for the lake and registry, cron-job.org for minute-level jobs (moved to the Oracle VM by D32) ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)); its serving host, a Hugging Face Space, is replaced by a free Render web service without OSRM (D30, [ADR-0030](../adr/0030-ml-service-on-render-free.md)).
 - **Open:** confirm bge-m3 CPU embedding speed in the S7 spike; decide whether to attempt the optional Chronos fine-tune for the paper.
 
 Related: [Chapter 05 — Data architecture](05-data-architecture.md) · [Chapter 07 — Workflows](07-workflows.md) · [Chapter 10 — API and integration](10-api-and-integration.md) · Module specs M10 and M13 in [`docs/modules/`](../modules/)

@@ -94,9 +94,10 @@ class Settings(DatabaseSettings):
     # of the job are answered.
     ml_job_timeout_s: float = Field(default=30.0, gt=0, le=120)
     # The ML time one job run (all the households of one generate_weekly_plans call) may spend on
-    # those long calls. The job runs inside the request of cron-job.org, which gives up after 30 s,
-    # and a household costs ~8-10 s when the planner is slow: once spent, the run's remaining calls
-    # use ML_TIMEOUT_S and the solver's customer limit (rule fallbacks mostly), so it finishes.
+    # those long calls. The job runs inside the scheduler's request: set when that was cron-job.org,
+    # which gave up after 30 s (the VM scheduler waits 5 minutes, ADR-0032), and a household costs
+    # ~8-10 s when the planner is slow: once spent, the run's remaining calls use ML_TIMEOUT_S and
+    # the solver's customer limit (rule fallbacks mostly), so it finishes.
     ml_job_budget_s: float = Field(default=20.0, gt=0, le=300)
     # Circuit breaker, one per ML path (per API process): after this many consecutive failed calls
     # (timeout, connection error, HTTP 5xx) the gateway stops calling that path for

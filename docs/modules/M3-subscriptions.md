@@ -389,12 +389,12 @@ The contract (endpoints, `SlotQuote`, the saving rule, honouring a quote, tables
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
-| `generate_weekly_plans` | T-3 18:00 IST per hub (cron-job.org → `POST /v1/internal/jobs/generate_weekly_plans`) | Plans via `intel_gateway.api.plan_week`; rule-table fallback; §3.1 |
-| `send_box_ready_notices` | T-3 18:30 IST (cron-job.org) | `draft` cycles of the delivery day (and earlier drafts still before their cut-off): sets `notice_sent_at`, moves them to `awaiting_approval`, publishes `subscriptions.box_ready`; idempotent per cycle, since only drafts are taken. The pre-debit notice for Autopay comes via M5 at the pilot |
-| `remind_unapproved` | T-1 19:00 IST (cron-job.org) | Cycles still `awaiting_approval` that `apply_auto_approve` will not take (no `auto_approve`, or a notice under 24 h before the cut-off): publishes `subscriptions.cutoff_reminder` once per cycle (`reminded_at`) |
+| `generate_weekly_plans` | T-3 18:00 IST per hub (VM scheduler → `POST /v1/internal/jobs/generate_weekly_plans`) | Plans via `intel_gateway.api.plan_week`; rule-table fallback; §3.1 |
+| `send_box_ready_notices` | T-3 18:30 IST (VM scheduler) | `draft` cycles of the delivery day (and earlier drafts still before their cut-off): sets `notice_sent_at`, moves them to `awaiting_approval`, publishes `subscriptions.box_ready`; idempotent per cycle, since only drafts are taken. The pre-debit notice for Autopay comes via M5 at the pilot |
+| `remind_unapproved` | T-1 19:00 IST (VM scheduler) | Cycles still `awaiting_approval` that `apply_auto_approve` will not take (no `auto_approve`, or a notice under 24 h before the cut-off): publishes `subscriptions.cutoff_reminder` once per cycle (`reminded_at`) |
 | `apply_auto_approve` | T-1 20:55 IST | Only where `notice_sent_at` ≤ cut-off − 24 h |
 
-Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-0021) triggered by cron-job.org for minute-level timing (ADR-0025); event-triggered work runs in outbox consumers. Rules use `scheduled_for`, so a late start never lets an edit through after the cut-off.
+Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-0021) triggered by the VM scheduler for minute-level timing (ADR-0032); event-triggered work runs in outbox consumers. Rules use `scheduled_for`, so a late start never lets an edit through after the cut-off.
 
 ## 7. Permissions
 | Permission | Roles (scope) |
