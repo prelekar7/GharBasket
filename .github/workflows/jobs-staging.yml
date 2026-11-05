@@ -1,9 +1,10 @@
 # Scheduled jobs on staging (ADR-0021): this workflow calls the API's internal job endpoints with
 # JOBS_TOKEN for the jobs whose runner is `actions` in infra/jobs/schedule.yaml (daily, weekly and
 # the hourly reconcile). Minute-level timing and the evening chain (plans, cut-off, routes) come
-# from cron-job.org, which calls the same endpoints; its jobs are the `cron-job.org` entries of
-# the same file. That file is the one schedule of every job. Nothing about times lives here except
-# the literal cron lines below, which GitHub requires and a test keeps equal to the file.
+# from the scheduler on the staging VM (scripts/jobs_scheduler.py, ADR-0032), which calls the same
+# endpoints for the `vm` entries of the same file. That file is the one schedule of every job.
+# Nothing about times lives here except the literal cron lines below, which GitHub requires and a
+# test keeps equal to the file.
 #
 # The `on.schedule` crons are UTC. A run calls every `actions` job whose cron equals the one that
 # fired (`github.event.schedule`), so two jobs may share a time. Cron minutes are off the hour:

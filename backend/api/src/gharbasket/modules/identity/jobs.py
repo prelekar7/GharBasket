@@ -2,9 +2,9 @@
 
 `build_data_export` builds the queued exports (spec §3.3). The spec names it the consumer of
 `identity.data_export_requested`, but outbox consumers get no object storage, so it is a job that
-takes queued rows instead, every few minutes from cron-job.org: well inside the promised 24 hours.
-Once the file is written it publishes `identity.data_export_ready` for M11's "your data is ready"
-notification, which never carries the link.
+takes queued rows instead, every few minutes from the VM scheduler: well inside the promised 24
+hours. Once the file is written it publishes `identity.data_export_ready` for M11's "your data is
+ready" notification, which never carries the link.
 
 The captain role follows M9's appointments: `community.captain_assigned` grants
 `captain:<society>` and `community.captain_ended` removes it (ADR-0026 §4).

@@ -487,12 +487,12 @@ Changes from §3.9: `orders.orders.discount_code` (text, null; `green_slot`).
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
-| `cutoff_lock` | T-1 21:00 IST (cron-job.org → `POST /v1/internal/jobs/cutoff_lock`) | Advisory lock; batches of 200; `billing.api.debit_for_order` keyed by order id; see §3.1 |
-| `payment_grace_expiry` | T-1 23:00 IST (cron-job.org) | `payment_failed` → `cancelled` |
+| `cutoff_lock` | T-1 21:00 IST (VM scheduler → `POST /v1/internal/jobs/cutoff_lock`) | Advisory lock; batches of 200; `billing.api.debit_for_order` keyed by order id; see §3.1 |
+| `payment_grace_expiry` | T-1 23:00 IST (VM scheduler) | `payment_failed` → `cancelled` |
 | retry after top-up | Outbox consumer of `billing.wallet_topped_up` | Re-runs the debit for a `payment_failed` order inside the grace period |
-| `expire_carry_overs` | Daily 02:40 IST (cron-job.org) | Refunds carried items still pending 14 days after the miss, without the fee (§3.8) |
+| `expire_carry_overs` | Daily 02:40 IST (VM scheduler) | Refunds carried items still pending 14 days after the miss, without the fee (§3.8) |
 
-Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal job endpoints (ADR-0021); the API itself refuses edits after the cut-off, and the job uses its `scheduled_for`, not the run time.
+Minute-level jobs are triggered by the VM scheduler (ADR-0032) against the internal job endpoints (ADR-0021); the API itself refuses edits after the cut-off, and the job uses its `scheduled_for`, not the run time.
 
 ## 7. Permissions
 | Permission | Roles (scope) |

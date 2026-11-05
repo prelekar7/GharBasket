@@ -17,7 +17,7 @@ from gharbasket.platform.jobs import JOBS
 ROOT = Path(__file__).resolve().parents[3]
 SCHEDULE = ROOT / "infra" / "jobs" / "schedule.yaml"
 WORKFLOW = ROOT / ".github" / "workflows" / "jobs-staging.yml"
-RUNNERS = {"cron-job.org", "actions", "manual"}
+RUNNERS = {"vm", "actions", "manual"}
 # (low, high) of the five cron fields; day-of-week 7 is Sunday too, as in most crons.
 FIELDS = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 7)]
 # Neon: scales to zero after 5 idle minutes; a job call counts as 1 minute of work.

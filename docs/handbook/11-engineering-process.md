@@ -130,7 +130,7 @@ flowchart TD
     OK -->|yes| MG["Squash merge to main"]
     MG --> STG["deploy-staging<br/>alembic upgrade head on Neon,<br/>Render deploy hook, smoke test"]
     MG --> VD["Vercel deploys PWA + console"]
-    SCH["jobs-staging.yml schedule<br/>+ cron-job.org"] --> JOB["POST /v1/internal/jobs/{name}<br/>with JOBS_TOKEN"]
+    SCH["jobs-staging.yml schedule<br/>+ the VM scheduler"] --> JOB["POST /v1/internal/jobs/{name}<br/>with JOBS_TOKEN"]
     TRN["training-jobs.yml schedule"] --> TRJ["backend/training on the runner<br/>R2 lake, then internal endpoints"]
 ```
 
@@ -143,7 +143,7 @@ flowchart TD
 | `ci.yml` | PR, push to main | Lint, secrets, Python, simulated-day, frontend build and JS editor hints jobs (above). The simulated-day job (`just e2e-day`: the whole delivery day through the HTTP API on a fresh Postgres + Valkey, ML service down, SeaweedFS up for the KYC uploads of the journeys) runs on every push to main and on PRs that touch `backend/`, `e2e/backend/`, `data/`, `infra/postgres/`, the lockfile or `ci.yml`; a red day blocks the merge and, on main, the staging deploy |
 | `claude.yml` | `@claude` in an issue, PR comment or review | On-demand Claude Code; no automatic review on every PR (the Opus review of ML PRs above runs locally, not here) |
 | `deploy-staging.yml` | CI passed on a push to main (or "Run workflow") | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook for that commit (Render's pre-deploy step is paid-only), then waits until `/v1/health` reports the commit and runs `scripts/smoke-staging.sh`. Skips with a notice until its secrets exist |
-| `jobs-staging.yml` | GitHub Actions schedule (daily and weekly) or "Run workflow" with a job name | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` and the scheduled time (D21). Minute-level jobs (the 21:00 cut-off, the outbox sweep every few minutes) are called the same way by cron-job.org, since a private repository has 2,000 free Actions minutes a month. Skips with a notice until the secrets exist |
+| `jobs-staging.yml` | GitHub Actions schedule (daily and weekly) or "Run workflow" with a job name | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` and the scheduled time (D21). Minute-level jobs (the 21:00 cut-off, the outbox sweep every few minutes) are called the same way by `scripts/jobs_scheduler.py` on the staging Oracle VM (D32): GitHub starts schedules late and runs them at most every 5 minutes. Skips with a notice until the secrets exist |
 | `training-jobs.yml` | GitHub Actions schedule (daily, 18:33 IST) or "Run workflow" with a job module | Runs `python -m gharbasket_training.jobs.<name>` from `backend/training` on the runner (D25): reads and writes the lake on R2 and hands results to the API's internal endpoints with `JOBS_TOKEN`. Today it runs `collect_mandi`. Skips with a notice until its secrets exist |
 
 Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag) and, before P6, a pilot production deploy.
@@ -246,7 +246,7 @@ Core rules in `AGENTS.md`:
 - **D14** — Final tech stack; changes need an ADR ([ADR-0014](../adr/0014-final-stack-and-service-based-architecture.md)); amended by D18 (JavaScript frontend, [ADR-0018](../adr/0018-javascript-not-typescript-frontend.md)) and D22 (generated API client, [ADR-0022](../adr/0022-api-client-openapi-fetch.md)).
 - **D20** — Free-tier environments: Render, Vercel, Neon, R2 ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md); supersedes ADR-0015).
 - **D23** — Ownership: one backend owner, one frontend owner ([ADR-0023](../adr/0023-ownership-backend-and-frontend.md); supersedes the code ownership in ADR-0009).
-- **D25** — ML runtime: training in GitHub Actions (`backend/training`), models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020). Its serving host, a Hugging Face Space with OSRM, is replaced by a free Render web service without OSRM (D30, [ADR-0030](../adr/0030-ml-service-on-render-free.md)).
+- **D25** — ML runtime: training in GitHub Actions (`backend/training`), models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs (moved to the Oracle VM by D32) ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020). Its serving host, a Hugging Face Space with OSRM, is replaced by a free Render web service without OSRM (D30, [ADR-0030](../adr/0030-ml-service-on-render-free.md)).
 - **Open:** the pilot production setup (before P6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 12 — Deployment and operations](12-deployment-and-operations.md) · [Chapter 14 — Project plan](14-project-plan.md)

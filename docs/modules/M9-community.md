@@ -822,7 +822,7 @@ No event carries a name, flat, phone or photo key.
 | Job | Schedule | Notes |
 |---|---|---|
 | `recompute_unlock_thresholds` | Monday 02:10 IST (GitHub Actions) | §3.6: M10's stop cost, or the current threshold when M10 is down; skips pinned and live societies; may make a society live |
-| `refresh_impact_counters` | Hourly at :25 (cron-job.org) | §3.7: `REFRESH MATERIALIZED VIEW CONCURRENTLY community.mv_society_impact` |
+| `refresh_impact_counters` | Hourly at :25 (VM scheduler) | §3.7: `REFRESH MATERIALIZED VIEW CONCURRENTLY community.mv_society_impact` |
 | `sweep_missed_pickups` | Daily 22:30 IST | §3.4: today's scheduled donations no stop reported count as `not_ready` |
 | `expire_referrals` | Daily 03:10 IST | §3.3: `joined` referrals older than 90 days become `void` |
 

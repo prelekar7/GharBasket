@@ -61,7 +61,7 @@ This keeps ADR-0025 as written ("no household ids or other personal data travel 
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
-| `expire_proposals` | Every 10 min (cron-job.org → `POST /v1/internal/jobs/expire_proposals`) | Pending past `expires_at` (15 min) → expired |
+| `expire_proposals` | Every 10 min (VM scheduler → `POST /v1/internal/jobs/expire_proposals`) | Pending past `expires_at` (15 min) → expired |
 | `assistant_eval` | On demand (`just eval-assistant`) | Runs the 200-utterance set against candidate models |
 
 ## 7. Permissions
