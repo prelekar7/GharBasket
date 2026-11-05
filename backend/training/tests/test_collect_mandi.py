@@ -249,6 +249,19 @@ def test_normalise_skips_rows_without_a_price() -> None:
     assert job._paise_per_kg("abc") is None
 
 
+def test_a_name_matches_with_or_without_a_space_before_its_bracket() -> None:
+    # The map has "French Beans (Frasbean)"; Agmarknet sent "French Beans(Frasbean)" on 2 Nov 2026.
+    table, unmapped = job.normalise(
+        [
+            record("Mumbai", "French Beans(Frasbean)", 4000),
+            record("Mumbai", "  bengal gram dal ( chana dal )", 9000),
+        ],
+        job.commodity_map(),
+    )
+    assert [r["product"] for r in table.to_pylist()] == ["french-beans", "chana-dal"]
+    assert unmapped == set()
+
+
 def _table(rows: list[dict[str, Any]], day: date) -> pa.Table:
     return pa.Table.from_pylist(
         [
