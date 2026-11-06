@@ -1,11 +1,11 @@
 """identity.api.household_facts: M12's cohort rows (M12 §3.1), with no personal field."""
 
 import dataclasses
-from datetime import datetime, timedelta
+from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
@@ -21,11 +21,13 @@ async def test_household_facts_are_ids_dates_and_the_account_status(
     db_session: AsyncSession,
 ) -> None:
     facts = await identity_api.household_facts(db_session)
-    today = datetime.now(IST).date()
+    # The IST day the seed created them, not today's: a run may cross midnight after seeding.
+    created = (await db_session.execute(select(Household.created_at))).scalars()
+    [seeded_on] = {at.astimezone(IST).date() for at in created}
 
     assert len(facts) >= 3
     assert {(f.created_on, f.status, f.data_source) for f in facts} == {
-        (today, "active", "synthetic")
+        (seeded_on, "active", "synthetic")
     }
     assert [f.household_id for f in facts] == sorted(f.household_id for f in facts)
     assert {field.name for field in dataclasses.fields(identity_api.HouseholdFact)} == {
@@ -43,6 +45,6 @@ async def test_household_facts_are_ids_dates_and_the_account_status(
     [found] = await identity_api.household_facts(db_session, ids=[one.household_id])
     assert found == dataclasses.replace(one, status="deleting")
     assert await identity_api.household_facts(db_session, ids=[]) == []
-    later = today + timedelta(days=1)
+    later = seeded_on + timedelta(days=1)
     assert await identity_api.household_facts(db_session, created_from=later) == []
-    assert len(await identity_api.household_facts(db_session, created_from=today)) == len(facts)
+    assert len(await identity_api.household_facts(db_session, created_from=seeded_on)) == len(facts)

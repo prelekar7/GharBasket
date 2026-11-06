@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.analytics import models, refresh
 from gharbasket.modules.billing import api as billing_api
-from gharbasket.modules.community.models import Donation
+from gharbasket.modules.community.models import Donation, Society
 from gharbasket.modules.hub_ops.models import PackingLine, PackingTask
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity.models import Household
@@ -52,6 +52,11 @@ async def _scenario(session: AsyncSession) -> None:
     # Signed up on a fixed day, so the rebuild starts there whatever the clock says.
     signed_up = datetime(2026, 10, 20, 6, tzinfo=IST)
     await session.execute(update(Household).values(created_at=signed_up))
+    # The seed marks its live societies live "now"; on a fixed day too, or a run two days after
+    # TUESDAY finds the go-live in the rebuild's window (to TUESDAY + 2) and not the nightly's.
+    await session.execute(
+        update(Society).where(Society.live_at.is_not(None)).values(live_at=signed_up)
+    )
     households = [h for h in await identity_api.household_facts(session) if h.hub_id][:3]
     plan_id = (await session.execute(select(Plan.id).where(Plan.code == "autopilot"))).scalar_one()
     cutoff = datetime.combine(TUESDAY - timedelta(days=1), time(21), IST)
