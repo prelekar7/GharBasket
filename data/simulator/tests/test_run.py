@@ -52,6 +52,18 @@ async def test_the_catalog_from_the_database_matches_the_seed_files(
         assert abs(got["cost_per_serving_paise"] - want["cost_per_serving_paise"]) <= 1
 
 
+async def test_a_run_that_starts_before_the_first_price_list_takes_the_list_in_force_at_its_end(
+    db_session: AsyncSession,
+) -> None:
+    await seeded(db_session)  # the seed's one price list is valid from 2026-10-01
+
+    loaded = await load_catalog(db_session, SEED_HUB_ID, date(2026, 8, 10), date(2026, 10, 31))
+
+    expected = json_catalog()
+    assert loaded.products == expected.products
+    assert any(p.price_paise is not None for p in loaded.products.values())
+
+
 async def test_households_are_onboarded_once_through_m1(
     db_session: AsyncSession, tmp_path: Path
 ) -> None:
