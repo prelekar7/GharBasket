@@ -1,11 +1,26 @@
-import { Button, IconButton, OrderTimeline, RadioCards, Skeleton, toast } from "@gharbasket/ui";
+import {
+  Button,
+  IconButton,
+  OrderTimeline,
+  RadioCards,
+  Skeleton,
+  TextField,
+  toast,
+} from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import {
+  cleanName,
+  isNameRefused,
+  isValidName,
+  NAME_MAX,
+} from "@/features/partners/displayName.js";
 import { useApply, useMyApplication } from "@/features/partners/queries.js";
 import { shortDate } from "@/features/subscriptions/format.js";
+import { useSession } from "@/lib/session.js";
 
 /** @typedef {import("@/features/partners/queries.js").PartnerKind} PartnerKind */
 const KINDS = /** @type {PartnerKind[]} */ (["captain", "kitchen", "rider", "packer"]);
@@ -40,6 +55,12 @@ function Partner() {
   const [kind, setKind] = useState(/** @type {PartnerKind} */ (role ?? "captain"));
   const application = useMyApplication();
   const apply = useApply();
+  // The name customers see; starts from the profile name, which a new user may not have set.
+  const profileName = useSession((s) => s.user?.name);
+  const [name, setName] = useState(/** @type {string | null} */ (null));
+  const [refused, setRefused] = useState(false);
+  const shownName = name ?? profileName ?? "";
+  const nameInvalid = refused || (name !== null && !isValidName(name));
 
   const header = (
     <header className="-ml-3 flex items-center gap-1">
@@ -113,6 +134,19 @@ function Partner() {
               }))}
             />
           </div>
+          <TextField
+            label={t("partner.nameLabel")}
+            description={t("partner.nameHelp")}
+            autoComplete="name"
+            maxLength={NAME_MAX}
+            value={shownName}
+            onChange={(v) => {
+              setName(v);
+              setRefused(false);
+            }}
+            isInvalid={nameInvalid}
+            errorMessage={t("partner.nameInvalid")}
+          />
         </>
       )}
       <section className="flex flex-col gap-2 rounded-md bg-surface px-4 py-3">
@@ -154,16 +188,23 @@ function Partner() {
             size="lg"
             block
             isPending={apply.isPending}
-            onPress={() =>
+            onPress={() => {
+              if (!isValidName(shownName)) {
+                setName(cleanName(shownName));
+                return;
+              }
               // The server fills the society (a captain's own) or the hub from the household.
               apply.mutate(
-                { kind },
+                { kind, displayName: shownName },
                 {
                   onSuccess: () => toast(t("partner.sent")),
-                  onError: () => toast(t("partner.failed")),
+                  onError: (e) => {
+                    if (isNameRefused(e)) setRefused(true);
+                    toast(t(isNameRefused(e) ? "partner.nameInvalid" : "partner.failed"));
+                  },
                 },
-              )
-            }
+              );
+            }}
           >
             {t("partner.cta", { role: t(`partner.roles.${kind}.title`) })}
           </Button>

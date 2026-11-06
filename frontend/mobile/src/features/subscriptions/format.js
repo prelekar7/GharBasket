@@ -162,6 +162,14 @@ export const istDate = (at = new Date()) =>
 /** Today's date in India as "YYYY-MM-DD". */
 export const todayIst = () => istDate();
 
+/** `count` India calendar dates from today on ("YYYY-MM-DD"), today first. @param {number} count @param {string | Date} [from] */
+export const istDatesFrom = (count, from = new Date()) => {
+  const start = Date.parse(`${istDate(from)}T12:00:00Z`);
+  return Array.from({ length: count }, (_, i) =>
+    new Date(start + i * 86_400_000).toISOString().slice(0, 10),
+  );
+};
+
 /**
  * How much of a box line comes, in the API's own words: "250 g" for one step, "3 × 1 kg" for more.
  * @param {{ qty: number, step: { label: string } }} line
