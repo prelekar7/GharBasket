@@ -8,6 +8,8 @@ from gharbasket_sim.catalog import Catalog, load_catalog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog import api as catalog_api
+from gharbasket.modules.catalog.models import Price, PriceList
 from gharbasket.modules.identity.models import Household, User
 from gharbasket.tools.seed import SEED_HUB_ID, seed_catalog, seed_societies
 
@@ -52,16 +54,40 @@ async def test_the_catalog_from_the_database_matches_the_seed_files(
         assert abs(got["cost_per_serving_paise"] - want["cost_per_serving_paise"]) <= 1
 
 
-async def test_a_run_that_starts_before_the_first_price_list_takes_the_list_in_force_at_its_end(
-    db_session: AsyncSession,
-) -> None:
-    await seeded(db_session)  # the seed's one price list is valid from 2026-10-01
+async def test_prices_come_from_the_start_s_list_else_today_s(db_session: AsyncSession) -> None:
+    """The start's list wins; a product it lacks, or a run that starts before the hub's first
+    list, takes today's list (what M3 and M4 charge), so a staging load 12 weeks back is priced."""
+    await seeded(db_session)  # the seed's one list is valid from 2026-10-01
+    files = json_catalog()
+    ids = await catalog_api.product_ids_by_slug(db_session, sorted(files.products))
+    in_recipes = {i.product for items in files.ingredients.values() for i in items}
+    priced = sorted(s for s, p in files.products.items() if p.price_paise)
+    changed = priced[0]
+    dropped = next(s for s in priced if s not in in_recipes)  # recipes need every ingredient priced
+    seed_list = (await db_session.execute(select(PriceList))).scalar_one()
+    newer = PriceList(hub_id=SEED_HUB_ID, valid_from=date(2026, 10, 20), data_source="synthetic")
+    db_session.add(newer)
+    await db_session.flush()
+    for price in (await db_session.execute(select(Price))).scalars().all():
+        if price.price_list_id == seed_list.id and price.product_id != ids[dropped]:
+            bump = 100 if price.product_id == ids[changed] else 0
+            db_session.add(
+                Price(
+                    price_list_id=newer.id,
+                    product_id=price.product_id,
+                    price_paise=price.price_paise + bump,
+                )
+            )
+    await db_session.flush()
+    seed_price = files.products[changed].price_paise
+    assert seed_price is not None
 
-    loaded = await load_catalog(db_session, SEED_HUB_ID, date(2026, 8, 10), date(2026, 10, 31))
+    at_start = await load_catalog(db_session, SEED_HUB_ID, date(2026, 10, 5), date(2026, 10, 18))
+    before = await load_catalog(db_session, SEED_HUB_ID, date(2026, 8, 10), date(2026, 9, 27))
 
-    expected = json_catalog()
-    assert loaded.products == expected.products
-    assert any(p.price_paise is not None for p in loaded.products.values())
+    assert at_start.products == files.products  # the seed list is in force at the start
+    assert before.products[changed].price_paise == seed_price + 100  # today's list
+    assert before.products[dropped].price_paise is None  # today's list does not sell it
 
 
 async def test_households_are_onboarded_once_through_m1(

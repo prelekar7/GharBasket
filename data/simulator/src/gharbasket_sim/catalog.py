@@ -87,9 +87,10 @@ async def load_catalog(session: AsyncSession, hub_id: Any, start: date, end: dat
             break
     ids = [p.id for p, _ in found_products]
     # The list in force at the start; a product it lacks (or a run that starts before the hub's
-    # first list, as a staging load 12 weeks back does) takes the list in force at the end, which
-    # is what M4 charges the replayed boxes. Unpriced, the simulator would never order an add-on.
-    prices = await prices_for(session, hub_id, ids, on=end)
+    # first list, as a staging load 12 weeks back does) takes today's list, which is what M3 and
+    # M4 charge the replayed boxes and what `cost_per_serving` below uses. Unpriced, the simulator
+    # would never order an add-on. Two lists can mix across a price change (synthetic; fine).
+    prices = await prices_for(session, hub_id, ids)
     prices.update(await prices_for(session, hub_id, ids, on=start))
     products: dict[str, Product] = {
         p.slug: Product(
