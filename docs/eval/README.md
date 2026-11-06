@@ -89,6 +89,45 @@ basket-ranker run's `explanations.json` is passed with
 
 ## Published reports
 
+### 2026-11-06-3e5f2898 (the final eval; the reference report)
+
+`just eval` at commit `d253b6f4` (main after #483, #484 and #486). The report is named after `3e5f2898`,
+main's commit when it was written: #487 merged during the run, and it changes only the job scheduler and
+docs, none of which the eval imports. Full run, the protocol's seeds 7, 11, 13, 17, 19. The settings:
+- **Planner:** 5 weeks from 2026-10-05, default adoption, shocks on.
+- **Pantry:** learned-priors reference arm on the next seed's households.
+- **λ sweep:** 0–1,200 by 100, then 2,000. 5 weeks, 6 kitchens, preferred-first; it mirrors production (#460).
+- **Forecast:** 20 weeks from 2026-09-07, with add-ons on the funded box (ADR-0031, #484).
+- **Routing:** 50 societies, 20 s for both waves.
+- **Ranker:** 8 weeks with the rules planner, after #482.
+
+It ran on an arm64 Mac at low priority (`nice 10`), next to other work: about 15 hours of wall time. The assistant eval (M13) was not run: the key stays off until the 200-utterance set (the owner's
+decision of 1 Nov). This report replaces 2026-10-28-77bf7d87 as the reference; the partial runs below (1 and 2 Nov)
+are its history.
+
+| Question | Result (mean ± 95 % CI over 5 seeds) | Target | Verdict |
+|---|---|---|---|
+| RQ2 acceptance, CP-SAT v1 (M-C) | 0.796 (v2 0.812, rules 0.827, greedy 0.829, random 0.707); − greedy −0.033 ± 0.009, − random +0.089 ± 0.009 | ≥ 0.70 and above greedy and random | **No**: below greedy (as on 28 Oct) |
+| RQ2 other M-C hypotheses | distinct perishables 3.7 (greedy 6.2, random 11.2); hard-rule violations 0 | ≥ 25 % fewer than greedy; 0 | hold |
+| RQ2 planner v2 vs v1 | +0.027 ± 0.010 from week 2 (+0.016 ± 0.006 over all weeks) | CI lower bound ≥ 0 | holds |
+| RQ1 pantry twin v0.2 (milk, curd), MAE after 4 weeks | 0.139, 95 % CI upper bound 0.154 (rule table 0.194, running mean 0.089); 80 % interval covers 0.78; from learned priors 0.140 | MAE ≤ 0.15; coverage 0.75–0.85 | **Holds on the mean**, not on the CI upper bound; coverage inside its band |
+| RQ4 fair assignment (M-G), production λ = 600 | Gini 0.316 ± 0.076 (greedy 0.369 ± 0.090), cost +2.6 % ± 2.2 % | Gini ≤ 0.25 at ≤ +5 % cost | **No**: no λ reaches 0.25. Gini flattens at 0.28–0.29 from λ = 900 (+4.7 % ± 5.8 %) up to 2,000 (+5.4 % ± 7.7 %) |
+| RQ4, the λ rule fixed before the sweep (§7, 2026-11-01) | the largest λ up to which every λ keeps the mean cost ≤ +5 %: **900** | — | production runs 600 (#460, from the 1 Nov sweep); changing it is the owner's call |
+| RQ3 forecast (M-E) | champion WAPE 0.132 ± 0.021 (seasonal naive 0.167, naive 0.162); seasonal naive − champion 0.035 ± 0.013 (lower bound 0.022) | WAPE ≤ 0.25 and ≥ 0.10 better than seasonal naive | **No**: accurate, but not 10 points better than seasonal naive |
+| RQ3 newsvendor cost (reported, not the target) | champion 0.052; − seasonal naive −0.014 ± 0.005, − naive −0.015 ± 0.004; v1 − v0 +0.009 ± 0.007 | lower when the CI upper bound < 0 | lower than both baselines; LightGBM (v1) is not better than v0 |
+| RQ3 stock-out / waste (champion) | 0.112 / 0.036 at τ = 0.375 | ceilings 0.03 / 0.05 | not judged (the costs set τ; §7, 2026-11-02) |
+| M-F routing, 50 societies | ₹6.07 an order vs nearest neighbour ₹8.54: −28.9 % ± 5.4 %; on time 1.000 vs 0.956; 10 s a wave; at 2 s a wave −29.3 % ± 3.8 % | on time ≥ 95 %, ≥ 10 % cheaper, ≤ 10 s a wave | **holds** |
+| M-B ranker, serving view | NDCG@10 0.991 ± 0.005 (repeat last week 0.963, top frequency 0.996); model − repeat +0.026 ± 0.008 (lower bound 0.019); Recall@\|basket\| 0.881 (top frequency 0.879) | NDCG@10 ≥ repeat last week + 0.05 | **No**: not to be promoted |
+
+What changed since the 28 Oct reference:
+- **Pantry (#464, #465):** the tap-based twin now meets its target on the mean, from 0.227 before.
+- **Assignment:** the sweep now mirrors production (28-day rolling earnings, 5 km, preferred-first, #460), which is harder to balance. The baseline Gini drops from 0.420 to 0.369, and no λ gets the Gini under 0.28.
+- **Forecast (ADR-0031):** add-ons only ride on funded boxes, on the box's day. So the series are smaller and smoother: WAPE moves from 0.188 to 0.132, and the per-day split adds no error (daily WAPE = weekly WAPE) because the add-ons arrive on the box's day. The 2 Nov scale-weighted margin keeps the newsvendor cost below both baselines.
+- **Routing and ranker:** the same numbers as their 2 Nov runs.
+
+Limits are as in the 28 Oct report: synthetic data only (ADR-0008), simulator households whose rules the
+planner and the rule table partly share, and wide CIs for λ ≥ 700.
+
 ### 2 Nov 2026: the M-B verdict (ranker part only; no report committed)
 
 `python -m gharbasket_training.eval.ranker_eval --out <scratch>` at commit `742d6ef1` (the arm and its

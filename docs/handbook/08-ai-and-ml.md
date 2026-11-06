@@ -263,6 +263,17 @@ sequenceDiagram
 
 Every experiment runs on at least 5 simulator seeds and reports mean ± 95 % CI; synthetic and pilot results are always separate tables.
 
+**Final eval, synthetic (6 Nov 2026, [`docs/eval/2026-11-06-3e5f2898`](../eval/README.md)):** the reference results for the report. Numbers are means over the 5 protocol seeds.
+
+| Algorithm | Result | Target met? |
+|---|---|---|
+| M-A pantry twin (milk, curd) | MAE 0.139 after 4 weeks (CI upper bound 0.154; rule table 0.194); 80 % interval covers 0.78 | on the mean, not on the CI bound; coverage yes |
+| M-B basket ranker | NDCG@10 0.991 vs repeat last week 0.963 (+0.026, lower bound 0.019) and top frequency 0.996 | no; not promoted |
+| M-C meal planner | acceptance 0.796 (greedy 0.829, random 0.707); 40 % fewer perishables than greedy; 0 hard-rule violations; v2 +0.027 over v1 from week 2 | acceptance no (below greedy); the rest yes |
+| M-E forecast | WAPE 0.132 (seasonal naive 0.167); 3.5 points better, not 10; newsvendor cost below both baselines | no |
+| M-F routing | ₹6.07 vs ₹8.54 an order (−29 %), on time 100 %, 10 s a wave | yes |
+| M-G kitchen assignment | at production λ = 600: Gini 0.316 (greedy 0.369) at +2.6 % cost; no λ gets under 0.28; the pre-registered λ rule now picks 900 | no |
+
 ---
 
 ## 8.6 LLM usage
