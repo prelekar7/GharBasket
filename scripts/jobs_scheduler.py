@@ -58,8 +58,13 @@ PULL_EVERY_MIN = 15
 LATE_START_S = 50  # a (re)start this far into a minute leaves the minute alone
 
 
+_LOG = threading.Lock()
+
+
 def log(*parts: object) -> None:
-    print(*parts, flush=True)
+    """One whole line at a time: the call threads finish together."""
+    with _LOG:
+        print(*parts, flush=True)
 
 
 def field_values(field: str, low: int, high: int) -> set[int]:
