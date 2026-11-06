@@ -1,14 +1,18 @@
-import { Toaster } from "@gharbasket/ui";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useSession } from "@/lib/session.js";
+
+// The UI kit (React Aria, drawers, toasts) loads with the first screen, not in the entry chunk.
+const Toaster = lazy(() => import("@gharbasket/ui").then((m) => ({ default: m.Toaster })));
 
 export const Route = createRootRoute({
   component: () => (
     <>
       <SeniorMode />
       <Outlet />
-      <Toaster />
+      <Suspense fallback={null}>
+        <Toaster />
+      </Suspense>
     </>
   ),
 });

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import lockup from "@/assets/logo-lockup.svg";
 import lockupKraft from "@/assets/logo-lockup-kraft.svg";
 import { shortDate } from "@/features/subscriptions/format.js";
-import { LOCALES } from "@/i18n.js";
+import { LOCALES, setLocale } from "@/i18n.js";
 
 /** Each language in its own words, so anyone can find theirs (design Hf01). */
 const LANGUAGES = {
@@ -52,7 +52,7 @@ function Welcome() {
       <RadioCards
         label={t("welcome.langLabel")}
         value={lang}
-        onChange={(lng) => i18n.changeLanguage(lng)}
+        onChange={(lng) => setLocale(lng)}
         options={LOCALES.map((value) => ({ value, ...LANGUAGES[value] }))}
       />
       <div className="mt-auto flex flex-col gap-3">

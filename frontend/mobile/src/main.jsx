@@ -3,20 +3,20 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./app.css";
-import "./i18n.js";
 import { onSessionExpired } from "@/lib/api.js";
 import { MOCK } from "@/lib/env.js";
 import { clearLocalData } from "@/lib/localData.js";
-import { startOutbox } from "@/lib/outbox.js";
 import { persistOptions, queryClient } from "@/lib/queryClient.js";
 import { useSession } from "@/lib/session.js";
+import { i18nReady } from "./i18n.js";
 import { startPwa } from "./pwa.js";
 import { routeTree } from "./routeTree.gen.js";
 
 const router = createRouter({ routeTree, defaultPreload: "intent", defaultViewTransition: true });
 
 startPwa();
-startOutbox();
+// The offline outbox (Dexie, about 30 KB gzipped) loads as its own chunk and never blocks the first paint.
+import("@/lib/outbox.js").then(({ startOutbox }) => startOutbox());
 
 // The session ended while signed in: wipe the person's data from this device, as a sign-out
 // does, and show login.
@@ -35,10 +35,13 @@ if (import.meta.env.DEV && MOCK) {
   });
 }
 
-createRoot(/** @type {HTMLElement} */ (document.getElementById("root"))).render(
-  <StrictMode>
-    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
-      <RouterProvider router={router} />
-    </PersistQueryClientProvider>
-  </StrictMode>,
+// Hindi and Marathi strings are separate chunks; wait for the saved one (nothing to wait for in en-IN).
+i18nReady.then(() =>
+  createRoot(/** @type {HTMLElement} */ (document.getElementById("root"))).render(
+    <StrictMode>
+      <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+        <RouterProvider router={router} />
+      </PersistQueryClientProvider>
+    </StrictMode>,
+  ),
 );
