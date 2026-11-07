@@ -1143,7 +1143,7 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
   - the seed world from `just seed` (hub, societies, catalog, prices, festival calendar), read through the catalog services;
   - the cohorts in `data/simulator/cohorts.json` (assumptions for Rhythm and Manish to review);
   - the price episodes in `data/simulator/shocks.json` (also assumptions);
-  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026; prices are the hub's list on that day), `--planner cpsat|rules`, `--adoption` (share of flats, default 0.1) and `--no-shocks`.
+  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026; prices are the hub's list on that day, and today's list for a product it lacks or a start before the hub's first list, as M3 and M4 charge today's), `--planner cpsat|rules`, `--adoption` (share of flats, default 0.1) and `--no-shocks`.
 - **Households:**
   - sampled per seed society with a hub, using cohort size, diet, Jain, cuisines, fasts, a diabetic elder (with health consent), cook time, no-cook Sunday and Budget Lock;
   - onboarded through M1's `create_household` with `data_source='synthetic'`;

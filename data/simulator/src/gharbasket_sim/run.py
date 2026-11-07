@@ -128,6 +128,9 @@ async def simulate_world(
     catalog = await load_catalog(session, SEED_HUB_ID, first_monday, last_day)
     if not catalog.recipes:
         raise LookupError("the catalog is empty: run `just seed` first")
+    if all(p.price_paise is None for p in catalog.products.values()):
+        # Unpriced, no add-on is ever placed and boxes stay empty: say so instead of a quiet 0.
+        raise LookupError("no product has a price at the hub, at the start or today")
     households = sample(seed, cohorts.load(), catalog, adoption)
     created = await populate(session, households, adopt_real=adopt_real)
     plan = cached(PLANNERS[planner])
