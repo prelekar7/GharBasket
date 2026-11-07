@@ -166,6 +166,10 @@ sim *args:
 staging-demo *args:
     ./scripts/staging-demo.sh {{args}}
 
+# Undo a demo load: restore staging from the restore point it printed, e.g. `GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-20261107T0758Z`
+staging-rollback point:
+    uv run --quiet python scripts/neon_restore_point.py rollback {{point}}
+
 # Pin the OSRM ML image's dependencies: backend/ml/requirements.lock from uv.lock (git-ignored; the Render image reads uv.lock itself)
 ml-lock:
     uv export --quiet --package gharbasket-ml --frozen --no-dev --no-emit-project -o backend/ml/requirements.lock

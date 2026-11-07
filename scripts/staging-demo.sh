@@ -148,7 +148,7 @@ elif [ "$backup" = 1 ]; then
     echo "NEON_API_KEY is not set: add it to Infisical (staging) or pass --no-backup" >&2
     exit 2
   fi
-  uv run --quiet python scripts/neon_restore_point.py before-demo
+  uv run --quiet python scripts/neon_restore_point.py create before-demo
 else
   echo "restore point: skipped (--no-backup)"
 fi

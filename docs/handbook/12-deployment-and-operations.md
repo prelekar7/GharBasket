@@ -182,7 +182,9 @@ GB_ALLOW_REMOTE_SEED=<host it printed> infisical run --env=staging -- just stagi
 Both steps need `NEON_PROJECT_ID` in Infisical `staging`, next to `NEON_API_KEY`. Without it the script lists the projects the key sees. A personal key does not list an organisation's projects, so the lookup fails unless the key is an organisation key.
 
 What step 2 does, in order:
-1. **Restore point.** A Neon branch `before-demo-<UTC time>` of the database's branch, made through the Neon API (`scripts/neon_restore_point.py`). It has no compute, so it costs only the storage of what changes afterwards. The script prints how to restore. `--no-backup` skips this; don't use it on staging.
+1. **Restore point.** A Neon branch `before-demo-<UTC time>` of the database's branch, made through the Neon API (`scripts/neon_restore_point.py create`). It has no compute, so it costs only the storage of what changes afterwards. The script prints how to roll back. `--no-backup` skips this; don't use it on staging.
+   - First it deletes earlier `before-demo-*` points of the same branch that nothing hangs off: no child branch, no compute, not the default. Those are loads that were kept.
+   - It refuses (exit 1, before writing anything) when the project would pass Neon's free 10 branches with this point plus a rollback from it.
 2. **Seed, adds only.** On a shared database `just seed` only creates what is missing and leaves every existing row as it is: hub, societies, people (with their roles), categories, the price list, festival days and trainings. A role revoked in the console stays revoked. Products and recipes are only ever added, and `--refresh` is refused there, so nothing edited in the console is overwritten.
 3. **Simulated weeks.** `just sim --write-db --pause-after` (M3 → M4 → M5, as in the simulator README).
    - Each week's add-ons go on the approved box as add-on lines through M4 (`set_addons`), before the cut-off, so the top-up and the debit cover them: the forecast's uncommitted demand ([ADR-0031](../adr/0031-uncommitted-demand-is-add-on-lines-and-tiffins.md)), from the same derivation as the eval harness (`gharbasket_sim.uncommitted`). `--no-uncommitted` leaves them out. Tiffins are not placed: no tiffin menus or products exist yet (M2 §3.4).
@@ -211,7 +213,7 @@ What step 2 does, in order:
 - The ranker learns from the box edits.
 - The pantry refit learns from the taps: at least 3 tapping households per cohort and product (`MIN_HOUSEHOLDS`). At the default `--adoption 0.015` that gives priors for 2 of the 3 cohorts (small and medium; the large cohort has 1 household). All 3 need about `--adoption 0.025`, which is about 1.7 times the rows and time.
 - The **forecast** learns from the add-on lines (its uncommitted demand, ADR-0031; about 6 lines a household-week, mostly fruit, since a shortfall of a product already on the box is a box edit). Its backtest needs about 11 complete weeks: 7 before a series is modelled, then 3 origins with the 2-week horizon. A run meant to train it uses **`--weeks 12`**: 13 households × 12 weeks = 156 household-weeks, about 66 to 102 minutes against Neon (the add-ons add a few statements a household-week). On a local run of 8 households × 3 weeks (2 Nov) the job's data query read 151 add-on lines over 12 products, and `jobs.forecast` answered "buy last week" for them (no backtest yet).
-- **Staging's 2 Nov load** (8 weeks, `before-demo-20261102T0813Z`) has box orders only, so its forecast has no data. To make it trainable, restore the database's branch from that restore point (below, "To undo") and run `just staging-demo --weeks 12` again from a commit that has the add-ons. Anything written to staging after 08:13 UTC on 2 Nov is lost with the restore, so check first. The alternative, `--add-weeks`, adds weeks only after the latest replayed one, so the 8 old weeks would stay without add-ons and the series would start late.
+- **Staging's load, 7 Nov 2026:** 12 weeks from 10 Aug at commit 7bb49d67, with add-ons: 156 weekly cycles, 147 orders, 770 add-on lines (restore point `before-demo-20261107T0758Z`). It replaced the 2 Nov load (box orders only, so the forecast had no data) and a 6 Nov load that placed no add-ons (#490). Both were rolled back from their restore points.
 
 **If a run fails** part-way, households are left partly simulated: some committed weeks, some not. A rerun of that window is refused, and `--add-weeks` cannot fill a gap before the latest replayed week. The run also resumed the simulated subscriptions at its start, and did not reach the pause at its end, so staging's weekly job will draft their boxes again. Either restore from the branch and run again, or at least pause them:
 
@@ -219,9 +221,16 @@ What step 2 does, in order:
 infisical run --env=staging -- sh -c 'psql "$DATABASE_URL_DIRECT" -c "UPDATE subscriptions.subscriptions SET status = '\''paused'\'', paused_until = '\''2099-12-31'\'' WHERE status <> '\''ended'\'' AND household_id IN (SELECT h.id FROM identity.households h JOIN identity.users u ON u.id = h.owner_user_id WHERE u.phone_e164 LIKE '\''+9198001%'\'')"'
 ```
 
-**To undo** the load, restore the database's branch. The connection string stays the same.
-- From the restore point's head: `neonctl branches restore <branch> <before-demo branch> --preserve-under-name <name> --project-id <id>`, or the API call the script printed.
-- Within Neon's history window, from the branch's own history at the printed time: console → Branches → Restore. On the Free plan that window is 6 hours, so after that use the branch.
+**To undo** the load, restore the database's branch from its restore point. The connection string stays the same, and anything written to staging after the point is lost, so check first:
+
+```
+GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-<UTC time>
+```
+
+It restores from the point's head, keeps the replaced state as `staging-with-demo-<UTC time>`, and waits until Neon has finished.
+- **Each rollback leaves two branches for good.** Staging is a child branch, so Neon gives it no point-in-time restore or snapshots (root branches only). A restore makes the restore point staging's parent, and the replaced state is the restore point's parent. Neon cannot delete a branch with children, so the chain grows by these two with every rollback.
+- **Keeping a load costs nothing.** Its restore point is a leaf, and the next load deletes it.
+- **Branch count, 7 Nov 2026:** 8 of 10, from the rollbacks of 2 and 6 Nov. The two archived dev branches can be deleted if nobody uses them.
 
 Delete old `before-demo-*` branches in the console; the free plan allows 10 branches.
 
