@@ -293,7 +293,7 @@ async def claim_photos(
         raise files.storage_unavailable()
     for key in keys:
         upload = await files.verify(session, key, user_id=user_id, purpose=PHOTO_PURPOSE)
-        stored = await store.head(key) if upload is not None else None
+        stored = await store.clean(key) if upload is not None else None
         if (
             upload is None
             or stored is None

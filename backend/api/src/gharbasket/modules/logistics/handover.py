@@ -127,7 +127,7 @@ async def photo_ok(
         return False
     if await files.verify(session, key, user_id=user_id, purpose=PHOTO_PURPOSE) is None:
         return False
-    if await store.head(key) is None:
+    if await store.clean(key) is None:
         return False
     if await photo_used(session, key):
         raise photo_reused()
