@@ -48,10 +48,27 @@ describe("reconciliation mocks", () => {
     }
   });
 
-  test("resolve closes the item: 200 with its resolution, off the list, then 409, unknown id 404", async () => {
-    const before = await (await call("GET", "admin/reconciliation")).json();
+  test("the list is the real ReconPage: items newest first, next_cursor and the last run", async () => {
+    const page = await (await call("GET", "admin/reconciliation?status=open")).json();
+    assert.deepEqual(Object.keys(page).sort(), ["items", "last_run", "next_cursor"]);
+    assert.deepEqual(
+      page.items.map((/** @type {{ id: string }} */ i) => i.id),
+      ["rec-2", "rec-1"],
+    );
+    assert.deepEqual(Object.keys(page.last_run).sort(), [
+      "checked",
+      "healed",
+      "opened",
+      "scheduled_for",
+      "status",
+    ]);
+    assert.equal((await call("GET", "admin/reconciliation?status=nope")).status, 422);
+    assert.equal((await call("GET", "admin/reconciliation", { role: "hub_manager" })).status, 403);
+  });
+
+  test("resolve closes the item: 200 with its resolution, off the open list, then 409, unknown id 404", async () => {
+    const before = await (await call("GET", "admin/reconciliation?status=open")).json();
     assert.equal(before.items.length, 2);
-    assert.equal(before.counts.no_wallet_entry, 1);
 
     const r = await call("POST", "admin/reconciliation/rec-1/resolve", {
       body: { note: "Credited by hand, see adjustment 42" },
@@ -63,13 +80,13 @@ describe("reconciliation mocks", () => {
     assert.equal(item.kind, "captured_not_credited");
     assert.equal(item.resolution.note, "Credited by hand, see adjustment 42");
 
-    const after = await (await call("GET", "admin/reconciliation")).json();
+    const after = await (await call("GET", "admin/reconciliation?status=open")).json();
     assert.deepEqual(
       after.items.map((/** @type {{ id: string }} */ i) => i.id),
       ["rec-2"],
     );
-    assert.equal(after.counts.no_wallet_entry, 0);
-    assert.equal(after.counts.matched, before.counts.matched);
+    const all = await (await call("GET", "admin/reconciliation")).json();
+    assert.equal(all.items.length, 2);
 
     const again = await call("POST", "admin/reconciliation/rec-1/resolve", {
       body: { note: "again" },
