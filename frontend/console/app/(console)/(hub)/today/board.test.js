@@ -76,6 +76,10 @@ describe("the board's words", () => {
     );
     assert.equal(timelineSteps(b.steps)[0].time, "9:00 PM");
     assert.equal(
+      timelineSteps([{ key: "procurement", due_at: null, state: "todo", note: null }])[0].time,
+      undefined,
+    );
+    assert.equal(
       statusLine([{ key: "cutoff", due_at: "21:00", state: "done", note: null }]),
       "Every step of the day is done.",
     );
