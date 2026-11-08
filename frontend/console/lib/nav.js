@@ -147,7 +147,8 @@ export const NAV = [
     label: "Community",
     items: [
       { href: "/drives", label: "Drives", ready: true },
-      { href: "/donations", label: "Donations", ready: true },
+      // The verification queue is the hub's (M9 section 3.4): not for NGO coordinators.
+      { href: "/donations", label: "Donations", ready: true, roles: ADMIN_AND_HUB },
       { href: "/impact", label: "Impact", ready: true },
       { href: "/handoffs", label: "NGO hand-offs", ready: true },
     ],
