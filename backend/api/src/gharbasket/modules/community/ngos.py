@@ -145,9 +145,19 @@ def _snapshot(ngo: Ngo) -> dict[str, Any]:
     }
 
 
-async def create_ngo(session: AsyncSession, body: NgoIn, by: uuid.UUID) -> Ngo:
+async def create_ngo(
+    session: AsyncSession,
+    body: NgoIn,
+    by: uuid.UUID | None,
+    *,
+    ngo_id: uuid.UUID | None = None,
+    data_source: str = "real",
+) -> Ngo:
+    """`ngo_id` and `data_source` are for the seed (its fixed NGO id); `by` is None only there."""
     await _check_hubs(session, body.hub_ids)
-    ngo = Ngo(**body.model_dump())
+    ngo = Ngo(**body.model_dump(), data_source=data_source)
+    if ngo_id is not None:
+        ngo.id = ngo_id
     session.add(ngo)
     await session.flush()
     await session.refresh(ngo)
