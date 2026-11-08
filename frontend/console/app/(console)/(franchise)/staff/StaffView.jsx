@@ -3,16 +3,29 @@
 import { DataTable, FilterBar } from "@gharbasket/ui/console";
 import { parseAsString, useQueryState } from "nuqs";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
+import { formatDay } from "@/lib/format.js";
 
 /** @typedef {import("./data.js").StaffMember} StaffMember */
 
 /** @type {Record<StaffMember["status"], { tone: "primary" | "danger" | "outline", label: string }>} */
 const STATE = {
-  active: { tone: "primary", label: "Active" },
   verified: { tone: "primary", label: "Verified" },
-  fix_bank_details: { tone: "danger", label: "Fix bank details" },
+  applied: { tone: "outline", label: "Applied" },
+  kyc_pending: { tone: "outline", label: "KYC pending" },
+  suspended: { tone: "danger", label: "Suspended" },
   invited: { tone: "outline", label: "Invited" },
 };
+
+const ROLE_LABEL = /** @type {Record<string, string>} */ ({
+  hub_manager: "Hub manager",
+  franchise_owner: "Franchise owner",
+  ngo_coordinator: "NGO coordinator",
+  catalog_editor: "Catalog editor",
+  captain: "Society Captain",
+  kitchen_partner: "Kitchen partner",
+  rider: "Rider",
+  packer: "Packer",
+});
 
 const GROUPS = [
   { value: "all", label: "Everyone" },
@@ -33,7 +46,7 @@ export function StaffView({ people }) {
   const shown = people.filter(
     (p) =>
       (group === "all" || p.works_as === group) &&
-      (!needle || `${p.name} ${p.role}`.toLowerCase().includes(needle)),
+      (!needle || `${p.name ?? ""} ${ROLE_LABEL[p.role] ?? p.role}`.toLowerCase().includes(needle)),
   );
 
   return (
@@ -61,21 +74,21 @@ export function StaffView({ people }) {
           { key: "who", label: "Person", sortable: true },
           { key: "role", label: "Role" },
           { key: "kind", label: "Works as" },
-          { key: "today", label: "Today" },
-          { key: "week", label: "Last week", align: "end" },
+          { key: "phone", label: "Phone" },
+          { key: "since", label: "Since" },
           { key: "state", label: "State" },
         ]}
         rows={shown.map((p) => ({
-          id: p.id,
-          who: { text: p.name, sub: p.society, strong: true },
-          role: p.role,
+          id: p.grant_id,
+          who: { text: p.name ?? "Not signed in yet", sub: p.society?.name, strong: true },
+          role: ROLE_LABEL[p.role] ?? p.role,
           kind: p.works_as === "staff" ? "Staff" : "Partner",
-          today: p.today,
-          week: p.last_week_paise == null ? "—" : { money: p.last_week_paise },
+          phone: p.phone_masked,
+          since: p.since ? formatDay(p.since) : "—",
           state: { badge: STATE[p.status] },
         }))}
         labels={{ empty: "No one matches. Clear the search or the role filter." }}
-        footer="Phone numbers are visible only to the hub manager and only on a person’s profile."
+        footer="Phone numbers show only their last 4 digits; the hub manager sees them in full on a partner’s profile."
       />
     </div>
   );

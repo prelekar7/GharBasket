@@ -1,63 +1,44 @@
-// Team mocks for the franchise pages. The people are the backend seed (tools/seed.py); "today" and earnings
-// figures are made up. Paths are our proposals until M1/M8 publish theirs: GET /v1/hubs/{hub}/staff. The customers page is
-// M12's GET /v1/analytics/societies (see analytics.js).
+// Team mocks for the franchise pages: GET /v1/hubs/{hub_id}/staff (M1 section 3.6, HubStaff). The people are the
+// backend seed (tools/seed.py). The customers page is M12's GET /v1/analytics/societies (see analytics.js).
 import { HttpResponse, http } from "msw";
-import { mockStore, problem, roleOf } from "./util.js";
+import { SOCIETY_ID } from "./ids.js";
+import { mockStore, mockUuid, problem, roleOf } from "./util.js";
+
+/** @typedef {import("../app/(console)/(franchise)/staff/data.js").StaffMember} StaffMember */
 
 /**
- * @typedef {"active" | "verified" | "fix_bank_details" | "invited"} StaffStatus
- * @typedef {{ id: string, name: string, role: string, works_as: "staff" | "partner", society?: string,
- *   today: string, last_week_paise: number | null, status: StaffStatus }} StaffMember
+ * @param {number} n @param {string | null} name @param {string} phone @param {string} role
+ * @param {Partial<StaffMember>} [more]
+ * @returns {StaffMember}
  */
+const member = (n, name, phone, role, more = {}) => ({
+  grant_id: mockUuid("b900", n),
+  user_id: mockUuid("b901", n),
+  name,
+  phone_masked: `******${phone}`,
+  role,
+  works_as: ["captain", "kitchen_partner", "rider", "packer"].includes(role) ? "partner" : "staff",
+  society: null,
+  status: "verified",
+  since: "2026-10-01T10:00:00+05:30",
+  ...more,
+});
 
-/** @type {() => StaffMember[]} */
+/** @type {() => StaffMember[]} By role, then name, like the API. */
 const seedStaff = () => [
-  {
-    id: "vikram-desai",
-    name: "Vikram Desai",
-    role: "Hub manager",
-    works_as: "staff",
-    today: "On shift",
-    last_week_paise: null,
-    status: "active",
-  },
-  {
-    id: "kavita-more",
-    name: "Kavita More",
-    role: "Packer",
-    works_as: "partner",
-    today: "Packed 58 bags",
-    last_week_paise: 210_000,
-    status: "verified",
-  },
-  {
-    id: "arjun-pawar",
-    name: "Arjun Pawar",
-    role: "Rider",
-    works_as: "partner",
-    today: "Route 1, two stops",
-    last_week_paise: 178_000,
-    status: "fix_bank_details",
-  },
-  {
-    id: "meena-jadhav",
-    name: "Meena Jadhav",
-    role: "Society Captain",
-    works_as: "partner",
-    society: "Sunrise Towers",
-    today: "46 boxes handed over",
-    last_week_paise: 128_000,
-    status: "verified",
-  },
-  {
-    id: "lata-shinde",
-    name: "Lata Shinde",
-    role: "Kitchen partner",
-    works_as: "partner",
-    today: "18 tiffins",
-    last_week_paise: 329_000,
-    status: "verified",
-  },
+  member(1, "Savita Naik", "1012", "captain", {
+    society: { id: SOCIETY_ID["sunrise-towers"], name: "Sunrise Towers" },
+  }),
+  member(2, "Sanjay Mehta", "1009", "franchise_owner"),
+  member(3, "Vikram Desai", "1008", "hub_manager"),
+  member(4, "Lata Shinde", "1005", "kitchen_partner"),
+  member(5, "Kavita More", "1007", "packer"),
+  member(6, "Arjun Pawar", "1006", "rider", { status: "kyc_pending", since: null }),
+  member(7, null, "4321", "hub_manager", {
+    user_id: null,
+    status: "invited",
+    since: "2026-11-02T11:30:00+05:30",
+  }),
 ];
 
 const staff = () => mockStore("team-staff", seedStaff);
