@@ -45,10 +45,21 @@ CUSTOMERS = {"+919800004002": 2, "+919800004003": 1}  # phone -> portions booked
 HUB = f"/v1/hubs/{SEED_HUB_ID}"
 PRICE_PAISE = 12_000  # a portion on the menu
 TRAININGS = json.loads((REPO / "data/seeds/trainings/modules.json").read_text())["modules"]
-BYTES = {  # what the applicant uploads, so the read-back can be compared
+
+
+def _jpeg(scan: bytes, comment: bytes = b"") -> bytes:
+    """A tiny JPEG container: an optional COM segment, then `scan` as the image data."""
+    com = b"\xff\xfe" + (len(comment) + 2).to_bytes(2, "big") + comment if comment else b""
+    return b"\xff\xd8" + com + b"\xff\xda\x00\x02" + scan + b"\xff\xd9"
+
+
+SCANS = {
     "fssai": [b"synthetic e2e FSSAI card"],
     "kitchen_photos": [b"synthetic e2e kitchen photo 1", b"synthetic e2e kitchen photo 2"],
 }
+WHERE = b"taken at 19.0253N 73.0694E"  # metadata the API removes on accept (M0 §3.1)
+BYTES = {doc: [_jpeg(scan, WHERE) for scan in scans] for doc, scans in SCANS.items()}  # uploaded
+STORED = {doc: [_jpeg(scan) for scan in scans] for doc, scans in SCANS.items()}  # read back
 DOCUMENTS: list[dict[str, Any]] = [  # synthetic numbers only: the repo is public, and no Aadhaar
     {"doc_type": "id_proof", "id_kind": "voter_id", "number": "QZX3948201"},
     {"doc_type": "pan", "number": "QZXJA3948K"},
@@ -265,13 +276,13 @@ def test_the_hub_manager_reads_the_files_and_approves_her(
         )["items"]
         assert trip.application_id in [a["id"] for a in queue], "not in the review queue"
         async with httpx2.AsyncClient() as storage:
-            for doc_type, uploaded in BYTES.items():
+            for doc_type, stored in STORED.items():
                 links = expect(
                     await app.http.post(
                         f"/v1/kyc-documents/{trip.documents[doc_type]}/file-links", headers=manager
                     )
                 )["files"]
-                assert [(await storage.get(f["url"])).content for f in links] == uploaded
+                assert [(await storage.get(f["url"])).content for f in links] == stored
         refused = await app.http.post(
             f"/v1/partner-applications/{trip.application_id}/decision",
             json={"outcome": "approve"},

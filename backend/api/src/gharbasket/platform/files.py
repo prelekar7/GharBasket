@@ -7,7 +7,7 @@ its own transaction:
 
     upload = await files.claim(session, key, user_id=me, purpose="order_issue_photo", by="orders")
     if upload is None: raise ProblemError(422, "orders.photo_invalid", ...)
-    info = await storage.head(key)        # the object really is there, with the signed size/type
+    info = await storage.clean(key)       # there, with the signed size/type; metadata removed
     ...
     await files.set_delete_after(session, key, resolved_at + timedelta(days=90))
 
@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.platform import rate_limit
+from gharbasket.platform import image_metadata, rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
@@ -41,6 +41,7 @@ log = structlog.get_logger("gharbasket.files")
 PUT_TTL = timedelta(minutes=10)
 GET_TTL = timedelta(minutes=5)
 UNCLAIMED_GRACE = timedelta(hours=24)
+UPLOADED_SIZE = "uploaded-size"  # object metadata: the signed size, kept when `clean` rewrites it
 PRESIGN_LIMIT = (30, 600)  # per user: 30 per 10 minutes
 MB = 1024 * 1024
 EXTENSIONS = {
@@ -77,7 +78,7 @@ def storage_unavailable() -> ProblemError:
 @dataclass(frozen=True)
 class ObjectInfo:
     content_type: str
-    size_bytes: int
+    size_bytes: int  # what the app uploaded (signed), also after `clean` made the object smaller
 
 
 class ObjectStore:
@@ -118,7 +119,50 @@ class ObjectStore:
             raise storage_unavailable() from exc
         except BotoCoreError as exc:
             raise storage_unavailable() from exc
-        return ObjectInfo(found["ContentType"], int(found["ContentLength"]))
+        size = found.get("Metadata", {}).get(UPLOADED_SIZE, found["ContentLength"])
+        return ObjectInfo(found["ContentType"], int(size))
+
+    async def clean(self, key: str) -> ObjectInfo | None:
+        """`head` for a module accepting an upload: a photo is first rewritten without its
+        location and other metadata (`image_metadata.strip`). None when nothing was uploaded, or
+        the bytes are not the image type they were signed as. Cleaning again changes nothing, so a
+        retried request, or one whose transaction rolled back, finds the same object and size."""
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        info = await self.head(key)
+        if info is None or info.content_type not in image_metadata.TYPES:
+            return info  # a PDF is kept as uploaded
+
+        def rewrite() -> bool:
+            body = self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+            try:
+                cleaned = image_metadata.strip(body, info.content_type)
+            except ValueError:
+                return False
+            if cleaned is not body:
+                self.client.put_object(
+                    Bucket=self.bucket,
+                    Key=key,
+                    Body=cleaned,
+                    ContentType=info.content_type,
+                    Metadata={UPLOADED_SIZE: str(info.size_bytes)},
+                )
+            return True
+
+        try:
+            valid = await asyncio.to_thread(rewrite)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+                return None
+            raise storage_unavailable() from exc
+        except BotoCoreError as exc:
+            raise storage_unavailable() from exc
+        if not valid:
+            log.warning(
+                "upload_not_an_image", purpose=key.split("/")[0], content_type=info.content_type
+            )
+            return None
+        return info
 
     async def put(
         self, key: str, body: bytes, content_type: str, *, content_disposition: str | None = None
@@ -192,7 +236,7 @@ def _app_store(request: Request) -> ObjectStore:
     return store
 
 
-# For owning modules' routes: `storage: Storage` then `storage.signed_get(key)` / `.head(key)`.
+# For owning modules' routes: `storage: Storage` then `storage.signed_get(key)` / `.clean(key)`.
 Storage = Annotated[ObjectStore, Depends(_app_store)]
 
 

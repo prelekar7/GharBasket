@@ -1,5 +1,6 @@
 """Private uploads (M0 §3.1): presign, the claim facade, signed reads and the sweep job."""
 
+import io
 import re
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -15,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
-from gharbasket.platform import files
+from gharbasket.platform import files, image_metadata
 from gharbasket.platform.db import get_session
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.files import ObjectStore, create_store
@@ -39,14 +40,25 @@ SETTINGS = make_settings(
 MiB = 1024 * 1024
 
 
+# What a module test's photo holds when it places only a type and a size: a clean image.
+BLANK = {
+    "image/jpeg": b"\xff\xd8\xff\xda\x00\x02\x00\xff\xd9",
+    "image/png": b"\x89PNG\r\n\x1a\n"
+    + b"\x00\x00\x00\x00IHDR\x00\x00\x00\x00"
+    + b"\x00\x00\x00\x00IEND\x00\x00\x00\x00",
+    "image/webp": b"RIFF\x0c\x00\x00\x00WEBPVP8 \x00\x00\x00\x00",
+}
+
+
 class FakeS3:
-    """Just enough of a boto3 client for head and delete: objects in a dict."""
+    """Just enough of a boto3 client for head, get, put and delete: objects in a dict."""
 
     def __init__(self) -> None:
         self.objects: dict[str, tuple[str, int]] = {}
         self.deletes: list[list[str]] = []
-        self.puts: list[dict[str, str]] = []
+        self.puts: list[dict[str, Any]] = []
         self.bodies: dict[str, bytes] = {}
+        self.metadata: dict[str, dict[str, str]] = {}
         self.fail_head = False
 
     def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:
@@ -55,11 +67,22 @@ class FakeS3:
         if Key not in self.objects:
             raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
         content_type, size = self.objects[Key]
-        return {"ContentType": content_type, "ContentLength": size}
+        return {
+            "ContentType": content_type,
+            "ContentLength": size,
+            "Metadata": self.metadata.get(Key, {}),
+        }
 
-    def put_object(self, Bucket: str, Key: str, Body: bytes, **extra: str) -> dict[str, Any]:
+    def get_object(self, Bucket: str, Key: str) -> dict[str, Any]:
+        if Key not in self.objects:
+            raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
+        body = self.bodies.get(Key, BLANK.get(self.objects[Key][0], b""))
+        return {"Body": io.BytesIO(body)}
+
+    def put_object(self, Bucket: str, Key: str, Body: bytes, **extra: Any) -> dict[str, Any]:
         self.objects[Key] = (extra["ContentType"], len(Body))
         self.bodies[Key] = Body
+        self.metadata[Key] = extra.get("Metadata", {})
         self.puts.append({"Key": Key, **extra})
         return {}
 
@@ -80,7 +103,7 @@ def s3() -> FakeS3:
 def store(s3: FakeS3) -> ObjectStore:
     found = create_store(SETTINGS)
     assert found is not None
-    found.client = s3  # real boto3 signs URLs (offline); the fake answers head and delete
+    found.client = s3  # real boto3 signs URLs (offline); the fake holds the objects
     return found
 
 
@@ -315,6 +338,38 @@ async def test_signed_get_links_last_5_minutes_and_head_reads_the_object(
     assert found == files.ObjectInfo("application/pdf", 4096)
     assert missing is None
     assert down.value.status == 503 and down.value.code == "platform.storage_unavailable"
+
+
+async def test_clean_rewrites_a_photo_without_its_location_and_keeps_the_signed_size(
+    store: ObjectStore, s3: FakeS3
+) -> None:
+    from .test_image_metadata import jpeg
+
+    photo, document, fake = (
+        f"order_issue_photo/{ME}/0199a1b2-0000-7000-8000-00000000000{n}.{ext}"
+        for n, ext in ((1, "jpg"), (2, "pdf"), (3, "jpg"))
+    )
+    uploaded = jpeg()
+    for key, content_type, body in (
+        (photo, "image/jpeg", uploaded),
+        (document, "application/pdf", b"%PDF-1.7 Author: Lata Shinde"),
+        (fake, "image/jpeg", b"<script>not a photo</script>"),
+    ):
+        s3.objects[key], s3.bodies[key] = (content_type, len(body)), body
+
+    first = await store.clean(photo)
+    again = await store.clean(photo)  # a retried request, or one whose transaction rolled back
+
+    signed = files.ObjectInfo("image/jpeg", len(uploaded))
+    assert first == again == await store.head(photo) == signed
+    assert len(s3.puts) == 1  # the second clean found nothing to remove
+    assert s3.puts[0]["Metadata"] == {"uploaded-size": str(len(uploaded))}
+    assert image_metadata.strip(s3.bodies[photo], "image/jpeg") is s3.bodies[photo]
+    assert b"PhoneCo" not in s3.bodies[photo] and len(s3.bodies[photo]) < len(uploaded)
+    assert await store.clean(document) == files.ObjectInfo("application/pdf", 28)  # kept as is
+    assert s3.bodies[document] == b"%PDF-1.7 Author: Lata Shinde"
+    assert await store.clean(fake) is None  # refused, not stored as a photo
+    assert await store.clean(photo + "x") is None
 
 
 async def test_sweep_deletes_unclaimed_and_expired_uploads_once(
