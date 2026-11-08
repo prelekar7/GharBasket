@@ -16,7 +16,7 @@ import { formatDay, formatTime, plural } from "../../../../lib/format.js";
  *   routes: { planned: number, started: number, completed: number, stops_total: number, stops_done: number, late_stops: number },
  *   deliveries: { at_society: number, delivered: number, held: number, undelivered: number },
  *   waste: { kg: number, previous_kg: number, previous_date: string | null },
- *   steps: { key: StepKey, due_at: string, state: "done" | "current" | "issue" | "todo", note: string | null }[],
+ *   steps: { key: StepKey, due_at: string | null, state: "done" | "current" | "issue" | "todo", note: string | null }[],
  *   attention: { kind: AttentionKind, count: number, oldest_at: string | null, due_at: string | null, link: string }[],
  * }} Today
  */
@@ -39,13 +39,14 @@ export function clock(hhmm) {
 }
 
 /**
- * The timeline's steps, in the order the API gives them.
+ * The timeline's steps, in the order the API gives them. Procurement and delivery have no hub timing of
+ * their own, so their due_at is null and the step shows no time.
  * @param {Today["steps"]} steps
  */
 export function timelineSteps(steps) {
   return steps.map((s) => ({
     label: STEP_LABELS[s.key],
-    time: clock(s.due_at),
+    time: s.due_at ? clock(s.due_at) : undefined,
     note: s.note ?? undefined,
     state: s.state,
   }));

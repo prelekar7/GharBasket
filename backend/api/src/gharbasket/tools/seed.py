@@ -18,6 +18,7 @@ hub delivers on Tuesdays (M3/M4), so `just sim` and the weekly job have somewher
 The seed hub itself (M6, ADR-0026 §5) is Kharghar, with a service area around the seed societies
 and one default vendor, so every hub id above points at a real `hub_ops.hubs` row.
 The partner training modules (M8) come from data/seeds/trainings, placeholders until reviewed.
+The seed NGO (M9 section 3.5) serves the seed hub, so its coordinator's pages have an NGO to read.
 Later module PRs add their rows here and use the hub, society and NGO ids below.
 
 Only for the local Docker database. A shared database (staging on Neon) is refused unless both
@@ -65,7 +66,8 @@ from gharbasket.modules.catalog.service import (
     save_category,
     save_product,
 )
-from gharbasket.modules.community.models import Society
+from gharbasket.modules.community.models import Ngo, Society
+from gharbasket.modules.community.ngo_schemas import NgoIn
 from gharbasket.modules.community.service import SocietyData, save_society
 from gharbasket.modules.hub_ops import service as hub_service
 from gharbasket.modules.hub_ops.models import Hub
@@ -99,7 +101,15 @@ TRAININGS_SEED = REPO_ROOT / "data" / "seeds" / "trainings" / "modules.json"
 # Fixed ids, so every machine gets the same world and later seeds can point at these rows.
 SEED_HUB_ID = uuid.UUID("0199a000-0000-7000-8000-00000000a001")  # Kharghar hub
 SEED_SOCIETY_ID = uuid.UUID("0199a000-0000-7000-8000-00000000b001")  # Sunrise Towers
-SEED_NGO_ID = uuid.UUID("0199a000-0000-7000-8000-00000000c001")
+SEED_NGO_ID = uuid.UUID("0199a000-0000-7000-8000-00000000c001")  # Asha's NGO (M9 section 3.5)
+SEED_NGO = NgoIn(
+    name="Kharghar Seva Food Bank",
+    kind="food_bank",
+    hub_ids=[SEED_HUB_ID],
+    accepts=["items", "food", "meals"],
+    verified=True,  # an unverified NGO is offered nothing (M9 section 3.5)
+    note="Seed NGO for local development; not a real organisation.",
+)
 
 
 @dataclass(frozen=True)
@@ -437,6 +447,23 @@ async def seed_hubs(
     return [(hub.slug, created)]
 
 
+async def seed_ngos(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Create the seed NGO that Asha coordinates, serving the seed hub, once: (name, created).
+    An existing row is kept as it is (the console may have edited it). Needs the hub first.
+    Commits nothing."""
+    # Imported here: community.ngos and community.drives import each other, which only resolves
+    # once the module is loaded the app's way.
+    from gharbasket.modules.community import ngos as community_ngos
+
+    ngo = await session.get(Ngo, SEED_NGO_ID)
+    if ngo is not None:
+        return [(ngo.name, False)]
+    ngo = await community_ngos.create_ngo(
+        session, SEED_NGO, None, ngo_id=SEED_NGO_ID, data_source="synthetic"
+    )
+    return [(ngo.name, True)]
+
+
 async def seed_societies(
     session: AsyncSession, *, keep_existing: bool = False
 ) -> list[tuple[str, bool]]:
@@ -688,6 +715,7 @@ class Report:
     partners: list[tuple[str, bool]]
     products: list[tuple[str, bool]]
     trainings: list[tuple[str, bool]] = field(default_factory=list)
+    ngos: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
     delivery: tuple[uuid.UUID, int] | None = None
     hubs: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
 
@@ -704,6 +732,7 @@ async def run(database_url: str, *, refresh: bool = False, keep_existing: bool =
         async with AsyncSession(engine, expire_on_commit=False) as session:
             report = Report(
                 hubs=await seed_hubs(session, keep_existing=keep),
+                ngos=await seed_ngos(session),
                 people=await seed(session, keep_existing=keep),
                 societies=await seed_societies(session, keep_existing=keep),
                 households=await seed_households(session),
@@ -751,6 +780,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = asyncio.run(run(url, refresh=args.refresh, keep_existing=remote))
     for slug, created in report.hubs:
         print(f"hub {slug} ({SEED_HUB_ID}) {'new' if created else 'kept'}")
+    for name, created in report.ngos:
+        print(f"ngo {name} ({SEED_NGO_ID}) {'new' if created else 'kept'}")
     seeded, societies = report.people, report.societies
     for person in seeded:
         state = "new" if person.created else "kept"

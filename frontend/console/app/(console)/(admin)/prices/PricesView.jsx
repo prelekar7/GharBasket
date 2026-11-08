@@ -54,10 +54,11 @@ const publishedOn = (iso) =>
  * Prices of one hub (M2): the list in use, lists waiting for their date, and past lists. Search and
  * category filter the table in the browser; the tab is in the URL.
  * @param {{ hubName: string, validFrom: string | null, items: PriceItem[], lists: PriceListRow[] | null,
- *   categories: import("@/lib/catalog.js").CategoryRow[] }} props `validFrom` is null when the hub has no list yet;
- *   `lists` is null while the list of lists is not available (real mode).
+ *   categories: import("@/lib/catalog.js").CategoryRow[], mayList?: boolean }} props `validFrom` is null when the hub
+ *   has no list yet; `lists` is null while the list of lists is not available (real mode) or the role may not read
+ *   it (`mayList` false: the catalog editor).
  */
-export function PricesView({ hubName, validFrom, items, lists, categories }) {
+export function PricesView({ hubName, validFrom, items, lists, categories, mayList = true }) {
   const [tab, setTab] = useQueryState("tab", parseAsString.withDefault("current"));
   const [q, setQ] = useQueryState("q", parseAsString.withDefault(""));
   const [category, setCategory] = useQueryState("category", parseAsString.withDefault(""));
@@ -96,8 +97,12 @@ export function PricesView({ hubName, validFrom, items, lists, categories }) {
   const notListed = (/** @type {string} */ what) => (
     <div className="rounded-md border border-line">
       <EmptyState
-        title="Not available yet"
-        body={`${what} need an endpoint that lists a hub’s price lists, which has not shipped. The list in use is under Current.`}
+        title={mayList ? "Not available yet" : "For hub managers and admins"}
+        body={
+          mayList
+            ? `${what} need an endpoint that lists a hub’s price lists, which has not shipped. The list in use is under Current.`
+            : `${what} are shown to the hub manager and admins. The list in use is under Current.`
+        }
       />
     </div>
   );

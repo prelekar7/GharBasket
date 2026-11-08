@@ -1,5 +1,5 @@
 // Money-side console mocks (M5): reconciliation and refunds review.
-// Reconciliation: `GET /v1/admin/reconciliation` (the page's own shape, see `reconBody`) and the real
+// Reconciliation: GET /v1/admin/reconciliation?status=&kind= → ReconPage { items, next_cursor, last_run }, and
 //   POST /v1/admin/reconciliation/{item_id}/resolve   body { note } (1 to 500 characters), admin, audit-logged;
 //   it closes an open item and moves no money (a correction is a separate manual adjustment entry);
 //   404 billing.recon_not_found, 409 billing.recon_not_open, 422 request.invalid.
@@ -9,97 +9,59 @@
 import { HttpResponse, http } from "msw";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { SOCIETY_ID } from "./ids.js";
-import { STORY_NOW } from "./orders.js";
-import { fieldError, idempotent, mockStore, mockUuid, problem, roleOf } from "./util.js";
+import { fieldError, mockStore, mockUuid, problem, roleOf } from "./util.js";
 
 /** @param {Request} request @param {("admin" | "hub_manager")[]} roles */
 const allowed = (request, roles) => roles.includes(/** @type {any} */ (roleOf(request)));
 
 // ---------- Reconciliation ----------
 
-/**
- * @typedef {{ id: string, provider_ref: string, at: string, razorpay_paise: number, ledger_paise: number | null,
- *   kind: "no_wallet_entry" | "amount_differs" | "no_payment", payer: string, note: string }} Mismatch
- * An item the admin closed: what the real ReconItem keeps in `resolution`.
- * @typedef {{ note: string, at: string, by: string }} Resolution
- */
+/** @typedef {import("../app/(console)/(admin)/reconciliation/page.jsx").ReconItem} ReconItem */
 
 const recon = () =>
   mockStore("reconciliation", () => ({
-    checked_at: "2026-10-05T11:00:00+05:30",
-    matched: 128,
-    /** @type {(Mismatch & { resolution: Resolution | null })[]} */
+    /** @type {import("../app/(console)/(admin)/reconciliation/page.jsx").ReconRun} */
+    last_run: {
+      scheduled_for: "2026-10-05T11:17:00+05:30",
+      status: "ok",
+      checked: 130,
+      healed: 1,
+      opened: 2,
+    },
+    /** @type {ReconItem[]} newest first, like the API */
     items: [
       {
-        id: "rec-1",
-        provider_ref: "pay_Nq4xK7mT2vLb91",
-        at: "2026-10-05T10:42:00+05:30",
-        razorpay_paise: 100000,
-        ledger_paise: null,
-        kind: "no_wallet_entry",
-        payer: "Priya Sharma, Sunrise Towers",
-        note: "Captured, but the webhook wasn’t processed, so the wallet wasn’t credited",
+        id: "rec-2",
+        kind: "amount_mismatch",
+        status: "open",
+        razorpay_ref: "pay_Nq3Zc8rWp5Yd07",
+        topup_id: mockUuid("b910", 2),
+        refund_part_id: null,
+        user_id: mockUuid("b911", 2),
+        expected_paise: 20000,
+        actual_paise: 200000,
+        first_seen_at: "2026-10-05T10:17:00+05:30",
+        last_seen_at: "2026-10-05T11:17:00+05:30",
         resolution: null,
       },
       {
-        id: "rec-2",
-        provider_ref: "pay_Nq3Zc8rWp5Yd07",
-        at: "2026-10-05T09:15:00+05:30",
-        razorpay_paise: 200000,
-        ledger_paise: 20000,
-        kind: "amount_differs",
-        payer: "Anil Kulkarni, Krishna Kunj",
-        note: "Amounts differ by ₹1,800",
+        id: "rec-1",
+        kind: "captured_not_credited",
+        status: "open",
+        razorpay_ref: "pay_Nq4xK7mT2vLb91",
+        topup_id: mockUuid("b910", 1),
+        refund_part_id: null,
+        user_id: mockUuid("b911", 1),
+        expected_paise: null,
+        actual_paise: 100000,
+        first_seen_at: "2026-10-05T09:17:00+05:30",
+        last_seen_at: "2026-10-05T11:17:00+05:30",
         resolution: null,
       },
     ],
   }));
 
-/** The items still open, the way the page reads them (a resolved item leaves the list). */
-const open = () =>
-  recon()
-    .items.filter((i) => !i.resolution)
-    .map(({ resolution: _resolution, ...item }) => item);
-
-const reconBody = () => {
-  const r = recon();
-  const items = open();
-  const n = (/** @type {Mismatch["kind"]} */ k) => items.filter((i) => i.kind === k).length;
-  return {
-    checked_at: r.checked_at,
-    as_of: STORY_NOW,
-    window_hours: 24,
-    counts: {
-      matched: r.matched,
-      no_wallet_entry: n("no_wallet_entry"),
-      amount_differs: n("amount_differs"),
-      no_payment: n("no_payment"),
-    },
-    items,
-  };
-};
-
-const REAL_KIND = /** @type {const} */ ({
-  no_wallet_entry: "captured_not_credited",
-  amount_differs: "amount_mismatch",
-  no_payment: "credited_not_captured",
-});
-
-/** The real ReconItem (M5 §3.4) of a stored item, with its `resolution`. @param {Mismatch & { resolution: Resolution | null }} m */
-const reconItem = (m) => ({
-  id: m.id,
-  kind: REAL_KIND[m.kind],
-  status: m.resolution ? "resolved" : "open",
-  razorpay_ref: m.provider_ref,
-  topup_id: null,
-  refund_part_id: null,
-  user_id: null,
-  expected_paise: m.ledger_paise,
-  actual_paise: m.razorpay_paise,
-  first_seen_at: m.at,
-  last_seen_at: m.at,
-  resolution: m.resolution,
-});
+const RECON_STATUSES = ["open", "healed", "resolved"];
 
 // ---------- Refunds ----------
 
@@ -165,12 +127,23 @@ const fromCursor = (c) => {
 };
 
 export const billingHandlers = [
-  // GET /v1/admin/reconciliation (M5 §3, admin)
-  http.get("*/v1/admin/reconciliation", ({ request }) =>
-    allowed(request, ["admin"])
-      ? HttpResponse.json(reconBody())
-      : problem(403, "auth.forbidden", "Admins only"),
-  ),
+  // GET /v1/admin/reconciliation?status=&kind= (M5 §3.4, admin): newest first, with the last run
+  http.get("*/v1/admin/reconciliation", ({ request }) => {
+    if (!allowed(request, ["admin"])) return problem(403, "auth.forbidden", "Admins only");
+    const q = new URL(request.url).searchParams;
+    const status = q.get("status");
+    if (status && !RECON_STATUSES.includes(status))
+      return problem(422, "request.invalid", "Check the highlighted fields", {
+        errors: [fieldError("status", "Unknown status")],
+      });
+    const kind = q.get("kind");
+    const r = recon();
+    return HttpResponse.json({
+      items: r.items.filter((i) => (!status || i.status === status) && (!kind || i.kind === kind)),
+      next_cursor: null,
+      last_run: r.last_run,
+    });
+  }),
 
   // POST /v1/admin/reconciliation/{item_id}/resolve (M5 §3.4, admin): close an open item with a note.
   // It moves no money. → 200 ReconItem with `resolution`; 404 billing.recon_not_found;
@@ -185,12 +158,13 @@ export const billingHandlers = [
       });
     const item = recon().items.find((x) => x.id === params.id);
     if (!item) return problem(404, "billing.recon_not_found", "No such item");
-    if (item.resolution)
+    if (item.status !== "open")
       return problem(409, "billing.recon_not_open", "This item is not open", {
-        status: "resolved",
+        status: item.status,
       });
+    item.status = "resolved";
     item.resolution = { note, at: new Date().toISOString(), by: mockUuid("a000", 1) };
-    return HttpResponse.json(reconItem(item));
+    return HttpResponse.json(item);
   }),
 
   // GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit= (M5 §3.8): read-only, newest first

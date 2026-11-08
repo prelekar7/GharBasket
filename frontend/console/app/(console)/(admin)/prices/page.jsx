@@ -1,5 +1,6 @@
 import { ApiProblem, apiGet } from "@/lib/api.js";
 import { apiAll } from "@/lib/api-pages.js";
+import { getRole } from "@/lib/auth.js";
 import { categoriesOf, todayIso } from "@/lib/catalog.js";
 import { currentHub } from "@/lib/hub.js";
 import { orNotShipped } from "@/lib/proposal.js";
@@ -38,12 +39,14 @@ function withStatus(rows) {
 }
 
 export default async function Page() {
-  const hub = await currentHub();
+  const [hub, role] = await Promise.all([currentHub(), getRole()]);
+  // GET /v1/hubs/{id}/price-lists is for the hub manager and admin (M2 section 3.3); the catalog
+  // editor reads only the list in use.
+  const mayList = role === "admin" || role === "hub_manager";
   const [prices, products, lists] = await Promise.all([
     listInUse(hub.id),
     apiAll("/v1/products", { hub_id: hub.id }),
-    // @proposal (not in the contract yet): GET /v1/hubs/{id}/price-lists, the hub's lists of lists
-    orNotShipped(apiGet(`/v1/hubs/${hub.id}/price-lists`)),
+    mayList ? orNotShipped(apiGet(`/v1/hubs/${hub.id}/price-lists`)) : null,
   ]);
   // The real prices carry only product ids: names, categories and steps come from the catalog.
   const byId = new Map(products.items.map((p) => [p.id, p]));
@@ -61,6 +64,7 @@ export default async function Page() {
       validFrom={prices?.valid_from ?? null}
       items={items}
       lists={lists ? withStatus(lists.items) : null}
+      mayList={mayList}
       categories={categoriesOf(products.items)}
     />
   );
