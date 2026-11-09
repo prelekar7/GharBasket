@@ -7,7 +7,14 @@
 // Only the captain of the society may call them (X-Active-Role: captain:<society>);
 // any other role's call on a shared path goes on to its own mock.
 import { HttpResponse, http } from "msw";
-import { applyAction, bagQr, countFlats, isTiffinStop } from "@/features/captain/day.js";
+import {
+  applyAction,
+  bagQr,
+  countFlats,
+  flatOf as flatNumber,
+  isTiffinStop,
+  towerOf,
+} from "@/features/captain/day.js";
 import { HUB_ID } from "./packer.js";
 
 const KEY = "gb-mock-captain-v3";
@@ -42,6 +49,9 @@ const FIRST_SIX = ["A-1203", "B-402", "C-807", "A-604", "B-205", "C-1102"];
 const ADDON = "B-205";
 const REDELIVERY = "C-407";
 
+/** As the server writes a flat (logistics handover.py): "{tower}, {flat}", "A wing, A-1203". @param {string} flat */
+const contractLabel = (flat) => `${flat[0]} wing, ${flat}`;
+
 /** @returns {import("@/features/captain/day.js").CaptainDay} */
 function seedDay() {
   const labels = Object.entries(TOWERS).flatMap(([tower, ns]) => ns.map((n) => `${tower}-${n}`));
@@ -56,7 +66,7 @@ function seedDay() {
     const first = FIRST_SIX.indexOf(flat_label);
     return {
       order_id: uid("b", first >= 0 ? first + 1 : ++seq),
-      flat_label,
+      flat_label: contractLabel(flat_label),
       kind: flat_label === ADDON ? "addon" : "box",
       bags: 1,
       redelivery: flat_label === REDELIVERY,
@@ -70,7 +80,7 @@ function seedDay() {
   for (const [i, [flat_label, short_code]] of TIFFINS.entries())
     flats.push({
       order_id: uid("d", i + 1),
-      flat_label,
+      flat_label: contractLabel(flat_label),
       kind: "tiffin",
       bags: 1,
       redelivery: false,
@@ -78,15 +88,10 @@ function seedDay() {
       status: "on_the_way",
       hold_until: null,
     });
-  // Seeded flats all carry a label; the type allows null (CaptainFlat), so sort on "".
-  const label = (/** @type {{ flat_label: string | null }} */ f) => f.flat_label ?? "";
-  flats.sort((a, b) =>
-    label(a)[0] === label(b)[0]
-      ? Number(label(a).slice(2)) - Number(label(b).slice(2))
-      : label(a) < label(b)
-        ? -1
-        : 1,
-  );
+  // By tower, then flat number, as the server sorts them.
+  const num = (/** @type {import("@/features/captain/day.js").Flat} */ f) =>
+    Number(flatNumber(f).slice(2));
+  flats.sort((a, b) => towerOf(a).localeCompare(towerOf(b)) || num(a) - num(b));
   // Three bags to a crate (M6 §3.2); the redelivery bag came back to the hub and rides on the van.
   const bags = boxes;
   return {

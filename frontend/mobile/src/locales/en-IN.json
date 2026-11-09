@@ -1417,7 +1417,7 @@
       "title": "Flats",
       "when": "{society} · {day}",
       "wing": "Wing",
-      "progress": "{wing} wing delivered",
+      "progress": "Delivered in {wing}",
       "scan": "Scan the bag at the door",
       "manual": "Type the flat instead",
       "contents": {

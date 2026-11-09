@@ -17,6 +17,7 @@ import { ScreenError } from "@/components/ScreenError.jsx";
 import {
   bagQr,
   findFlat,
+  flatOf,
   flatText,
   isHandedOver,
   nextFlat,
@@ -69,7 +70,8 @@ function Flats() {
   const wings = [...new Set(d.flats.map(towerOf))];
   const shown = wing ?? (next && towerOf(next)) ?? wings[0];
   const flats = d.flats.filter((f) => towerOf(f) === shown);
-  const handled = flats.filter((f) => f.status !== "on_the_way" && f.status !== "with_you").length;
+  // The bar says "delivered": a held or undelivered bag is not counted as done.
+  const delivered = flats.filter((f) => f.status === "delivered").length;
 
   const deliver = (/** @type {string} */ raw) => {
     const flat = findFlat(d.flats, raw);
@@ -109,9 +111,9 @@ function Flats() {
       <ProgressBar
         tone="accent"
         label={t("captain.flats.progress", { wing: shown })}
-        value={handled}
+        value={delivered}
         max={flats.length}
-        valueLabel={t("captain.ofTotal", { done: handled, total: flats.length })}
+        valueLabel={t("captain.ofTotal", { done: delivered, total: flats.length })}
       />
       {Object.keys(issues).length > 0 && (
         <Link
@@ -122,7 +124,7 @@ function Flats() {
         </Link>
       )}
       <FlatChecklist
-        label={t("captain.flats.progress", { wing: shown })}
+        label={shown}
         onSelect={(item) =>
           setPicked(flats.find((f) => rowLabel(f) === item.flat)?.order_id ?? null)
         }
@@ -193,9 +195,12 @@ function Flats() {
   );
 }
 
-/** A tiffin's row leads with its label, "B-402 · T-07", the code printed on its box (M7 §3.7); the same flat may also have a box. @param {import("@/features/captain/day.js").Flat} f */
-const rowLabel = (f) =>
-  f.short_code && f.flat_label ? `${f.flat_label} · ${f.short_code}` : flatText(f);
+/** A row names the flat alone, its tower is the tab: "A-802"; a tiffin's row adds the code printed on its box, "A-802 · T-07" (M7 §3.7); the same flat may also have a box. @param {import("@/features/captain/day.js").Flat} f */
+const rowLabel = (f) => {
+  const flat = flatOf(f);
+  if (!flat) return flatText(f);
+  return f.short_code ? `${flat} · ${f.short_code}` : flat;
+};
 
 const omit = (/** @type {Record<string, any>} */ o, /** @type {string} */ k) =>
   Object.fromEntries(Object.entries(o).filter(([key]) => key !== k));

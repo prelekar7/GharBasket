@@ -1413,7 +1413,7 @@
       "title": "फ़्लैट",
       "when": "{society} · {day}",
       "wing": "विंग",
-      "progress": "{wing} विंग में पहुँचाए",
+      "progress": "{wing} में पहुँचाए",
       "scan": "दरवाज़े पर बैग स्कैन करें",
       "manual": "फ़्लैट टाइप करें",
       "contents": {
