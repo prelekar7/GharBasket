@@ -327,7 +327,7 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 
 ## 12.9 Android build
 
-The Android app is the Capacitor project in `frontend/mobile/android/` (ADR-0012, ADR-0031). The release owner is Yash. Every command below runs in `frontend/mobile/` with JDK 21 as `JAVA_HOME`, `android/local.properties` pointing at the Android SDK (`sdk.dir=…`, gitignored), and `VITE_API_BASE_URL` set (staging: `https://gharbasket-api.onrender.com`).
+The Android app is the Capacitor project in `frontend/mobile/android/` (ADR-0012, ADR-0034). The release owner is Yash. Every command below runs in `frontend/mobile/` with JDK 21 as `JAVA_HOME`, `android/local.properties` pointing at the Android SDK (`sdk.dir=…`, gitignored), and `VITE_API_BASE_URL` set (staging: `https://gharbasket-api.onrender.com`).
 
 | Build | Command | Output (under `android/app/build/outputs/`) |
 |---|---|---|
