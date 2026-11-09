@@ -118,6 +118,12 @@ async def _replay(session: AsyncSession, kept: Kept) -> None:
         await session.execute(text("SET LOCAL session_replication_role = origin"))
 
 
+def _hour() -> str:
+    """The clock hour of the key. A test that compares a replay with the real run pins it, or a
+    run that crosses the hour would compare two real runs at different times."""
+    return datetime.now(UTC).strftime("%Y%m%d%H")
+
+
 def cached[**P, R](
     seed: Callable[Concatenate[AsyncSession, P], Awaitable[R]],
 ) -> Callable[Concatenate[AsyncSession, P], Awaitable[R]]:
@@ -127,7 +133,7 @@ def cached[**P, R](
     async def run(session: AsyncSession, /, *args: P.args, **kwargs: P.kwargs) -> R:
         if not await _may_replay(session):
             return await seed(session, *args, **kwargs)
-        hour = datetime.now(UTC).strftime("%Y%m%d%H")
+        hour = _hour()
         before = await _hashes(session)
         # What the database holds is part of the key: `seed_hubs` runs after `seed` in one
         # fixture and after the whole world in another, which are two sets of rows.

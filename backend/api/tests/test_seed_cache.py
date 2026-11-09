@@ -20,14 +20,21 @@ async def world(session: AsyncSession) -> None:
     await seed_cache.seed_delivery(session)
 
 
-async def test_a_replayed_world_is_the_world_the_real_seeds_made(db_session: AsyncSession) -> None:
+async def test_a_replayed_world_is_the_world_the_real_seeds_made(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # One clock hour for both runs, so the second is a replay even when the test crosses the hour.
+    monkeypatch.setattr(seed_cache, "_hour", lambda: "2026110908")
     seed_cache._kept.clear()  # pyright: ignore[reportPrivateUsage]  (so this run is the real one)
     async with db_session.begin_nested() as real:
         await world(db_session)
         made = await seed_cache._hashes(db_session)  # pyright: ignore[reportPrivateUsage]
         await real.rollback()
+    kept = len(seed_cache._kept)  # pyright: ignore[reportPrivateUsage]
 
-    await world(db_session)  # every call is replayed
+    await world(db_session)
+
+    assert len(seed_cache._kept) == kept  # pyright: ignore[reportPrivateUsage]  (all replayed)
 
     # The hashes cover every row of every table, ids and timestamps included.
     assert await seed_cache._hashes(db_session) == made  # pyright: ignore[reportPrivateUsage]
