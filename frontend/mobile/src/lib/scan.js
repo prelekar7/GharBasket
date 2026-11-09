@@ -2,7 +2,7 @@ import { MOCK } from "@/lib/env.js";
 import { scanQr } from "@/shared/native/scanner.js";
 
 /**
- * Reads a bag, crate or item code. In the Android app it opens Google's scanner (ML Kit, ADR-0031)
+ * Reads a bag, crate or item code. In the Android app it opens Google's scanner (ML Kit, ADR-0033)
  * and returns the QR text as printed, trimmed; what the text means is for the screen (or
  * `parseScan`) to decide. The PWA on mocks "scans" the code the screen expects next, so every flow
  * can be walked through. On the web with the real API there is no scanner and it returns null, and

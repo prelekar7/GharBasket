@@ -1,4 +1,4 @@
-// QR scanning in the Android app: ML Kit's `scan()` (ADR-0031). Google's own scanner screen runs in
+// QR scanning in the Android app: ML Kit's `scan()` (ADR-0033). Google's own scanner screen runs in
 // Play services, so the app asks for no camera permission and needs no camera code of its own.
 import { withPlugin } from "@/shared/native/platform.js";
 
