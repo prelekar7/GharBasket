@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { bagQr, parseBagQr } from "@/features/logistics/bagQr.js";
 import { useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { clockTime } from "@/features/subscriptions/format.js";
-import { bagQr, parseBagQr } from "@/lib/scan.js";
 
 /**
  * Empty crates, donations and returned bags collected on the way back to the hub (design RiderPickups;

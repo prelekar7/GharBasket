@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bagQr, parseBagQr } from "./scan.js";
+import { bagQr, parseBagQr } from "./bagQr.js";
 
 describe("bagQr", () => {
   it("is GB1: plus the order id without dashes, the label M6 prints", () => {

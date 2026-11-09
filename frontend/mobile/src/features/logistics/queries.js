@@ -1,10 +1,10 @@
 import { toast } from "@gharbasket/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { bagQr } from "@/features/logistics/bagQr.js";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";
 import { db, enqueue, flush } from "@/lib/outbox.js";
-import { bagQr } from "@/lib/scan.js";
 
 // Rider data (M7 §3.3 and §3.4, frozen). Reads are cached and persisted, so a route loaded at the
 // hub keeps working without signal. Writes go through the offline outbox (each tap has its own
