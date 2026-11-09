@@ -305,6 +305,11 @@ US-7 and handbook 13 ("an hourly job reconciles our records with Razorpay"). The
 - **Window.** It covers Razorpay payments and refunds created in the 72 hours before `scheduled_for`, plus every item still open. Razorpay's lists are paged: `GET /v1/payments?from&to&count=100&skip`, and refunds per payment.
 - **Read-only towards Razorpay.** Everything is read (the two lists, then single payments for top-ups credited in the window or named by open items, and a payment's refunds for parts `sent` but not listed) before anything is written: when Razorpay is unavailable the run is `failed` and changes nothing.
 - **Dev top-ups are skipped.** Without Razorpay keys the run is `skipped`.
+- **As built, fixed by ADR-0033:** while Razorpay is unavailable the job run was recorded `ok` with `status: "failed"` only in its summary, so no alert saw it. The job now raises, so the run is `failed` and reaches the `ops` alert. A `skipped` run (no keys) stays `ok`.
+- **Ops probes (ADR-0033, M0 §6.1):**
+  - `billing.webhook_backlog`: a stored webhook not processed after 15 min;
+  - `billing.reconciliation_open`: a reconciliation item open more than 24 h;
+  - `billing.refunds_stuck`: refund parts still `pending` after 3 tries.
 
 | Check (`kind`) | What it compares | What the job does |
 |---|---|---|
