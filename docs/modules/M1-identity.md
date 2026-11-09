@@ -94,6 +94,29 @@ Rate limits: exchange 30 per 10 min per address and 10 per 10 min per phone; ref
   per address; over the limit: 429 "auth.rate_limited" with Retry-After.
 ```
 
+Console sign-in (drafted 2026-11-09, frozen on approval; additive). The console signs staff in with the same Firebase
+OTP and must not create an account for anyone else: a stranger trying the console would otherwise leave a
+`identity.users` row with a phone number and no consent.
+
+```
+POST /v1/auth/exchange        gains "staff_only": false (optional). The console always sends true.
+  With staff_only: true, after the phone is proved (Firebase ID token, or dev_phone where allowed):
+    the number has an account → it needs a verified staff role (admin, hub_manager, franchise_owner,
+                                ngo_coordinator or catalog_editor); suspended or applied grants do not count
+    the number has no account → it needs an unexpired pending grant (§3.6); the exchange then creates
+                                the account and claims the grants as it does today
+    otherwise                 → 403 "auth.not_staff": no account is created, no session is started,
+                                no tokens or cookies are set
+  The check runs after the rate limits and before the deletion-pending branch (§3.5), so a non-staff
+  number never gets 409 identity.deletion_pending from the console. Only someone who has just proved
+  the phone learns whether it is staff, so the answer does not let anyone list staff numbers.
+  staff_only: false (or absent) behaves exactly as before.
+  An admin cannot be a pending grant: the first admin signs up through the app and is then given the
+  role with `just grant-role <phone> admin` (`--shared` on staging).
+
+More codes: "auth.not_staff" (403, staff_only: true for a number that is not staff).
+```
+
 ### 3.2 Household contract (frozen for S1)
 Onboarding (screens Hf04 to Hf15) and the backend both build against these shapes. Changing them needs a PR reviewed by both Prathamesh and Yash. Every endpoint below needs `Authorization` (Bearer or the web cookie from §3.1).
 
