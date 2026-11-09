@@ -1,6 +1,6 @@
 // The rider's position while a route is in progress (M7 §3.3). In the Android app the community
 // background-geolocation plugin keeps a foreground service running, so updates continue with the
-// screen off or the app in the background (ADR-0031). On the web it is navigator.geolocation.
+// screen off or the app in the background (ADR-0033). On the web it is navigator.geolocation.
 import i18n from "@/i18n.js";
 import { NATIVE } from "@/lib/env.js";
 import { withPlugin } from "./platform.js";
