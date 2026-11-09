@@ -138,6 +138,11 @@ function Assistant() {
                     {t(`ghar.status.${p.status}`, { day: day(p.payload.delivery_date) })}
                   </p>
                 )}
+                {p.status === "expired" && (
+                  <Button variant="secondary" onPress={() => askAgain(p)}>
+                    {t("ghar.askAgain")}
+                  </Button>
+                )}
                 {p.status === "pending" && failed(p.id) && (
                   <div className="flex flex-col items-start gap-2">
                     <p role="alert" className="text-sm font-semibold text-danger">

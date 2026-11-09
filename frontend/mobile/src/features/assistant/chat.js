@@ -46,15 +46,21 @@ const NO_RETRY = new Set(["assistant.daily_cap"]);
 const STALE = new Set([
   "assistant.proposal_expired",
   "subscriptions.version_conflict",
-  "assistant.proposal_decided",
   "assistant.no_cycle",
   "subscriptions.cutoff_passed",
   "subscriptions.not_editable",
 ]);
 /** @param {unknown} e */
-export const isStale = (e) =>
-  STALE.has(/** @type {{ code?: string }} */ (e)?.code ?? "") ||
-  [409, 412].includes(/** @type {{ status?: number }} */ (e)?.status ?? 0);
+export const isStale = (e) => {
+  const code = /** @type {{ code?: string }} */ (e)?.code ?? "";
+  // Not stale: the first confirm is still running (409), or the card was already decided, which
+  // confirmOrRead resolves to the card's real status (asking again could repeat a change).
+  if (code === "request.idempotency_in_progress" || code === "assistant.proposal_decided")
+    return false;
+  return (
+    STALE.has(code) || [409, 412].includes(/** @type {{ status?: number }} */ (e)?.status ?? 0)
+  );
+};
 /** @param {string | undefined} code */
 export const canRetry = (code) => !NO_RETRY.has(code ?? "");
 /**
@@ -81,6 +87,33 @@ export const confirmProposal = (id, idempotencyKey) =>
     method: "POST",
     headers: { "idempotency-key": idempotencyKey },
   });
+
+/**
+ * GET /v1/assistant/sessions/{id}: the conversation's messages and its cards with their real status.
+ * @param {string} id @returns {Promise<{ id: string, proposals: Proposal[] }>}
+ */
+export const getSession = (id) => request(`/v1/assistant/sessions/${id}`);
+
+/**
+ * Confirm a card. If the API says it was already decided (409 `assistant.proposal_decided`: confirmed
+ * in another tab or before a reload, or expired by the hourly job), read the session and answer with
+ * the card as it really is, so the screen shows "done" or "expired" instead of an error.
+ * @param {string | null} sessionId @param {Proposal} p @param {string} idempotencyKey
+ * @returns {Promise<{ proposal: Proposal }>}
+ */
+export async function confirmOrRead(sessionId, p, idempotencyKey) {
+  try {
+    return await confirmProposal(p.id, idempotencyKey);
+  } catch (e) {
+    if (/** @type {{ code?: string }} */ (e)?.code !== "assistant.proposal_decided" || !sessionId)
+      throw e;
+    const real = (await getSession(sessionId).catch(() => null))?.proposals?.find(
+      (x) => x.id === p.id,
+    );
+    if (!real) throw e;
+    return { proposal: real };
+  }
+}
 
 /** POST /v1/assistant/proposals/{id}/reject: nothing changes. @param {string} id @returns {Promise<Proposal>} */
 export const rejectProposal = (id) =>
@@ -149,7 +182,7 @@ export function useAssistant() {
   const confirm = useMutation({
     mutationFn: (/** @type {Proposal} */ p) => {
       keys.current[p.id] ??= crypto.randomUUID();
-      return confirmProposal(p.id, keys.current[p.id]);
+      return confirmOrRead(state.sessionId, p, keys.current[p.id]);
     },
     onSuccess: (r) => {
       setProposal(r.proposal);

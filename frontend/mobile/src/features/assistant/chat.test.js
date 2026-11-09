@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canRetry,
+  confirmOrRead,
   confirmProposal,
+  getSession,
   isStale,
   postMessage,
   rejectProposal,
@@ -101,7 +103,32 @@ describe("Ghar Saathi request bodies (openapi.json MessageIn, ConfirmOut, Propos
     const err = await confirmProposal(proposals[0].id, crypto.randomUUID()).catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect([err.status, err.code]).toEqual([409, "assistant.proposal_decided"]);
-    expect(isStale(err)).toBe(true);
+    // Not "ask again": asking again for a card that was applied could repeat the change.
+    expect(isStale(err)).toBe(false);
+  });
+
+  it("shows a card decided elsewhere as it really is, from the session, instead of an error", async () => {
+    const { session_id, proposals } = await postMessage(null, "paneer please");
+    // Confirmed in another tab (or before a reload): this tab still shows it pending, with its own key.
+    await confirmProposal(proposals[0].id, crypto.randomUUID());
+    const out = await confirmOrRead(session_id, proposals[0], crypto.randomUUID());
+    expect(out.proposal.id).toBe(proposals[0].id);
+    expect(out.proposal.status).toBe("confirmed");
+    expect(sent.at(-1)?.url).toMatch(new RegExp(`/v1/assistant/sessions/${session_id}$`));
+    expect((await getSession(session_id)).proposals.map((p) => p.id)).toEqual([proposals[0].id]);
+  });
+
+  it("still fails when the session can't say what happened to the card", async () => {
+    const { proposals } = await postMessage(null, "paneer please");
+    await confirmProposal(proposals[0].id, crypto.randomUUID());
+    const err = await confirmOrRead(null, proposals[0], crypto.randomUUID()).catch((e) => e);
+    expect(err.code).toBe("assistant.proposal_decided");
+  });
+
+  it("does not call a confirm that is still running stale", () => {
+    expect(isStale({ status: 409, code: "request.idempotency_in_progress" })).toBe(false);
+    expect(isStale({ status: 409, code: "assistant.proposal_expired" })).toBe(true);
+    expect(isStale({ status: 412, code: "subscriptions.version_conflict" })).toBe(true);
   });
 
   it("answers a card made for a week that has since changed with 412", async () => {

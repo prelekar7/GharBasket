@@ -37,6 +37,8 @@ const TOKENS_CAP = 60_000;
 const TOKENS_PER_TURN = 1_800;
 const PROPOSAL_TTL_MS = 15 * 60_000;
 /** @type {Set<string>} */ const sessions = new Set();
+/** The cards of each session, for GET /v1/assistant/sessions/{id}. @type {Record<string, string[]>} */
+const cardsOf = {};
 /** @type {Record<string, any>} */ const proposals = {};
 /** @type {Record<string, any>} */ const confirmedByKey = {};
 let turns = 0;
@@ -86,9 +88,9 @@ const messageOut = (content) => ({
 
 /**
  * The card for one change, priced by the "server".
- * @param {"edit_box_line" | "skip_week"} action @param {"en" | "hi" | "mr"} lang
+ * @param {"edit_box_line" | "skip_week"} action @param {"en" | "hi" | "mr"} lang @param {string} sessionId
  */
-function makeProposal(action, lang) {
+function makeProposal(action, lang, sessionId) {
   const week = {
     cycle_id: NEXT_BOX.cycle_id,
     version: NEXT_BOX.version,
@@ -114,6 +116,7 @@ function makeProposal(action, lang) {
     result: null,
   };
   proposals[proposal.id] = proposal;
+  cardsOf[sessionId] = [...(cardsOf[sessionId] ?? []), proposal.id];
   return proposal;
 }
 
@@ -174,10 +177,25 @@ export const assistantHandlers = [
     return HttpResponse.json({
       session_id,
       reply: messageOut(REPLIES[wantsSkip ? "skip" : wantsChange ? "change" : "help"][lang]),
-      proposals: action ? [makeProposal(action, lang)] : [],
+      proposals: action ? [makeProposal(action, lang, session_id)] : [],
       source: "ml",
       tokens_today: turns * TOKENS_PER_TURN,
       tokens_cap: TOKENS_CAP,
+    });
+  }),
+
+  // GET /v1/assistant/sessions/{id} (SessionOut): the history here keeps only the cards.
+  http.get("*/v1/assistant/sessions/:id", ({ request, params }) => {
+    if (!caller(request)) return problem(401, "auth.invalid_token", "Sign in again");
+    const id = String(params.id);
+    if (!sessions.has(id)) return problem(404, "assistant.not_found", "No such session.");
+    return HttpResponse.json({
+      id,
+      locale: "en-IN",
+      model: null,
+      created_at: new Date().toISOString(),
+      messages: [],
+      proposals: (cardsOf[id] ?? []).map((pid) => proposals[pid]),
     });
   }),
 
