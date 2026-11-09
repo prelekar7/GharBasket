@@ -1,11 +1,15 @@
 """Sign-in endpoints and /v1/me, matching the frozen walking-skeleton contract (M1 spec §3.1)."""
 
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import httpx2
 import pytest
-from sqlalchemy import update
+from sqlalchemy import ColumnElement, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
-from gharbasket.modules.identity.models import User
+from gharbasket.modules.identity.models import LoginSession, PendingRoleGrant, User, UserRole
 
 from ..conftest import make_settings
 from .conftest import ANDROID, ClientFactory, bearer, sign_in
@@ -185,6 +189,128 @@ async def test_a_blocked_account_cannot_sign_in(
     assert response.json()["code"] == "auth.account_disabled"
 
 
+STAFF_PHONE = "+919800000007"
+
+
+async def console_exchange(
+    api: httpx2.AsyncClient, google: FakeGoogle, phone: str
+) -> httpx2.Response:
+    """The console's exchange: a Firebase ID token for `phone`, with staff_only."""
+    return await api.post(
+        "/v1/auth/exchange",
+        json={
+            "firebase_id_token": google.id_token(phone_number=phone, sub=f"uid-{phone}"),
+            "device": {"platform": "web", "push_token": None},
+            "staff_only": True,
+        },
+    )
+
+
+async def count(db: AsyncSession, model: type, *where: ColumnElement[bool]) -> int:
+    return (await db.execute(select(func.count()).select_from(model).where(*where))).scalar_one()
+
+
+async def test_staff_only_refuses_a_new_number_without_creating_it(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    response = await console_exchange(clients(), google, STAFF_PHONE)
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "auth.not_staff"
+    assert "set-cookie" not in response.headers
+    assert await count(db_session, User, User.phone_e164 == STAFF_PHONE) == 0
+
+
+async def test_staff_only_lets_a_pending_grant_sign_up_and_claims_it(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    db_session.add(
+        PendingRoleGrant(
+            phone_e164=STAFF_PHONE,
+            role="catalog_editor",
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+    )
+    await db_session.flush()
+
+    response = await console_exchange(clients(), google, STAFF_PHONE)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["is_new_user"] is True
+    user_id = (
+        await db_session.execute(select(User.id).where(User.phone_e164 == STAFF_PHONE))
+    ).scalar_one()
+    roles = (
+        await db_session.execute(select(UserRole.role).where(UserRole.user_id == user_id))
+    ).scalars()
+    assert sorted(roles) == ["catalog_editor", "customer"]
+
+
+async def test_staff_only_refuses_an_expired_pending_grant(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    db_session.add(
+        PendingRoleGrant(
+            phone_e164=STAFF_PHONE,
+            role="hub_manager",
+            scope_type="hub",
+            scope_id=uuid.uuid4(),
+            expires_at=datetime.now(UTC) - timedelta(minutes=1),
+        )
+    )
+    await db_session.flush()
+
+    response = await console_exchange(clients(), google, STAFF_PHONE)
+
+    assert response.status_code == 403
+    assert await count(db_session, User, User.phone_e164 == STAFF_PHONE) == 0
+
+
+async def test_staff_only_refuses_a_customer_without_starting_a_session(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    await sign_in(api, google, phone_number=STAFF_PHONE, sub=f"uid-{STAFF_PHONE}")
+    before = await count(db_session, LoginSession)
+
+    response = await console_exchange(api, google, STAFF_PHONE)
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "auth.not_staff"
+    assert await count(db_session, LoginSession) == before
+
+
+@pytest.mark.parametrize(
+    ("status", "allowed"),
+    [("verified", True), ("suspended", False), ("applied", False)],
+)
+async def test_staff_only_needs_a_verified_staff_role(
+    clients: ClientFactory,
+    google: FakeGoogle,
+    db_session: AsyncSession,
+    status: str,
+    allowed: bool,
+) -> None:
+    api = clients()
+    signed_up = await sign_in(api, google, phone_number=STAFF_PHONE, sub=f"uid-{STAFF_PHONE}")
+    db_session.add(
+        UserRole(user_id=uuid.UUID(signed_up["user"]["id"]), role="admin", status=status)
+    )
+    await db_session.flush()
+
+    response = await console_exchange(api, google, STAFF_PHONE)
+
+    assert response.status_code == (200 if allowed else 403), response.text
+
+
+async def test_without_staff_only_a_new_number_still_signs_up(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    signed_in = await sign_in(clients(), google, phone_number=STAFF_PHONE, sub=f"uid-{STAFF_PHONE}")
+
+    assert signed_in["is_new_user"] is True
+
+
 def test_the_openapi_contract_documents_the_frozen_shapes() -> None:
     schemas = create_app(make_settings()).openapi()["components"]["schemas"]
 
@@ -194,6 +320,7 @@ def test_the_openapi_contract_documents_the_frozen_shapes() -> None:
         "dev_name",
         "device",
         "keep_account",  # added by §3.5
+        "staff_only",  # added for the console's sign-in (§3.1)
     }
     assert set(schemas["ExchangeOut"]["required"]) == {
         "access_token",
