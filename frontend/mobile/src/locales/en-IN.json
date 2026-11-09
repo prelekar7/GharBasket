@@ -1135,6 +1135,8 @@
       "allDone": "Every line is done. Close the bag.",
       "packed": "This bag is packed and in crate {crate}.",
       "wrong": "Wrong item: this is {item}",
+      "isBagLabel": "That’s a bag label. Scan an item.",
+      "isKitchenCode": "That’s a kitchen code. Scan an item.",
       "already": "{item} is already in the bag",
       "putBackTitle": "Put it back",
       "putBack": "This bag doesn’t need {item}. Return it to its shelf; nothing was added to the bag.",

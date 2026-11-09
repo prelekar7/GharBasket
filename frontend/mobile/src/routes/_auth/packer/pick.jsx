@@ -10,6 +10,7 @@ import { CodeSheet } from "@/features/packing/CodeSheet.jsx";
 import { bagCode, inBag, lineMatches, lineQty, lineState } from "@/features/packing/lines.js";
 import { usePackingActions, usePackingDay, usePackingTask } from "@/features/packing/queries.js";
 import { useOpenBag } from "@/features/packing/useOpenBag.js";
+import { parseScan } from "@/lib/scan.js";
 
 /** @typedef {import("@/features/packing/queries.js").PackingDay} PackingDay */
 /** @typedef {import("@/features/packing/queries.js").PackingTask} PackingTask */
@@ -96,6 +97,13 @@ function PickBag({ task, day }) {
   const item = (/** @type {PackLine} */ l) => `${inBag(l).name} · ${lineQty(l)}`;
 
   const onCode = (/** @type {string} */ raw) => {
+    // A bag label or a kitchen code is not an item: say what it is, not "Wrong item".
+    const scanned = parseScan(raw)?.kind;
+    if (scanned === "bag" || scanned === "pickup")
+      return setScan({
+        state: "error",
+        label: t(scanned === "bag" ? "packer.pick.isBagLabel" : "packer.pick.isKitchenCode"),
+      });
     const line = lines.find((l) => lineState(l) === "todo" && lineMatches(l, raw));
     if (line) {
       actions.pick(task, line);
