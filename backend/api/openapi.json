@@ -6368,6 +6368,12 @@
             "description": "For an account whose deletion is scheduled: true (after the app asked \"Keep my account?\") signs in and cancels the deletion; false gets 409 identity.deletion_pending (spec §3.5)",
             "title": "Keep Account",
             "type": "boolean"
+          },
+          "staff_only": {
+            "default": false,
+            "description": "The console sends true: a number that is not staff gets 403 auth.not_staff and no account or session is created (spec §3.1)",
+            "title": "Staff Only",
+            "type": "boolean"
           }
         },
         "required": [
@@ -42431,7 +42437,7 @@
                 }
               }
             },
-            "description": "auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected"
+            "description": "auth.dev_login_disabled, auth.account_disabled, auth.csrf_rejected, or auth.not_staff (staff_only: the number is not staff; nothing is created)"
           },
           "409": {
             "content": {

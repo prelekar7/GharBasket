@@ -110,7 +110,10 @@ def _deliver(
     summary="Sign in (or sign up) with a verified phone number",
     responses={
         401: _problem("auth.invalid_token: the Firebase ID token is not valid"),
-        403: _problem("auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected"),
+        403: _problem(
+            "auth.dev_login_disabled, auth.account_disabled, auth.csrf_rejected, or "
+            "auth.not_staff (staff_only: the number is not staff; nothing is created)"
+        ),
         409: _problem(
             "identity.deletion_pending (with purge_on): send keep_account to keep it; "
             "identity.account_deleted: the account was purged meanwhile"
@@ -156,6 +159,8 @@ async def exchange(
         limit=EXCHANGE_PER_PHONE[0],
         window_s=EXCHANGE_PER_PHONE[1],
     )
+    if body.staff_only and not await service.is_staff_number(session, phone):
+        raise ProblemError(403, "auth.not_staff", "This number has no staff role.")
 
     user, created = await service.find_or_create_user(session, phone)
     cancelled = user.status == "deleting"

@@ -46,6 +46,13 @@ class ExchangeIn(BaseModel):
             "identity.deletion_pending (spec §3.5)"
         ),
     )
+    staff_only: bool = Field(
+        default=False,
+        description=(
+            "The console sends true: a number that is not staff gets 403 auth.not_staff and no "
+            "account or session is created (spec §3.1)"
+        ),
+    )
 
     @field_validator("dev_phone")
     @classmethod

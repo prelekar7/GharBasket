@@ -7381,6 +7381,12 @@ export interface components {
              * @default false
              */
             keep_account: boolean;
+            /**
+             * Staff Only
+             * @description The console sends true: a number that is not staff gets 403 auth.not_staff and no account or session is created (spec §3.1)
+             * @default false
+             */
+            staff_only: boolean;
         };
         /** ExchangeOut */
         ExchangeOut: {
@@ -23712,7 +23718,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected */
+            /** @description auth.dev_login_disabled, auth.account_disabled, auth.csrf_rejected, or auth.not_staff (staff_only: the number is not staff; nothing is created) */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity.models import (
     PENDING_ROLES,
+    STAFF_ROLES,
     LoginSession,
     PendingRoleGrant,
     RefreshToken,
@@ -92,6 +93,26 @@ async def find_or_create_user(session: AsyncSession, phone_e164: str) -> tuple[U
         await session.flush()
         await claim_pending_grants(session, user)
     return user, created is not None
+
+
+async def is_staff_number(session: AsyncSession, phone_e164: str) -> bool:
+    """Whether a proved phone may sign into the console (`staff_only`, spec §3.1): its account
+    holds a verified staff role, or it has no account yet and an unexpired pending grant waits."""
+    await _lock_phone(session, phone_e164)
+    user_id = (
+        await session.execute(select(User.id).where(User.phone_e164 == phone_e164))
+    ).scalar_one_or_none()
+    if user_id is not None:
+        held = select(UserRole.id).where(
+            UserRole.user_id == user_id,
+            UserRole.role.in_(STAFF_ROLES),
+            UserRole.status == "verified",
+        )
+        return (await session.execute(held.limit(1))).first() is not None
+    waiting = select(PendingRoleGrant.id).where(
+        PendingRoleGrant.phone_e164 == phone_e164, PendingRoleGrant.expires_at > func.now()
+    )
+    return (await session.execute(waiting.limit(1))).first() is not None
 
 
 async def _lock_phone(session: AsyncSession, phone_e164: str) -> None:
