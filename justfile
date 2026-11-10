@@ -120,6 +120,10 @@ e2e-web-ui: e2e-web-prepare
 job name *args:
     uv run python -m gharbasket.tools.run_job {{name}} {{args}}
 
+# Recent job runs, newest first, e.g. `just job-runs cutoff_lock failed`; staging: `infisical run --env=staging -- just job-runs cutoff_lock`
+job-runs name="" status="" limit="20":
+    scripts/job-runs.sh "{{name}}" "{{status}}" "{{limit}}"
+
 # Give a signed-up user a staff role, e.g. `just grant-role +919800000001 admin` (see the tool's help)
 grant-role *args:
     uv run python -m gharbasket.tools.grant_role {{args}}

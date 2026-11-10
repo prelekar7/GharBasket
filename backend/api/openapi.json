@@ -54850,6 +54850,129 @@
         ]
       }
     },
+    "/v1/internal/jobs/runs": {
+      "get": {
+        "operationId": "list_runs_v1_internal_jobs_runs_get",
+        "parameters": [
+          {
+            "description": "Only this job",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this job",
+              "title": "Name"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "ok",
+                    "failed",
+                    "skipped"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Only runs started after this",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only runs started after this",
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JobRunOut"
+                  },
+                  "title": "Response List Runs V1 Internal Jobs Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.operator_token_required (problem+json)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "OperatorToken": []
+          }
+        ],
+        "summary": "Recent job runs, newest first (operator token)",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/v1/internal/jobs/{name}": {
       "post": {
         "operationId": "trigger_job_v1_internal_jobs__name__post",
@@ -54933,7 +55056,7 @@
                 }
               }
             },
-            "description": "platform.job_failed, with the run id (problem+json)"
+            "description": "platform.job_failed, with the run id, and `problems` for ops_check (problem+json)"
           }
         },
         "security": [

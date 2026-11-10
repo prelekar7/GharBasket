@@ -5,7 +5,7 @@
 #
 # From the Mac, with the VM's address and SSH key (the same VM as the mandi collector, handbook 12):
 #   scripts/jobs-on-vm.sh setup  <ip> <key>   # python3-yaml, the repo if missing, the service
-#   infisical run --env=staging -- scripts/jobs-on-vm.sh env <ip> <key>   # API_URL and JOBS_TOKEN
+#   infisical run --env=staging -- scripts/jobs-on-vm.sh env <ip> <key>   # API_URL, JOBS_TOKEN, HC_*
 #   scripts/jobs-on-vm.sh status <ip> <key>   # the service and its last calls
 #   scripts/jobs-on-vm.sh due    <ip> <key> 2026-11-05T21:00   # the jobs due at an IST minute
 #
@@ -72,7 +72,10 @@ REMOTE
     {
       printf 'JOBS_TOKEN=%s\n' "$JOBS_TOKEN"
       printf 'API_URL=%s\n' "${STAGING_API_URL:-https://gharbasket-api.onrender.com}"
-      [ -z "${JOBS_HC_PING_URL:-}" ] || printf 'HC_PING_URL=%s\n' "$JOBS_HC_PING_URL"
+      # The healthchecks.io ping URLs (ADR-0033), each only when Infisical has it.
+      for name in HC_PING_URL HC_CUTOFF_URL HC_OPS_URL; do
+        [ -z "${!name:-}" ] || printf '%s=%s\n' "$name" "${!name}"
+      done
     } | ssh_to "$2" "$3" "umask 077 && mkdir -p ~/.config/gharbasket && cat > ~/$ENV_FILE && sudo systemctl restart $UNIT.service"
     echo "secrets written to ~/$ENV_FILE on $2 (mode 600); $UNIT restarted"
     ;;

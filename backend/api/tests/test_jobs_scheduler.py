@@ -63,7 +63,7 @@ def test_the_minute_is_read_in_ist_whatever_zone_it_comes_in() -> None:
 
 
 def test_only_vm_entries_are_called() -> None:
-    names = {name for name, _ in scheduler.load()}
+    names = {entry.name for entry in scheduler.load()}
     assert "cutoff_lock" in names
     assert "compute_vendor_scores" not in names  # an `actions` entry: GitHub calls it
 
@@ -118,10 +118,11 @@ class Answers:
 
 
 def run_call(opener: Answers, waits: list[float]) -> str:
-    return scheduler.call(
+    outcome, _ = scheduler.call(
         "https://api.test", "t" * 40, "cutoff_lock", at("2026-11-05T21:00"),
         opener=opener, sleep=waits.append,
     )  # fmt: skip
+    return outcome
 
 
 def test_a_call_posts_the_minute_with_the_token() -> None:
@@ -152,6 +153,76 @@ def test_the_apps_own_errors_are_final(code: int) -> None:
     opener, waits = Answers(code), []
     assert run_call(opener, waits) == "failed"
     assert waits == [] and len(opener.requests) == 1
+
+
+# --- the alerts (ADR-0033, M0 §6.1) -------------------------------------------------------------
+
+HC = "https://hc-ping.test/"
+
+
+def dispatch(
+    name: str, heartbeat: str | None, *answers: int | Exception
+) -> list[urllib.request.Request]:
+    """Dispatch one job with the given answers, then a 200 for every ping; returns the pings."""
+    opener = Answers(*answers, 200, 200)
+    scheduler.dispatch(
+        "https://api.test", "t" * 40, name, at("2026-11-05T21:00"), heartbeat,
+        opener=opener, sleep=lambda _: None,
+    )  # fmt: skip
+    return [r for r in opener.requests if r.full_url.startswith(HC)]
+
+
+@pytest.fixture
+def ping_urls(monkeypatch: pytest.MonkeyPatch) -> None:
+    for variable in ("HC_PING_URL", "HC_CUTOFF_URL", "HC_OPS_URL"):
+        monkeypatch.setenv(variable, HC + variable.lower())
+
+
+@pytest.mark.usefixtures("ping_urls")
+def test_a_job_that_answers_ok_pings_its_heartbeat_only() -> None:
+    pings = dispatch("cutoff_lock", "HC_CUTOFF_URL", 200)
+    assert [(p.full_url, p.get_method()) for p in pings] == [(HC + "hc_cutoff_url", "GET")]
+    assert dispatch("send_refunds", None, 200) == []
+
+
+@pytest.mark.usefixtures("ping_urls")
+@pytest.mark.parametrize(
+    ("answers", "outcome"),
+    [((500,), 'failed HTTP 500 {"code":"platform.job_failed"}'), ((503,) * 4, "gave_up HTTP 503")],
+)
+def test_a_job_that_fails_or_gives_up_tells_the_ops_check(
+    answers: tuple[int, ...], outcome: str
+) -> None:
+    pings = dispatch("cutoff_lock", "HC_CUTOFF_URL", *answers)
+    assert [(p.full_url, p.get_method()) for p in pings] == [(HC + "hc_ops_url/fail", "POST")]
+    body = cast(bytes, pings[0].data).decode()
+    assert body.startswith(f"cutoff_lock 2026-11-05 21:00 IST {outcome}")
+
+
+def test_unset_ping_urls_are_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("HC_OPS_URL", raising=False)
+    monkeypatch.delenv("HC_CUTOFF_URL", raising=False)
+    assert dispatch("cutoff_lock", "HC_CUTOFF_URL", 500) == []
+    assert dispatch("cutoff_lock", "HC_CUTOFF_URL", 200) == []
+
+
+def test_a_ping_that_fails_is_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HC_PING_URL", HC + "x")
+    opener = Answers(urllib.error.URLError("down"))
+    scheduler.ping("HC_PING_URL", opener=opener)
+    assert len(opener.requests) == 1
+
+
+def test_the_cutoff_and_the_watchdog_have_heartbeats() -> None:
+    heartbeats = {e.name: e.heartbeat for e in scheduler.load() if e.heartbeat}
+    assert heartbeats == {"cutoff_lock": "HC_CUTOFF_URL", "ops_check": "HC_OPS_URL"}
+
+
+def test_a_heartbeat_must_name_an_hc_variable(tmp_path: Path) -> None:
+    broken = tmp_path / "schedule.yaml"
+    broken.write_text("jobs:\n  - {name: x, runner: vm, cron: '0 * * * *', heartbeat: PATH}\n")
+    with pytest.raises(ValueError, match="heartbeat"):
+        scheduler.load(broken)
 
 
 def test_due_on_the_command_line(capsys: pytest.CaptureFixture[str]) -> None:

@@ -1,6 +1,6 @@
 # ADR-0033 — Ops alerts go through healthchecks.io and UptimeRobot (free tiers)
 
-- **Status:** Proposed (2026-11-10)
+- **Status:** Accepted (2026-11-10)
 - **Date:** 2026-11-10
 - **Decision ID:** D33
 - **Relates to:** [ADR-0020](0020-free-tier-hosting-render-vercel-neon-r2.md) (free tiers only), [ADR-0021](0021-jobs-without-a-broker.md) (jobs as internal endpoints), [ADR-0032](0032-scheduled-jobs-from-the-oracle-vm.md) (the VM scheduler). Handbook 12 §12.5 lists the alerts; this ADR decides how they are sent.

@@ -17,6 +17,8 @@
 #           because GitHub runs UTC. A `manual` entry has no cron.
 #   ist     `actions` entries only: the same time in IST, for people
 #   why     one line: where the time comes from
+#   heartbeat  `vm` entries only, optional: the variable (HC_...) holding the healthchecks URL the
+#           scheduler pings when the job answers ok (ADR-0033)
 #
 # Neon budget (staging, free tier: 100 compute-hours a month per project; when they run out the
 # compute is SUSPENDED until the next month, i.e. staging is down).
@@ -56,6 +58,15 @@ jobs:
       - "0-30/5 23 * * *"
       - "30 9,12,14 * * *"
     why: M0 §6 hourly backstop and every few minutes from the external cron; outside the windows it runs at 09:30, 12:30 and 14:30, so the relay's retries (backoff up to 1 h) wait for the next window
+
+  - name: ops_check
+    runner: vm
+    cron:
+      - "30 6,12 * * *"
+      - "15 21 * * *"
+      - "45 23 * * *"
+    heartbeat: HC_OPS_URL
+    why: ADR-0033 the watchdog, inside wakes Neon has anyway (the morning run, 12:30, after the cut-off, with the 23:45 tiffin round); a clean run brings the `ops` check back up
 
   - name: cleanup_idempotency_keys
     runner: actions
@@ -126,7 +137,8 @@ jobs:
   - name: cutoff_lock
     runner: vm
     cron: "0 21 * * *"
-    why: M4 §3.1 the cut-off, T-1 21:00 IST
+    heartbeat: HC_CUTOFF_URL
+    why: M4 §3.1 the cut-off, T-1 21:00 IST; its heartbeat is the `cutoff` check (ADR-0033), so a missed or late cut-off alerts
 
   - name: payment_grace_expiry
     runner: vm

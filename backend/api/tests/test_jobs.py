@@ -102,6 +102,7 @@ async def test_a_failing_job_keeps_its_run_row_and_answers_500(
 
     assert answer.status_code == 500
     assert answer.json()["code"] == "platform.job_failed"
+    assert "problems" not in answer.json() and "hunter2" not in answer.text
     run = await db_session.get(JobRun, uuid.UUID(answer.json()["run_id"]))
     assert run is not None
     assert (run.status, run.error) == ("failed", "RuntimeError: database password is hunter2")

@@ -984,6 +984,14 @@ def test_the_analytics_refresh_and_a_rebuild_agree(
     assert before and loop.run(rows(config, sql, a=window[0], b=window[1])) == before
 
 
+def test_the_watchdog_finds_nothing_wrong_after_the_day(app: App, day: Day, loop: Runner) -> None:
+    """Tuesday T 21:15, `ops_check` (ADR-0033, M0 §6.1): the day's jobs leave no problem for the
+    `ops` alert (no failed run, no stuck event, no probe that raises)."""
+    when = ist(day.t, 21, 15)
+    summary = step(loop, when, app.job("ops_check", when))
+    assert summary["problems"] == [] and summary["probes"] >= 3, summary
+
+
 def test_every_event_of_the_day_that_m11_maps_became_a_message(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:
