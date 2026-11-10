@@ -72,6 +72,9 @@ class Settings(DatabaseSettings):
     # Protects operator endpoints (/v1/ready, and later /v1/internal/jobs/*). Required on
     # staging and prod; open locally so `curl localhost:8000/v1/ready` just works.
     jobs_token: SecretStr | None = None
+    # The database size the `platform.database_size` probe measures against (M0 §6.1): it reports
+    # a problem above 80 % of it. 512 MB is Neon's free tier.
+    ops_db_limit_mb: int = Field(default=512, gt=0)
 
     # Sessions (ADR-0024): access JWTs are HS256 with a key id ("kid"), so the key can be rotated:
     # set a new JWT_SIGNING_KEY + JWT_KEY_ID and move the old pair to JWT_RETIRED_KEYS

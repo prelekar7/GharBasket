@@ -2565,6 +2565,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/jobs/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent job runs, newest first (operator token) */
+        get: operations["list_runs_v1_internal_jobs_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/jobs/{name}": {
         parameters: {
             query?: never;
@@ -30398,6 +30415,51 @@ export interface operations {
             };
         };
     };
+    list_runs_v1_internal_jobs_runs_get: {
+        parameters: {
+            query?: {
+                /** @description Only this job */
+                name?: string | null;
+                status?: ("ok" | "failed" | "skipped") | null;
+                /** @description Only runs started after this */
+                since?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunOut"][];
+                };
+            };
+            /** @description platform.operator_token_required (problem+json) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     trigger_job_v1_internal_jobs__name__post: {
         parameters: {
             query?: never;
@@ -30458,7 +30520,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description platform.job_failed, with the run id (problem+json) */
+            /** @description platform.job_failed, with the run id, and `problems` for ops_check (problem+json) */
             500: {
                 headers: {
                     [name: string]: unknown;

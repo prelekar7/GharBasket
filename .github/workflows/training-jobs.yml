@@ -55,6 +55,7 @@ jobs:
       # here fails with ConnectError.
       JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || github.event.schedule == '40 15 * * *' && 'forecast' || github.event.schedule == '33 21 * * 6' && 'refit_pantry' || github.event.schedule == '3 22 * * 6' && 'train_ranker' || 'collect_mandi') }}
       ARGS: ${{ inputs.args }} # blank: the job's default, set in the run step
+      HC_OPS_URL: ${{ secrets.HC_OPS_URL }}
     steps:
       - name: Check that the secrets exist
         id: configured
@@ -95,3 +96,13 @@ jobs:
             esac
           fi
           uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS
+
+      - name: Tell the ops alert
+        # healthchecks.io `ops` check (ADR-0033); skipped while the secret is unset.
+        if: failure() && env.HC_OPS_URL != ''
+        env:
+          WHAT: ${{ env.JOB }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl --silent --show-error --max-time 10 --retry 3 \
+            --data-raw "$GITHUB_WORKFLOW: $WHAT failed, $run_url" "$HC_OPS_URL/fail" || true

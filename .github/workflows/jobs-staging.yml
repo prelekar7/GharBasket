@@ -56,6 +56,7 @@ jobs:
     env:
       STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
       JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
+      HC_OPS_URL: ${{ secrets.HC_OPS_URL }}
     steps:
       - name: Check out the schedule
         uses: actions/checkout@v7
@@ -118,3 +119,13 @@ jobs:
             echo "::endgroup::"
           done
           exit "$failed"
+
+      - name: Tell the ops alert
+        # healthchecks.io `ops` check (ADR-0033); skipped while the secret is unset.
+        if: failure() && env.HC_OPS_URL != ''
+        env:
+          WHAT: ${{ steps.pick.outputs.jobs || 'picking the jobs' }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl --silent --show-error --max-time 10 --retry 3 \
+            --data-raw "$GITHUB_WORKFLOW: $WHAT failed, $run_url" "$HC_OPS_URL/fail" || true

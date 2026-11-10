@@ -11,6 +11,8 @@ Every run:
   trigger that fires a few minutes late changes nothing;
 - is recorded in `platform.job_runs` with its summary or error.
 
+`ops_check` runs the ops probes (platform/ops.py, M0 §6.1); the platform's own probes are here.
+
 Modules register their jobs in their own `jobs.py`; `gharbasket.modules.registry.load_modules()`
 imports them all, in the app factory and in every tool (`just job`, `just seed`, `just sim`).
 """
@@ -19,18 +21,20 @@ import hashlib
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Annotated, Any
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any, Literal
 
 import httpx2
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from sqlalchemy import delete, func, select, text
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from gharbasket.platform import files, outbox
+from gharbasket.platform import files, ops, outbox
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import KEY_TTL
@@ -64,6 +68,15 @@ class Job:
 
 
 JOBS: dict[str, Job] = {}
+
+
+class ProblemsFoundError(Exception):
+    """Fail a run with problems written for the operator (`ops_check`). Unlike any other error's
+    text, they are kept in the run's summary and sent in the 500 answer, so the alert names them."""
+
+    def __init__(self, problems: list[str]) -> None:
+        super().__init__("; ".join(problems))
+        self.problems = problems
 
 
 def job(name: str, description: str) -> Callable[[JobFn], JobFn]:
@@ -128,6 +141,8 @@ async def run_job(
         await session.rollback()  # the job's partial writes go; the run row stays
         run.status = "failed"
         run.error = f"{type(exc).__name__}: {exc}"[:ERROR_LENGTH]
+        if isinstance(exc, ProblemsFoundError):
+            run.summary = {"problems": exc.problems}
         run.finished_at = datetime.now(UTC)
         session.add(run)
         await session.commit()
@@ -176,6 +191,77 @@ async def sweep_uploads(ctx: JobContext) -> dict[str, Any]:
     return await files.sweep(ctx.session, ctx.storage, now=ctx.scheduled_for)
 
 
+@job("ops_check", "Run every ops probe; fail, naming each problem, when one finds any (ADR-0033)")
+async def ops_check(ctx: JobContext) -> dict[str, Any]:
+    problems = await ops.run_probes(ctx.session, ctx.scheduled_for)
+    if problems:
+        raise ProblemsFoundError(problems)
+    return {"probes": len(ops.PROBES), "problems": []}
+
+
+# --- the platform's probes (M0 §6.1) -----------------------------------------------------------
+
+FAILED_LOOKBACK = timedelta(hours=24)
+OUTBOX_STUCK_AFTER = timedelta(minutes=30)
+OUTBOX_STUCK_ATTEMPTS = 3
+DB_ALERT_SHARE = 0.8
+
+
+@ops.probe("platform.failed_jobs")
+async def failed_jobs(session: AsyncSession, now: datetime) -> list[str]:
+    # ops_check is left out: its own failure is the alert, and it would never come back up.
+    later = aliased(JobRun)
+    healed = (
+        select(later.id)
+        .where(
+            later.name == JobRun.name, later.status == "ok", later.started_at > JobRun.started_at
+        )
+        .exists()
+    )
+    rows = await session.execute(
+        select(JobRun.name, JobRun.error)
+        .where(
+            JobRun.status == "failed",
+            JobRun.started_at > now - FAILED_LOOKBACK,
+            JobRun.name != "ops_check",
+            ~healed,
+        )
+        .order_by(JobRun.name, JobRun.started_at.desc())
+        .ext(distinct_on(JobRun.name))
+    )
+    return [f"{name} failed: {(error or '')[:120]}" for name, error in rows.all()]
+
+
+@ops.probe("platform.outbox_stuck")
+async def outbox_stuck(session: AsyncSession, now: datetime) -> list[str]:
+    stuck = await session.execute(
+        select(OutboxEvent.event_type, func.count())
+        .where(
+            OutboxEvent.sent_at.is_(None),
+            OutboxEvent.created_at < now - OUTBOX_STUCK_AFTER,
+            OutboxEvent.attempts >= OUTBOX_STUCK_ATTEMPTS,
+        )
+        .group_by(OutboxEvent.event_type)
+        .order_by(OutboxEvent.event_type)
+    )
+    counts = stuck.all()
+    if not counts:
+        return []
+    kinds = ", ".join(f"{event_type} x{n}" for event_type, n in counts)
+    total = sum(n for _, n in counts)
+    return [f"{total} events unsent for > 30 min after 3 or more tries ({kinds})"]
+
+
+@ops.probe("platform.database_size")
+async def database_size(session: AsyncSession, now: datetime) -> list[str]:
+    size = (await session.execute(text("SELECT pg_database_size(current_database())"))).scalar_one()
+    limit_mb = get_settings().ops_db_limit_mb
+    size_mb = size / 2**20
+    if size_mb <= DB_ALERT_SHARE * limit_mb:
+        return []
+    return [f"the database is {size_mb:.0f} MB, {size_mb / limit_mb:.0%} of {limit_mb} MB"]
+
+
 # --- HTTP ---------------------------------------------------------------------------------------
 
 router = APIRouter(tags=["platform"], dependencies=[Depends(require_operator)])
@@ -213,13 +299,39 @@ async def list_jobs() -> list[JobOut]:
     ]
 
 
+@router.get(
+    "/internal/jobs/runs",
+    summary="Recent job runs, newest first (operator token)",
+    responses={401: {"description": "platform.operator_token_required (problem+json)"}},
+)
+async def list_runs(
+    session: DbSession,
+    name: Annotated[str | None, Query(max_length=60, description="Only this job")] = None,
+    status: Annotated[Literal["ok", "failed", "skipped"] | None, Query()] = None,
+    since: Annotated[datetime | None, Query(description="Only runs started after this")] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[JobRunOut]:
+    query = select(JobRun).order_by(JobRun.started_at.desc(), JobRun.id.desc()).limit(limit)
+    if name is not None:
+        query = query.where(JobRun.name == name)
+    if status is not None:
+        query = query.where(JobRun.status == status)
+    if since is not None:
+        query = query.where(JobRun.started_at > since)
+    runs = (await session.execute(query)).scalars().all()
+    return [JobRunOut.model_validate(run, from_attributes=True) for run in runs]
+
+
 @router.post(
     "/internal/jobs/{name}",
     summary="Run a job now (operator token); the trigger for schedules and crons",
     responses={
         401: {"description": "platform.operator_token_required (problem+json)"},
         404: {"description": "platform.job_unknown (problem+json)"},
-        500: {"description": "platform.job_failed, with the run id (problem+json)"},
+        500: {
+            "description": "platform.job_failed, with the run id, and `problems` for ops_check "
+            "(problem+json)"
+        },
     },
 )
 async def trigger_job(
@@ -240,8 +352,10 @@ async def trigger_job(
         storage=getattr(request.app.state, "storage", None),
     )
     if run.status == "failed":
-        # A non-2xx answer, so a cron or a person sees it; the run row has the error.
-        raise ProblemError(
-            500, "platform.job_failed", f"Job {name!r} failed.", extra={"run_id": str(run.id)}
-        )
+        # A non-2xx answer, so a cron or a person sees it; the run row has the error. Only the
+        # problems a job wrote for the operator (ops_check) are sent back.
+        extra: dict[str, Any] = {"run_id": str(run.id)}
+        if run.summary and "problems" in run.summary:
+            extra["problems"] = run.summary["problems"]
+        raise ProblemError(500, "platform.job_failed", f"Job {name!r} failed.", extra=extra)
     return JobRunOut.model_validate(run, from_attributes=True)

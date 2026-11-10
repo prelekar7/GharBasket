@@ -14,8 +14,14 @@ its use of `scheduled_for` make a repeat harmless. The app's own answers (2xx, 4
 The last minute it dispatched is kept in a state file, so a restart neither repeats a minute nor
 drops the current one. Every 15 minutes it pulls the checkout's branch; when this file changed, it
 exits once no call is in flight and systemd starts the new code. A schedule that no longer parses
-is logged and the last good one is kept. HC_PING_URL, if set, is pinged every hour while it runs
-and with `/fail` when a call gives up.
+is logged and the last good one is kept.
+
+Alerts go to healthchecks.io (ADR-0033, M0 §6.1); an unset URL is skipped:
+- HC_PING_URL is pinged every hour while it runs (the `scheduler` check);
+- a call that ends `failed` or `gave_up` POSTs its job, minute, outcome and answer to
+  HC_OPS_URL + `/fail` (the `ops` check);
+- an entry with `heartbeat: <VARIABLE>` pings the URL in that variable when the job answers ok
+  (`cutoff_lock` the `cutoff` check, `ops_check` the `ops` check).
 
     API_URL=... JOBS_TOKEN=... python3 scripts/jobs_scheduler.py      # run (the service does this)
     python3 scripts/jobs_scheduler.py --due 2026-11-05T21:00             # the jobs due then (IST)
@@ -39,7 +45,7 @@ import urllib.request
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from zoneinfo import ZoneInfo
 
 import yaml
@@ -56,6 +62,8 @@ RETRY_AFTER_S = (15, 45, 120)
 CALL_TIMEOUT_S = 300  # a cold start (~1 min) plus the longest job
 PULL_EVERY_MIN = 15
 LATE_START_S = 50  # a (re)start this far into a minute leaves the minute alone
+FAIL_BODY_CHARS = 1000  # of the answer, in the alert; healthchecks keeps the first 100 kB
+PING_TIMEOUT_S = 10
 
 
 _LOG = threading.Lock()
@@ -109,8 +117,14 @@ def matches(cron: str, at: datetime) -> bool:
     return on_mday and on_wday
 
 
-def load(path: Path = SCHEDULE) -> list[tuple[str, list[str]]]:
-    """(name, crons) of every `vm` entry; raises when the file or a cron does not parse."""
+class Entry(NamedTuple):
+    name: str
+    crons: list[str]
+    heartbeat: str | None  # the variable holding the URL to ping when the job answers ok
+
+
+def load(path: Path = SCHEDULE) -> list[Entry]:
+    """Every `vm` entry; raises when the file, a cron or a heartbeat does not parse."""
     out = []
     for entry in yaml.safe_load(path.read_text())["jobs"]:
         if entry["runner"] != RUNNER:
@@ -118,14 +132,19 @@ def load(path: Path = SCHEDULE) -> list[tuple[str, list[str]]]:
         crons = [entry["cron"]] if isinstance(entry["cron"], str) else list(entry["cron"])
         for cron in crons:
             parse(cron)
-        out.append((entry["name"], crons))
+        heartbeat = entry.get("heartbeat")
+        if heartbeat is not None and not (
+            isinstance(heartbeat, str) and heartbeat.startswith("HC_") and heartbeat.isupper()
+        ):
+            raise ValueError(f"{entry['name']}: heartbeat {heartbeat!r} is not an HC_ variable")
+        out.append(Entry(entry["name"], crons, heartbeat))
     return out
 
 
-def due(schedule: list[tuple[str, list[str]]], minute: datetime) -> list[str]:
+def due(schedule: list[Entry], minute: datetime) -> list[str]:
     """The jobs whose crons name `minute` (IST), each once, in the schedule's order."""
     at = minute.astimezone(IST)
-    return [name for name, crons in schedule if any(matches(c, at) for c in crons)]
+    return [e.name for e in schedule if any(matches(c, at) for c in e.crons)]
 
 
 Opener = Callable[[urllib.request.Request, float], Any]
@@ -143,9 +162,10 @@ def call(
     *,
     opener: Opener = _open,
     sleep: Callable[[float], None] = time.sleep,
-) -> str:
+) -> tuple[str, str]:
     """POST one job for `minute`; tries again while the host's edge refuses. Returns the outcome
-    (`ok`, `failed` for the app's own error answers, `gave_up`) and logs one line per attempt."""
+    (`ok`, `failed` for the app's own error answers, `gave_up`) with its detail (the error answer,
+    or why it gave up) and logs one line per attempt."""
     body = json.dumps({"scheduled_for": minute.isoformat()}).encode()
     stamp = f"{minute.astimezone(IST):%m-%d %H:%M}"
     for attempt in range(len(RETRY_AFTER_S) + 1):
@@ -162,21 +182,21 @@ def call(
             took = time.monotonic() - started
             summary = json.dumps(answer.get("summary"), separators=(",", ":"))[:200]
             log(stamp, name, "ok", answer.get("status"), f"{took:.1f}s", summary)
-            return "ok"
+            return "ok", ""
         except urllib.error.HTTPError as error:
             if error.code not in RETRY_CODES:
-                detail = error.read()[:200].decode(errors="replace")
-                log(stamp, name, "failed", error.code, detail)
-                return "failed"
+                detail = error.read()[:FAIL_BODY_CHARS].decode(errors="replace")
+                log(stamp, name, "failed", error.code, detail[:200])
+                return "failed", f"HTTP {error.code} {detail}"
             reason = f"HTTP {error.code}"
         except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
             reason = type(error).__name__ + f" {getattr(error, 'reason', '')}".rstrip()
         if attempt == len(RETRY_AFTER_S):
             log(stamp, name, "gave_up", reason, f"after {attempt + 1} tries")
-            return "gave_up"
+            return "gave_up", f"{reason} after {attempt + 1} tries"
         log(stamp, name, "retry", reason, f"in {RETRY_AFTER_S[attempt]}s")
         sleep(RETRY_AFTER_S[attempt])
-    return "gave_up"  # unreachable; keeps type checkers content
+    return "gave_up", ""  # unreachable; keeps type checkers content
 
 
 def _digest(path: Path) -> str:
@@ -195,12 +215,16 @@ def _remember(minute: datetime) -> None:
     STATE.write_text(minute.isoformat())
 
 
-def _ping(suffix: str = "") -> None:
-    url = os.environ.get("HC_PING_URL")
+def ping(variable: str, suffix: str = "", body: str = "", *, opener: Opener = _open) -> None:
+    """Ping the healthchecks URL in the environment variable `variable` (nothing when unset), with
+    `body` POSTed when given. A ping that fails is dropped: the check's own timer still alerts."""
+    url = os.environ.get(variable)
     if not url:
         return
+    data = body.encode() if body else None
+    request = urllib.request.Request(url + suffix, data=data, method="POST" if data else "GET")  # noqa: S310 (our ping URL)
     with contextlib.suppress(urllib.error.URLError, TimeoutError, ConnectionError):
-        urllib.request.urlopen(url + suffix, timeout=10).close()  # noqa: S310 (our ping URL)
+        opener(request, PING_TIMEOUT_S).close()
 
 
 def _pull() -> None:
@@ -238,23 +262,38 @@ def run(api_url: str, token: str) -> int:
             schedule = load()
         except Exception as error:  # a broken pull keeps the last good schedule
             log("schedule_unreadable", type(error).__name__, str(error)[:200])
-        names = due(schedule, minute)
-        for name in names:
+        heartbeats = {e.name: e.heartbeat for e in schedule}
+        for name in due(schedule, minute):
             threading.Thread(
-                target=_dispatch, args=(api_url, token, name, minute), daemon=True
+                target=dispatch, args=(api_url, token, name, minute, heartbeats[name]), daemon=True
             ).start()
         _remember(minute)
         if minute.minute == 0:
-            _ping()
+            ping("HC_PING_URL")
         if minute.minute % PULL_EVERY_MIN == 7:
             _pull()
             restart = restart or _digest(me) != started_as
         minute += timedelta(minutes=1)
 
 
-def _dispatch(api_url: str, token: str, name: str, minute: datetime) -> None:
-    if call(api_url, token, name, minute) == "gave_up":
-        _ping("/fail")
+def dispatch(
+    api_url: str,
+    token: str,
+    name: str,
+    minute: datetime,
+    heartbeat: str | None,
+    *,
+    opener: Opener = _open,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Call one job, then tell healthchecks: its heartbeat when it answered ok, `ops` when not."""
+    outcome, detail = call(api_url, token, name, minute, opener=opener, sleep=sleep)
+    if outcome == "ok":
+        if heartbeat:
+            ping(heartbeat, opener=opener)
+        return
+    body = f"{name} {minute.astimezone(IST):%Y-%m-%d %H:%M} IST {outcome} {detail}"
+    ping("HC_OPS_URL", "/fail", body, opener=opener)
 
 
 def main(argv: list[str] | None = None) -> int:

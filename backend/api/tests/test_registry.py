@@ -22,6 +22,7 @@ SRC = Path(__file__).resolve().parents[1] / "src" / "gharbasket"
 MODULES_DIR = SRC / "modules"
 JOB_NAME = re.compile(r'^@job\(\s*"([a-z_]+)"', re.MULTILINE)
 SUBSCRIBE = re.compile(r"^\s*subscribe\(", re.MULTILINE)
+PROBE = re.compile(r"^@(?:ops\.)?probe\(", re.MULTILINE)
 
 
 def _sources() -> list[Path]:
@@ -51,14 +52,15 @@ def test_every_jobs_py_is_loaded() -> None:
     assert sorted(name.split(".")[2] for name in jobs_modules()) == on_disk
 
 
-def test_jobs_and_consumers_register_only_in_a_jobs_py() -> None:
-    """The loader imports `jobs.py`; a `@job` or `subscribe(...)` anywhere else could be missed."""
+def test_jobs_consumers_and_probes_register_only_in_a_jobs_py() -> None:
+    """The loader imports `jobs.py`; a `@job`, `subscribe(...)` or `@probe` anywhere else could
+    be missed."""
     stray = [
         str(path.relative_to(SRC))
         for path in _sources()
         if path.name != "jobs.py"
         and path != SRC / "platform" / "outbox.py"
-        and (JOB_NAME.search(path.read_text()) or SUBSCRIBE.search(path.read_text()))
+        and any(pattern.search(path.read_text()) for pattern in (JOB_NAME, SUBSCRIBE, PROBE))
     ]
     assert stray == []
 
