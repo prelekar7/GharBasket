@@ -30,6 +30,11 @@ def run_row(name: str, status: str, hours_ago: float, error: str | None = None) 
 # --- GET /v1/internal/jobs/runs ----------------------------------------------------------------
 
 
+def ours(answer: httpx2.Response) -> list[str]:
+    """The names of this test's runs: the shared test database may hold others (the seed's)."""
+    return [run["name"] for run in answer.json() if run["name"].startswith("test_")]
+
+
 async def test_runs_are_listed_newest_first_and_filtered(
     api: httpx2.AsyncClient, db_session: AsyncSession
 ) -> None:
@@ -55,10 +60,10 @@ async def test_runs_are_listed_newest_first_and_filtered(
     one = await api.get("/v1/internal/jobs/runs", params={"limit": 1})
     bad = await api.get("/v1/internal/jobs/runs", params={"status": "maybe", "limit": 500})
 
-    assert [r["name"] for r in every.json()] == ["test_other", "test_cut", "test_cut"]
+    assert ours(every) == ["test_other", "test_cut", "test_cut"]
     assert [r["status"] for r in cut.json()] == ["failed", "ok"]
     assert [(r["status"], r["error"]) for r in failed.json()] == [("failed", "RuntimeError: boom")]
-    assert [r["name"] for r in recent.json()] == ["test_other", "test_cut"]
+    assert ours(recent) == ["test_other", "test_cut"]
     assert len(one.json()) == 1
     assert bad.status_code == 422
 
