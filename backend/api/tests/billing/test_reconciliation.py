@@ -11,7 +11,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import razorpay, wallet
-from gharbasket.modules.billing.models import Payment, ReconciliationItem, RefundPart
+from gharbasket.modules.billing.models import (
+    Payment,
+    ReconciliationItem,
+    ReconciliationRun,
+    RefundPart,
+)
 from gharbasket.modules.identity.models import User, UserRole
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry, OutboxEvent
@@ -259,11 +264,25 @@ async def test_razorpay_unavailable_or_no_keys_changes_nothing(
     gateway.pay(topup["razorpay_order_id"], 200_000, "pay_lost")
     gateway.down = True
 
-    down = await reconcile(db_session, gateway)
+    down = await run_job(
+        db_session,
+        "reconcile_payments",
+        settings=make_settings(**KEYS),
+        scheduled_for=datetime.now(UTC),
+        http=gateway.http,
+    )
     no_keys = await reconcile(db_session, None)
 
-    assert down == {"status": "failed", "checked": 0, "healed": 0, "opened": 0}
+    # The job run fails, so the ops alert hears of it (ADR-0033); the billing run is kept.
+    assert (down.status, down.summary) == (
+        "failed",
+        {"problems": ["Razorpay is unavailable; nothing was compared"]},
+    )
     assert no_keys["status"] == "skipped"
+    runs = await db_session.execute(
+        select(ReconciliationRun.status, ReconciliationRun.error).order_by(ReconciliationRun.id)
+    )
+    assert runs.all() == [("failed", "razorpay_unavailable"), ("skipped", None)]
     assert await items(db_session) == []
     assert await wallet.balance(db_session, user) == 0
     payment = await db_session.get(Payment, uuid.UUID(topup["id"]))

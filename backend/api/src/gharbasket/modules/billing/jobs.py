@@ -8,7 +8,12 @@
   for reconciliation. It never marks a part failed: only Razorpay's webhook does;
 - dev top-ups' parts are settled at once (`rfnd_dev_…`).
 
-`reconcile_payments` (hourly at :17) compares Razorpay with our records (spec §3.4).
+`reconcile_payments` (hourly at :17) compares Razorpay with our records (spec §3.4). While
+Razorpay is unavailable its billing run is kept `failed` and the job run fails too, so the `ops`
+alert hears of it (ADR-0033).
+
+Ops probes (M0 §6.1): `billing.webhook_backlog`, `billing.reconciliation_open` and
+`billing.refunds_stuck`.
 
 `weekly_payouts` (Monday 10:00 IST) pays partners what they were owed up to Sunday (spec §3.5,
 payouts.py).
@@ -29,12 +34,19 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import kindness, payouts, reconciliation, settlement
-from gharbasket.modules.billing.models import Payment, RefundPart
+from gharbasket.modules.billing.models import (
+    Payment,
+    PaymentWebhook,
+    ReconciliationItem,
+    RefundPart,
+)
 from gharbasket.modules.billing.razorpay import RazorpayClient
+from gharbasket.platform import ops
 from gharbasket.platform.errors import ProblemError
-from gharbasket.platform.jobs import JobContext, job
+from gharbasket.platform.jobs import JobContext, ProblemsFoundError, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
+from gharbasket.platform.pdf import rupees
 
 REFUND_BATCH = 50
 RETRY_AFTER = (timedelta(minutes=5), timedelta(minutes=30))
@@ -121,9 +133,70 @@ async def send_refunds(ctx: JobContext) -> dict[str, Any]:
 
 @job("reconcile_payments", "Compare Razorpay's payments and refunds with ours; heal lost webhooks")
 async def reconcile_payments(ctx: JobContext) -> dict[str, Any]:
-    return await reconciliation.reconcile(
+    summary = await reconciliation.reconcile(
         ctx.session, _razorpay(ctx), ctx.settings, ctx.scheduled_for
     )
+    if summary["status"] == "failed":
+        # Commit the billing run (`failed`, nothing changed) before the job fails, or the job's
+        # rollback would take it away; a run without keys is `skipped` and stays an ok job.
+        await ctx.session.commit()
+        raise ProblemsFoundError(["Razorpay is unavailable; nothing was compared"])
+    return summary
+
+
+# --- ops probes (M0 §6.1, spec §3.4) ------------------------------------------------------------
+
+WEBHOOK_BACKLOG_AFTER = timedelta(minutes=15)
+RECON_OPEN_AFTER = timedelta(hours=24)
+
+
+@ops.probe("billing.webhook_backlog")
+async def webhook_backlog(session: AsyncSession, now: datetime) -> list[str]:
+    # The webhook endpoint stores and processes in one transaction, so this stays empty unless
+    # processing ever moves out of the request.
+    waiting = (
+        await session.execute(
+            select(func.count()).where(
+                PaymentWebhook.processed_at.is_(None),
+                PaymentWebhook.received_at < now - WEBHOOK_BACKLOG_AFTER,
+            )
+        )
+    ).scalar_one()
+    return [f"{waiting} webhooks unprocessed for > 15 min"] if waiting else []
+
+
+@ops.probe("billing.reconciliation_open")
+async def reconciliation_open(session: AsyncSession, now: datetime) -> list[str]:
+    rows = await session.execute(
+        select(ReconciliationItem.kind, func.count())
+        .where(
+            ReconciliationItem.status == "open",
+            ReconciliationItem.first_seen_at < now - RECON_OPEN_AFTER,
+        )
+        .group_by(ReconciliationItem.kind)
+        .order_by(ReconciliationItem.kind)
+    )
+    counts = rows.all()
+    if not counts:
+        return []
+    kinds = ", ".join(f"{kind} x{n}" for kind, n in counts)
+    total = sum(n for _, n in counts)
+    return [f"{total} reconciliation items open for > 24 h ({kinds}); see /reconciliation"]
+
+
+@ops.probe("billing.refunds_stuck")
+async def refunds_stuck(session: AsyncSession, now: datetime) -> list[str]:
+    parts, paise = (
+        await session.execute(
+            select(func.count(), func.coalesce(func.sum(RefundPart.amount_paise), 0)).where(
+                RefundPart.status == "pending", RefundPart.attempts >= MAX_TRIES
+            )
+        )
+    ).one()
+    if not parts:
+        return []
+    total = rupees(int(paise))  # SUM of a bigint is numeric
+    return [f"{parts} refund parts stuck after {MAX_TRIES} tries ({total})"]
 
 
 @job("weekly_payouts", "Pay partners what they were owed up to last Sunday (IST), if eligible")

@@ -11,6 +11,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
+from gharbasket.modules.billing import jobs as billing_jobs
 from gharbasket.modules.billing import service, wallet
 from gharbasket.modules.billing.models import JournalEntry, Posting, RefundPart
 from gharbasket.modules.billing.razorpay import RazorpayClient
@@ -328,6 +329,7 @@ async def test_a_refund_razorpay_never_answers_is_stuck_but_never_failed(
     await ask(api, auth, 100_000)
     gateway.down = True
     without_keys = await send(db_session, T0)  # no keys: the part waits untried
+    assert await billing_jobs.refunds_stuck(db_session, T0) == []  # waiting is not stuck
 
     runs = [await send(db_session, T0 + timedelta(minutes=m), gateway) for m in (0, 5, 35, 120)]
 
@@ -337,6 +339,9 @@ async def test_a_refund_razorpay_never_answers_is_stuck_but_never_failed(
     part = (await db_session.execute(select(RefundPart))).scalar_one()
     assert (part.status, part.attempts, part.last_error) == ("pending", 3, "razorpay_unavailable")
     assert await wallet.in_flight_paise(db_session, user) == 100_000
+    # ...and the ops_check watchdog names it (M0 §6.1)
+    stuck = await billing_jobs.refunds_stuck(db_session, T0)
+    assert stuck == ["1 refund parts stuck after 3 tries (₹1,000.00)"]
 
 
 async def test_refund_events_that_are_not_ours(

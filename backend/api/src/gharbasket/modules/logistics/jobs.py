@@ -10,23 +10,27 @@ If that solve is lost (a restart), the plan is marked failed ("abandoned") once 
 queued or solving for 10 minutes, so the manager can ask again; it is not solved again. The job
 also solves any plan still queued and younger than that. Each plan is solved in its own savepoint,
 so one hub's error never undoes another hub's published plan.
+
+Ops probes (M0 §6.1, spec §6): `logistics.plans_failed` and `logistics.plans_unreviewed`.
 """
 
 import asyncio
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import httpx2
 import structlog
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import aliased
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.logistics import deliveries, execution, plans, tiffins, tracking
 from gharbasket.modules.logistics.models import Route, RoutePlan
-from gharbasket.platform import outbox
+from gharbasket.platform import ops, outbox
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.settings import Settings
@@ -95,6 +99,69 @@ async def _solve_hubs(ctx: JobContext, day: date, kind: str) -> dict[str, Any]:
         "skipped": skipped,
         "abandoned": abandoned,
     }
+
+
+# --- ops probes (M0 §6.1) -----------------------------------------------------------------------
+
+SOLVED_BY = time(23, 15)  # solve_routes, T-1
+CLOSED_BY = time(16, 0)  # close_routes: today's routes are over
+REVIEWED_BY = time(6, 30)  # the morning run starts
+
+
+def _unpublished(*where: Any) -> Any:
+    """The latest plan matching `where` of each (hub, date, kind) that has no published plan."""
+    published = aliased(RoutePlan)
+    replaced = (
+        select(published.id)
+        .where(
+            published.hub_id == RoutePlan.hub_id,
+            published.delivery_date == RoutePlan.delivery_date,
+            published.kind == RoutePlan.kind,
+            published.status == "published",
+        )
+        .exists()
+    )
+    key = (RoutePlan.hub_id, RoutePlan.delivery_date, RoutePlan.kind)
+    return (
+        select(RoutePlan)
+        .where(*where, ~replaced)
+        .order_by(*key, RoutePlan.id.desc())
+        .ext(distinct_on(*key))
+    )
+
+
+@ops.probe("logistics.plans_failed")
+async def plans_failed(session: AsyncSession, now: datetime) -> list[str]:
+    """A failed plan for the delivery date being prepared that nothing published replaced:
+    tomorrow once solve_routes has run at 23:15, today until its routes close at 16:00 (a tiffin
+    plan solved at 09:35), and nothing in between."""
+    local = now.astimezone(IST)
+    if CLOSED_BY <= local.time() < SOLVED_BY:
+        return []
+    day = local.date() + timedelta(days=1 if local.time() >= SOLVED_BY else 0)
+    failed = await session.scalars(
+        _unpublished(RoutePlan.delivery_date == day, RoutePlan.status == "failed")
+    )
+    return [
+        f"{plan.kind} plan for {day} at hub {plan.hub_id} failed: {(plan.error or '')[:100]}"
+        for plan in failed
+    ]
+
+
+@ops.probe("logistics.plans_unreviewed")
+async def plans_unreviewed(session: AsyncSession, now: datetime) -> list[str]:
+    """A plan left `solved` for a manager's review (it had problems) at 06:30 on its day."""
+    local = now.astimezone(IST)
+    if local.time() < REVIEWED_BY:
+        return []
+    waiting = await session.scalars(
+        _unpublished(RoutePlan.delivery_date == local.date(), RoutePlan.status == "solved")
+    )
+    return [
+        f"{plan.kind} plan for {plan.delivery_date} at hub {plan.hub_id} is waiting for review; "
+        "see /routes"
+        for plan in waiting
+    ]
 
 
 # --- a manual solve, right after its request ------------------------------------------------------
