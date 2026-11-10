@@ -5,13 +5,17 @@ type plus a variant when one event reads differently by outcome (an issue credit
 Placeholder types decide how a raw value from the event is shown: `money` (paise → ₹1,234),
 `weekday` (an ISO date → "Monday"), `time` (an ISO timestamp → "9 PM", in IST), `clock` (an IST
 "HH:MM" → "6:30 AM"), `number` (a count or points → 1,200), `meal` (lunch or dinner → the
-word in the reader's language), `percent` (a fraction → 23%) and `text` (a name, as it is).
+word in the reader's language), `percent` (a fraction → 23%), `recon_kinds` (M5's
+reconciliation kinds → their short names in the reader's language, comma-separated) and `text`
+(a name, as it is).
 """
 
 from dataclasses import dataclass, field
 from typing import Literal
 
-PlaceholderType = Literal["money", "weekday", "time", "clock", "number", "meal", "percent", "text"]
+PlaceholderType = Literal[
+    "money", "weekday", "time", "clock", "number", "meal", "percent", "recon_kinds", "text"
+]
 
 # The order the preferences screen lists them in (§3.1).
 CATEGORIES = ("weekly_box", "delivery", "money", "kindness", "offers")
@@ -76,6 +80,18 @@ KINDS: dict[str, Kind] = {
         ACCOUNT,
         "/ai-health",
         {"hub": "text", "source": "text", "live": "percent", "backtest": "percent"},
+    ),
+    # Also to the staff, opening the console like drift (ADR-0033): a reconciliation run opened
+    # items (M5 §3.4) to every admin; a route plan left for review (M7 §3.2) to the hub's
+    # managers and every admin.
+    "billing.reconciliation_mismatch": Kind(
+        "billing.reconciliation_mismatch",
+        ACCOUNT,
+        "/reconciliation",
+        {"opened": "number", "kinds": "recon_kinds"},
+    ),
+    "logistics.plan_needs_review": Kind(
+        "logistics.plan_needs_review", ACCOUNT, "/routes", {"hub": "text", "day": "weekday"}
     ),
     # Partner messages are account messages: about the work itself, not a preference to turn
     # off. One text per partner kind, each opening that kind's home in the partner app.

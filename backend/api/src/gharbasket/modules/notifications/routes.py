@@ -146,9 +146,45 @@ async def drift_detected(session: AsyncSession, payload: dict[str, Any]) -> Rout
         "live": payload["live"],
         "backtest": payload["backtest"],
     }
+    kind = "intel.drift_detected"
+    return Route(kind, admins, checked(kind, values), link=console_link(kind))
+
+
+def console_link(kind: str) -> str | None:
+    """The kind's console page as an absolute URL when CONSOLE_URL is set, so a staff member's
+    push opens the browser; else None, and the message keeps the kind's relative link."""
     console = get_settings().console_url
-    link = f"{console.rstrip('/')}{KINDS['intel.drift_detected'].link}" if console else None
-    return Route("intel.drift_detected", admins, checked("intel.drift_detected", values), link=link)
+    return f"{console.rstrip('/')}{KINDS[kind].link}" if console else None
+
+
+async def reconciliation_mismatch(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """A reconciliation run opened items (M5 §3.4, once per such run): to every admin, with how
+    many and of which kinds; the items themselves are on the console's Reconciliation page."""
+    admins = await identity_api.users_with_role(session, "admin")
+    if not admins:
+        return None
+    kind = "billing.reconciliation_mismatch"
+    values = {"opened": payload["opened"], "kinds": payload["kinds"]}
+    return Route(kind, admins, checked(kind, values), link=console_link(kind))
+
+
+async def plan_needs_review(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """A route plan was left `solved` because M7's check found problems (M7 §3.2): to the hub's
+    managers and every admin, naming the hub and the delivery day. A hub that no longer exists
+    is logged and nobody is told, as for drift."""
+    hub_id = uuid.UUID(str(payload["hub_id"]))
+    managers = await identity_api.users_with_role(session, "hub_manager", hub_id)
+    admins = await identity_api.users_with_role(session, "admin")
+    people = list(dict.fromkeys([*managers, *admins]))  # a manager who is also an admin: once
+    if not people:
+        return None
+    hub = await hub_ops_api.get_hub(session, hub_id)
+    if hub is None:
+        log.warning("plan_hub_missing", hub_id=str(hub_id))
+        return None
+    kind = "logistics.plan_needs_review"
+    values = {"hub": hub.name, "day": payload["delivery_date"]}
+    return Route(kind, people, checked(kind, values), link=console_link(kind))
 
 
 async def partner_verified(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
@@ -269,6 +305,8 @@ ROUTES: dict[str, RouteFn] = {
     "billing.wallet_topped_up": wallet_topped_up,
     "identity.data_export_ready": data_export_ready,
     "intel.drift_detected": drift_detected,
+    "billing.reconciliation_mismatch": reconciliation_mismatch,
+    "logistics.plan_needs_review": plan_needs_review,
     "partners.verified": partner_verified,
     "community.captain_assigned": captain_assigned,
     "billing.points_credited": points_credited,

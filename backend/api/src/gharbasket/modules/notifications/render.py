@@ -62,6 +62,49 @@ MEALS: dict[Language, dict[str, str]] = {
 }
 
 
+# M5's reconciliation kinds (M5 §3.4), short: the console's Reconciliation page says the rest.
+RECON_KINDS: dict[Language, dict[str, str]] = {
+    "en": {
+        "captured_not_credited": "paid, wallet not credited",
+        "credited_not_captured": "credited, not paid",
+        "amount_mismatch": "amounts differ",
+        "unknown_payment": "unknown payment",
+        "refund_status_mismatch": "refund status differs",
+        "refund_unknown": "unknown refund",
+        "refund_stuck": "refund stuck",
+    },
+    "hi": {
+        "captured_not_credited": "भुगतान हुआ, वॉलेट में नहीं जुड़ा",
+        "credited_not_captured": "वॉलेट में जुड़ा, भुगतान नहीं",
+        "amount_mismatch": "रकम अलग",
+        "unknown_payment": "अनजान भुगतान",
+        "refund_status_mismatch": "रिफ़ंड की स्थिति अलग",
+        "refund_unknown": "अनजान रिफ़ंड",
+        "refund_stuck": "रिफ़ंड अटका",
+    },
+    "mr": {
+        "captured_not_credited": "पेमेंट झाले, वॉलेटमध्ये जमा नाही",
+        "credited_not_captured": "वॉलेटमध्ये जमा, पेमेंट नाही",
+        "amount_mismatch": "रक्कम वेगळी",
+        "unknown_payment": "अनोळखी पेमेंट",
+        "refund_status_mismatch": "रिफंडची स्थिती वेगळी",
+        "refund_unknown": "अनोळखी रिफंड",
+        "refund_stuck": "रिफंड अडकला",
+    },
+}
+
+
+def recon_kinds(raw: Any, lang: Language) -> str:
+    """A list of reconciliation kinds, each in the reader's words. A kind M5 adds later shows as
+    its code rather than losing the admins' message; anything but a list of strings raises."""
+    items: list[Any] = raw if isinstance(raw, list) else []  # pyright: ignore[reportUnknownVariableType]
+    codes = [k for k in items if isinstance(k, str)]
+    if not isinstance(raw, list) or len(codes) != len(items):
+        raise TypeError("expected a list of reconciliation kinds")
+    names = RECON_KINDS[lang]
+    return ", ".join(names.get(k, k) for k in codes)
+
+
 def number(count: int) -> str:
     """A whole number with Indian digit grouping (12,34,567)."""
     return money(count * 100).replace("₹", "")
@@ -94,6 +137,8 @@ def format_value(kind: PlaceholderType, raw: Any, lang: Language) -> str:
             return number(int(raw))
         case "percent":  # a fraction: 0.2345 becomes 23%
             return f"{round(float(raw) * 100)}%"
+        case "recon_kinds":
+            return recon_kinds(raw, lang)
         case "text":
             return str(raw)
         case "meal":

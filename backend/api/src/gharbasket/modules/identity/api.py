@@ -423,16 +423,19 @@ async def holds_role(
     return (await session.execute(query.limit(1))).first() is not None
 
 
-async def users_with_role(session: AsyncSession, role: str) -> list[uuid.UUID]:
-    """Every active user holding a verified `role` that is not limited to a scope (the staff
-    roles such as `admin`), oldest grant first: M11 tells the admins when a model drifts. A
-    blocked or deleted user is left out."""
+async def users_with_role(
+    session: AsyncSession, role: str, scope_id: uuid.UUID | None = None
+) -> list[uuid.UUID]:
+    """Every active user holding a verified `role`, oldest grant first: without `scope_id` the
+    grants not limited to a scope (the staff roles such as `admin`; M11 tells the admins when a
+    model drifts), with it the grants scoped to exactly that society, hub or NGO (M11 tells a
+    hub's managers about a route plan to review). A blocked or deleted user is left out."""
     rows = await session.execute(
         select(UserRole.user_id)
         .join(User, User.id == UserRole.user_id)
         .where(
             UserRole.role == role,
-            UserRole.scope_id.is_(None),
+            UserRole.scope_id.is_(None) if scope_id is None else UserRole.scope_id == scope_id,
             UserRole.status == "verified",
             User.status == "active",
         )
