@@ -307,7 +307,7 @@ US-7 and handbook 13 ("an hourly job reconciles our records with Razorpay"). The
 - **Dev top-ups are skipped.** Without Razorpay keys the run is `skipped`.
 - **As built, fixed by ADR-0033:** while Razorpay is unavailable the job run was recorded `ok` with `status: "failed"` only in its summary, so no alert saw it. The job now raises, so the run is `failed` and reaches the `ops` alert. A `skipped` run (no keys) stays `ok`.
 - **Ops probes (ADR-0033, M0 §6.1):**
-  - `billing.webhook_backlog`: a stored webhook not processed after 15 min;
+  - `billing.webhook_backlog`: a stored webhook not processed after 15 min (as built, the endpoint stores and processes in one transaction, so this guards a future queue and stays empty today);
   - `billing.reconciliation_open`: a reconciliation item open more than 24 h;
   - `billing.refunds_stuck`: refund parts still `pending` after 3 tries.
 
