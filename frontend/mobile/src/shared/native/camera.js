@@ -1,4 +1,4 @@
-// Photos in the Android app through @capacitor/camera 8.x (ADR-0033). It uses the new `takePhoto`
+// Photos in the Android app through @capacitor/camera 8.x (ADR-0034). It uses the new `takePhoto`
 // and `chooseFromGallery` calls; `getPhoto` is deprecated. Neither needs a permission here: the
 // manifest has no CAMERA, so the plugin hands the shot to the system camera app (an
 // ACTION_IMAGE_CAPTURE intent) and the gallery to the system picker, and nothing is saved to the
