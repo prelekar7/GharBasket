@@ -40,6 +40,7 @@ SAMPLES: dict[PlaceholderType, Any] = {
     "number": 12,
     "meal": "lunch",
     "percent": 0.23,
+    "recon_kinds": ["amount_mismatch", "refund_stuck"],
     "text": "Pune Central",
 }
 LANGUAGE: dict[str, Language] = {locale: lang for lang, locale in service.LOCALE.items()}

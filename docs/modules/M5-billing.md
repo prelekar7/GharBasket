@@ -336,7 +336,7 @@ POST /v1/admin/reconciliation/{id}/resolve     admin (reconciliation:resolve); {
 
 - **One open item per (kind, Razorpay ref).** A mismatch seen again only moves `last_seen_at`.
 - **Resolving records a decision; it moves no money.** A money correction is a separate `adjustment` entry. Until the pilot it is an audited manual fix (owner, 2026-10-09): an admin writes the `adjustment` entry by hand under the ledger rules (§4.1: postings sum to zero, a new entry, never an update) and records the reason and the item in `platform.audit_log`. There is no admin endpoint for it.
-- **Alerting.** A run that opens an item publishes `billing.reconciliation_mismatch { run_id, opened, kinds }`. M11 sends it to admins when admin messages exist; until then it appears in the job's summary and on the page.
+- **Alerting.** A run that opens an item publishes `billing.reconciliation_mismatch { run_id, opened, kinds }`. M11 tells every admin (account message, link `/reconciliation`, M11 §3.1); the run is also in the job's summary and on the page.
 
 ### 3.5 Partner earnings and payouts contract (drafted 2026-10-09, frozen on approval)
 US-6 and handbook 05 §5.7: earnings accrue in the ledger when the work is done, and a weekly job pays out what is owed. **M8 decides what a piece of work earns**: it owns the rate card and knows the partner and the assignment. **M5 records the money and pays it out.** The partner Earnings screens and M8's `GET /v1/earnings?week=` read M5. Ships with M8 in S6.
