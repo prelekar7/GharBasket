@@ -3,6 +3,7 @@
 
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,8 +21,9 @@ def at(hour: int, minute: int) -> datetime:
     return datetime(2026, 11, 10, hour, minute, tzinfo=jobs.IST)
 
 
-def plan(hub: uuid.UUID, day: date, status: str, kind: str = "box", **more: object) -> RoutePlan:
-    return RoutePlan(hub_id=hub, delivery_date=day, kind=kind, status=status, trigger="job", **more)
+def plan(hub: uuid.UUID, day: date, status: str, kind: str = "box", **more: Any) -> RoutePlan:
+    more.setdefault("trigger", "job")
+    return RoutePlan(hub_id=hub, delivery_date=day, kind=kind, status=status, **more)
 
 
 async def test_a_failed_plan_for_the_day_being_prepared_is_reported_until_one_is_published(
@@ -29,7 +31,10 @@ async def test_a_failed_plan_for_the_day_being_prepared_is_reported_until_one_is
 ) -> None:
     db_session.add_all(
         [
-            plan(HUB, TOMORROW, "failed", error="no active vehicle"),
+            plan(HUB, TOMORROW, "failed", error="no orders with a location"),
+            plan(HUB, TOMORROW, "failed", trigger="manual", error="no active vehicle"),  # a retry
+            plan(HUB, TOMORROW, "published", kind="tiffin"),  # another kind clears nothing
+            plan(HUB, TODAY, "published"),  # nor another date
             plan(OTHER, TOMORROW, "failed", error="no orders with a location"),
             plan(OTHER, TOMORROW, "published"),  # re-solved by hand and published
             plan(HUB, TODAY, "failed", kind="tiffin", error="no two-wheeler"),
@@ -39,9 +44,12 @@ async def test_a_failed_plan_for_the_day_being_prepared_is_reported_until_one_is
 
     after_the_solve = await jobs.plans_failed(db_session, at(23, 45))
     by_day = await jobs.plans_failed(db_session, at(12, 30))
+    after_the_routes = await jobs.plans_failed(db_session, at(21, 15))
 
+    # one line per hub, date and kind: the latest try
     assert after_the_solve == [f"box plan for {TOMORROW} at hub {HUB} failed: no active vehicle"]
     assert by_day == [f"tiffin plan for {TODAY} at hub {HUB} failed: no two-wheeler"]
+    assert after_the_routes == []  # today's routes are closed, tomorrow's not solved yet
 
 
 async def test_a_plan_left_for_review_is_reported_from_0630_on_its_day(

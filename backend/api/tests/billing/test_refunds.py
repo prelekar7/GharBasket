@@ -329,6 +329,7 @@ async def test_a_refund_razorpay_never_answers_is_stuck_but_never_failed(
     await ask(api, auth, 100_000)
     gateway.down = True
     without_keys = await send(db_session, T0)  # no keys: the part waits untried
+    assert await billing_jobs.refunds_stuck(db_session, T0) == []  # waiting is not stuck
 
     runs = [await send(db_session, T0 + timedelta(minutes=m), gateway) for m in (0, 5, 35, 120)]
 

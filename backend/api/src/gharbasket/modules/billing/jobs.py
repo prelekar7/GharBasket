@@ -46,6 +46,7 @@ from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import JobContext, ProblemsFoundError, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
+from gharbasket.platform.pdf import rupees
 
 REFUND_BATCH = 50
 RETRY_AFTER = (timedelta(minutes=5), timedelta(minutes=30))
@@ -194,8 +195,8 @@ async def refunds_stuck(session: AsyncSession, now: datetime) -> list[str]:
     ).one()
     if not parts:
         return []
-    rupees, rest = divmod(int(paise), 100)  # SUM of a bigint is numeric
-    return [f"{parts} refund parts stuck after {MAX_TRIES} tries (₹{rupees:,}.{rest:02d})"]
+    total = rupees(int(paise))  # SUM of a bigint is numeric
+    return [f"{parts} refund parts stuck after {MAX_TRIES} tries ({total})"]
 
 
 @job("weekly_payouts", "Pay partners what they were owed up to last Sunday (IST), if eligible")

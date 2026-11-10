@@ -726,7 +726,7 @@ Foreign keys stay inside `logistics`; hub, order, society, slot and user ids are
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day follows from it), not the run time (ADR-0021, ADR-0025).
 
 **Ops probes (ADR-0033, M0 §6.1):**
-- `logistics.plans_failed`: a `failed` route plan for the next delivery date, checked from 23:15 IST, once `solve_routes` has run;
+- `logistics.plans_failed`: a `failed` route plan, with no published plan for its hub, date and kind, for the delivery date being prepared: tomorrow from 23:15 IST (once `solve_routes` has run), today until 16:00 (a tiffin plan solved at 09:35), nothing in between (today's routes are closed); one line per hub, date and kind;
 - `logistics.plans_unreviewed`: a `solved` plan still not published at 06:30 IST on its delivery date.
 
 `logistics.plan_needs_review` now has an M11 route, to the hub's managers and the admins (M11 §3).

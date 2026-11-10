@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 import httpx2
 import structlog
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
@@ -103,11 +104,12 @@ async def _solve_hubs(ctx: JobContext, day: date, kind: str) -> dict[str, Any]:
 # --- ops probes (M0 §6.1) -----------------------------------------------------------------------
 
 SOLVED_BY = time(23, 15)  # solve_routes, T-1
+CLOSED_BY = time(16, 0)  # close_routes: today's routes are over
 REVIEWED_BY = time(6, 30)  # the morning run starts
 
 
 def _unpublished(*where: Any) -> Any:
-    """Plans matching `where` whose (hub, date, kind) has no published plan."""
+    """The latest plan matching `where` of each (hub, date, kind) that has no published plan."""
     published = aliased(RoutePlan)
     replaced = (
         select(published.id)
@@ -119,14 +121,23 @@ def _unpublished(*where: Any) -> Any:
         )
         .exists()
     )
-    return select(RoutePlan).where(*where, ~replaced).order_by(RoutePlan.hub_id, RoutePlan.id)
+    key = (RoutePlan.hub_id, RoutePlan.delivery_date, RoutePlan.kind)
+    return (
+        select(RoutePlan)
+        .where(*where, ~replaced)
+        .order_by(*key, RoutePlan.id.desc())
+        .ext(distinct_on(*key))
+    )
 
 
 @ops.probe("logistics.plans_failed")
 async def plans_failed(session: AsyncSession, now: datetime) -> list[str]:
-    """A failed plan for the delivery date being prepared (tomorrow once solve_routes has run at
-    23:15, else today) that nothing published replaced."""
+    """A failed plan for the delivery date being prepared that nothing published replaced:
+    tomorrow once solve_routes has run at 23:15, today until its routes close at 16:00 (a tiffin
+    plan solved at 09:35), and nothing in between."""
     local = now.astimezone(IST)
+    if CLOSED_BY <= local.time() < SOLVED_BY:
+        return []
     day = local.date() + timedelta(days=1 if local.time() >= SOLVED_BY else 0)
     failed = await session.scalars(
         _unpublished(RoutePlan.delivery_date == day, RoutePlan.status == "failed")
