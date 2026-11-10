@@ -26,6 +26,7 @@ Shared foundations every module depends on: application factory, configuration, 
 | GET | `/v1/health` | Public | — | Liveness |
 | GET | `/v1/ready` | Public locally; `JOBS_TOKEN` on staging and prod | — | DB and Valkey checks |
 | GET | `/v1/internal/jobs` | `JOBS_TOKEN` (open locally) | — | The registered jobs |
+| GET | `/v1/internal/jobs/runs` | `JOBS_TOKEN` (open locally) | — | Recent runs, newest first: `?name=&status=ok\|failed\|skipped&since=<ISO>&limit=` (default 50, at most 200); each a `JobRunOut` (id, name, status, scheduled_for, started_at, finished_at, summary, error). Added by ADR-0033 |
 | POST | `/v1/internal/jobs/{name}` | `JOBS_TOKEN` (open locally) | — | Runs a job now; body `{ "scheduled_for": "<ISO>" }` (default now); 200 with the run, 404 `platform.job_unknown`, 500 `platform.job_failed` with `run_id`; a second trigger while one runs answers `status: "skipped"` |
 | POST | `/v1/files/presign` | Authenticated | Not required | A presigned PUT URL for one private upload (S3 API; Cloudflare R2 on staging, SeaweedFS locally) and its key; purposes, limits and retention in §3.1 |
 
@@ -103,9 +104,25 @@ Purposes, limits and retention below were confirmed by the owner on 2026-10-08.
 | `outbox_sweep` | Hourly from GitHub Actions; every few minutes from the external cron | Picks up rows the after-commit relay missed (restart, error); reports `sent`, `failed`, `pending` |
 | `sweep_uploads` | Daily 04:13 IST (GitHub Actions) | Deletes objects never claimed within 24 h, and claimed ones past `delete_after` |
 | `cleanup_idempotency_keys` | Daily 04:03 IST (GitHub Actions) | Deletes keys older than 24 h |
+| `ops_check` | VM: 06:30, 12:30, 21:15, 23:45 IST (ADR-0033) | Runs every registered probe (below); `ok` with `{probes, problems: []}`, or `failed` with the problems joined in `error`, so the scheduler sends them to the `ops` alert |
 | Backups | — | Neon point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow |
 
 Scheduled jobs are internal endpoints `POST /v1/internal/jobs/<name>`, protected by `JOBS_TOKEN`; each is idempotent, takes a Postgres advisory lock for its name and uses the request's `scheduled_for` rather than the clock. Triggers: the `jobs-staging.yml` workflow (daily and weekly jobs, and "Run workflow" by hand), a scheduler on the staging Oracle VM (`scripts/jobs_scheduler.py`, ADR-0032) for minute-level timing such as the 21:00 cut-off, because GitHub starts schedules late and at most every 5 minutes, and `just job <name>` locally. Modules register jobs with `@platform.jobs.job("name", "…")` and consumers with `platform.outbox.subscribe(event_type, handler)`, both only in their `jobs.py`; `gharbasket.modules.registry.load_modules()` imports every one, and the app factory and every tool that runs jobs or relays (`just job`, `just seed`, `just sim --write-db`) call it first. The relay refuses to run in a process that has not (it raises and leaves every event pending), because an event whose consumers were never imported would otherwise be marked sent without them. Taskiq workers replace the trigger at the pilot (ADR-0021).
+
+### 6.1 Ops probes and alerts (drafted 2026-11-10, ADR-0033, frozen on approval)
+- **Probes.** A module registers `@platform.ops.probe("<module>.<name>")` on an `async (session, now) -> list[str]` in its `jobs.py`; each string is one problem in a line ("billing.webhook_backlog: 3 webhooks unprocessed for > 15 min"). A probe reads only its own schema. A probe that raises counts as a problem (`<name>: probe failed <ExceptionType>`); the others still run.
+- **Platform probes:**
+  - `platform.failed_jobs`: a `failed` run in the last 24 h with no later `ok` run of the same job (it names the job and the first 120 characters of `error`);
+  - `platform.outbox_stuck`: an unsent event older than 30 min with 3 or more attempts;
+  - `platform.database_size`: `pg_database_size(current_database())` above 80 % of `OPS_DB_LIMIT_MB` (default 512, Neon's free tier).
+- **Module probes** (M5, M7): see those specs' job tables.
+- **The scheduler's alerts** (`scripts/jobs_scheduler.py`):
+  - every hour it pings `HC_PING_URL` (the `scheduler` check, unchanged);
+  - a call that ends `failed` (any non-retried error answer, e.g. 500 `platform.job_failed`) or `gave_up` POSTs `"<job> <minute> <status> <first 200 characters of the answer>"` to `HC_OPS_URL/fail`;
+  - a schedule entry may set `heartbeat: <ENV NAME>`: when that job answers 2xx, the scheduler pings the URL in that variable. `cutoff_lock` has `heartbeat: HC_CUTOFF_URL` (a check with cron `0 21 * * *` IST, so a missed or late cut-off alerts) and `ops_check` has `heartbeat: HC_OPS_URL` (a clean watchdog brings the `ops` check back up);
+  - unset URLs are skipped.
+- **Actions.** `jobs-staging.yml` and `training-jobs.yml` POST the workflow and job name to `HC_OPS_URL/fail` when a job fails (skipped while the secret is unset).
+- **Manual runs.** Runbooks always pass `scheduled_for` (the API's default is now, which after IST midnight is the next day for date-based jobs).
 
 ## 7. Permissions
 Provides the `require(permission, scope)` dependency and the permission registry that modules contribute to. `audit:read` → admin.
