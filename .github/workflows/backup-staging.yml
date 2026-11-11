@@ -73,6 +73,11 @@ jobs:
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
         run: |
+          # libpq wants postgresql:// and sslmode=; the app's form (postgresql+asyncpg://, ssl=) is
+          # accepted too.
+          DATABASE_URL_DIRECT=$(printf '%s' "$DATABASE_URL_DIRECT" |
+            sed -E 's#^postgres(ql)?\+[a-z0-9]+://#postgresql://#; s/([?&])ssl=/\1sslmode=/')
+          export DATABASE_URL_DIRECT
           # A suspended Neon compute answers the first connection after a few seconds.
           for attempt in $(seq 1 6); do
             if docker run --rm -e DATABASE_URL_DIRECT --entrypoint psql "$PG_IMAGE" \
@@ -93,6 +98,11 @@ jobs:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
         run: |
           umask 077
+          # libpq wants postgresql:// and sslmode=; the app's form (postgresql+asyncpg://, ssl=) is
+          # accepted too.
+          DATABASE_URL_DIRECT=$(printf '%s' "$DATABASE_URL_DIRECT" |
+            sed -E 's#^postgres(ql)?\+[a-z0-9]+://#postgresql://#; s/([?&])ssl=/\1sslmode=/')
+          export DATABASE_URL_DIRECT
           dir="$RUNNER_TEMP/backup"
           mkdir -p "$dir"
           stamp=$(TZ=Asia/Kolkata date +%F)
