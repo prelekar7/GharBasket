@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clockTime,
   humanize,
   istClock,
   istDate,
+  istDatesFrom,
   perUnit,
   qtyLabel,
   reasonText,
@@ -109,5 +110,22 @@ describe("reasonText", () => {
     expect(reasonText(t, { code: "festival", params: { days: [0, 1] } })).toContain(
       "days.long.d0 and days.long.d1",
     );
+  });
+});
+
+describe("istDatesFrom", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("starts at today in India and counts on, across a month end", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-31T08:00:00Z"));
+    expect(istDatesFrom(3)).toEqual(["2026-10-31", "2026-11-01", "2026-11-02"]);
+  });
+
+  it("uses the India date when it is already tomorrow in UTC", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-01T19:00:00Z")); // 00:30 on 2 Nov in India
+    expect(istDatesFrom(3)).toEqual(["2026-11-02", "2026-11-03", "2026-11-04"]);
+    expect(weekdayOf(istDatesFrom(1)[0])).toBe(0); // Monday
   });
 });
