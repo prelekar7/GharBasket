@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, date, datetime
+from typing import Any
 
 import httpx2
 import pytest
@@ -138,6 +139,65 @@ async def test_delivery_days_are_set_by_the_hub_manager_with_the_hubs_box_slots(
     assert [d["weekday"] for d in changed.json()["items"]] == [1, 4]
     assert bad_slot.json()["code"] == "subscriptions.delivery_days_invalid"
     assert twice.json()["code"] == "subscriptions.delivery_days_invalid"
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_one_households_failure_leaves_the_others_drafts_committed(
+    clients: ClientFactory,
+    google: FakeGoogle,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """M3 §3.1: each household's draft is committed as it is made, and a household that fails is
+    listed in the summary while the others stand; a re-run drafts only the one that failed."""
+    api = clients()
+    priya, priya_id = await as_user(api, google, PRIYA)
+    meena, meena_id = await as_user(api, google, MEENA)
+    await subscribe(api, priya)
+    await subscribe(api, meena)
+    households = {
+        user: (
+            await db_session.execute(select(Household.id).where(Household.owner_user_id == user))
+        ).scalar_one()
+        for user in (priya_id, meena_id)
+    }
+    real = service.generate_cycle
+    commits: list[None] = []
+    commit = db_session.commit
+
+    async def counting_commit() -> None:  # SAVEPOINT releases fire after_commit too: count calls
+        commits.append(None)
+        await commit()
+
+    monkeypatch.setattr(db_session, "commit", counting_commit)
+    seen: dict[str, Any] = {}
+
+    async def flaky(*args: object, household_id: uuid.UUID, **kwargs: object):
+        if "made_at" in seen and household_id in households.values():  # the second household
+            seen["failed"], seen["commits_at_failure"] = household_id, len(commits)
+            raise RuntimeError("planner blew up")
+        result = await real(*args, household_id=household_id, **kwargs)  # type: ignore[arg-type]
+        if result is not None and result.created:
+            seen["made_at"], seen["made"] = len(commits), household_id
+        return result
+
+    monkeypatch.setattr(service, "generate_cycle", flaky)
+    first = await api.post(
+        "/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT}
+    )
+    monkeypatch.setattr(service, "generate_cycle", real)
+    second = await api.post(
+        "/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT}
+    )
+
+    assert first.status_code == 200 and first.json()["status"] == "ok"
+    summary = first.json()["summary"]
+    assert (summary["created"], summary["failed_households"]) == (1, [str(seen["failed"])])
+    assert seen["commits_at_failure"] > seen["made_at"]  # the first draft was committed at once
+    assert (second.json()["summary"]["created"], second.json()["summary"]["existing"]) == (1, 1)
+    assert "failed_households" not in second.json()["summary"]
+    owners = (await db_session.execute(select(WeeklyCycle.household_id))).scalars().all()
+    assert sorted(owners) == sorted(households.values())
 
 
 @time_machine.travel(NOW, tick=False)

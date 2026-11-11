@@ -865,30 +865,45 @@ async def generate_for_hub(
     hub_id: uuid.UUID,
     delivery_date: date,
     ml_budget: intel_api.JobBudget | None = None,
-) -> dict[str, int]:
-    """The job's body for one hub: a cycle per Autopilot household due that day. `ml_budget` is
-    the run's ML time, shared by every hub of the run (a fresh one if the caller has none)."""
+    commit_each: bool = False,
+) -> tuple[dict[str, int], list[str]]:
+    """The job's body for one hub: a cycle per Autopilot household due that day, and the ids of
+    the households whose cycle failed. Each household runs in its own savepoint, so one failure
+    is logged and listed and the others stand; with `commit_each` every new draft is committed
+    at once (M3 §3.1), so a long run keeps what it has done if it dies later. `ml_budget` is the
+    run's ML time, shared by every hub of the run (a fresh one if the caller has none)."""
     if ml_budget is None:
         ml_budget = intel_api.JobBudget(settings.ml_job_budget_s)
     catalog = await catalog_api.plan_catalog(session, hub_id)
     counts = {"created": 0, "existing": 0, "skipped": 0}
+    failed: list[str] = []
     for household_id in await identity_api.households_of_hub(session, hub_id):
-        result = await generate_cycle(
-            session,
-            http,
-            settings,
-            household_id=household_id,
-            delivery_date=delivery_date,
-            catalog=catalog,
-            ml_budget=ml_budget,
-        )
+        try:
+            async with session.begin_nested():
+                result = await generate_cycle(
+                    session,
+                    http,
+                    settings,
+                    household_id=household_id,
+                    delivery_date=delivery_date,
+                    catalog=catalog,
+                    ml_budget=ml_budget,
+                )
+        except Exception as exc:
+            log.error(
+                "cycle_generation_failed", household_id=str(household_id), error=type(exc).__name__
+            )
+            failed.append(str(household_id))
+            continue
         if result is None:
             counts["skipped"] += 1
         elif result.created:
             counts["created"] += 1
+            if commit_each:
+                await session.commit()
         else:
             counts["existing"] += 1
-    return counts
+    return counts, failed
 
 
 async def current_cycle(
