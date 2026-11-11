@@ -16,7 +16,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import applications, kyc, pickups, ratings, service, training
+from gharbasket.modules.partners import (
+    applications,
+    erasure,
+    kyc,
+    pickups,
+    ratings,
+    service,
+    training,
+)
 from gharbasket.modules.partners.events import (
     APPLICATION_DECIDED,
     APPLICATION_SUBMITTED,
@@ -189,10 +197,11 @@ async def application_reason(session: AsyncSession, application_id: uuid.UUID) -
 async def anonymise_for_user(
     session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
 ) -> dict[str, int]:
-    """M1's purge (M1 §3.5): the ratings she gave lose her user id and comment, and keep the
-    score, so a kitchen's rating is unchanged. Applications, KYC and partner records are not
-    touched here."""
-    return {"ratings": await ratings.erase_for_user(session, user_id)}
+    """M1's purge (M1 §3.5 matrix row 5): the ratings she gave lose her user id and comment and
+    keep the score; her applications, KYC documents (files due at once) and training attempts are
+    deleted; her partner records and kitchen stay for the payouts and ledger, nameless and without
+    address or FSSAI number (`erasure`)."""
+    return await erasure.erase_for_user(session, user_id)
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:

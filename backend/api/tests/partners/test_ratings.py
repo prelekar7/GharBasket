@@ -363,7 +363,7 @@ async def test_the_purge_erases_who_rated_and_what_they_wrote_but_keeps_the_scor
     erased = await partners_api.anonymise_for_user(db_session, priya_id, None)
     again = await partners_api.anonymise_for_user(db_session, priya_id, None)
 
-    assert (erased, again) == ({"ratings": 1}, {"ratings": 0})
+    assert (erased["ratings"], again["ratings"]) == (1, 0)
     rows = {r.order_id: r for r in (await db_session.execute(select(Rating))).scalars()}
     for row in rows.values():
         await db_session.refresh(row)
