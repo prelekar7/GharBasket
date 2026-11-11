@@ -55,6 +55,8 @@ from gharbasket.platform.outbox import publish
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
 from gharbasket.platform.settings import Settings
 
+# Sent, but a failed transfer would bring the money back into partner_payable.
+IN_FLIGHT = ("pending", "processing")
 MIN_PAISE = 10_000  # ₹100: less is carried to the next week (except for a partner who left)
 WEEK = re.compile(r"^(2\d{3})-W(\d{2})$")
 SETTLEMENT_KINDS = ("payout", "payout_reversed")
@@ -277,6 +279,32 @@ async def _pay_partner(
     session.add(payout)
     await session.flush()
     return payout.status, retried
+
+
+async def partner_payable_open(session: AsyncSession, partner_ids: list[uuid.UUID]) -> bool:
+    """Whether these partners are still owed money or a payout of theirs is in flight (M1 §3.5:
+    the purge waits, since her last payout needs the bank document it erases)."""
+    if not partner_ids:
+        return False
+    owed = await session.scalar(
+        select(func.count())
+        .select_from(LedgerAccount)
+        .where(
+            LedgerAccount.code == "partner_payable",
+            LedgerAccount.owner_type == "partner",
+            LedgerAccount.owner_id.in_(partner_ids),
+            select(func.coalesce(func.sum(Posting.amount), 0))
+            .where(Posting.account_id == LedgerAccount.id)
+            .scalar_subquery()
+            != 0,
+        )
+    )
+    sending = await session.scalar(
+        select(func.count())
+        .select_from(Payout)
+        .where(Payout.partner_id.in_(partner_ids), Payout.status.in_(IN_FLIGHT))
+    )
+    return bool(owed or sending)
 
 
 async def run_weekly(

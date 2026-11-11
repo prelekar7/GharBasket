@@ -19,6 +19,7 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.assistant import api as assistant_api
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
@@ -50,6 +51,7 @@ SECTIONS: dict[str, Callable[[AsyncSession, uuid.UUID], Awaitable[dict[str, Any]
     "partners": partners_api.export_for_user,
     "community": community_api.export_for_user,
     "logistics": logistics_api.export_for_user,
+    "assistant": assistant_api.export_for_user,
 }
 
 
@@ -182,6 +184,7 @@ Eraser = Callable[[AsyncSession, uuid.UUID, uuid.UUID | None], Awaitable[dict[st
 # returns {table: rows} for the tombstone. New modules add theirs when they ship; the platform's
 # and M1's own rows always go last.
 ERASERS: list[tuple[str, Eraser]] = [
+    ("assistant", assistant_api.delete_for_user),
     ("notifications", notifications_api.delete_for_user),
     ("intel_gateway", intel_api.delete_for_user),
     ("community", community_api.anonymise_for_user),
@@ -207,6 +210,9 @@ async def _blockers(
         reasons.append("open_issues")
     if await billing_api.balance(session, user_id) != 0:
         reasons.append("wallet_not_closed")
+    partners = [p.id for p in await partners_api.partners_for_user(session, user_id)]
+    if await billing_api.partner_payable_open(session, partners):
+        reasons.append("partner_payable_open")  # her last payout needs her bank document
     return reasons
 
 

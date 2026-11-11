@@ -12,6 +12,8 @@ order); `partner_week` (with that week's `PayoutOut`s) and `partner_rolling_earn
 earnings back. `billing.payout_sent` tells M11 a weekly payout was paid or failed. For M8's income
 certificate (§3.7): `partner_months` reads a partner's earned, paid-out and owed money per month.
 
+For M1's purge (M1 §3.5): `partner_payable_open` tells whether a partner is still owed money.
+
 For M4's refunds list (spec §3.8): `order_refunds` reads the `refund` entries of a set of orders.
 For M4's revenue probe (spec §3.9): `held_paise` reads what each order holds in unearned_revenue.
 
@@ -58,6 +60,7 @@ from gharbasket.modules.billing.models import (
     Posting,
 )
 from gharbasket.modules.billing.months import MonthTotal, PartnerMonths, partner_months
+from gharbasket.modules.billing.payouts import partner_payable_open
 from gharbasket.modules.billing.refunds import OrderRefund, order_refunds, wallet_closed
 from gharbasket.modules.billing.schemas import PayoutOut, RefundOut
 from gharbasket.modules.billing.wallet import (
@@ -100,6 +103,7 @@ __all__ = [
     "kindness_facts",
     "order_refunds",
     "partner_months",
+    "partner_payable_open",
     "partner_rolling_earnings",
     "partner_week",
     "refund_to_wallet",
