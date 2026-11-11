@@ -5,11 +5,12 @@ inside the grace period re-runs the debit (consumer of `billing.wallet_topped_up
 
 `scheduled_for` decides the delivery date, never the clock, so a late run does the same work.
 `expire_carry_overs` (02:40 IST) refunds carried items still waiting 14 days after the miss
-(§3.8).
+(§3.8). The ops probe `orders.revenue_unrecognised` asks M5 whether recently delivered orders
+still hold unearned money (M5 §3.9).
 """
 
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,7 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import carry, service, state
-from gharbasket.modules.orders.models import Order
+from gharbasket.modules.orders.models import Order, OrderEvent
+from gharbasket.platform import ops
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
@@ -142,3 +144,31 @@ async def on_wallet_topped_up(session: AsyncSession, event: OutboxEvent) -> None
 
 
 subscribe(billing_api.WALLET_TOPPED_UP, on_wallet_topped_up)
+
+
+# --- ops probe (M0 §6.1, M5 §3.9) ----------------------------------------------------------------
+
+REVENUE_AFTER = timedelta(hours=1)  # M5's consumer of orders.delivered runs within seconds
+REVENUE_WINDOW = timedelta(days=7)
+
+
+@ops.probe("orders.revenue_unrecognised")
+async def revenue_unrecognised(session: AsyncSession, now: datetime) -> list[str]:
+    """Orders delivered more than an hour ago (and within 7 days) that still hold money in M5's
+    unearned_revenue: M5 recognises it on `orders.delivered`, so with that working, none. A
+    carried item's missed order is left out: it keeps the second-miss fee (M5 §3.9)."""
+    delivered = await session.scalars(
+        select(OrderEvent.order_id)
+        .where(
+            OrderEvent.to_status == "delivered",
+            OrderEvent.at < now - REVENUE_AFTER,
+            OrderEvent.at >= now - REVENUE_WINDOW,
+        )
+        .distinct()
+    )
+    held = await billing_api.held_paise(session, list(delivered))
+    left = sum(1 for paise in held.values() if paise > 0)
+    if not left:
+        return []
+    orders = "1 delivered order still holds" if left == 1 else f"{left} delivered orders still hold"
+    return [f"{orders} unearned revenue; run recognise_delivered_revenue"]

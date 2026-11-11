@@ -8,6 +8,7 @@ Create Date: 2026-11-11 12:00:00.000000+00:00
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
 from alembic import op
 
 revision: str = "5d1e9b3a7c42"
@@ -54,18 +55,27 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Recognised revenue and the refunds it paid for cannot be taken back here: deleting the
+    # `revenue` entries would leave those refunds' sales_revenue legs below zero. Refuse instead.
+    bind = op.get_bind()
+    revenue = bind.execute(
+        sa.text("SELECT count(*) FROM billing.journal_entries WHERE kind = 'revenue'")
+    ).scalar_one()
+    returns = bind.execute(
+        sa.text(
+            "SELECT count(*) FROM billing.postings p"
+            " JOIN billing.journal_entries e ON e.id = p.entry_id"
+            " JOIN billing.ledger_accounts a ON a.id = p.account_id"
+            " WHERE e.kind = 'refund' AND a.code = 'sales_revenue' AND a.owner_type = 'platform'"
+        )
+    ).scalar_one()
+    if revenue or returns:
+        raise RuntimeError(
+            f"cannot downgrade 5d1e9b3a7c42: {revenue} revenue entries and {returns} refunds from"
+            " sales_revenue are in the ledger (M5 §3.9); the ledger is append-only, so correct"
+            " them with adjustment entries first"
+        )
     op.drop_index(
         op.f("ix_billing_journal_entries_ref_type"), table_name="journal_entries", schema="billing"
     )
-    # The ledger is append-only (triggers refuse DELETE), so the revenue entries are removed with
-    # those two triggers off, in one transaction: the money is unearned again, as before.
-    for table in ("journal_entries", "postings"):
-        op.execute(f"ALTER TABLE billing.{table} DISABLE TRIGGER {table}_append_only")
-    op.execute(
-        "DELETE FROM billing.postings WHERE entry_id IN (SELECT id FROM billing.journal_entries"
-        " WHERE kind = 'revenue')"
-    )
-    op.execute("DELETE FROM billing.journal_entries WHERE kind = 'revenue'")
-    for table in ("journal_entries", "postings"):
-        op.execute(f"ALTER TABLE billing.{table} ENABLE TRIGGER {table}_append_only")
     _kinds(KINDS)

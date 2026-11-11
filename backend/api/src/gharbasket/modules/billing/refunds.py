@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.billing import revenue, service, wallet
+from gharbasket.modules.billing import service, wallet
 from gharbasket.modules.billing.models import (
     JournalEntry,
     LedgerAccount,
@@ -223,20 +223,20 @@ async def refund_order_to_source(
     reason: str,
     details: dict[str, str],
     committed_paise: int,
+    legs: list[Leg],
 ) -> JournalEntry:
     """An order refund the wallet cannot take (spec §3.3): the whole of it goes to the payment
     source. The `refund` entry is posted as usual (so every reader of order refunds is unchanged),
     then the parts take the same amount out again: the balance ends where it started. All or
     nothing: when the top-ups cannot take it, `billing.wallet_limit` and nothing is posted. The
     caller holds the wallet's row lock; this is not a customer request, so the one-refund and
-    three-a-day rules do not apply."""
+    three-a-day rules do not apply. `legs` are the refund's debit legs (`revenue.refund_legs`)."""
     found = await rooms(session, user_id, get_settings(), datetime.now(UTC))
     if amount < MIN_PAISE or amount > sum(r.room_paise for r in found):
         raise wallet.wallet_limit(max(0, wallet.CAP_PAISE - committed_paise))
     refund = await _new_refund(
         session, user_id, amount, "order", f"order:{order_id}:{reason}", order_id
     )
-    legs = await revenue.refund_legs(session, order_id, amount)  # after delivery: sales (§3.9)
     entry, _ = await service.post(
         session,
         kind="refund",

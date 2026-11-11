@@ -133,7 +133,9 @@ async def refund_to_wallet(
 ) -> JournalEntry:
     """Money back for an order (unearned_revenue → wallet), once per order and reason. Once the
     order's revenue is recognised (spec §3.9), what it no longer holds unearned comes out of
-    sales_revenue instead (`revenue.refund_legs`); a replay returns the recorded entry.
+    sales_revenue instead, never more than was recognised for it (`revenue.refund_legs`, else
+    `billing.order_refund_exceeds_paid`); a replay returns the recorded entry. The order's lock
+    is taken before the wallet's row (§3.9's lock order).
 
     A refund that would take the wallet over the cap goes to the payment source in the same call
     (spec §3.3, "Order refunds when the wallet is full"): the `refund` entry, a Refund and its
@@ -143,11 +145,13 @@ async def refund_to_wallet(
     _positive(amount_paise)
     if not REASON.match(reason):
         raise ValueError("reason is a short code such as 'shortage' or 'undelivered'")
+    await revenue.lock_order(session, order_id)
     wallet = await _account(session, user_id)
     key = f"refund:{order_id}:{reason}"
     existing = await service.find_entry(session, key)
     if existing is not None:
         return await revenue.replayed_refund(session, existing, amount_paise)
+    legs = await revenue.refund_legs(session, order_id, amount_paise)
     details: dict[str, str] = {"reason": reason}
     debit = await service.find_entry(session, f"box:{order_id}")
     if debit is not None and debit.details and "delivery_date" in debit.details:
@@ -158,9 +162,8 @@ async def refund_to_wallet(
         from gharbasket.modules.billing import refunds
 
         return await refunds.refund_order_to_source(
-            session, wallet, user_id, order_id, amount_paise, reason, details, current
+            session, wallet, user_id, order_id, amount_paise, reason, details, current, legs
         )
-    legs = await revenue.refund_legs(session, order_id, amount_paise)
     entry, _ = await service.post(
         session,
         kind="refund",

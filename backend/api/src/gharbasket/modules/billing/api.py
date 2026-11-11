@@ -13,18 +13,20 @@ earnings back. `billing.payout_sent` tells M11 a weekly payout was paid or faile
 certificate (§3.7): `partner_months` reads a partner's earned, paid-out and owed money per month.
 
 For M4's refunds list (spec §3.8): `order_refunds` reads the `refund` entries of a set of orders.
+For M4's revenue probe (spec §3.9): `held_paise` reads what each order holds in unearned_revenue.
 
 For M12 (M12 §3.1): `earning_facts` and `kindness_facts`, the ledger read back as fact rows.
 """
 
 import copy
 import uuid
+from collections.abc import Iterable
 from typing import Any
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.billing import refunds, service
+from gharbasket.modules.billing import refunds, revenue, service
 from gharbasket.modules.billing.earnings import (
     BasisTotal,
     DayTotal,
@@ -94,6 +96,7 @@ __all__ = [
     "debit_for_order",
     "earning_facts",
     "export_for_user",
+    "held_paise",
     "kindness_facts",
     "order_refunds",
     "partner_months",
@@ -144,6 +147,12 @@ async def close_wallet(
     wallet is empty or nothing could be refunded."""
     refund = await refunds.close_wallet(session, user_id, reason, settings or get_settings())
     return None if refund is None else await refunds.to_out(session, refund)
+
+
+async def held_paise(session: AsyncSession, order_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, int]:
+    """What each order still holds in unearned_revenue (spec §3.9): paid, less refunds and
+    recognised revenue; an order M5 does not know reads 0. Reads only, M5's own tables."""
+    return await revenue.held_by_order(session, order_ids)
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:

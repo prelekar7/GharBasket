@@ -6,13 +6,16 @@ sales_revenue when it is delivered, and a refund after that comes out of sales_r
 - `recognise` posts a `revenue` entry for what the order holds (a carried item: for its part of
   the missed order), once per key.
 - `refund_legs` takes a refund from unearned_revenue up to what the order holds, and from
-  sales_revenue for the rest, so an order's unearned money is never below zero.
+  sales_revenue for the rest up to what was recognised for the order (less its earlier refunds
+  from there); more is refused, so per order neither account ever goes below zero.
 - Both take the order's transaction lock before reading what it holds, so a refund and the
-  recognition at the same moment never both take the same money.
+  recognition at the same moment never both take the same money. Lock order: M4's order row,
+  then this lock, then the wallet's row.
 """
 
 import hashlib
 import uuid
+from collections.abc import Iterable
 from typing import Any, cast
 
 import structlog
@@ -20,8 +23,9 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import service
-from gharbasket.modules.billing.models import JournalEntry, Posting
+from gharbasket.modules.billing.models import JournalEntry, LedgerAccount, Posting
 from gharbasket.modules.billing.service import Leg
+from gharbasket.platform.errors import ProblemError
 
 log = structlog.get_logger("gharbasket.billing.revenue")
 
@@ -31,30 +35,69 @@ def _lock_key(order_id: uuid.UUID) -> int:
     return int.from_bytes(digest[:8], "big") >> 1
 
 
+def exceeds_paid(order_id: uuid.UUID, refundable_paise: int) -> ProblemError:
+    return ProblemError(
+        422,
+        "billing.order_refund_exceeds_paid",
+        "This refund is more than is left of what the order paid.",
+        extra={"order_id": str(order_id), "refundable_paise": refundable_paise},
+    )
+
+
 async def lock_order(session: AsyncSession, order_id: uuid.UUID) -> None:
-    """Hold the order's money until the transaction ends (a savepoint's rollback keeps it)."""
+    """Hold the order's money until the transaction ends. A lock taken inside a savepoint that
+    is rolled back is released with it."""
     await session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _lock_key(order_id)})
 
 
-async def held_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
-    """What the order holds in unearned_revenue now."""
-    unearned = await service.platform_account(session, "unearned_revenue")
-    total = await session.scalar(
-        select(func.coalesce(func.sum(Posting.amount), 0))
-        .join(JournalEntry, JournalEntry.id == Posting.entry_id)
+async def _by_order(
+    session: AsyncSession, account: LedgerAccount, order_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Each order's balance on a credit-normal platform account (its entries, `ref` the order)."""
+    ids = {i for i in order_ids if isinstance(i, uuid.UUID)}
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(JournalEntry.ref_id, func.sum(Posting.amount))
+        .join(Posting, Posting.entry_id == JournalEntry.id)
         .where(
-            Posting.account_id == unearned.id,
+            Posting.account_id == account.id,
             JournalEntry.ref_type == "order",
-            JournalEntry.ref_id == order_id,
+            JournalEntry.ref_id.in_(ids),
         )
+        .group_by(JournalEntry.ref_id)
     )
-    return -int(total or 0)
+    found = {ref: -int(total) for ref, total in rows.all() if ref is not None}
+    return {i: found.get(i, 0) for i in ids}
+
+
+async def held_by_order(
+    session: AsyncSession, order_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """What each order holds in unearned_revenue now (0 for an order M5 does not know)."""
+    unearned = await service.platform_account(session, "unearned_revenue")
+    return await _by_order(session, unearned, order_ids)
+
+
+async def held_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
+    return (await held_by_order(session, [order_id]))[order_id]
+
+
+async def sold_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
+    """What the order has in sales_revenue: recognised, less refunds taken from there."""
+    sales = await service.platform_account(session, "sales_revenue")
+    return (await _by_order(session, sales, [order_id]))[order_id]
 
 
 async def refund_legs(session: AsyncSession, order_id: uuid.UUID, amount_paise: int) -> list[Leg]:
-    """The debit legs of a refund of the order: unearned_revenue first, then sales_revenue."""
+    """The debit legs of a refund of the order: unearned_revenue first, then sales_revenue up to
+    what the order has there. More than both is `billing.order_refund_exceeds_paid`."""
     await lock_order(session, order_id)
-    unearned = min(amount_paise, max(0, await held_paise(session, order_id)))
+    held = max(0, await held_paise(session, order_id))
+    sold = max(0, await sold_paise(session, order_id))
+    if amount_paise > held + sold:
+        raise exceeds_paid(order_id, held + sold)
+    unearned = min(amount_paise, held)
     legs: list[Leg] = []
     if unearned:
         legs.append(Leg(await service.platform_account(session, "unearned_revenue"), unearned))
@@ -146,6 +189,9 @@ async def recognise_delivery(session: AsyncSession, body: object, event_id: uuid
             missed,
             f"revenue:{missed}:carry_{product.hex}",
             most_paise=paid,
-            details={"carry_id": str(row.get("carry_id")), "delivered_with": str(order_id)},
+            details={
+                "delivered_with": str(order_id),
+                **({"carry_id": str(row["carry_id"])} if row.get("carry_id") else {}),
+            },
         )
     return paise
