@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.community import jobs, unlock
 from gharbasket.modules.community.models import Society
+from gharbasket.modules.hub_ops.models import Hub
 from gharbasket.modules.identity.households import create_household
 from gharbasket.modules.identity.models import Household
 from gharbasket.modules.identity.schemas import HouseholdIn
@@ -28,6 +29,7 @@ from gharbasket.platform.jobs import JobContext
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import HOUSEHOLDS, SEED_HUB_ID, SEED_SOCIETY_ID, SOCIETIES
 
+from .. import seed_cache as cached
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory, bearer, sign_in
 from ..identity.fake_firebase import FakeGoogle
@@ -127,7 +129,7 @@ async def test_a_live_society_stays_live_and_publishes_once(db_session: AsyncSes
         )
     society = await _society(db_session, GREEN_VALLEY)
     assert society.status == "live"
-    assert unlock.box_fee_paise(society) == 0
+    assert await unlock.box_fee_paise(db_session, society) == 0
 
 
 async def test_the_first_captain_moves_a_prospect_society_to_unlocking(
@@ -150,7 +152,29 @@ async def test_the_first_captain_moves_a_prospect_society_to_unlocking(
 
     society = await _society(db_session, GREEN_VALLEY)
     assert society.status == "unlocking" and society.live_at is None
-    assert unlock.box_fee_paise(society) == unlock.PRE_LIVE_BOX_FEE_PAISE == 3_000
+    assert await unlock.box_fee_paise(db_session, society) == 3_000  # the seed hub's default
+
+
+async def test_the_unlock_bar_shows_the_fee_of_the_societys_hub(
+    db_session: AsyncSession, clients: ClientFactory, google: FakeGoogle
+) -> None:
+    await cached.seed_hubs(db_session)
+    hub = await db_session.get(Hub, SEED_HUB_ID)
+    assert hub is not None
+    hub.pre_live_box_fee_paise = 4_500  # what orders charge a box of this hub's societies
+    await db_session.flush()
+    await db_session.refresh(hub)
+    society = await _society(db_session, GREEN_VALLEY)
+    assert society.live_at is None
+    assert await unlock.box_fee_paise(db_session, society) == 4_500
+    await db_session.commit()
+    api = clients()
+
+    view = await api.get(
+        f"/v1/societies/{GREEN_VALLEY}/unlock", headers=await _as(api, google, SUNITA)
+    )
+
+    assert view.json()["box_fee_paise"] == 4_500
 
 
 async def test_the_hub_pins_the_threshold_and_pauses_and_resumes_without_a_second_event(

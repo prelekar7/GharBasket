@@ -155,7 +155,7 @@ async def _unlock_view(session: DbSession, society: Society) -> UnlockOut:
         threshold=society.unlock_threshold,
         live_at=society.live_at,
         threshold_source=society.threshold_source,  # pyright: ignore[reportArgumentType]
-        box_fee_paise=unlock.box_fee_paise(society),
+        box_fee_paise=await unlock.box_fee_paise(session, society),
     )
 
 
