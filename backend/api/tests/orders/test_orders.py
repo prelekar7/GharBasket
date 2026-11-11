@@ -9,6 +9,8 @@ import time_machine
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.billing import api as billing_api
+from gharbasket.modules.billing.wallet import credit_topup
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
@@ -431,6 +433,13 @@ async def test_the_facade_serves_fulfilment_and_shortages(
     ids = {line.product_id for line in cycle.lines}
 
     assert await orders_api.orders_for_delivery(db_session, SEED_HUB_ID, DELIVERY) == []
+    # Paid as the cut-off pays it, so the shortage below has money to refund (M5 §3.9).
+    await credit_topup(
+        db_session, priya_id, order.total_paise, payment_ref="facade", topup_id=uuid.uuid4()
+    )
+    await billing_api.debit_for_order(
+        db_session, priya_id, order_id, order.total_paise, order.delivery_date
+    )
     await orders_api.transition(db_session, order_id, "locked", actor="system")
     today = await orders_api.orders_for_delivery(db_session, SEED_HUB_ID, DELIVERY)
     assert [s.order.id for s in today] == [order_id] and {

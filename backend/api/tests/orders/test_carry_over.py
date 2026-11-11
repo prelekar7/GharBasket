@@ -13,6 +13,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
+from gharbasket.modules.billing import jobs as billing_jobs
+from gharbasket.modules.billing import revenue as billing_revenue
 from gharbasket.modules.billing.models import JournalEntry, Refund
 from gharbasket.modules.billing.wallet import CAP_PAISE, credit_topup
 from gharbasket.modules.catalog import api as catalog_api
@@ -352,6 +354,50 @@ async def test_rows_follow_their_box_through_packing_and_delivery_without_touchi
     assert {r.status for r in (await rows_of(db_session, again)).values()} == {"attached"}
     await orders_api.transition(db_session, later, "packed", actor="hub")
     assert {r.status for r in (await rows_of(db_session, again)).values()} == {"packed"}
+
+
+async def test_the_delivery_names_its_carried_rows_and_m5_recognises_them_on_the_missed_order(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """M5 §3.9: `orders.delivered` carries the rows delivered with the box, and M5's consumer
+    recognises the box's money and the kept items' on the missed order, which keeps the fee."""
+    _, _, owner = await household(clients, google)
+    missed = await place(db_session, owner, MISSED, AT_THE_DOOR)
+    next_box = await place(db_session, owner, NEXT, LOCKED)
+    await miss_twice(db_session, missed)
+    for to in ("packed", "dispatched", "at_society", "delivered"):
+        await orders_api.transition(db_session, next_box, to, actor="hub")
+
+    [event] = list(
+        await db_session.scalars(
+            select(OutboxEvent).where(
+                OutboxEvent.event_type == "orders.delivered",
+                OutboxEvent.payload["order_id"].astext == str(next_box),
+            )
+        )
+    )
+    rows = await rows_of(db_session, missed)
+    assert sorted(event.payload["carried"], key=lambda c: c["paid_paise"]) == [
+        {
+            "carry_id": str(rows[slug].id),
+            "from_order_id": str(missed),
+            "product_id": str(rows[slug].product_id),
+            "paid_paise": KEPT[slug][1],
+        }
+        for slug in ("moong-dal", "toor-dal")
+    ]
+    await billing_jobs.on_order_delivered(db_session, event)
+
+    assert await billing_revenue.held_paise(db_session, next_box) == 0
+    assert await billing_revenue.held_paise(db_session, missed) == deliveries.SECOND_MISS_FEE_PAISE
+    recognised = await db_session.scalars(
+        select(JournalEntry.idempotency_key).where(
+            JournalEntry.kind == "revenue", JournalEntry.ref_id.in_([next_box, missed])
+        )
+    )
+    assert set(recognised) == {f"revenue:{next_box}"} | {
+        f"revenue:{missed}:carry_{rows[slug].product_id.hex}" for slug in KEPT
+    }
 
 
 async def test_rows_go_back_to_pending_when_their_box_is_missed_twice(

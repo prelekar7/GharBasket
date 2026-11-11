@@ -553,6 +553,8 @@ Both `revenue` entries have `ref: { type: "order", id }` (the missed order for a
     - a delivered order holds 0 there;
     - `unearned_revenue` + `sales_revenue` = box debits − order refunds.
 
+*As built (2026-11-11).* `billing/revenue.py` holds the rule (`recognise`, `refund_legs`, the order lock); `billing/jobs.py` subscribes the consumer by name (M5 does not import M4) and registers the backfill job; `billing.api.held_paise` is the facade, and `orders/jobs.py` has the probe. `refund_to_wallet` takes the order's lock before the wallet's row. Migration `20261111_1200_billing_revenue_entry_kind` (revision `5d1e9b3a7c42`) adds `revenue` to the entry kinds' check and an index on `journal_entries (ref_type, ref_id)`, which the per-order sums read; its downgrade refuses while any `revenue` entry or refund from `sales_revenue` exists (the ledger is append-only). M4's `orders.delivered` of a box or add-on order carries `carried` (rows locked as they are read, so they are the rows delivered).
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|

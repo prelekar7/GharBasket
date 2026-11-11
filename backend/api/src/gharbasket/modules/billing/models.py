@@ -58,6 +58,8 @@ ENTRY_KINDS = (
     # A weekly payout of what a partner is owed, and its reversal when the provider fails it.
     "payout",
     "payout_reversed",
+    # An order's unearned money recognised as revenue when it is delivered (M5 §3.9).
+    "revenue",
 )
 REF_TYPES = ("topup", "order", "donation", "referral", "refund", "payout")
 PROVIDERS = ("razorpay", "dev")
@@ -124,6 +126,7 @@ class JournalEntry(Base):
     __table_args__ = (
         CheckConstraint(_one_of("kind", ENTRY_KINDS), name="kind"),
         CheckConstraint(f"ref_type IS NULL OR {_one_of('ref_type', REF_TYPES)}", name="ref_type"),
+        Index(None, "ref_type", "ref_id"),  # an order's entries (§3.8, §3.9)
         {"schema": SCHEMA},
     )
 

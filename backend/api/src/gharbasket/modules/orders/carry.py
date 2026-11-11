@@ -208,6 +208,27 @@ async def follow(session: AsyncSession, order: Order, to_status: str) -> None:
         await attach_to_next(session, order.household_id, min(r.missed_on for r in rows))
 
 
+async def delivering(session: AsyncSession, order_id: uuid.UUID) -> list[dict[str, Any]]:
+    """The rows `follow` delivers with this order, for its `orders.delivered` (M5 recognises
+    their revenue on the missed order, M5 §3.9). Locked now, so they are the rows it delivers."""
+    rows = await session.scalars(
+        select(CarryOver)
+        .where(CarryOver.to_order_id == order_id, CarryOver.status.in_(ON_A_BOX))
+        .order_by(CarryOver.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return [
+        {
+            "carry_id": str(row.id),
+            "from_order_id": str(row.from_order_id),
+            "product_id": str(row.product_id),
+            "paid_paise": row.paid_paise,
+        }
+        for row in rows
+    ]
+
+
 async def carried_for(
     session: AsyncSession, order_ids: Sequence[uuid.UUID]
 ) -> dict[uuid.UUID, list[CarriedLine]]:
