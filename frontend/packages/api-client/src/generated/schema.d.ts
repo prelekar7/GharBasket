@@ -14203,7 +14203,7 @@ export interface components {
             /**
              * Link
              * @description null while the caller has no household
-             * @example https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD
+             * @example https://gharbasket.co.in/s/sunrise-towers-kharghar?ref=K7Q2XD
              */
             link: string | null;
             referred_by: components["schemas"]["ReferredBy"] | null;

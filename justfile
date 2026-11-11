@@ -149,7 +149,7 @@ migrate-down steps="1":
 migration message:
     cd backend/api && uv run alembic revision --autogenerate -m "{{message}}"
 
-# Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://gharbasket-api.onrender.com`
+# Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://api.gharbasket.co.in`
 cloud url:
     scripts/smoke-staging.sh {{url}}
 

@@ -138,10 +138,10 @@ class Settings(DatabaseSettings):
         max_length=200,
     )
     # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
-    public_web_url: str = "https://gharbasket.in"
+    public_web_url: str = "https://gharbasket.co.in"
     # The customer app (PWA): a society page's join button opens APP_WEB_URL/join?s=<slug>
     # (M12 §3.7).
-    app_web_url: str = "https://app.gharbasket.in"
+    app_web_url: str = "https://app.gharbasket.co.in"
     # The staff console (Next.js on Vercel). A push to an admin's phone must open it in the browser,
     # so the drift message links to CONSOLE_URL/ai-health (M11 §3.1). Unset: the relative path
     # `/ai-health`; relative links work only inside the app.
@@ -155,7 +155,7 @@ class Settings(DatabaseSettings):
     real_data_source: Literal["pilot", "live"] = "pilot"
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
-    # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".
+    # Comma-separated, e.g. "https://gharbasket.co.in,https://app.gharbasket.co.in" (ADR-0034).
     web_origins: CommaSeparated = []
     # Razorpay (M5 top-ups), test mode only: live keys are refused, no real money moves in the
     # prototype. Unset locally: top-ups use dev orders, paid with POST /v1/dev/razorpay/pay.
