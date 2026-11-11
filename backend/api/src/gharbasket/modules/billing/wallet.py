@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.billing import service
+from gharbasket.modules.billing import revenue, service
 from gharbasket.modules.billing.models import (
     IN_FLIGHT,
     JournalEntry,
@@ -131,7 +131,9 @@ async def refund_to_wallet(
     amount_paise: int,
     reason: str,
 ) -> JournalEntry:
-    """Money back for an order (unearned_revenue → wallet), once per order and reason.
+    """Money back for an order (unearned_revenue → wallet), once per order and reason. Once the
+    order's revenue is recognised (spec §3.9), what it no longer holds unearned comes out of
+    sales_revenue instead (`revenue.refund_legs`); a replay returns the recorded entry.
 
     A refund that would take the wallet over the cap goes to the payment source in the same call
     (spec §3.3, "Order refunds when the wallet is full"): the `refund` entry, a Refund and its
@@ -142,26 +144,28 @@ async def refund_to_wallet(
     if not REASON.match(reason):
         raise ValueError("reason is a short code such as 'shortage' or 'undelivered'")
     wallet = await _account(session, user_id)
-    unearned = await service.platform_account(session, "unearned_revenue")
     key = f"refund:{order_id}:{reason}"
+    existing = await service.find_entry(session, key)
+    if existing is not None:
+        return await revenue.replayed_refund(session, existing, amount_paise)
     details: dict[str, str] = {"reason": reason}
     debit = await service.find_entry(session, f"box:{order_id}")
     if debit is not None and debit.details and "delivery_date" in debit.details:
         details["delivery_date"] = debit.details["delivery_date"]  # shown on the refund too
-    if await service.find_entry(session, key) is None:
-        current = await service.balance(session, wallet) + await in_flight_paise(session, user_id)
-        if current + amount_paise > CAP_PAISE:
-            # refunds.py imports this module, so it is imported here, where it is used.
-            from gharbasket.modules.billing import refunds
+    current = await service.balance(session, wallet) + await in_flight_paise(session, user_id)
+    if current + amount_paise > CAP_PAISE:
+        # refunds.py imports this module, so it is imported here, where it is used.
+        from gharbasket.modules.billing import refunds
 
-            return await refunds.refund_order_to_source(
-                session, wallet, user_id, order_id, amount_paise, reason, details, current
-            )
+        return await refunds.refund_order_to_source(
+            session, wallet, user_id, order_id, amount_paise, reason, details, current
+        )
+    legs = await revenue.refund_legs(session, order_id, amount_paise)
     entry, _ = await service.post(
         session,
         kind="refund",
         key=key,
-        legs=[Leg(unearned, amount_paise), Leg(wallet, -amount_paise)],
+        legs=[*legs, Leg(wallet, -amount_paise)],
         ref_type="order",
         ref_id=order_id,
         details=details,

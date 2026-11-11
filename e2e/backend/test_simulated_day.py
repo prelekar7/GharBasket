@@ -984,6 +984,16 @@ def test_the_analytics_refresh_and_a_rebuild_agree(
     assert before and loop.run(rows(config, sql, a=window[0], b=window[1])) == before
 
 
+def test_the_revenue_backfill_finds_every_delivery_already_recognised(
+    app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 21:05, `recognise_delivered_revenue` by hand (M5 §3.9): the consumer of
+    `orders.delivered` recognised every delivery of the weeks and the day, so it posts nothing."""
+    when = ist(day.t, 21, 5)
+    summary = step(loop, when, app.job("recognise_delivered_revenue", when))
+    assert summary["events"] > 0 and summary["recognised"] == 0, summary
+
+
 def test_the_watchdog_finds_nothing_wrong_after_the_day(app: App, day: Day, loop: Runner) -> None:
     """Tuesday T 21:15, `ops_check` (ADR-0033, M0 §6.1): the day's jobs leave no problem for the
     `ops` alert (no failed run, no stuck event, no probe that raises)."""

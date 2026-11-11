@@ -12,7 +12,9 @@ CANCELLED = "orders.cancelled"  # + reason: customer | payment | skipped
 PACKED = "orders.packed"
 DISPATCHED = "orders.dispatched"
 AT_SOCIETY = "orders.at_society"
-DELIVERED = "orders.delivered"
+DELIVERED = (
+    "orders.delivered"  # + carried [{carry_id, from_order_id, product_id, paid_paise}] (§3.8)
+)
 DELIVERY_FAILED = "orders.delivery_failed"
 # Own payload: order_id, household_id, product_id, shortage_qty, substitute_product_id,
 # refund_paise, total_paise

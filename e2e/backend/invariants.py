@@ -96,12 +96,14 @@ async def ledger_accounts_consistent(session: AsyncSession) -> list[str]:
             f"razorpay_clearing took {by_kind.get(('razorpay_clearing', 'topup'), 0)} paise of "
             f"top-ups but wallets were credited {topups}"
         )
+    # Boxes paid and not refunded are unearned until delivered, then sales (M5 §3.9).
     debits, refunds = -wallet_kinds.get("box_debit", 0), wallet_kinds.get("refund", 0)
     unearned = -sum(v for (code, _), v in by_kind.items() if code == "unearned_revenue")
-    if unearned != debits - refunds:
+    sales = -sum(v for (code, _), v in by_kind.items() if code == "sales_revenue")
+    if unearned + sales != debits - refunds:
         out.append(
-            f"unearned_revenue holds {unearned} paise; box debits {debits} - refunds {refunds} "
-            f"= {debits - refunds}"
+            f"unearned_revenue {unearned} + sales_revenue {sales} paise; box debits {debits} - "
+            f"refunds {refunds} = {debits - refunds}"
         )
     # Each wallet against its own entries, entry by entry (a posting on someone else's wallet
     # under this user's entry would show here).
@@ -250,6 +252,44 @@ async def paid_orders_debited_once(session: AsyncSession) -> list[str]:
         if order.id not in ever_paid and taken:
             out.append(f"order {order.id} ({order.status}) never locked but debited {taken}")
     out += [f"box debit for {ref} which is no order" for ref in debits]
+    return out
+
+
+async def revenue_recognised_on_delivery(session: AsyncSession) -> list[str]:
+    """M5 §3.9: no order holds less than nothing in unearned_revenue, a delivered order holds
+    nothing there (its revenue is recognised), and an order's own `revenue` entry is only ever
+    for a delivered order (a carried item's is keyed `revenue:<missed order>:carry_…`)."""
+    held = {
+        r.ref_id: -int(r.total)
+        for r in await _rows(
+            session,
+            """
+            SELECT e.ref_id, sum(p.amount) AS total FROM billing.journal_entries e
+            JOIN billing.postings p ON p.entry_id = e.id
+            JOIN billing.ledger_accounts a ON a.id = p.account_id
+            WHERE a.code = 'unearned_revenue' AND a.owner_type = 'platform'
+              AND e.ref_type = 'order'
+            GROUP BY e.ref_id
+            """,
+        )
+    }
+    out = [
+        f"order {order_id} holds {paise} paise unearned"
+        for order_id, paise in held.items()
+        if paise < 0
+    ]
+    status = {r.id: r.status for r in await _rows(session, "SELECT id, status FROM orders.orders")}
+    out += [
+        f"order {order_id} is delivered but holds {held[order_id]} paise unearned"
+        for order_id, s in status.items()
+        if s == "delivered" and held.get(order_id, 0) != 0
+    ]
+    for r in await _rows(
+        session,
+        "SELECT ref_id, idempotency_key FROM billing.journal_entries WHERE kind = 'revenue'",
+    ):
+        if r.idempotency_key == f"revenue:{r.ref_id}" and status.get(r.ref_id) != "delivered":
+            out.append(f"revenue for order {r.ref_id}, which is {status.get(r.ref_id)}")
     return out
 
 
@@ -457,6 +497,7 @@ ALL: dict[str, Check] = {
     "wallets_within_bounds": wallets_within_bounds,
     "orders_follow_their_state_machine": orders_follow_their_state_machine,
     "paid_orders_debited_once": paid_orders_debited_once,
+    "revenue_recognised_on_delivery": revenue_recognised_on_delivery,
     "cycles_match_their_orders": cycles_match_their_orders,
     "outbox_fully_relayed": outbox_fully_relayed,
     "one_message_per_event_and_person": one_message_per_event_and_person,

@@ -703,6 +703,8 @@ async def transition(
                 }
                 for line in await lines_of(session, order.id)
             ]
+        if to_status == "delivered" and order.kind in carry.BOX_KINDS:
+            body["carried"] = await carry.delivering(session, order.id)  # M5 §3.9
         await publish(session, event_type, body)
     await carry.follow(session, order, to_status)  # carried items follow their order (§3.8)
     return order

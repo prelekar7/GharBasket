@@ -184,6 +184,10 @@ jobs:
     ist: "00:33 daily"
     why: M5 daily
 
+  - name: recognise_delivered_revenue
+    runner: manual
+    why: M5 §3.9 backfill by hand only (`just job recognise_delivered_revenue`), once after its deploy; idempotent
+
   # --- M6 hub ops -------------------------------------------------------------------------
   - name: build_packing_tasks
     runner: vm

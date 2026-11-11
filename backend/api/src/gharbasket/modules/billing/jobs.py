@@ -23,6 +23,11 @@ Kindness points (§3.6):
 - The consumer of M9's `community.donation_verified` credits the donation's points, once per
   donation. It shares the relay's savepoint with the event's other consumers, so a payload it
   cannot use is logged and skipped, never raised.
+
+Revenue (§3.9): the consumer of M4's `orders.delivered` moves what the order still holds in
+unearned_revenue to sales_revenue (`revenue.py`), skipping a payload it cannot read as above;
+`recognise_delivered_revenue` (manual) runs it again over every relayed delivery, and the probe
+`billing.revenue_unrecognised` reports a delivered order still holding unearned money.
 """
 
 import uuid
@@ -30,13 +35,22 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import func, or_, select
+from sqlalchemy import Uuid, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.billing import kindness, payouts, reconciliation, settlement
+from gharbasket.modules.billing import (
+    kindness,
+    payouts,
+    reconciliation,
+    revenue,
+    service,
+    settlement,
+)
 from gharbasket.modules.billing.models import (
+    JournalEntry,
     Payment,
     PaymentWebhook,
+    Posting,
     ReconciliationItem,
     RefundPart,
 )
@@ -263,3 +277,74 @@ async def on_donation_verified(session: AsyncSession, event: OutboxEvent) -> Non
 
 
 subscribe(DONATION_VERIFIED, on_donation_verified)
+
+
+# --- revenue recognition (spec §3.9) -------------------------------------------------------------
+
+# M4's event: { order_id, delivery_date, kind, …, carried: [{ carry_id, from_order_id, product_id,
+# paid_paise }] }. Named here rather than imported, so M5 does not depend on M4.
+ORDER_DELIVERED = "orders.delivered"
+UNRECOGNISED_AFTER = timedelta(hours=1)
+UNRECOGNISED_WINDOW = timedelta(days=7)
+
+
+async def on_order_delivered(session: AsyncSession, event: OutboxEvent) -> None:
+    """Recognise the delivered order's unearned money, and its carried items' on their missed
+    orders; once per key, so a redelivery of the event posts nothing more."""
+    await revenue.recognise_delivery(session, event.payload, event.id)
+
+
+subscribe(ORDER_DELIVERED, on_order_delivered)
+
+
+@job("recognise_delivered_revenue", "Backfill: recognise revenue for every relayed delivery")
+async def recognise_delivered_revenue(ctx: JobContext) -> dict[str, Any]:
+    """The consumer again over every `orders.delivered` already relayed, oldest first, in
+    batches; the keys make a rerun post nothing twice (manual, after the deploy of §3.9)."""
+    events = recognised = paise = 0
+    last: uuid.UUID | None = None
+    while True:
+        query = select(OutboxEvent).where(
+            OutboxEvent.event_type == ORDER_DELIVERED, OutboxEvent.sent_at.is_not(None)
+        )
+        if last is not None:
+            query = query.where(OutboxEvent.id > last)
+        batch = list(await ctx.session.scalars(query.order_by(OutboxEvent.id).limit(BATCH)))
+        if not batch:
+            break
+        for event in batch:
+            posted = await revenue.recognise_delivery(ctx.session, event.payload, event.id)
+            events, recognised, paise = events + 1, recognised + (posted > 0), paise + posted
+            last = event.id
+        await ctx.session.commit()
+    return {"events": events, "recognised": recognised, "paise": paise}
+
+
+@ops.probe("billing.revenue_unrecognised")
+async def revenue_unrecognised(session: AsyncSession, now: datetime) -> list[str]:
+    """Orders delivered (relayed over an hour ago, in the last 7 days) that still hold money in
+    unearned_revenue: with the consumer working, none."""
+    unearned = await service.platform_account(session, "unearned_revenue")
+    order_id = cast(OutboxEvent.payload["order_id"].astext, Uuid)
+    held = (
+        select(OutboxEvent.id)
+        .join(
+            JournalEntry,
+            (JournalEntry.ref_type == "order") & (JournalEntry.ref_id == order_id),
+        )
+        .join(Posting, (Posting.entry_id == JournalEntry.id) & (Posting.account_id == unearned.id))
+        .where(
+            OutboxEvent.event_type == ORDER_DELIVERED,
+            OutboxEvent.sent_at < now - UNRECOGNISED_AFTER,
+            OutboxEvent.created_at >= now - UNRECOGNISED_WINDOW,
+        )
+        .group_by(OutboxEvent.id)
+        .having(func.sum(Posting.amount) < 0)
+        .subquery()
+    )
+    found = (await session.execute(select(func.count()).select_from(held))).scalar_one()
+    if not found:
+        return []
+    return [
+        f"{found} delivered orders still hold unearned revenue; run recognise_delivered_revenue"
+    ]

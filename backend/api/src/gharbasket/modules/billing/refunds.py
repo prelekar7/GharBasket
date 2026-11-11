@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.billing import service, wallet
+from gharbasket.modules.billing import revenue, service, wallet
 from gharbasket.modules.billing.models import (
     JournalEntry,
     LedgerAccount,
@@ -236,12 +236,12 @@ async def refund_order_to_source(
     refund = await _new_refund(
         session, user_id, amount, "order", f"order:{order_id}:{reason}", order_id
     )
-    unearned = await service.platform_account(session, "unearned_revenue")
+    legs = await revenue.refund_legs(session, order_id, amount)  # after delivery: sales (§3.9)
     entry, _ = await service.post(
         session,
         kind="refund",
         key=f"refund:{order_id}:{reason}",
-        legs=[Leg(unearned, amount), Leg(account, -amount)],
+        legs=[*legs, Leg(account, -amount)],
         ref_type="order",
         ref_id=order_id,
         details={**details, "to_source": str(refund.id)},
@@ -430,7 +430,8 @@ async def order_refunds(session: AsyncSession, order_ids: Iterable[uuid.UUID]) -
     )
     if not entries:
         return []
-    # The entry moves unearned_revenue -> wallet: the debit leg is the amount.
+    # The entry moves unearned_revenue (or, after delivery, sales_revenue) -> wallet: its debit
+    # legs are the amount.
     rows = await session.execute(
         select(Posting.entry_id, func.sum(Posting.amount))
         .where(Posting.entry_id.in_([e.id for e in entries]), Posting.amount > 0)
