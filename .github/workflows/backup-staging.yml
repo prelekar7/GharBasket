@@ -1,0 +1,190 @@
+# Weekly backup of staging's Neon database to Cloudflare R2 (handbook 12 §12.4, runbook
+# docs/runbooks/restore-from-backup.md).
+#
+# Staging is a Neon child branch, so it has no point-in-time restore. This workflow makes a
+# `pg_dump --format=custom` of it with the direct URL, checks that the dump can be read, uploads it
+# to the private bucket `gb-staging-backups` as `staging/YYYY-MM-DD.dump` (IST date) and keeps the
+# newest KEEP dumps.
+#
+# Sunday 03:43 IST (Saturday 22:13 UTC) is a minute the daily `purge_gps_pings` job already wakes
+# Neon (jobs-staging.yml), so the backup adds a few minutes to a wake that exists and does not
+# touch the compute-hours budget in infra/jobs/schedule.yaml.
+#
+# The dump holds personal data of every user on staging. The bucket must be private (no public
+# access, no custom domain, no r2.dev URL) and the R2 token below must cover only that bucket.
+# Encryption at rest is R2's. Who may read it: Prathamesh Relekar, and Rhythm Thakur and Manish
+# Raje for the restore drill. Do not download it to a shared machine; delete it after a restore.
+#
+# pg_dump comes from the official `postgres:18` image, so its major version matches the Neon
+# server (PostgreSQL 18). Move the image tag when Neon moves to a newer major version: pg_dump
+# refuses a server newer than itself.
+#
+# Needs the repository secrets DATABASE_URL_DIRECT (Neon, direct; exists for deploy-staging.yml)
+# and BACKUP_S3_ENDPOINT_URL, BACKUP_S3_ACCESS_KEY, BACKUP_S3_SECRET_KEY (an R2 token with Object
+# Read & Write on gb-staging-backups only). Until they exist the job skips with a notice. On
+# failure it tells the healthchecks `ops` alert (HC_OPS_URL, ADR-0033), skipped while that is unset.
+name: Backup staging
+
+on:
+  schedule:
+    - cron: "13 22 * * 6" # 03:43 IST Sunday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-staging
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Dump Neon to R2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BACKUP_BUCKET: gb-staging-backups
+      BACKUP_PREFIX: staging/
+      KEEP: "8" # the newest dumps kept; one a week is eight weeks
+      PG_IMAGE: postgres:18
+      HC_OPS_URL: ${{ secrets.HC_OPS_URL }}
+    steps:
+      - name: Check that the secrets exist
+        id: configured
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          BACKUP_S3_ENDPOINT_URL: ${{ secrets.BACKUP_S3_ENDPOINT_URL }}
+          BACKUP_S3_ACCESS_KEY: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
+          BACKUP_S3_SECRET_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
+        run: |
+          missing=""
+          for name in DATABASE_URL_DIRECT BACKUP_S3_ENDPOINT_URL BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice::The staging backup is not configured yet (missing secrets:$missing). Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wake Neon
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+        run: |
+          # libpq wants postgresql:// and sslmode=; the app's form (postgresql+asyncpg://, ssl=) is
+          # accepted too.
+          DATABASE_URL_DIRECT=$(printf '%s' "$DATABASE_URL_DIRECT" |
+            sed -E 's#^postgres(ql)?\+[a-z0-9]+://#postgresql://#; s/([?&])ssl=/\1sslmode=/')
+          export DATABASE_URL_DIRECT
+          # A suspended Neon compute answers the first connection after a few seconds.
+          for attempt in $(seq 1 6); do
+            if docker run --rm -e DATABASE_URL_DIRECT --entrypoint psql "$PG_IMAGE" \
+              "$DATABASE_URL_DIRECT" -X -qtA -c "select 1" > /dev/null; then
+              echo "Neon answers"
+              exit 0
+            fi
+            echo "Neon did not answer (try $attempt of 6)"
+            sleep 10
+          done
+          echo "::error::Neon did not answer in a minute"
+          exit 1
+
+      - name: Dump the database
+        if: steps.configured.outputs.ready == 'true'
+        id: dump
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+        run: |
+          umask 077
+          # libpq wants postgresql:// and sslmode=; the app's form (postgresql+asyncpg://, ssl=) is
+          # accepted too.
+          DATABASE_URL_DIRECT=$(printf '%s' "$DATABASE_URL_DIRECT" |
+            sed -E 's#^postgres(ql)?\+[a-z0-9]+://#postgresql://#; s/([?&])ssl=/\1sslmode=/')
+          export DATABASE_URL_DIRECT
+          dir="$RUNNER_TEMP/backup"
+          mkdir -p "$dir"
+          stamp=$(TZ=Asia/Kolkata date +%F)
+          file="$dir/$stamp.dump"
+          # --no-owner and --no-acl: the dump restores into any database, whoever owns it there.
+          # The file is written by this shell, not the container, so umask 077 makes it ours alone.
+          docker run --rm -e DATABASE_URL_DIRECT --entrypoint pg_dump "$PG_IMAGE" \
+            --format=custom --no-owner --no-acl --dbname "$DATABASE_URL_DIRECT" > "$file"
+          size=$(stat -c %s "$file")
+          echo "Dump $stamp.dump: $size bytes"
+          # The dump must be readable, and must hold our schemas, not an empty database.
+          docker run --rm -v "$dir:/b:ro" --entrypoint pg_restore "$PG_IMAGE" \
+            --list "/b/$stamp.dump" > "$dir/toc.txt"
+          grep -qE 'TABLE identity users( |$)' "$dir/toc.txt" || {
+            echo "::error::The dump has no identity.users table; not uploading it"
+            exit 1
+          }
+          echo "Table of contents: $(wc -l < "$dir/toc.txt") lines"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "key=${BACKUP_PREFIX}${stamp}.dump" >> "$GITHUB_OUTPUT"
+          echo "size=$size" >> "$GITHUB_OUTPUT"
+
+      - name: Upload it to R2
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: auto # R2 ignores the region, the CLI needs one
+          # Newer AWS CLI v2 versions add a checksum to every upload by default; ask for one only when the API needs it.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT_URL }}
+          FILE: ${{ steps.dump.outputs.file }}
+          KEY: ${{ steps.dump.outputs.key }}
+          SIZE: ${{ steps.dump.outputs.size }}
+        run: |
+          aws --version
+          aws s3 cp "$FILE" "s3://$BACKUP_BUCKET/$KEY" --endpoint-url "$ENDPOINT" --no-progress
+          # The object must be there with the size we sent.
+          remote=$(aws s3api head-object --bucket "$BACKUP_BUCKET" --key "$KEY" \
+            --endpoint-url "$ENDPOINT" --query ContentLength --output text)
+          if [ "$remote" != "$SIZE" ]; then
+            echo "::error::R2 holds $remote bytes of $KEY, expected $SIZE"
+            exit 1
+          fi
+          echo "Uploaded $KEY ($SIZE bytes)"
+
+      - name: Keep the newest dumps
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT_URL }}
+        run: |
+          # Only keys of the form staging/YYYY-MM-DD.dump count; anything else in the bucket is left alone.
+          # The dates sort as text, so the oldest come first.
+          listing=$(aws s3api list-objects-v2 --bucket "$BACKUP_BUCKET" --prefix "$BACKUP_PREFIX" \
+            --endpoint-url "$ENDPOINT" --query 'Contents[].Key' --output json)
+          # An empty prefix answers null; grep finds nothing then, which is not an error here.
+          printf '%s\n' "$listing" | jq -r '.[]?' |
+            { grep -E "^${BACKUP_PREFIX}[0-9]{4}-[0-9]{2}-[0-9]{2}\.dump$" || true; } |
+            sort > "$RUNNER_TEMP/keys.txt"
+          total=$(wc -l < "$RUNNER_TEMP/keys.txt")
+          echo "$total dump(s) in the bucket, keeping the newest $KEEP"
+          if [ "$total" -gt "$KEEP" ]; then
+            head -n "$((total - KEEP))" "$RUNNER_TEMP/keys.txt" | while read -r old; do
+              echo "Deleting $old"
+              aws s3api delete-object --bucket "$BACKUP_BUCKET" --key "$old" --endpoint-url "$ENDPOINT"
+            done
+          fi
+
+      - name: Remove the local dump
+        if: always() && steps.configured.outputs.ready == 'true'
+        run: rm -rf "$RUNNER_TEMP/backup" "$RUNNER_TEMP/keys.txt"
+
+      - name: Tell the ops alert
+        # healthchecks.io `ops` check (ADR-0033); skipped while the secret is unset.
+        if: failure() && env.HC_OPS_URL != ''
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl --silent --show-error --max-time 10 --retry 3 \
+            --data-raw "$GITHUB_WORKFLOW: the staging backup failed, $run_url" "$HC_OPS_URL/fail" || true

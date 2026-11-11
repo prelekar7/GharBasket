@@ -105,7 +105,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 | Private files | KYC documents and delivery proofs in a private bucket; reads use signed URLs valid for 5 minutes. When a module accepts an uploaded photo, the API removes its location (GPS) and other EXIF/XMP metadata (M0 §3.1) |
 | Payment card data | Never touches our servers (Razorpay hosted checkout) |
 | Logs | structlog with a PII scrubber (phone, address, names masked); assistant messages scrubbed in the API (phones, e-mails, Aadhaar, PIN codes, addresses, the household's own names) before they are stored or sent to the ML service |
-| Backups | Neon point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow |
+| Backups | Staging is a Neon child branch with no point-in-time restore: `before-demo-*` restore points, and a weekly `pg_dump` to the private R2 bucket `gb-staging-backups` (handbook 12 §12.4). The dump holds personal data, so the bucket stays private and its token covers that bucket only |
 | Retention | GPS pings 90 days; webhook payloads 180 days; audit log 3 years; deleted accounts purged within 30 days |
 
 ## 13.6 Privacy — DPDP Act 2023 and DPDP Rules 2025
