@@ -258,7 +258,7 @@ A `damaged` issue without a photo is still accepted (201) and is never rejected 
 | no list | `GET /v1/orders/{id}/issues` |
 
 ### 3.3 Live order timeline contract (drafted 2026-10-09, frozen on approval)
-This is the SSE stream named in §3 and handbook 10. The mobile order detail (the live tracking card) and the console's orders board build against it. It is not built yet, and no mock calls it: the mobile `mocks/orders.js` puts a timeline inline as `events[{ to_status, at }]`. Same sign-in and review rules as §3.1.
+This is the SSE stream named in §3 and handbook 10. The mobile order detail (the live tracking card) and the console's orders board build against it. It is built (`orders/live.py`, `GET /v1/orders/{id}/events`, JSON and SSE); `eta` stays `null`. No client calls it yet: the mobile `mocks/orders.js` returns the timeline inside `OrderOut` (`timeline`). Same sign-in and review rules as §3.1.
 
 ```
 TimelineEntry : { "id": "<uuidv7>",                 the order_events row; also the SSE event id
