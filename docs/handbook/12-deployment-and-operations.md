@@ -276,14 +276,15 @@ Delete old `before-demo-*` branches in the console; the free plan allows 10 bran
 
 ## 12.7 Runbooks
 
-Written so far: [`ml-service-down.md`](../runbooks/ml-service-down.md) (2 Nov 2026). The others are planned for `docs/runbooks/` and are written before the pilot starts (S10, P6):
+Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes with which alert, how to read an `ops` alert, and how to run a job by hand. Written: `ml-service-down.md` (2 Nov 2026), `cutoff-failed.md`, `route-solve-failed.md`, `razorpay-down.md` and `jobs-scheduler-down.md` (11 Nov 2026). The other three are written before the pilot starts (S10, P6):
 
 | Runbook | Covers |
 |---|---|
-| `cutoff-failed.md` | Re-run the cut-off job safely through its internal job endpoint (advisory lock, idempotent), verify ledger totals, notify the hub |
-| `razorpay-down.md` | Switch default to wallet, queue top-ups, reconcile later |
+| [`cutoff-failed.md`](../runbooks/cutoff-failed.md) (written) | Re-run `cutoff_lock` through the staging jobs workflow with that evening's 21:00 as `scheduled_for` (advisory lock, debits keyed per order), check the Cut-off page, repair procurement, kitchen offers and routes that ran before it, tell the hub |
+| [`razorpay-down.md`](../runbooks/razorpay-down.md) (written) | Boxes go on from the wallet; top-ups answer 503 until Razorpay is back; run `reconcile_payments` and `send_refunds` after it; what each reconciliation item needs; stuck refunds |
 | [`ml-service-down.md`](../runbooks/ml-service-down.md) (written) | Confirm the rule-based fallback is active (`ml_fallback` log lines; `circuit_open` means the API's breaker is skipping the service for 60 s, handbook 08 §8.2); restart the service; point `latest.json` back at the previous version if a promotion caused it. `smoke-ml.yml` runs daily at 06:40 IST and names the endpoint that broke |
-| `route-solve-failed.md` | Fall back to the previous day's route template or nearest-neighbour; manual adjustment in the console |
+| [`route-solve-failed.md`](../runbooks/route-solve-failed.md) (written) | A `failed` plan is a data problem (no vehicle, no society location); a `solved` one has problems to review; fix, solve again from the console, publish (accepting problems is audited) |
+| [`jobs-scheduler-down.md`](../runbooks/jobs-scheduler-down.md) (written) | The Oracle VM's `gharbasket-jobs` service: status, restart, secrets, a stopped or lost VM; run the missed evening jobs by hand (missed minutes are not replayed) |
 | `restore-from-backup.md` | Neon point-in-time restore steps; verification queries |
 | `rotate-secrets.md` | Rotating API keys and JWT signing keys in Infisical, then redeploying |
 | `deploy-rollback.md` | Roll back to the previous Render deploy; downgrades are refused on Neon, so schema mistakes are fixed forward with a new migration |
