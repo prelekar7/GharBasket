@@ -24,10 +24,11 @@ export async function withPlugin(load, use, fallback) {
 export const SPLASH_MAX_MS = 10_000;
 
 /**
- * Native start-up: hides the splash screen, which waits for us (`launchAutoHide: false`), once the
- * router has rendered its first screen, so the person never sees a blank WebView while the first
- * route waits for the API (`/` asks GET /v1/me before choosing a screen). It hides after
- * SPLASH_MAX_MS at the latest. Does nothing on the web.
+ * Native start-up: hides the splash screen once the router has rendered its first screen, so the
+ * person never sees a blank WebView while the first route waits for the API (`/` asks GET /v1/me
+ * before choosing a screen). It hides after SPLASH_MAX_MS at the latest. If this code never runs
+ * (the bundle fails to load), the native backstop hides it at the same time: `launchAutoHide: true`
+ * with `launchShowDuration: 10000` in capacitor.config.json. Does nothing on the web.
  * @param {{ subscribe: (event: "onRendered", fn: () => void) => () => void }} router
  */
 export function startNative(router) {

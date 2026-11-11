@@ -158,6 +158,7 @@ In the prototype, KYC checks are **simulated** (no real document verification AP
 | Input validation | Pydantic v2 on every request; zod on the client |
 | SQL injection | SQLAlchemy parameterised queries only |
 | Web | CSP and security headers on the console; Capacitor navigation locked to our origins |
+| Android WebView bridge | `android.useLegacyBridge: true` (needed by background geolocation) lets any frame call plugins, not only our page: the third-party frames are Razorpay Checkout and Firebase reCAPTCHA. Plugin results go only to the main frame. Accepted in ADR-0034; revisit when the plugin no longer needs it or a new third-party frame is added |
 | Secrets | In Infisical, synced to GitHub Actions secrets; never in the client bundle or the repo; gitleaks in CI and pre-commit |
 | Dependencies | Renovate updates, `pip-audit`, `pnpm audit`, Trivy image scan (planned) |
 | LLM | The assistant never calls our API and holds no token: the API sends it scrubbed text and a trimmed week (no household or user id, name or address), it returns intents, and the API resolves them for the caller's own household; every write is a proposal the user confirms; per-user daily token cap; no prices computed by the LLM (M13 §3) |

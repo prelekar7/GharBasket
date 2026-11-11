@@ -1,6 +1,6 @@
 # ADR-0034 — Free Capacitor plugins for the Android app
 
-- **Status:** Proposed (2026-11-01, by the mobile owner, Yash)
+- **Status:** Accepted (proposed 2026-11-01 by the mobile owner, Yash; accepted with #441, 2026-11-11)
 - **Date:** 2026-11-01
 - **Decision ID:** D34
 - **Amends:** the plugin list in TDD §3.2 and handbook 09 §9.13 ("Capawesome barcode-scanner and
@@ -47,6 +47,17 @@ building the app.
 - (−) The community background-geolocation plugin is maintained by volunteers; if it breaks on a future
   Android version, a small local plugin around Android's location APIs replaces it.
 - (−) Google Play asks for a foreground-service declaration when the app goes to Play (not in this phase).
+  No plugin adds `ACCESS_BACKGROUND_LOCATION` (checked in each plugin's manifest on 11 Nov): the foreground
+  service with its notification is what keeps location running, so Play's background-location review does
+  not apply.
+- (−) **`useLegacyBridge: true` loosens the WebView bridge.** It turns off Capacitor's origin allow-list
+  and main-frame-only check for plugin calls, so any frame in the WebView can reach the bridge, including
+  Razorpay Checkout's iframe (`checkout.razorpay.com`) and Firebase's reCAPTCHA iframe. Those frames could
+  call plugins with side effects (Browser, AppLauncher, Share, starting geolocation); results go back only
+  to the main frame, so reading a token this way is unlikely. We accept it because the background
+  geolocation plugin still requires it (its README, 1.3.x: without it updates stop after five minutes in
+  the background), and the only third-party frames are those two. Revisit when the plugin no longer needs
+  it, or if another third-party frame is added. Handbook 13 §13.10 records it.
 - `frontend/mobile/package.json`, `capacitor.config.json` and `android/app/src/main/AndroidManifest.xml`
   implement this; the TDD §3.2 row and handbook 09 §9.13 are updated with it.
 

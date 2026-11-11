@@ -22,7 +22,7 @@ API at `VITE_API_BASE_URL`). Plugins are listed in ADR-0034; app code reaches th
 Once per machine: JDK 21 as `JAVA_HOME` and as Android Studio's Gradle JDK, SDK Platform 36, an emulator from a
 Google Play image (`docs/SETUP.md` §1). Put `mobile/android/app/google-services.json` in place (from the Firebase
 console or Infisical; never committed). `mobile/.env.local` needs `VITE_API_BASE_URL` (staging:
-`https://gharbasket-api.onrender.com`) and the `VITE_FIREBASE_*` values from `pnpm env:pull`.
+`https://api.gharbasket.co.in`, ADR-0035) and the `VITE_FIREBASE_*` values from `pnpm env:pull`.
 
 | Command (in `mobile/`) | What |
 |---|---|
