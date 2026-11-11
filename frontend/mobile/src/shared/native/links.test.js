@@ -34,7 +34,7 @@ describe("wantsApp", () => {
   });
 
   it.each([
-    "https://gharbasket.in/s/green-park",
+    "https://gharbasket.co.in/s/green-park",
     "https://example.com/google.com/maps",
     "nonsense",
   ])("leaves %s to the browser", async (url) => {
@@ -63,8 +63,8 @@ describe("openExternal", () => {
 
   it("opens other web pages in the in-app browser", async () => {
     const { openExternal } = await load(true);
-    expect(await openExternal("https://gharbasket.in/help")).toBe(true);
-    expect(open).toHaveBeenCalledWith({ url: "https://gharbasket.in/help" });
+    expect(await openExternal("https://gharbasket.co.in/help")).toBe(true);
+    expect(open).toHaveBeenCalledWith({ url: "https://gharbasket.co.in/help" });
     expect(openUrl).not.toHaveBeenCalled();
   });
 
@@ -80,6 +80,6 @@ describe("openExternal", () => {
     openUrl.mockResolvedValueOnce({ completed: false });
     expect(await openExternal("upi://pay?pa=a@b")).toBe(false);
     open.mockRejectedValueOnce(new Error("x"));
-    expect(await openExternal("https://gharbasket.in")).toBe(false);
+    expect(await openExternal("https://gharbasket.co.in")).toBe(false);
   });
 });

@@ -10,7 +10,7 @@ async function load(native) {
   return import("./share.js");
 }
 
-const content = { title: "GharBasket", text: "Join us", url: "https://gharbasket.in/s/x" };
+const content = { title: "GharBasket", text: "Join us", url: "https://gharbasket.co.in/s/x" };
 
 afterEach(() => {
   share.mockClear();
@@ -47,7 +47,7 @@ describe("shareContent", () => {
     const writeText = vi.fn(async () => {});
     Object.assign(navigator, { clipboard: { writeText } });
     expect(await shareContent(content)).toBe("copied");
-    expect(writeText).toHaveBeenCalledWith("Join us https://gharbasket.in/s/x");
+    expect(writeText).toHaveBeenCalledWith("Join us https://gharbasket.co.in/s/x");
   });
 
   it("treats a closed Web Share sheet as dismissed", async () => {
