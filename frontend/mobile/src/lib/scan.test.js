@@ -66,7 +66,7 @@ describe("parseScan", () => {
       "",
       "   ",
       "hello",
-      "https://gharbasket.in/b/214",
+      "https://gharbasket.co.in/b/214",
       `GB2:${hex}`,
       `gb1:${hex}`,
       `GB1B:${hex}`,
