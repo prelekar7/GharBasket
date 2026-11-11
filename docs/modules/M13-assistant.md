@@ -50,10 +50,12 @@ This keeps ADR-0025 as written ("no household ids or other personal data travel 
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `assistant.sessions` | id, user_id, locale, model, created_at |
-| `assistant.messages` | id, session_id, role, content (PII-scrubbed), tokens_in, tokens_out, created_at |
-| `assistant.proposals` | id, session_id, action, payload jsonb, status (pending, confirmed, rejected, expired), expires_at |
-| `assistant.usage_daily` | user_id, date, tokens_in, tokens_out |
+| `assistant.sessions` | id, user_id, household_id, locale, model, created_at, last_message_at |
+| `assistant.messages` | id, session_id → sessions (cascade), role, content (PII-scrubbed), tool_calls jsonb, tokens_in, tokens_out, created_at |
+| `assistant.proposals` | id, session_id → sessions (cascade), user_id, household_id, action, payload jsonb, summary, status (pending, confirmed, rejected, expired), expires_at, decided_at, result jsonb, created_at |
+| `assistant.usage_daily` | user_id, day (IST), tokens_in, tokens_out, turns |
+
+**Personal data** (drafted 2026-11-11, frozen on approval; M1 §3.3, §3.5). Every table is the user's personal data, scrubbed text included. The ML service stores nothing. `assistant.api.export_for_user` gives M1's export the `assistant` section: sessions with their messages and proposals, and `usage_daily`, without user or household ids. `assistant.api.delete_for_user` is first in M1's purge: it deletes the user's sessions (messages and proposals by cascade), any session or proposal of the household, and her `usage_daily` rows; nothing is kept. Its count is `{ "sessions", "messages", "proposals", "usage_daily" }`.
 
 ## 5. Events
 **Published:** `assistant.proposal_confirmed` (audit). **Consumed:** none.
