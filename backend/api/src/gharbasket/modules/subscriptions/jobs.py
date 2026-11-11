@@ -17,6 +17,7 @@ from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
@@ -28,6 +29,7 @@ from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
 
+log = structlog.get_logger("gharbasket.subscriptions")
 IST = ZoneInfo("Asia/Kolkata")
 DAYS_AHEAD = 3
 
@@ -39,22 +41,37 @@ DAYS_AHEAD = 3
 async def generate_weekly_plans(ctx: JobContext) -> dict[str, Any]:
     delivery_date = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=DAYS_AHEAD)
     totals: dict[str, int] = {"hubs": 0, "created": 0, "existing": 0, "skipped": 0}
+    failed_households: list[str] = []
+    failed_hubs: list[str] = []
     ml_budget = intel_api.JobBudget(ctx.settings.ml_job_budget_s)  # one for the whole run
     async with service.http_client(ctx.http) as http:
         for hub_id in await community_api.hubs_with_societies(ctx.session):
-            counts = await service.generate_for_hub(
-                ctx.session,
-                http,
-                ctx.settings,
-                hub_id=hub_id,
-                delivery_date=delivery_date,
-                ml_budget=ml_budget,
-            )
+            try:
+                counts, failed = await service.generate_for_hub(
+                    ctx.session,
+                    http,
+                    ctx.settings,
+                    hub_id=hub_id,
+                    delivery_date=delivery_date,
+                    ml_budget=ml_budget,
+                    commit_each=True,  # a draft is kept the moment it is made (spec §3.1)
+                )
+            except Exception as exc:  # the hub itself (its catalogue, its households' list)
+                await ctx.session.rollback()  # only the draft in hand: the others are committed
+                log.error("hub_generation_failed", hub_id=str(hub_id), error=type(exc).__name__)
+                failed_hubs.append(str(hub_id))
+                continue
             totals["hubs"] += 1
+            failed_households += failed
             for key, value in counts.items():
                 totals[key] += value
-    totals["delivery_date"] = delivery_date.isoformat()  # type: ignore[assignment]
-    return totals
+    summary: dict[str, Any] = dict(totals)
+    if failed_hubs:
+        summary["failed_hubs"] = failed_hubs
+    if failed_households:
+        summary["failed_households"] = failed_households
+    summary["delivery_date"] = delivery_date.isoformat()
+    return summary
 
 
 @job(
