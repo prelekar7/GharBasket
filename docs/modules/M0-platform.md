@@ -113,6 +113,7 @@ Scheduled jobs are internal endpoints `POST /v1/internal/jobs/<name>`, protected
 - **Probes.** A module registers `@platform.ops.probe("<module>.<name>")` on an `async (session, now) -> list[str]` in its `jobs.py`; each string is one problem in a line ("billing.webhook_backlog: 3 webhooks unprocessed for > 15 min"). A probe reads only its own schema. A probe that raises counts as a problem (`<name>: probe failed <ExceptionType>`); the others still run.
 - **Platform probes:**
   - `platform.failed_jobs`: a `failed` run in the last 24 h with no later `ok` run of the same job (it names the job and the first 120 characters of `error`);
+  - `platform.jobs_with_failed_hubs`: an `ok` run in the last 24 h whose summary has a non-empty `failed_hubs` (the per-hub jobs `assign_kitchens`, `assignment_acceptance_timeout`, `refund_unassigned_tiffins` and `surplus_cascade` run each hub in its own savepoint and keep the others' work, so the run stays `ok`), with no later `ok` run of the same job that is clean (no `failed_hubs`); it names the job, the hub ids of the job's latest such run and its start time. A later `failed` or `skipped` run does not clear it;
   - `platform.outbox_stuck`: an unsent event older than 30 min with 3 or more attempts;
   - `platform.database_size`: `pg_database_size(current_database())` above 80 % of `OPS_DB_LIMIT_MB` (default 512, Neon's free tier).
 - **Module probes** (M5, M7): see those specs' job tables.

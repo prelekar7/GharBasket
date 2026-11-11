@@ -2,6 +2,7 @@
 and the platform's probes."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import httpx2
 import pytest
@@ -20,10 +21,22 @@ pytestmark = [pytest.mark.anyio, pytest.mark.services]
 NOW = datetime(2026, 11, 10, 18, 0, tzinfo=UTC)
 
 
-def run_row(name: str, status: str, hours_ago: float, error: str | None = None) -> JobRun:
+def run_row(
+    name: str,
+    status: str,
+    hours_ago: float,
+    error: str | None = None,
+    summary: dict[str, Any] | None = None,
+) -> JobRun:
     at = NOW - timedelta(hours=hours_ago)
     return JobRun(
-        name=name, status=status, scheduled_for=at, started_at=at, finished_at=at, error=error
+        name=name,
+        status=status,
+        scheduled_for=at,
+        started_at=at,
+        finished_at=at,
+        error=error,
+        summary=summary,
     )
 
 
@@ -139,9 +152,12 @@ def test_probe_names_are_module_dot_name_and_unique() -> None:
 
 
 def test_the_platform_probes_are_registered() -> None:
-    assert {"platform.failed_jobs", "platform.outbox_stuck", "platform.database_size"} <= set(
-        ops.PROBES
-    )
+    assert {
+        "platform.failed_jobs",
+        "platform.jobs_with_failed_hubs",
+        "platform.outbox_stuck",
+        "platform.database_size",
+    } <= set(ops.PROBES)
 
 
 # --- the platform's probes -----------------------------------------------------------------------
@@ -164,6 +180,33 @@ async def test_a_failure_is_reported_until_a_later_run_is_ok(db_session: AsyncSe
     found = await jobs.failed_jobs(db_session, NOW)
 
     assert found == ["test_broken failed: TimeoutError: " + "x" * 106]
+
+
+async def test_an_ok_run_with_failed_hubs_is_reported_until_a_later_run_is_clean(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add_all(
+        [
+            run_row("test_healed", "ok", 5, summary={"runs": 1, "failed_hubs": ["hub-a"]}),
+            run_row("test_healed", "ok", 4, summary={"runs": 2}),
+            run_row("test_skipped_after", "ok", 5, summary={"failed_hubs": ["hub-z"]}),
+            run_row("test_skipped_after", "skipped", 4, error="already running"),
+            run_row("test_clean", "ok", 3, summary={"runs": 3}),
+            run_row("test_nosummary", "ok", 3),
+            run_row("test_old", "ok", 30, summary={"failed_hubs": ["hub-old"]}),
+            run_row("test_broken", "ok", 6, summary={"failed_hubs": ["hub-a"]}),
+            run_row("test_broken", "ok", 2, summary={"failed_hubs": ["hub-b", "hub-c"]}),
+            run_row("test_failed_run", "failed", 1, "RuntimeError: x", {"failed_hubs": ["hub-f"]}),
+        ]
+    )
+    await db_session.flush()
+
+    found = await jobs.jobs_with_failed_hubs(db_session, NOW)
+
+    assert found == [
+        "test_broken ended ok but hubs failed: hub-b, hub-c (run of 2026-11-10 16:00 UTC)",
+        "test_skipped_after ended ok but hubs failed: hub-z (run of 2026-11-10 13:00 UTC)",
+    ]
 
 
 async def test_stuck_outbox_events_are_counted_by_type(db_session: AsyncSession) -> None:
