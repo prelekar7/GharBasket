@@ -4,7 +4,7 @@
 > - Staging is **live** at `https://gharbasket-api.onrender.com` and runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
 > - **PostgreSQL 18 is on Neon** (Singapore): one shared database for the Infisical `dev` and `staging` environments, with guardrails. There is no database branch per PR. Daily work uses local Docker Postgres.
 > - **Deploys:** every green CI run on `main` triggers `deploy-staging.yml`, which runs `alembic upgrade head` on Neon, calls the Render deploy hook and runs a smoke test. CI on `main` cancels a superseded run, so only the newest commit deploys. The repository is public, so Actions minutes are free. Scheduled jobs are internal endpoints called by a GitHub Actions schedule for daily and weekly jobs (D21) and by a scheduler on the staging **Oracle VM** for minute-level ones (D32). Training and data jobs run in GitHub Actions (`training-jobs.yml`, `backend/training`). Secrets live in **Infisical**.
-> - **Backups:** Neon's built-in point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow.
+> - **Backups:** staging is a Neon child branch with no point-in-time restore. Its restore points are the `before-demo-*` branches of `just staging-demo`, and a weekly `pg_dump` to a private R2 bucket (`backup-staging.yml`, §12.4).
 > - **Observability:** structlog JSON logs, UptimeRobot (which also keeps the free API awake), PostHog. Explicit SLOs; runbooks are planned and written before the pilot (S10).
 > - **ML runtime (D25, serving host amended by D30):** the ML service is a second free **Render web service** (`gharbasket-ml`) without OSRM (routing uses haversine; Hugging Face Docker Spaces now need a paid plan, [ADR-0030](../adr/0030-ml-service-on-render-free.md)); models and the data lake live on R2 with a `latest.json` pointer per model; MLflow stays local. No keep-alive pings: both free web services share the workspace's 750 instance hours a month.
 > - **Still open:** paid plans plus the pilot database location (Neon Singapore or a paid Mumbai Postgres), decided before P6.
@@ -238,12 +238,31 @@ Delete old `before-demo-*` branches in the console; the free plan allows 10 bran
 
 | What | How | Retention | Restore test |
 |---|---|---|---|
-| Postgres | Neon point-in-time restore (free tier); a scheduled `pg_dump` to R2 can be added via the jobs workflow | Neon's free-tier restore window | One restore drill before the pilot (Rhythm Thakur / Manish Raje run the checklist) |
+| Postgres | Staging is a Neon child branch, so it has **no point-in-time restore**. Two ways back: the `before-demo-*` restore points (`just staging-demo`, rolled back with `just staging-rollback`, §12.3), and a weekly `pg_dump` to R2 (`backup-staging.yml`, below) | The 8 newest weekly dumps (about two months); restore points until a rollback or the next demo load replaces them | One restore drill before the pilot (Rhythm Thakur / Manish Raje run the checklist in `docs/runbooks/restore-from-backup.md` (written with the second part of the runbooks)) |
 | Valkey | Not backed up | — | Nothing to restore: it only holds rate-limit counters and the sign-out deny-list |
 | R2 files | Staging holds test files only | — | Strategy decided with the pilot plans before P6 |
 | Models, lake | R2 (`gb-mlflow`, `gb-lake`); MLflow runs stay local | Every promoted model version is kept | Point `latest.json` back at the previous version |
 | OSRM | Baked into the full ML image (`backend/ml/Dockerfile`, local runs and a paid host); not on staging (ADR-0030) | — | Rebuilt from `infra/osrm/prepare.sh` |
 | Config | Dockerfile, Compose files and workflows in git; secrets in Infisical | git history | Redeploy-from-scratch drill once before the pilot |
+
+### Weekly staging dump (`backup-staging.yml`)
+
+Neon on the free plan keeps no history of a child branch, so the workflow `.github/workflows/backup-staging.yml` takes one:
+- **When:** Sunday 03:43 IST (cron `13 22 * * 6`, UTC) and by hand (`workflow_dispatch`). That is a minute the daily `purge_gps_pings` job already wakes Neon, so it adds a few minutes to an existing wake and keeps the compute-hours budget of `infra/jobs/schedule.yaml`.
+- **What:** `pg_dump --format=custom --no-owner --no-acl` of the whole database through `DATABASE_URL_DIRECT` (the direct URL, as for migrations). The client is the official `postgres:18` image, so its major version matches Neon's Postgres 18; move the tag when Neon moves. The workflow checks that `pg_restore --list` reads the dump and finds `identity.users` before it uploads anything.
+- **Where:** the R2 bucket `gb-staging-backups`, key `staging/YYYY-MM-DD.dump` (the IST date), uploaded with the S3 API. It keeps the newest 8 and deletes older keys of that form. Nothing else in the bucket is touched.
+- **Secrets** (GitHub Actions, and Infisical `staging` for the restore): `BACKUP_S3_ENDPOINT_URL`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`, plus the existing `DATABASE_URL_DIRECT`. They are separate from the training jobs' `S3_*` secrets so that the token covers this bucket alone. Until they exist, the workflow skips with a notice. When it fails, it pings the healthchecks `ops` alert (`HC_OPS_URL`, ADR-0033).
+- **Privacy.** The dump holds the personal data of every staging user (handbook 13 §13.1). So the bucket must be **private**: no public access, no custom domain, no `r2.dev` URL. The token is Object Read & Write on that bucket only, and the access is limited to Prathamesh Relekar, with Rhythm Thakur and Manish Raje for the restore drill. Encryption at rest is R2's (handbook 13 §13.5). A downloaded dump is deleted after use.
+- **Limits.** One dump a week means up to a week of data can be lost. Staging holds synthetic and test data, so that is accepted; the pilot database's backups are decided with Q3.
+
+**One-time setup (owner: Prathamesh Relekar):**
+1. Cloudflare → R2 → create the bucket `gb-staging-backups`. Leave public access off.
+2. R2 → Manage API tokens → a token with Object Read & Write on `gb-staging-backups` only. Keep the three values (endpoint, access key, secret) in Infisical `staging` as `BACKUP_S3_ENDPOINT_URL`, `BACKUP_S3_ACCESS_KEY` and `BACKUP_S3_SECRET_KEY`.
+3. Copy them to the GitHub Actions secrets of the same names without printing them: `infisical run --env=staging -- sh -c 'printf %s "$BACKUP_S3_ACCESS_KEY" | gh secret set BACKUP_S3_ACCESS_KEY'`, and the same for the other two.
+4. Run the workflow once by hand (Actions → Backup staging → Run workflow). Check the key in the bucket and the byte count in the log.
+5. Do the restore drill below once, so the first real need is not the first try.
+
+**Restoring a dump** (details and checks in `docs/runbooks/restore-from-backup.md` (written with the second part of the runbooks)): download the file, make a new empty database in a **new Neon branch** (never the live staging branch), and run `pg_restore --no-owner --no-acl --dbname "$RESTORE_URL" <file>` with a `pg_restore` of version 18 or newer (the `postgres:18` image has one). Check it, and only then decide whether it replaces anything. A restore goes into the live staging branch only through the rollback procedure of §12.3, which keeps the replaced state as a branch.
 
 ## 12.5 Observability
 
