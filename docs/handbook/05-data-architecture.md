@@ -888,6 +888,8 @@ classDiagram
 | Kindness credit, 300 points | kindness_expense 300 PTS | kindness:U 300 PTS |
 | Donate 500 points as a meal (points never come off a box, M5 §3.6) | kindness:U 500 PTS | kindness_expense 500 PTS |
 
+`sales_revenue` is **net** of refunds after delivery: those come straight out of it (never more than was recognised for the order, M5 §3.9). Gross sales are the `revenue` entries' postings; returns are the `refund` entries' postings on `sales_revenue`, each per order by its `ref`.
+
 ### 5.7.3 Invariants (property-tested with Hypothesis)
 
 1. The postings of every journal entry sum to zero **per currency**.
