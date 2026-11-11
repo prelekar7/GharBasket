@@ -155,7 +155,7 @@ class Settings(DatabaseSettings):
     real_data_source: Literal["pilot", "live"] = "pilot"
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
-    # Comma-separated, e.g. "https://gharbasket.co.in,https://app.gharbasket.co.in" (ADR-0034).
+    # Comma-separated, e.g. "https://gharbasket.co.in,https://app.gharbasket.co.in" (ADR-0035).
     web_origins: CommaSeparated = []
     # Razorpay (M5 top-ups), test mode only: live keys are refused, no real money moves in the
     # prototype. Unset locally: top-ups use dev orders, paid with POST /v1/dev/razorpay/pay.

@@ -1,7 +1,7 @@
 # Chapter 12 — Deployment and Operations
 
 > **In short:**
-> - Staging is **live** at `https://api.gharbasket.co.in` (D34; `https://gharbasket-api.onrender.com` still works) and runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
+> - Staging is **live** at `https://api.gharbasket.co.in` (D35; `https://gharbasket-api.onrender.com` still works) and runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
 > - **PostgreSQL 18 is on Neon** (Singapore): one shared database for the Infisical `dev` and `staging` environments, with guardrails. There is no database branch per PR. Daily work uses local Docker Postgres.
 > - **Deploys:** every green CI run on `main` triggers `deploy-staging.yml`, which runs `alembic upgrade head` on Neon, calls the Render deploy hook and runs a smoke test. CI on `main` cancels a superseded run, so only the newest commit deploys. The repository is public, so Actions minutes are free. Scheduled jobs are internal endpoints called by a GitHub Actions schedule for daily and weekly jobs (D21) and by a scheduler on the staging **Oracle VM** for minute-level ones (D32). Training and data jobs run in GitHub Actions (`training-jobs.yml`, `backend/training`). Secrets live in **Infisical**.
 > - **Backups:** staging is a Neon child branch with no point-in-time restore. Its restore points are the `before-demo-*` branches of `just staging-demo`, and a weekly `pg_dump` to a private R2 bucket (`backup-staging.yml`, §12.4).
@@ -107,7 +107,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 | Minute-level schedules | Oracle Cloud Always Free VM, Mumbai | `scripts/jobs_scheduler.py` (service `gharbasket-jobs`): the 21:00 cut-off, the outbox sweep every few minutes, proposal expiry: `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` (D32). The same VM runs the mandi collector |
 | Alerts | healthchecks.io (free) and UptimeRobot (free) | Three healthchecks (`scheduler`, `cutoff`, `ops`) tell a team Telegram group and email when a job fails or the cut-off is missed; UptimeRobot watches `/v1/health` every 5 minutes (D33, §12.5) |
 | ML serving | Render free web service, a second one next to the API | The ML service, without OSRM (D30) |
-| DNS and TLS | Cloudflare DNS for `gharbasket.co.in` (D34) | Records are DNS only (not proxied); TLS by Render and Vercel. §12.2 "Pointing the domain" |
+| DNS and TLS | Cloudflare DNS for `gharbasket.co.in` (D35) | Records are DNS only (not proxied); TLS by Render and Vercel. §12.2 "Pointing the domain" |
 | Cost | Free tiers only until the pilot | Nothing here can bill us during development. The repository is public, so GitHub Actions minutes are free |
 
 ### How a change reaches staging
@@ -153,7 +153,7 @@ The root `prepare` script installs the git hooks (`lefthook install`), which exi
 1. Point the domains at them ("Pointing the domain" below), then send both addresses (`https://gharbasket.co.in`, `https://app.gharbasket.co.in`) to Prathamesh to add to `WEB_ORIGINS` on Render. The API's origin check applies to browser requests, so the PWA needs it; the console's server calls carry no `Origin`, so it probably does not. A preview deployment has its own address that is not in `WEB_ORIGINS`, so signing in on a preview is expected to be refused until that address is added.
 2. Smoke test the PWA: `curl https://<pwa-address>/v1/health` answers `{"status":"ok",...}` through the rewrite; deep links such as `/week` load; sign in with a Firebase test number and reload the page (the session survives).
 
-### Pointing the domain (D34)
+### Pointing the domain (D35)
 
 `gharbasket.co.in` is registered with its DNS on Cloudflare. Every record is **DNS only** (grey cloud): Render and Vercel issue their own certificates, and Cloudflare's proxy would sit in front of them. Cloudflare's SSL/TLS mode is Full (strict), so a record proxied by mistake still checks the certificate. The platform addresses (`*.onrender.com`, `*.vercel.app`) keep working, so a record can be removed at any time without an outage.
 
@@ -349,7 +349,7 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 - **D25** — ML runtime: training in GitHub Actions, models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020). Its minute-level trigger moved to the Oracle VM by D32.
 - **D30** — the ML service on a second free Render web service, without OSRM, replacing the Hugging Face Space of D25 ([ADR-0030](../adr/0030-ml-service-on-render-free.md)).
 - **D32** — staging's minute-level jobs are called by a scheduler on the Oracle VM, not cron-job.org, whose calls Render's edge turned away ([ADR-0032](../adr/0032-scheduled-jobs-from-the-oracle-vm.md)).
-- **D34** — the custom domain `gharbasket.co.in` on Cloudflare DNS: `api.` for the API, the bare name for the console, `app.` for the PWA ([ADR-0034](../adr/0034-custom-domain-gharbasket-co-in.md)).
+- **D35** — the custom domain `gharbasket.co.in` on Cloudflare DNS: `api.` for the API, the bare name for the console, `app.` for the PWA ([ADR-0035](../adr/0035-custom-domain-gharbasket-co-in.md)).
 - **Open:** paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before Phase 6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 11 — Engineering process](11-engineering-process.md) · [Chapter 13 — Security and compliance](13-security-and-compliance.md)

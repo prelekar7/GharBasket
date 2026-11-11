@@ -1,8 +1,8 @@
-# ADR-0034 — The custom domain gharbasket.co.in, with DNS on Cloudflare
+# ADR-0035 — The custom domain gharbasket.co.in, with DNS on Cloudflare
 
 - **Status:** Accepted (2026-11-11)
 - **Date:** 2026-11-11
-- **Decision ID:** D34
+- **Decision ID:** D35
 - **Relates to:** [ADR-0020](0020-free-tier-hosting-render-vercel-neon-r2.md) (hosting; it had no custom domain), [ADR-0024](0024-sign-in-firebase-otp-own-tokens.md) (same-origin cookies through the PWA's `/v1/*` rewrite). Handbook 12 §12.2 "Pointing the domain" holds the records and the settings to change.
 
 ## Context

@@ -92,7 +92,7 @@ services:
         sync: false
       - key: S3_BUCKET_PRIVATE # gitleaks:allow (a bucket name, not a secret)
         sync: false
-      # The PWA and console origins, comma-separated: https://gharbasket.co.in,https://app.gharbasket.co.in (ADR-0034; empty until they are deployed).
+      # The PWA and console origins, comma-separated: https://gharbasket.co.in,https://app.gharbasket.co.in (ADR-0035; empty until they are deployed).
       - key: WEB_ORIGINS
         sync: false
       # Only the Capacitor Android app calls the API cross-origin; browsers use the Vercel rewrite.
