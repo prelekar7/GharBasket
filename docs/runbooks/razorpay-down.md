@@ -28,7 +28,7 @@ runbook is checking and waiting, not fixing.
    explains the 503s and the failed runs.
 2. **Is it our keys?** A 503 on every top-up while Razorpay is fine, and failed runs with an authentication error, mean
    the keys or the webhook secret on `gharbasket-api` are wrong or rotated (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`,
-   `RAZORPAY_WEBHOOK_SECRET`; see `rotate-secrets.md`, part 2 of the runbooks). Without keys `reconcile_payments` is
+   `RAZORPAY_WEBHOOK_SECRET`; see [`rotate-secrets.md`](rotate-secrets.md)). Without keys `reconcile_payments` is
    `skipped`, which is right for dev.
 3. **What did reconciliation see?** Console → Reconciliation (admin), or `GET /v1/admin/reconciliation?status=open`.
    `last_run` has its `status`, `checked`, `healed` and `opened`.

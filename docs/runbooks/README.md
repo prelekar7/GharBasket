@@ -22,10 +22,21 @@ Alerts arrive in the team Telegram group and by email.
 | healthchecks `scheduler` (hourly, 15 min grace) | The Oracle VM or its scheduler is not running | [`jobs-scheduler-down.md`](jobs-scheduler-down.md) |
 | healthchecks `ops`, body names a job | That job failed or its call gave up | The job's runbook below, else [Any other failed job](#any-other-failed-job) |
 | healthchecks `ops`, body from `ops_check` | The watchdog found a problem; each line names its probe | The probe's runbook below |
-| UptimeRobot `/v1/health` | The API does not answer | `deploy-rollback.md` (part 2 of the runbooks) |
+| UptimeRobot `/v1/health` | The API does not answer | [`deploy-rollback.md`](deploy-rollback.md) |
 | AI health page `down`, `ml_fallback` log lines | The ML service is asleep, failing or gone | [`ml-service-down.md`](ml-service-down.md) |
 | Admin message "Payment check: N to look at" | Reconciliation opened items | [`razorpay-down.md`](razorpay-down.md) § Reconciliation items |
 | Hub manager message "Routes for <hub> need a look" | A route plan has problems and was not published | [`route-solve-failed.md`](route-solve-failed.md) |
+
+### Runbooks that no alert points to
+
+These are for a decision or a drill, not an alert:
+
+| When | Runbook |
+|---|---|
+| A deploy broke staging, or code must go back | [`deploy-rollback.md`](deploy-rollback.md) |
+| Staging's data is wrong or lost (restore points, the weekly dump in R2) | [`restore-from-backup.md`](restore-from-backup.md) |
+| A secret leaked, someone left, or a planned rotation | [`rotate-secrets.md`](rotate-secrets.md) |
+| Personal data may have been seen by someone who should not have (DPDP Act 2023) | [`dpdp-breach.md`](dpdp-breach.md) |
 
 ### Reading an `ops` alert
 

@@ -72,7 +72,7 @@ flowchart TB
     GH -->|"POST /v1/internal/jobs/{name}"| API
     CJ -->|"POST /v1/internal/jobs/{name}"| API
     GH -->|"lake and models"| R2
-    OBS -->|"/v1/health every 10 min"| API
+    OBS -->|"/v1/health every 5 min"| API
 ```
 *Figure 12.1 — Deployment diagram (UML-style: nodes as subgraphs, containers inside)*
 
@@ -80,7 +80,7 @@ flowchart TB
 
 | Piece | Where | Purpose | Notes |
 |---|---|---|---|
-| api | Render free web service (Singapore) | FastAPI modular monolith; relays outbox rows after each commit; serves `POST /v1/internal/jobs/<name>` | Sleeps after 15 minutes idle; UptimeRobot calls `/v1/health` every 10 minutes (750 free hours a month cover 24×7). `/v1/health` never touches the database, so Neon can still go idle |
+| api | Render free web service (Singapore) | FastAPI modular monolith; relays outbox rows after each commit; serves `POST /v1/internal/jobs/<name>` | Sleeps after 15 minutes idle; UptimeRobot calls `/v1/health` every 5 minutes (750 free hours a month cover 24×7). `/v1/health` never touches the database, so Neon can still go idle |
 | valkey | Render Free Key Value (same region) | Rate-limit counters, sign-out deny-list | In-memory, may lose data on restart; the API keeps working without it |
 | postgres | Neon (Singapore) | All module schemas, the outbox (the job queue, D21) | One shared database for `dev` and `staging` |
 | files | Cloudflare R2 (S3 API, region `auto`) | Media, private KYC files and proofs | SeaweedFS locally; the code uses the S3 API only |
@@ -105,6 +105,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 | Secrets | Infisical (`dev`, `staging`, `prod`) | `infisical run --env=…`; synced to GitHub Actions secrets; never in the repo |
 | Builds, migrations, schedules | GitHub Actions | CI, `alembic upgrade head` on Neon, Render deploy hook, daily and weekly job calls (`jobs-staging.yml`), training and data jobs (`training-jobs.yml`) |
 | Minute-level schedules | Oracle Cloud Always Free VM, Mumbai | `scripts/jobs_scheduler.py` (service `gharbasket-jobs`): the 21:00 cut-off, the outbox sweep every few minutes, proposal expiry: `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` (D32). The same VM runs the mandi collector |
+| Alerts | healthchecks.io (free) and UptimeRobot (free) | Three healthchecks (`scheduler`, `cutoff`, `ops`) tell a team Telegram group and email when a job fails or the cut-off is missed; UptimeRobot watches `/v1/health` every 5 minutes (D33, §12.5) |
 | ML serving | Render free web service, a second one next to the API | The ML service, without OSRM (D30) |
 | DNS and TLS | Render and Vercel default URLs | No custom domain yet; TLS by the platforms |
 | Cost | Free tiers only until the pilot | Nothing here can bill us during development. The repository is public, so GitHub Actions minutes are free |
@@ -126,7 +127,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 2. Sign up to Render with GitHub and give it access to this repository only. Then Render → New → **Blueprint** → this repo, which reads `render.yaml`. Enter the `sync: false` values from Infisical.
 3. Copy the API's deploy hook (Settings → Deploy Hook).
 4. Add the GitHub Actions secrets `DATABASE_URL_DIRECT` (Neon, direct), `RENDER_DEPLOY_HOOK_URL`, `JOBS_TOKEN` and `STAGING_API_URL` (done; the deploy workflow needs exactly these four).
-5. Add an UptimeRobot monitor on `/v1/health` every 10 minutes.
+5. Add an UptimeRobot monitor on `/v1/health` every 5 minutes (email alerts), and the three healthchecks.io checks of ADR-0033 (`scheduler`, `cutoff`, `ops`; §12.5) with a Telegram group and email as their notifications. Their ping URLs go into Infisical `staging` as `HC_PING_URL`, `HC_CUTOFF_URL` and `HC_OPS_URL`; `HC_OPS_URL` is also a GitHub Actions secret.
 6. Minute-level jobs (ADR-0032): every `runner: vm` entry of `infra/jobs/schedule.yaml`, the one schedule of every job, is called by `scripts/jobs_scheduler.py` on the Oracle VM (the minute-level ones run only in short windows around the events that need them, to let Neon sleep; set the Neon compute to a fixed 0.25 CU). It reads the crons in IST and calls `POST <STAGING_API_URL>/v1/internal/jobs/<name>` with `Authorization: Bearer <JOBS_TOKEN>` and the minute as `scheduled_for`; a call that does not reach the app (429, 502–504, connection error, timeout) is tried again three times. Once per VM: `just jobs-vm setup <ip> <key>`, then `infisical run --env=staging -- just jobs-vm env <ip> <key>` (writes `API_URL` and `JOBS_TOKEN` to a mode-600 file and starts the service; the optional `HC_PING_URL`, `HC_CUTOFF_URL` and `HC_OPS_URL` turn on the healthchecks.io alerts, ADR-0033). The service pulls `main` every 15 minutes, so a merged schedule needs nothing more; run `env` again after a new `JOBS_TOKEN`. `just jobs-vm status <ip> <key>` shows the last calls, `just jobs-vm due <ip> <key> 2026-11-05T21:00` the jobs of a minute. The `actions` entries run from `jobs-staging.yml`.
 7. Training jobs (`training-jobs.yml`, ADR-0025): add the GitHub Actions secrets `DATA_GOV_IN_API_KEY` (data.gov.in → My account → API key), `S3_ENDPOINT_URL`, `S3_ACCESS_KEY` and `S3_SECRET_KEY`: an R2 token that can read and write the staging buckets `gb-staging-lake` and `gb-staging-mlflow` (the `gb-lake` / `gb-mlflow` names are the local SeaweedFS defaults; staging's buckets are `gb-staging-*`, set in `training-jobs.yml`, `render.yaml` and `scripts/mandi-on-vm.sh` and `scripts/mandi-on-mac.sh`). Best its own token (Object Read & Write on those two buckets), kept in Infisical `staging` as `TRAINING_S3_ACCESS_KEY` / `TRAINING_S3_SECRET_KEY` and copied to the GitHub secrets without printing them; the VM and Mac collectors fall back to the API's `S3_*` keys when it is absent, and `DATABASE_URL_RO`: `infisical run --env=staging -- scripts/neon-ro-role.sh` creates the read-only role `gharbasket_ro` (SELECT on the catalog, subscriptions, orders and intel schemas and the two household tables only; every transaction read-only), checks it cannot write or read `identity.users`, and sets the secret without printing it. Running it again rotates the password. Until the secrets exist each job skips with a notice. `collect_mandi` cannot run on Actions (api.data.gov.in refuses connections from outside India): it runs on an Oracle Cloud Always Free VM in Mumbai (VM.Standard.E2.1.Micro, Ubuntu 24.04): `scripts/mandi-on-vm.sh setup <ip> <key>` installs it with a daily systemd timer at 18:45 IST (a run missed while the VM was down runs at boot; each run pulls `main` first), `infisical run --env=staging -- scripts/mandi-on-vm.sh env <ip> <key>` copies its secrets, and `run` and `status` show the log and the timer. A Mac in India with `scripts/mandi-on-mac.sh install` (launchd, daily 18:45; needs `infisical login`) is the fallback; it ran the job until the VM took over and is now uninstalled.
 
@@ -269,18 +270,25 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 | Signal | Tool | What we watch |
 |---|---|---|
 | Errors and logs | structlog JSON logs (Render log view); OpenTelemetry → Grafana Cloud free tier, set up before the pilot | Errors and slow requests. Sentry is not used |
-| Jobs | GitHub Actions run history; the VM scheduler's journal (`just jobs-vm status <ip> <key>`) | Scheduled job calls and training runs that failed or ran late |
-| Uptime | UptimeRobot | `/v1/health` every 10 minutes (also keeps the free API awake); `/v1/ready` (operator token) checks the database and Valkey. The ML service is not pinged (ADR-0030: a keep-alive would starve the API of the shared 750 free hours); the daily `Smoke ML` run (06:40 IST) checks `/health` and every endpoint |
+| Jobs | healthchecks.io (below); GitHub Actions run history; the VM scheduler's journal (`just jobs-vm status <ip> <key>`); `just job-runs` (the runs endpoint, M0 §3) | Scheduled job calls and training runs that failed or ran late |
+| Uptime | UptimeRobot | `/v1/health` every 5 minutes (also keeps the free API awake); `/v1/ready` (operator token) checks the database and Valkey. The ML service is not pinged (ADR-0030: a keep-alive would starve the API of the shared 750 free hours); the daily `Smoke ML` run (06:40 IST) checks `/health` and every endpoint |
 | Product | PostHog | Funnels (onboarding, approve week), feature flags, A/B experiments. No names or phone numbers in events |
 | AI health | Console "AI health" page | Forecast WAPE vs actual, plan acceptance, waste %, model versions |
 
-**Alerts:**
-- cut-off job failed or late;
-- payment webhook backlog;
-- route solve failed;
-- error-rate spike;
-- API down (UptimeRobot);
-- Neon storage or compute hours near the free-tier limits.
+**Alerts, as built ([ADR-0033](../adr/0033-ops-alerts-healthchecks-and-uptimerobot.md)).** They go to a team Telegram group and email through healthchecks.io (free plan), because the thing that raises the alarm must live outside the API. UptimeRobot sends email. Each alert names its runbook (`docs/runbooks/README.md`):
+
+| Alert | Raised by | Fires when | Runbook |
+|---|---|---|---|
+| healthchecks `cutoff` | The VM scheduler pings `HC_CUTOFF_URL` after `cutoff_lock` answers ok | No ok ping by 21:10 IST (cron `0 21 * * *` Asia/Kolkata, 10 minutes of grace): the cut-off was missed or late | [`cutoff-failed.md`](../runbooks/cutoff-failed.md) |
+| healthchecks `scheduler` | The VM scheduler pings `HC_PING_URL` every full hour | No ping for 1 hour and 15 minutes: the VM or its service is dead | [`jobs-scheduler-down.md`](../runbooks/jobs-scheduler-down.md) |
+| healthchecks `ops` | `/fail` on `HC_OPS_URL`, with the error as the body: a VM job that fails or gives up after four tries; a failed `jobs-staging.yml` or `training-jobs.yml` run (and `backup-staging.yml`, once merged). A clean `ops_check` pings ok | At once on `/fail`; or no ok in 12 hours plus 1 hour of grace | The one the body names |
+| `ops_check` probes (06:30, 12:30, 21:15 and 23:45 IST, inside windows that already wake Neon) | Each module registers probes; the job fails with one line per problem | A failed job with no later ok run in 24 hours; an outbox event unsent for 30 minutes after 3 tries; the database above 80 % of `OPS_DB_LIMIT_MB` (512, Neon's free tier); a payment webhook unprocessed for 15 minutes; a reconciliation item open for 24 hours; refund parts stuck after 3 tries; a failed box route plan for the next delivery day, or one still waiting for review at 06:30 | The probe's runbook, README "Reading an `ops` alert" |
+| UptimeRobot | `GET /v1/health` every 5 minutes | The API does not answer | [`deploy-rollback.md`](../runbooks/deploy-rollback.md) |
+| Admin message "Payment check: N to look at" | Reconciliation (M5), routed by M11 | A run opened items | [`razorpay-down.md`](../runbooks/razorpay-down.md) |
+| Hub manager and admin message "Routes for <hub> need a look" | Route planning (M7), routed by M11 | A plan has problems and was not published | [`route-solve-failed.md`](../runbooks/route-solve-failed.md) |
+| `smoke-ml.yml` red; AI health page `down` | GitHub Actions (daily 06:40 IST); the console | The ML service is asleep, failing or gone | [`ml-service-down.md`](../runbooks/ml-service-down.md) |
+
+**Not built yet:** error-rate spikes (they need logs or traces collected somewhere, so they wait for the OpenTelemetry and Grafana Cloud work) and Neon compute hours near the free limit (only storage is watched, by the `database_size` probe; watch the hours in the Neon console, see the budget in `infra/jobs/schedule.yaml`).
 
 ## 12.6 Service-level objectives (pilot)
 
@@ -295,7 +303,7 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 
 ## 12.7 Runbooks
 
-Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes with which alert, how to read an `ops` alert, and how to run a job by hand. Written: `ml-service-down.md` (2 Nov 2026), `cutoff-failed.md`, `route-solve-failed.md`, `razorpay-down.md` and `jobs-scheduler-down.md` (11 Nov 2026). The other three are written before the pilot starts (S10, P6):
+Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes with which alert, how to read an `ops` alert, and how to run a job by hand. All are written: `ml-service-down.md` (2 Nov 2026) and the other eight (11 Nov 2026). Rhythm Thakur and Manish Raje walk through `cutoff-failed.md` and `restore-from-backup.md` on staging as the pre-pilot drill (§12.4), and file fixes as PRs:
 
 | Runbook | Covers |
 |---|---|
@@ -304,9 +312,10 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 | [`ml-service-down.md`](../runbooks/ml-service-down.md) (written) | Confirm the rule-based fallback is active (`ml_fallback` log lines; `circuit_open` means the API's breaker is skipping the service for 60 s, handbook 08 §8.2); restart the service; point `latest.json` back at the previous version if a promotion caused it. `smoke-ml.yml` runs daily at 06:40 IST and names the endpoint that broke |
 | [`route-solve-failed.md`](../runbooks/route-solve-failed.md) (written) | A `failed` plan is a data problem (no vehicle, no society location); a `solved` one has problems to review; fix, solve again from the console, publish (accepting problems is audited) |
 | [`jobs-scheduler-down.md`](../runbooks/jobs-scheduler-down.md) (written) | The Oracle VM's `gharbasket-jobs` service: status, restart, secrets, a stopped or lost VM; run the missed evening jobs by hand (missed minutes are not replayed) |
-| `restore-from-backup.md` | Neon point-in-time restore steps; verification queries |
-| `rotate-secrets.md` | Rotating API keys and JWT signing keys in Infisical, then redeploying |
-| `deploy-rollback.md` | Roll back to the previous Render deploy; downgrades are refused on Neon, so schema mistakes are fixed forward with a new migration |
+| [`restore-from-backup.md`](../runbooks/restore-from-backup.md) (written) | The honest version: staging is a Neon child branch with no point-in-time restore. Roll back to a `before-demo-*` restore point with `just staging-rollback`, or restore the weekly dump from R2 into a new database (never into the live branch); what to redo afterwards (sessions, erasures, the day's jobs, reconciliation); verification queries |
+| [`rotate-secrets.md`](../runbooks/rotate-secrets.md) (written) | Every secret, where it lives and how to rotate it. The JWT key rotates without sign-outs (`JWT_RETIRED_KEYS`); `JOBS_TOKEN` and `ML_SERVICE_TOKEN` have several homes; `KYC_ENCRYPTION_KEY` and `KYC_HASH_PEPPER` are never rotated until re-encryption exists; `REFRESH_TOKEN_PEPPER` only on a leak (everyone signs in again) |
+| [`deploy-rollback.md`](../runbooks/deploy-rollback.md) (written) | Roll back to the previous Render deploy (code only); downgrades are refused on Neon, so schema mistakes are fixed forward with a new migration; never re-run the deploy workflow on an older ref; smoke test with `just cloud <url>` |
+| [`dpdp-breach.md`](../runbooks/dpdp-breach.md) (written) | The breach process of handbook 13 §13.6: contain, assess, notify the Data Protection Board and the affected people as the current DPDP Rules require; it states no deadline |
 
 ## 12.8 Ownership
 
