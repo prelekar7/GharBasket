@@ -1231,12 +1231,13 @@ describe("product detail (HcProduct)", () => {
 });
 
 describe("the week's captain (M3 §3.2: CycleOut.captain is a card, never a flat)", () => {
-  it("is {display_name, photo_url} once the box is generated, null in a preview", async () => {
+  it("is {display_name, photo_url}, the society's captain, in a week and in the preview", async () => {
     await signIn();
     const cycle = await getJson("/v1/cycles/current");
     expect(cycle.captain).toEqual({ display_name: expect.any(String), photo_url: null });
     expect(cycle.captain).not.toHaveProperty("name");
     expect(cycle.captain).not.toHaveProperty("flat");
-    expect((await getJson("/v1/cycles/preview")).captain).toBeNull();
+    // The preview is built like a week (subscriptions router `_captain`), captain included.
+    expect((await getJson("/v1/cycles/preview")).captain).toEqual(cycle.captain);
   });
 });

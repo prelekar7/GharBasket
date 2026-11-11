@@ -146,7 +146,9 @@ export function useDataExportStatus(enabled) {
   return useQuery({
     ...dataExportQuery,
     enabled,
-    refetchInterval: (q) => (exportStage(q.state.data) === "preparing" ? 10_000 : false),
+    // A failed check stops the polling; the sheet says so and offers to check again.
+    refetchInterval: (q) =>
+      !q.state.error && exportStage(q.state.data) === "preparing" ? 10_000 : false,
   });
 }
 

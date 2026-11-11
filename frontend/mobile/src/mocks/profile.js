@@ -143,8 +143,9 @@ export const profileHandlers = [
   http.post("*/v1/me/data-export", ({ request }) => {
     if (!caller(request)) return problem(401, "auth.invalid_token", "Sign in again");
     const last = exportRow();
+    // The real POST never carries the link, even for a ready export: the GET does.
     if (last && last.requested_on === todayIst() && last.status !== "failed")
-      return HttpResponse.json(exportOut(last), { status: 202 });
+      return HttpResponse.json({ ...exportOut(last), download: null }, { status: 202 });
     const row = {
       id: demoId(300),
       requested_on: todayIst(),
@@ -152,7 +153,7 @@ export const profileHandlers = [
       status: "queued",
     };
     localStorage.setItem(EXPORT_KEY, JSON.stringify(row));
-    return HttpResponse.json(exportOut(row), { status: 202 });
+    return HttpResponse.json({ ...exportOut(row), download: null }, { status: 202 });
   }),
   http.get("*/v1/me/data-export", ({ request }) => {
     if (!caller(request)) return problem(401, "auth.invalid_token", "Sign in again");

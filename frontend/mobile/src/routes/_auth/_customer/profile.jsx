@@ -369,6 +369,20 @@ function Profile() {
         description={t("profile.privacyLead")}
       >
         <div className="flex flex-col gap-3">
+          {exportStatus.isError && (
+            <div className="flex flex-col items-start gap-2">
+              <p role="alert" className="m-0 text-[15px] leading-[22px] text-danger">
+                {t("profile.exportCheckFailed")}
+              </p>
+              <Button
+                variant="quiet"
+                isPending={exportStatus.isFetching}
+                onPress={() => exportStatus.refetch()}
+              >
+                {t("profile.exportCheckAgain")}
+              </Button>
+            </div>
+          )}
           {stage === "ready" && exportStatus.data?.download ? (
             <Button
               variant="secondary"

@@ -69,6 +69,8 @@
     "exportDownload": "Download my file ({size})",
     "exportFailed": "We couldn’t prepare your file. Please ask again.",
     "exportLimited": "You’ve asked too many times today. Try again tomorrow.",
+    "exportCheckFailed": "We couldn’t check on your data file. Check your internet and try again.",
+    "exportCheckAgain": "Check again",
     "delete": "Delete my account",
     "deleteTitle": "Delete your account?",
     "deleteBody": "Your box stops and your wallet balance is refunded to your UPI. You have 30 days to change your mind by signing in again.",
@@ -1164,9 +1166,9 @@
       "swapDetail": "{item}, allowed by the family",
       "refundDetail": "{amount} to the wallet",
       "applied": "{item} short in {n, plural, one {# bag} other {# bags}}. Families will be told.",
+      "swapRefused": "{n, plural, one {A swap was refused} other {# swaps were refused}}: the family’s choice or the line changed. {n, plural, one {That bag is} other {Those bags are}} back on Shortages; report again.",
       "reported": "Reported today",
       "outcomes": "{swaps, plural, one {# swap} other {# swaps}} · {refunds} money back",
-      "swapRefused": "{n, plural, one {A swap was refused} other {# swaps were refused}}: the family’s choice or the line changed. {n, plural, one {That bag is} other {Those bags are}} back on Shortages; report again.",
       "noneTitle": "No shortages to report",
       "noneBody": "When an item comes in short, it shows here with what each family gets."
     }
