@@ -1,6 +1,6 @@
 # Chapter 14 — Project Plan
 
-> **In short:** GharBasket is built in eight phases (P0–P7) over about 28 weeks, from 2 October 2026 to mid-April 2027. Phase 0 is design (handbook, ADRs, module specs, Claude Design system and customer screens) — no code. Sprint 0 starts on 19 October 2026; after that, two-week sprints S0–S12 deliver four demo milestones (MS-A to MS-D), a real pilot and the final report and paper. One floating buffer sprint absorbs exams and slips. Prathamesh Relekar owns all backend, infrastructure and ML; Yash Salunkhe owns all frontend (D23); Rhythm Thakur and Manish Raje own documentation, testing/QA, pilot operations and the presentation.
+> **In short:** GharBasket is built in eight phases (P0–P7) over about 28 weeks, from 2 October 2026 to mid-April 2027. Phase 0 is design (handbook, ADRs, module specs, Claude Design system and customer screens) — no code. Sprint 0 starts on 19 October 2026; after that, two-week sprints S0–S12 deliver four demo milestones (MS-A to MS-D), a real pilot and the final report and paper. One floating buffer sprint absorbs exams and slips. Prathamesh Relekar owns all backend, infrastructure and ML; Yash Salunkhe owns all frontend (D23); Rhythm Thakur and Manish Raje own documentation, testing/QA, pilot operations and the presentation. **Status on 11 November 2026:** the backend product scope of S0–S9 was built from 2 to 28 October, ahead of the sprint dates, and staging has been live since 27 October; §14.3.1 gives what was done and when, from the commit dates. The sprint dates and the demo, pilot and defence milestones below stay as the plan.
 
 ---
 
@@ -106,6 +106,38 @@ timeline
 | S11 | 22 Mar → 4 Apr | Evaluation | Pilot week 3, retrain on pilot data, all evaluation reports, OWASP ASVS L1 pass, k6 load test, accessibility audit |
 | S12 | 5 Apr → 18 Apr | Defence | Final report, IEEE paper, demo video, viva deck |
 | Buffer | floating (default 19 Apr → 2 May) | — | Absorbs exams or a slipped milestone |
+
+The dates above are the plan. The work ran ahead of them; §14.3.1 is what git shows.
+
+### 14.3.1 Status against the sprint scope (main on 11 November 2026)
+
+Dates are the dates of the merged commits on `main` (`git log --date=short`); `#n` is the pull request. A sprint is "built" when the scope in its row exists on `main` with tests. A demo to Prof. Kranti Bade is not in git, so no demo is marked done here.
+
+| Sprint | Status | What was done, and when | Not done, or not in git |
+|---|---|---|---|
+| S0 Foundation | Built 2–4 Oct | Monorepo, CI, Compose stack, API skeleton (2 Oct, #2, #4–#6, #8); module folders with import rules, outbox, idempotency keys, audit log (3 Oct, #10, #12); UI components (3 Oct); simulator v0 (4 Oct, #89); spikes S-3 (OR-Tools and OSRM) and S-4 (CP-SAT meal plan) passed (4 Oct, #88, #86); deploy to Render after CI (4 Oct, #77) | Spikes S-1 (Razorpay) and S-2 (Firebase OTP) in Capacitor were committed "ready to run" on 2 Oct; no result is recorded in git |
+| S1 Identity and catalog | Built 3–16 Oct | M1 sign-in, sessions, households, consents (3–4 Oct, #13, #14, #59); M9 society search and unlock request (4 Oct, #58); M2 products, multilingual search, prices, recipes and festivals (4 Oct, #81, #84, #85); catalog and recipe batches to 120 recipes (8–9 Oct); the console edits catalog, recipes, prices and festivals (16 Oct, #162, #163, #263) | |
+| S2 Orders and wallet | Built 4–16 Oct | M5 double-entry ledger and wallet (4 Oct, #91); Razorpay test top-ups with signed webhooks (4 Oct, #92); M4 slots, box orders, add-ons, cancel (4 Oct); the cut-off handshake and payment grace (8–9 Oct); refunds to the payment source and hourly reconciliation (16 Oct) | |
+| S3 Subscriptions and notify | Built 4–9 Oct | M3 plans, delivery days and the weekly cycle (4 Oct); edit, approve, skip, auto-approve (8 Oct); M11 send pipeline, inbox, templates and WhatsApp (9 Oct) | |
+| S4 Hub operations | Built 9–25 Oct | M6 hubs and vendors (9 Oct, #148); packing tasks and the packer's flow (10 Oct, #154); procurement, purchase orders and receiving with QC (16 Oct); inventory and lot counts (19 Oct); waste log (25 Oct, #368); the 12:30 surplus cascade (25 Oct, #374) | |
+| S5 Routing and field roles | Built 15–26 Oct | M7 vehicles and route plans solved at T-1 23:15 (15 Oct, #282, #287); rider routes, GPS, live tracking, captain handover, proofs, triage, hold and redelivery (20 Oct, #321–#330); return-leg pickups (26 Oct, #381) | |
+| S6 Partners and tiffin | Built 19–29 Oct | M8 applications, training and KYC (19–20 Oct); kitchens, offers and the 21:30 assignment round (20 Oct); direct tiffin orders (20 Oct, #317–#319); earnings (21 Oct), weekly payouts (25 Oct, #377); income certificate (28 Oct, #396); tiffin routes and kitchen collect (29 Oct, #416, #417) | |
+| S7 Pantry twin, ranker, forecast | Built 9–15 Oct | Evaluation harness v0 and pantry twin v0 (9 Oct); ranker v0 (#119), forecast v0 and v1, drift monitor, pantry twin v1 (15 Oct) | |
+| S8 Meal planner and assistant | Built 9–15 Oct | Planner v1 (9 Oct) and v2 (15 Oct); fair kitchen assignment (14 Oct); the λ sweep (15 Oct); Ghar Saathi v1 with its utterance scorer (15 Oct, #121) | The labelled 200-utterance result and the final assistant model choice are not recorded in git |
+| S9 Community and Kindness | Built 9–28 Oct | Society captains (9 Oct); unlock, referrals, Kindness points, donations and pickups (16 Oct); NGOs and surplus hand-offs (25 Oct, #376); impact views (28 Oct, #382); green-slot pricing (28 Oct, #394, #398–#400) | |
+| S10–S12 | Not started | Pilot, evaluation, report, paper and defence stay as planned | The whole phase P6–P7 |
+
+The backend product scope was complete on **28 October** (#382–#404). The demo scripts exist as end-to-end tests: the MS-A golden week in the browser on 20 October (#344), the MS-B operations day and tiffin day through the API on 28 October (#409, #410), and the MS-C evaluation report on 28 October (#404). The two apps were built on mocks from 3 to 14 October, then moved onto the real backend between 14 October and 1 November (the console and mobile contract syncs of 14 October, #246–#315, and 30 October, #346–#352, #418–#439). Vercel configuration for the PWA and the console landed on 30 October (#436). Not in git yet: the Capacitor Android build and the Play internal-testing track, and the pilot itself.
+
+### 14.3.2 What was added beyond the sprint table
+
+| When | What |
+|---|---|
+| 27–28 Oct | Staging live on Render (API), Neon and R2; the repository made public ([ADR-0029](../adr/0029-public-repository.md)); the ML service on a free Render web service ([ADR-0030](../adr/0030-ml-service-on-render-free.md), #413, #414); the simulated day runs in CI (#407) |
+| 1–2 Nov | Served models load from the R2 registry (#457); the ML path hardened for the free host (#462); the mandi price collector moved to the Oracle VM (#477); the pantry twin switched on in staging (#470); drift alerts to admins and the ML service on AI health (#479); a guarded loader for demo data on staging (#480) |
+| 3–6 Nov | Add-on lines count as uncommitted demand ([ADR-0031](../adr/0031-uncommitted-demand-is-add-on-lines-and-tiffins.md), 3 Nov, #483); minute-level jobs called from the Oracle VM ([ADR-0032](../adr/0032-scheduled-jobs-from-the-oracle-vm.md), 5 Nov, #487); the final 5-seed evaluation (6 Nov, #488) |
+| 10 Nov | Ops alerts: [ADR-0033](../adr/0033-ops-alerts-healthchecks-and-uptimerobot.md) (#505), the job runs endpoint, ops probes and alert pings (#506), billing and logistics probes (#507), admin messages for reconciliation and routes to review (#508) |
+| 11 Nov | Runbooks (#510, #513); a weekly `pg_dump` of staging to R2 (#514); the audit fixes (#516, #517, #520, #521, #522); revenue recognised on delivery (#518, #519); specs synced with what is built (#512); the console's staff-only sign-in (#509). The custom domain `gharbasket.co.in` was bought the same day ([ADR-0035](../adr/0035-custom-domain-gharbasket-co-in.md)) |
 
 **Cut order if a milestone slips:** (UPI Autopay is already planned for the pilot phase; MS-A uses the wallet only.) Voice assistant → OTA live updates → UPI Autopay (wallet stays) → green-slot pricing → churn/uplift model. MVP flows are never cut.
 

@@ -48,6 +48,7 @@ carries `problems`, one per line, each `<probe>: <what>`:
 | Probe | Line looks like | Runbook |
 |---|---|---|
 | `platform.failed_jobs` | `cutoff_lock failed: <error>`, a job with no `ok` run since | `cutoff-failed.md` for the cut-off; the job's own runbook, else [Any other failed job](#any-other-failed-job) |
+| `platform.jobs_with_failed_hubs` | `<job> ended ok but hubs failed: <hub ids> (run of <time> UTC)` | [Any other failed job](#any-other-failed-job): the failed hub's error is in the API log; run the job again for the same `scheduled_for` once fixed |
 | `platform.outbox_stuck` | `N events unsent for > 30 min after 3 or more tries (<event> xN)` | [Any other failed job](#any-other-failed-job): a consumer keeps failing |
 | `platform.database_size` | `the database is N MB, 85% of 512 MB` | Neon storage: delete old demo branches and data, or plan the paid database (Q3) |
 | `billing.webhook_backlog` | `N webhooks unprocessed for > 15 min` | `razorpay-down.md` |
@@ -55,6 +56,7 @@ carries `problems`, one per line, each `<probe>: <what>`:
 | `billing.refunds_stuck` | `N refund parts stuck after 3 tries (₹…)` | `razorpay-down.md` § Stuck refunds |
 | `logistics.plans_failed` | `box plan for <date> at hub <id> failed: <error>` | `route-solve-failed.md` |
 | `logistics.plans_unreviewed` | `box plan for <date> at hub <id> is waiting for review; see /routes` | `route-solve-failed.md` |
+| `orders.revenue_unrecognised` | `N delivered orders still hold unearned revenue; run recognise_delivered_revenue` | Run `recognise_delivered_revenue` by hand (idempotent, M5 §3.9), see [Run a job by hand](#run-a-job-by-hand) |
 
 The `ops` check comes back up by itself at the next clean `ops_check` (06:30, 12:30, 21:15 and 23:45 IST). To bring it
 back sooner after a fix, run `ops_check` by hand (below).
