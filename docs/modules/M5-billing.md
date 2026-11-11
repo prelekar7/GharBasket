@@ -1,6 +1,6 @@
 # M5 — Billing & Ledger
 
-**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval, built (as built, below). §3.5's weekly payouts are built, and so is `partner_months`, the facade for M8's income certificate
+**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval, built (as built, below); §3.9 (revenue recognition on delivery) drafted 2026-11-11, frozen on approval. §3.5's weekly payouts are built, and so is `partner_months`, the facade for M8's income certificate
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (wallet); UPI Autopay in the pilot phase (P6)
 **Postgres schema:** `billing` · **Python package:** `gharbasket.modules.billing`
@@ -518,6 +518,41 @@ GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit=
 
 **As built (the list, with the M4 PR).** `billing.api.order_refunds` and the `OrderRefund` row are in `billing/refunds.py`; the amount is the entry's debit leg and a missing Refund row reads `pending`. M4's `GET /v1/admin/refunds` (`orders/refund_list.py`) takes the delivery-date window's orders (the hub's, or every hub's for an admin), asks the facade in chunks of 2,000 ids, then filters by `reason` and `destination`, orders by (created_at, id) newest first and keysets the page on that pair, all in memory: the window is at most 31 days. A hub manager without `hub_id` gets 422 `orders.hub_required` (as the issue queue); `from` defaults to seven days before `to`, and `from` after `to` is 422 `request.invalid` too. A refund of an order whose code the table does not know (`returned_to_hub`, `left_behind`) is `other`. Permission `order_refunds:read` is registered in M4's `permissions.py`.
 
+### 3.9 Revenue recognition on delivery (drafted 2026-11-11, frozen on approval)
+A paid box sits in `unearned_revenue` (a liability: goods we still owe) from the cut-off. Until now nothing ever moved it to `sales_revenue`, though handbook 05 §5.7.2 and §5 both say delivery does. This section is the rule. No endpoint and no screen change; the wallet, statements and the order refunds list (§3.8) read exactly as before. Each point marked **(owner)** is a recommendation for the owner to confirm on the PR.
+
+**Ledger** (amounts in paise; legs as in §4.1). The entry kind `revenue` is new.
+
+| Moment | Entry kind (key) | Debit | Credit |
+|---|---|---|---|
+| Order delivered | `revenue` (`revenue:<order id>`) | unearned_revenue | sales_revenue |
+| A carried item delivered with a later box (M4 §3.8) | `revenue` (`revenue:<missed order id>:carry_<product hex>`) | unearned_revenue | sales_revenue |
+| Order refund, any time (§3.1, unchanged key `refund:<order id>:<reason>`) | `refund` | unearned_revenue, up to what the order still holds there; sales_revenue for the rest | wallet:U |
+
+Both `revenue` entries have `ref: { type: "order", id }` (the missed order for a carried item), so the money of one order is the sum of its entries' postings, in either account.
+
+- **What is recognised (owner).** What the order still holds in `unearned_revenue` when the event is handled: its `box_debit` minus every `refund` taken from it before. That is the paid total net of the green-slot discount (M4 §3.9, a lower price, not a movement), of shortage refunds made at packing, and of any refund that ran between the delivery and this consumer. Kindness points never touch INR (§3.6), so they change nothing. An order that holds 0 (wholly refunded, or never debited because its total was 0) posts nothing.
+- **When.** M5 consumes `orders.delivered` (subscribed in `billing/jobs.py`), so the entry follows the delivery by seconds, in the relay's transaction. `delivered` is final for every kind, so the event comes once per order, also for a box delivered on its second attempt (a redelivery dispatches it again, but it reaches `delivered` once).
+- **Every kind alike (owner).** Boxes, add-on orders and tiffins are recognised the same way, each order on its own event. The pre-live delivery fee (M4 §11, `orders/fees.py`) is part of the box's total and is recognised with it in `sales_revenue`; M4's `fees_paise` keeps the split for reports, so there is no fee revenue account. Partner earnings (§3.5) are expenses on their own entries and do not change.
+- **Carried items (owner).** A missed box's kept items (M4 §3.8) stay in `unearned_revenue` on the missed order, which ends `refunded`. When they are delivered with a later box, `orders.delivered` of that box gains `carried: [ { carry_id, from_order_id, product_id, paid_paise } ]` (additive), and M5 recognises each at the smaller of `paid_paise` and what the missed order still holds. A kept item that expires or is lost is refunded from `unearned_revenue` as today.
+- **Refunds after delivery (owner).** `refund_to_wallet` keeps its signature, key and return value. It takes the refund from `unearned_revenue` up to what the order still holds there, and the rest from `sales_revenue` **up to what was recognised for that order, less its earlier refunds from `sales_revenue`**: a delivered order's issue credit (M4 §3.2, §3.6), a captain's or hub's refund after delivery, or a carry-over refund of a missed order whose other items were recognised. More than that is refused with 422 `billing.order_refund_exceeds_paid` (`refundable_paise`, `order_id`) and nothing is posted: an order never returns more than it paid, and a refund of an order that was never recognised never touches `sales_revenue`. M4 caps its refunds at `refundable_paise` (M4 §3.9), so the error means a caller's bug. One rule for every caller, so no caller changes; per order, neither `unearned_revenue` nor net `sales_revenue` is ever negative. There is no contra account (`sales_returns`): returns are the `refund` entries' postings on `sales_revenue`, per order by `ref`. A refund to source (§3.3) has the same legs.
+- **Exactly once.** The keys make it so. The consumer and every refund of an order take a per-order transaction lock (`pg_advisory_xact_lock`) before they read what the order holds, so a refund and the recognition at the same moment cannot both take the same money. **Lock order:** M4's order row, then this order lock, then the wallet's row, everywhere (a refund takes the order lock before it locks the wallet). The relay holds these locks until its batch commits; a lock taken inside a savepoint that is rolled back is released at once. A replayed refund returns its entry as before, whatever the order holds now; another amount under the same key is still 409 `billing.entry_conflict`.
+- **A payload M5 cannot use** (no order id) is logged and skipped, never raised, because the consumer shares the relay's savepoint with M8's and M9's consumers of the same event.
+- **Backfill (owner).** `recognise_delivered_revenue` (a `manual` job, `just job recognise_delivered_revenue`) runs the consumer again on every `orders.delivered` the outbox has relayed, oldest first, in batches of 200. The keys make it idempotent, so it can be rerun at any time. It runs once on staging after the deploy. No data migration posts money. Kept items delivered before this ships carry no `carried` list, so they stay in `unearned_revenue`; they were dev data.
+- **Ops probe (owner)** `orders.revenue_unrecognised` (ADR-0033), M4's, so each module reads its own schema: orders delivered more than an hour ago and within the last 7 days (their `delivered` timeline row) that still hold money in `unearned_revenue`, asked of a new facade `billing.api.held_paise(session, order_ids) -> dict[order id, paise]` (unearned money per order; an id it does not know reads 0). With the consumer working, it is always empty. A carried item's missed order is not checked: it keeps the second-miss fee (below), so it would always show. The simulated day's invariants check carried items.
+- **Not covered yet (owner).** Money kept on an order that ends `refunded` without being delivered (the ₹20 second-miss fee, ADR-0027 §2, or a partial refund by a hub or triage) stays in `unearned_revenue`. **Follow-up:** M4 publishes `orders.closed { order_id, household_id, hub_id }` once a `refunded` box or add-on order has nothing left open: at the move to `refunded` when nothing was carried, otherwise when its last carried row is delivered or refunded. M5 consumes it and recognises what the order still holds as `revenue:<order id>` (`details.reason` `retained`). Then `orders.revenue_unrecognised` also reports `refunded` orders closed more than a day ago that still hold money. Until then the probe leaves `refunded` orders out, as they would always show.
+- **Tests.**
+  - Every kind is recognised once at what it holds: with a shortage, with a discount, and when it was wholly refunded (nothing posted).
+  - A replayed event, and the backfill run twice, post nothing more.
+  - A refund after delivery comes from `sales_revenue`. A refund raced with the recognition never leaves the order's `unearned_revenue` negative.
+  - A carried item is recognised on the missed order.
+  - A refund beyond what the order still holds and what was recognised for it is refused, and posts nothing.
+  - The probe reports a delivered order left unrecognised.
+  - The simulated day's invariants (e2e/backend) check:
+    - per order, `unearned_revenue` is never negative;
+    - a delivered order holds 0 there;
+    - `unearned_revenue` + `sales_revenue` = box debits − order refunds.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -536,7 +571,7 @@ GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit=
 
 ### 4.1 Ledger rules (handbook 05 §5.7)
 - **Accounts:** one account per (owner, currency, purpose), created on first use: `wallet:<user>` (liability, INR) for customers; platform accounts `razorpay_clearing`, `unearned_revenue`, `sales_revenue` and `promo_expense` are seeded by the migration. Added by §3.3–§3.6: `kindness:<user>` (liability, KINDNESS_PTS), `partner_payable:<partner>` (liability, INR, owner type `partner`), and the platform accounts `unclaimed_balances` (liability), `payout_clearing` (asset), `fulfilment_expense` (expense) and `kindness_expense` (expense, KINDNESS_PTS).
-- **Entry kinds** added by §3.3–§3.6: `refund_to_source`, `refund_to_source_failed`, `unclaimed`, `earning`, `earning_reversal`, `payout`, `payout_reversed`, `points_earned`, `points_expired`, `points_donated`; `ref_type` adds `refund`, `payout`, `donation`.
+- **Entry kinds** added by §3.3–§3.6: `refund_to_source`, `refund_to_source_failed`, `unclaimed`, `earning`, `payout`, `payout_reversed`, `points_earned`, `points_expired`, `points_donated` (`earning_reversal`, §3.5, is not built: the kind check does not allow it until `reverse_earning` ships); `ref_type` adds `refund`, `payout`, `donation`. Added by §3.9: `revenue` (unearned_revenue → sales_revenue, key `revenue:<order id>`).
 - **Entries:** a journal entry has two or more postings; a deferred constraint trigger rejects the transaction unless they sum to zero per currency. Entries are never updated or deleted; a mistake is corrected by a new `adjustment` entry.
 - **Exactly once:** every entry has a unique `idempotency_key` built from what caused it (`topup:<payment id>`, `box:<order id>`, `refund:<order id>:<reason>`). Posting the same key again returns the existing entry.
 - **Balances** are sums of postings, never a stored column. A posting to a wallet first locks that wallet's account row, so two debits at the same moment cannot both pass the balance check. The wallet never goes below zero or above the cap.
@@ -544,7 +579,7 @@ GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit=
 
 ## 5. Events
 **Published:** `billing.wallet_topped_up`, `billing.payment_captured`, `billing.payment_failed`, `billing.refund_issued`, `billing.points_credited`, `billing.payout_sent`; added by §3.3–§3.5: `billing.refund_to_source_settled`, `billing.reconciliation_mismatch`; added by §3.6: `billing.points_donated`. (`payment_captured` and `payment_failed` are Autopay events, §3.7.)
-**Consumed:** `orders.locked` (debit/capture request via api), `orders.delivered` (recognise revenue), `orders.delivery_failed`, `orders.shortage_substituted`, `community.donation_verified` (points, §3.6). M1's `DELETE /v1/me` calls `billing.api.close_wallet` in its own transaction (M1 §3.5), so there is no consumer for the deletion. Earnings are not consumed from events: M8 calls `billing.api.accrue_earning` (§3.5).
+**Consumed:** `orders.locked` (debit/capture request via api), `orders.delivered` (recognise revenue, §3.9), `orders.delivery_failed`, `orders.shortage_substituted`, `community.donation_verified` (points, §3.6). M1's `DELETE /v1/me` calls `billing.api.close_wallet` in its own transaction (M1 §3.5), so there is no consumer for the deletion. Earnings are not consumed from events: M8 calls `billing.api.accrue_earning` (§3.5).
 
 ## 6. Jobs
 | Job | Schedule | Notes |
@@ -555,6 +590,7 @@ GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit=
 | `reconcile_payments` | Hourly at :17 | Razorpay payments and refunds vs our records; heals lost webhooks, opens items (§3.4) |
 | `expire_kindness_points` | Daily 00:30 IST | Oldest lot first (§3.6) |
 | `weekly_payouts` | Monday 10:00 IST | Partner payables up to Sunday 23:59 IST; eligible partners only; the simulated provider in the prototype (§3.5) |
+| `recognise_delivered_revenue` | Manual (`just job recognise_delivered_revenue`) | Backfill: the `orders.delivered` consumer again over every relayed event; idempotent by key (§3.9) |
 
 Scheduled jobs run as internal job endpoints (`POST /v1/internal/jobs/<name>`) called by a GitHub Actions schedule (ADR-0021). Razorpay calls go through our own thin async client on httpx2, not the official SDK.
 

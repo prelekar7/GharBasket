@@ -880,12 +880,15 @@ classDiagram
 | Wallet top-up ₹1,000 | razorpay_clearing 100000 | wallet:U 100000 |
 | Top-up bonus ₹100 | promo_expense 10000 | wallet:U 10000 |
 | Box locked at cut-off, ₹450 | wallet:U 45000 | unearned_revenue 45000 |
-| Box delivered | unearned_revenue 45000 | sales_revenue 45000 |
+| Box delivered (what the order still holds unearned, M5 §3.9) | unearned_revenue 45000 | sales_revenue 45000 |
 | Captain commission ₹6 | fulfilment_expense 600 | partner_payable:P 600 |
 | Weekly partner payout | partner_payable:P | payout_clearing |
-| Shortage refund ₹30 | unearned_revenue 3000 | wallet:U 3000 |
+| Shortage refund ₹30 (before delivery) | unearned_revenue 3000 | wallet:U 3000 |
+| Issue credit ₹30 after delivery | sales_revenue 3000 | wallet:U 3000 |
 | Kindness credit, 300 points | kindness_expense 300 PTS | kindness:U 300 PTS |
-| Redeem 200 points as ₹40 off | kindness:U 200 PTS; promo_expense 4000 | kindness_expense 200 PTS; unearned_revenue 4000 |
+| Donate 500 points as a meal (points never come off a box, M5 §3.6) | kindness:U 500 PTS | kindness_expense 500 PTS |
+
+`sales_revenue` is **net** of refunds after delivery: those come straight out of it (never more than was recognised for the order, M5 §3.9). Gross sales are the `revenue` entries' postings; returns are the `refund` entries' postings on `sales_revenue`, each per order by its `ref`.
 
 ### 5.7.3 Invariants (property-tested with Hypothesis)
 
