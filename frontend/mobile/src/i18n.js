@@ -50,9 +50,14 @@ i18next.on("languageChanged", (lng) => {
 
 /**
  * Resolves once the saved language's strings are in; main.jsx renders after it (instant for en-IN).
- * Never rejects: if the chunk cannot load (offline, flaky network), the app opens in English
- * (the fallback) rather than not at all.
+ * `init` ran before Hindi or Marathi was loaded, so it settled `resolvedLanguage` on en-IN, and
+ * adding the bundle does not recompute it: `changeLanguage` does, so dates, prices and the API's
+ * Accept-Language follow the saved language too. Never rejects: if the chunk cannot load (offline,
+ * flaky network), the app opens in English (the fallback) rather than not at all.
  */
-export const i18nReady = loadLocale(saved).catch(() => {});
+export const i18nReady = loadLocale(saved)
+  .then(() => i18next.changeLanguage(saved))
+  .then(() => {})
+  .catch(() => {});
 
 export default i18next;

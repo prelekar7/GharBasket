@@ -17,6 +17,8 @@ describe("lazy locales", () => {
     const { default: i18n, i18nReady } = await import("@/i18n.js");
     await i18nReady;
     expect(i18n.language).toBe("hi-IN");
+    // Dates, prices and the API's Accept-Language read resolvedLanguage, not language.
+    expect(i18n.resolvedLanguage).toBe("hi-IN");
     expect(i18n.t("welcome.title")).toBe(hi.welcome.title);
   });
 
