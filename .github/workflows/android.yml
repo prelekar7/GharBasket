@@ -53,7 +53,7 @@ jobs:
 
       - name: Build the web app for the phone
         env:
-          VITE_API_BASE_URL: https://gharbasket-api.onrender.com
+          VITE_API_BASE_URL: https://api.gharbasket.co.in
         run: pnpm --filter @gharbasket/mobile build:native
 
       - name: Copy it into the Android project
