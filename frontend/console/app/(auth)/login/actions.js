@@ -2,7 +2,14 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { cookieValue, exchange, logout, relayCookies, resolveStaffRole } from "@/lib/auth-api.js";
+import {
+  cookieValue,
+  exchange,
+  logout,
+  relayCookies,
+  resolveStaffRole,
+  signInRefusal,
+} from "@/lib/auth-api.js";
 import { canAccess, itemFor } from "@/lib/nav.js";
 import {
   ACCESS_COOKIE,
@@ -40,9 +47,10 @@ async function startSession(role, next) {
 }
 
 /**
- * Real sign-in (`GB_API_MOCK=false`): `POST /v1/auth/exchange`, relay the API's cookies to the
- * browser (how they flow: lib/auth-api.js), then check `GET /v1/me` for a staff role. Someone with
- * none is signed out again and shown "This console is for GharBasket staff".
+ * Real sign-in (`GB_API_MOCK=false`): `POST /v1/auth/exchange` with `staff_only: true`, relay the
+ * API's cookies to the browser (how they flow: lib/auth-api.js), then check `GET /v1/me` for a staff
+ * role. A number that is not staff gets 403 `auth.not_staff` and is shown "This console is for
+ * GharBasket staff"; `GET /v1/me` stays as the second check (it also picks the role to work as).
  * @param {{ dev_phone: string } | { firebase_id_token: string }} proof
  * @param {string} next
  * @returns {Promise<{ error: string }>} only when sign-in failed; success redirects
@@ -50,12 +58,10 @@ async function startSession(role, next) {
 async function startRealSession(proof, next) {
   const result = await exchange(proof);
   if (!result.ok) {
-    const code = String(result.body.code ?? "");
-    if (code === "auth.rate_limited") return { error: "Too many attempts. Wait a few minutes." };
-    if (code === "auth.account_disabled") return { error: "This account is switched off." };
-    if (code === "auth.dev_login_disabled")
-      return { error: "Dev sign-in is off on this API. Use the real code." };
-    return { error: "We could not sign you in. Check the number and try again." };
+    const refusal = signInRefusal(result.body.code);
+    // Not staff: the API made no account and no session (staff_only), so there is nothing to end.
+    if (refusal === "not_staff") redirect("/not-staff");
+    return { error: refusal };
   }
   const jar = await cookies();
   relayCookies(jar, result.setCookies);

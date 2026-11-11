@@ -142,15 +142,48 @@ export async function authFetch(method, path, { body, cookies = {} } = {}) {
 }
 
 /**
+ * The body of the console's `POST /v1/auth/exchange`. `staff_only: true` always (M1 §3.1): a number
+ * that is not staff gets 403 `auth.not_staff` and the API creates no account, session or cookie,
+ * so a stranger trying the console leaves no phone number behind (DPDP).
+ * @param {{ dev_phone: string } | { firebase_id_token: string }} proof
+ */
+export const exchangeBody = (proof) => ({
+  ...proof,
+  staff_only: true,
+  device: { platform: "web" },
+});
+
+/**
  * `POST /v1/auth/exchange`: a phone proof for a session. `dev_phone` signs in without an OTP
  * (the API allows it only when APP_ENV=dev); `firebase_id_token` is the real thing and arrives with
  * Firebase phone auth in the console.
  * @param {{ dev_phone: string } | { firebase_id_token: string }} proof
  */
 export function exchange(proof) {
-  return authFetch("POST", "/v1/auth/exchange", {
-    body: { ...proof, device: { platform: "web" } },
-  });
+  return authFetch("POST", "/v1/auth/exchange", { body: exchangeBody(proof) });
+}
+
+/**
+ * What the sign-in screen does with a refused exchange: `"not_staff"` goes to /not-staff, anything
+ * else is a sentence for under the code field.
+ * @param {unknown} code the problem's `code`
+ * @returns {"not_staff" | string}
+ */
+export function signInRefusal(code) {
+  switch (code) {
+    case "auth.not_staff":
+      return "not_staff";
+    case "auth.rate_limited":
+      return "Too many attempts. Wait a few minutes.";
+    case "auth.account_disabled":
+      return "This account is switched off.";
+    case "auth.dev_login_disabled":
+      return "Dev sign-in is off on this API. Use the real code.";
+    case "auth.provider_unavailable":
+      return "Sign-in is not working for a moment. Try again in a minute.";
+    default:
+      return "We could not sign you in. Check the number and try again.";
+  }
 }
 
 /**

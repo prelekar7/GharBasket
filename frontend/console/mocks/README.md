@@ -17,6 +17,8 @@ with `dev_phone`, so the API needs `APP_ENV=dev`) or the phone form with the cod
   (admin, hub_manager, franchise_owner, ngo_coordinator) they work as. Details: `lib/auth-api.js`.
 - **Refresh:** when the access cookie is gone, `proxy.js` redirects a page navigation to `/v1/auth/session?next=…`, which
   refreshes and returns. `SessionKeeper` refreshes every 12 minutes while a tab is open.
+- **Staff only:** every console sign-in sends `staff_only: true` (M1 §3.1). A number with no staff role gets 403 `auth.not_staff`,
+  no account is made, and the console shows `/not-staff`.
 - **Who is signed in:** `GET /v1/me` (`lib/auth.js`). Someone with no staff role sees `/not-staff`.
 - **Every API call** carries `X-Active-Role: <role>[:<scope id>]` (`hub_manager:<hub uuid>`; `admin` alone).
 - **Hubs:** `GET /v1/hubs` (the hubs the caller works in; an admin gets every hub), narrowed to the hubs of the
