@@ -803,6 +803,8 @@ async def mark_shortage(
     keeps its qty, `substituted_from` names the original, and the difference is refunded.
     Anything else is `orders.substitute_invalid` (with `reason`), so the bag matches the record;
     a household that chose "never substitute, refund" (M1 §3.4) gets `refund_preferred`.
+    The refund is at most `refundable_paise` (§3.9): a discounted box's total floors at 0, so
+    a line may be worth more than what is left of the paid total.
 
     The refund goes through `billing.api.refund_to_wallet(reason=f"short_{product_id.hex}")` in
     the caller's transaction, and the order's totals follow its lines (a line counts
@@ -864,6 +866,9 @@ async def mark_shortage(
         if substitute.price_paise > line.unit_price_paise:
             raise _substitute_invalid("pricier")
         refund = line.qty * (line.unit_price_paise - substitute.price_paise)
+    # Never more than is left of what was paid (§3.9): with a discount, a line can be worth
+    # more than the order's total, which floors at 0.
+    refund = min(refund, await refundable_paise(session, order))
     if refund > 0:
         await _shortage_refund(session, order, product_id, refund)
 

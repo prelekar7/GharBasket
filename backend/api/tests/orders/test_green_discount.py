@@ -102,6 +102,45 @@ async def test_the_discount_is_capped_at_the_subtotal_and_debited_net_once(
 
 
 @time_machine.travel(NOW, tick=False)
+async def test_a_shortage_refund_is_capped_at_what_the_discounted_box_paid(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """M4 §3.9: a line can be worth more than a discounted box's total (which floors at 0), so a
+    shortage refund is never more than `refundable_paise`: the order never returns more than was
+    paid."""
+    api = clients()
+    _, sunita_id = await as_user(api, google, SUNITA)
+    draft = await cycle_of(db_session, sunita_id, await slot(db_session))
+    priced = await orders_api.create_from_cycle(db_session, draft)
+    lines = [
+        (ln.product_id, ln.qty, ln.total_paise)
+        for ln in await service.lines_of(db_session, priced.id)
+    ]
+    big, worth = max(lines, key=lambda ln: ln[2])[:2], max(ln[2] for ln in lines)
+    saving = priced.subtotal_paise - worth + 1_000  # paid is ₹10 less than the line
+    order = await orders_api.create_from_cycle(
+        db_session, replace(draft, version=2, discount_paise=saving, discount_code="green_slot")
+    )
+    order_id, paid = order.id, order.subtotal_paise - saving
+    await set_live(db_session, order.society_id, live=True)  # no fee: paid = subtotal - saving
+    await credit_topup(db_session, sunita_id, paid, payment_ref="g9", topup_id=uuid.uuid4())
+    await lock(api)
+    db_session.expire_all()
+    assert (await orders_api.get(db_session, order_id)).total_paise == paid
+
+    await orders_api.mark_shortage(db_session, order_id, *big)
+
+    assert paid < worth
+    assert await billing_api.balance(db_session, sunita_id) == paid  # all of it back, no more
+    assert (await orders_api.get(db_session, order_id)).total_paise == 0
+    assert await orders_api.refundable_paise(db_session, order_id) == 0
+    # The other line short too: nothing is left to refund, and nothing more is posted.
+    other = next(ln for ln in lines if ln[0] != big[0])
+    await orders_api.mark_shortage(db_session, order_id, other[0], other[1])
+    assert await billing_api.balance(db_session, sunita_id) == paid
+
+
+@time_machine.travel(NOW, tick=False)
 async def test_a_reapproval_with_another_slot_moves_the_booking_unless_it_is_full(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
