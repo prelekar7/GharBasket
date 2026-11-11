@@ -38,9 +38,11 @@
 # (a data export, a push, a refund) also run at 09:30, 12:30 and 14:30, wakes that already exist
 # for refund_unassigned_tiffins, surplus_cascade and prompt_tiffin_ratings, so by day they wait up
 # to 3 hours and overnight until 06:00; start a job by hand to demo in the daytime.
+# refund_unassigned_tiffins also has an 11:00 wake of its own: a lunch slot closes manual assignment
+# 3 hours before it starts, so the later lunch slots a hub manager adds are refunded within the hour.
 # reconcile_payments rides the same wakes (M5 says hourly; see its `why`).
-# Estimated awake time: about 7.8 hours a day, about 59 CU-hours a month at 0.25 CU, before
-# people and deploys. `test_job_schedule.py` computes it (run with `-s`) and fails above 8 hours.
+# Estimated awake time: about 8.0 hours a day, about 60 CU-hours a month at 0.25 CU, before
+# people and deploys. `test_job_schedule.py` computes it (run with `-s`) and fails above 8.1 hours.
 # The VM scheduler waits up to 5 minutes for an answer, so a Render cold start (~1 minute) needs
 # no keep-alive ping.
 
@@ -267,8 +269,10 @@ jobs:
     runner: vm
     cron:
       - "30 9 * * *"
+      - "0 11 * * *"
+      - "30 12 * * *"
       - "0 18 * * *"
-    why: M8 §6 T 09:30 for lunch (ready_by 11:30 - 2 h); the 18:00 run is for dinner, whose slot M8 gives no time for (it covers slots up to 21:00; a run before a meal closes refunds nothing, a later one only refunds later)
+    why: M8 §6 T 09:30 for the 12:30 lunch slot (ready_by 11:30 - 2 h = slot start - 3 h); a later lunch slot closes later (13:00 at 10:00, 14:00 at 11:00, 15:30 at 12:30), so 11:00 (one wake of its own) and 12:30 (surplus_cascade's wake) refund those within an hour of their close; the 18:00 run is for dinner, whose slot M8 gives no time for (it covers slots up to 21:00; a run before a meal closes refunds nothing, a later one only refunds later)
 
   - name: prompt_tiffin_ratings
     runner: vm
