@@ -931,6 +931,7 @@
     "send": "Send",
     "errors": {
       "assistant_timeout": "That took too long. Check your internet and try again.",
+      "request_invalid": "That message is too long. Keep it under 2,000 letters and send it again.",
       "assistant_proposal_expired": "This suggestion expired. Ask again and I’ll check the box.",
       "subscriptions_version_conflict": "Your box changed meanwhile. Ask again and I’ll suggest it fresh.",
       "assistant_daily_cap": "That’s all I can do today. I’ll be back tomorrow morning. Your Week tab has everything meanwhile.",

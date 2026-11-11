@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "@/components/BrandMark.jsx";
 import { RoleFrame } from "@/components/RoleFrame.jsx";
-import { canRetry, isStale, useAssistant } from "@/features/assistant/chat.js";
+import { canRetry, isStale, MAX_MESSAGE, useAssistant } from "@/features/assistant/chat.js";
 import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
@@ -185,6 +185,7 @@ function Assistant() {
           placeholder={t("ghar.placeholder")}
           autoComplete="off"
           enterKeyHint="send"
+          maxLength={MAX_MESSAGE}
           className="min-h-12 min-w-0 flex-1 rounded-full border border-line-strong bg-surface px-4 text-fg outline-none placeholder:text-fg-muted focus-visible:shadow-focus"
         />
         <IconButton

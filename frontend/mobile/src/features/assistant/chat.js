@@ -16,8 +16,16 @@ import { request } from "@/lib/api.js";
  */
 
 const KEY = ASSISTANT_STORAGE_KEY;
-/** A reply that takes longer than this is given up on, so the chat never hangs (ML never blocks a customer). */
-const REPLY_TIMEOUT_MS = 25_000;
+/**
+ * A reply that takes longer than this is given up on, so the chat never hangs (ML never blocks a
+ * customer). The API waits up to 30 s for ML (`assistant_timeout_s`) and then answers itself with
+ * `source: "fallback"`, so the app waits longer than that, or the fallback would never be seen and a
+ * retry would spend a second turn.
+ */
+const REPLY_TIMEOUT_MS = 40_000;
+
+/** The longest message the API takes (`MessageIn.text`, max_length 2000). */
+export const MAX_MESSAGE = 2000;
 
 /**
  * Run a request with a deadline: abort it and fail with `assistant.timeout` when it runs long.
@@ -40,8 +48,8 @@ function withTimeout(run) {
   return Promise.race([run(controller.signal), deadline]).finally(() => clearTimeout(timer));
 }
 
-/** Errors where asking again can help: not the daily cap, which only tomorrow fixes. */
-const NO_RETRY = new Set(["assistant.daily_cap"]);
+/** Errors where asking again cannot help: the daily cap (only tomorrow fixes it), or a message the API refused (422). */
+const NO_RETRY = new Set(["assistant.daily_cap", "request.invalid"]);
 /** Confirm failures where the proposal is stale and the person should ask for a fresh one. */
 const STALE = new Set([
   "assistant.proposal_expired",

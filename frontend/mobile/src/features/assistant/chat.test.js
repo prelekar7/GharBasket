@@ -151,5 +151,7 @@ describe("Ghar Saathi request bodies (openapi.json MessageIn, ConfirmOut, Propos
   it("does not offer a retry for the daily cap, which only tomorrow fixes", () => {
     expect(canRetry("assistant.daily_cap")).toBe(false);
     expect(canRetry("http.error")).toBe(true);
+    // A message the API refused (422, e.g. over MessageIn's 2000 characters) fails the same way again.
+    expect(canRetry("request.invalid")).toBe(false);
   });
 });
