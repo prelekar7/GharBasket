@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.community import events
 from gharbasket.modules.community.models import Society
+from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.intel_gateway import api as intel_api
 from gharbasket.modules.logistics import api as logistics_api
@@ -34,15 +35,19 @@ from gharbasket.platform.settings import Settings
 # What one household's box carries towards a stop (the console's delivery-per-box assumption).
 DELIVERY_ALLOWANCE_PAISE = 4_000
 THRESHOLD_MIN, THRESHOLD_MAX = 10, 60
-# The delivery fee on each box until the society goes live. It becomes the hub's
-# `pre_live_box_fee_paise` (M6 follow-up, §11); until then every hub has the proposed default.
-PRE_LIVE_BOX_FEE_PAISE = 3_000
+# The delivery fee on each box until the society goes live is the hub's `pre_live_box_fee_paise`
+# (read through hub_ops.api, the same value orders charge); a society with no hub shows the default.
+DEFAULT_PRE_LIVE_BOX_FEE_PAISE = 3_000
 REFERENCE_DAYS = 7  # the stop cost looks at the published box plans of the past week
 
 
-def box_fee_paise(society: Society) -> int:
-    """`live_at` decides, not `status`: a live society paused and resumed never pays again."""
-    return 0 if society.live_at is not None else PRE_LIVE_BOX_FEE_PAISE
+async def box_fee_paise(session: AsyncSession, society: Society) -> int:
+    """`live_at` decides, not `status`: a live society paused and resumed never pays again.
+    Before that the fee is its hub's `pre_live_box_fee_paise`, as orders charge it."""
+    if society.live_at is not None:
+        return 0
+    hub = None if society.hub_id is None else await hub_ops_api.get_hub(session, society.hub_id)
+    return DEFAULT_PRE_LIVE_BOX_FEE_PAISE if hub is None else hub.pre_live_box_fee_paise
 
 
 def threshold_for(stop_cost_paise: int) -> int:

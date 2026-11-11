@@ -10,7 +10,14 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.hub_ops.models import PackingLine, PackingTask, WasteLog
+from gharbasket.modules.hub_ops.models import (
+    InventoryLot,
+    PackingLine,
+    PackingTask,
+    StockMove,
+    SurplusOffer,
+    WasteLog,
+)
 from gharbasket.tools.seed import SEED_HUB_ID, seed_hubs
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
@@ -145,3 +152,140 @@ async def test_hub_day_facts_weigh_the_waste_logs_by_ist_day_and_cascade(
         )
         == []
     )
+
+
+def _ist(day: date, hour: int, minute: int = 0) -> datetime:
+    return datetime.combine(day, time(hour, minute), IST)
+
+
+async def _lot(db: AsyncSession, cost: int | None, qty: str = "50") -> InventoryLot:
+    lot = InventoryLot(
+        hub_id=SEED_HUB_ID,
+        product_id=uuid.uuid4(),
+        unit="kg",
+        source="receipt",
+        grade="A",
+        qty_in=Decimal(qty),
+        qty_on_hand=Decimal(qty),
+        unit_cost_paise=cost,
+        received_at=_ist(TUESDAY, 4),
+        best_before=_ist(TUESDAY + timedelta(days=5), 0),
+    )
+    db.add(lot)
+    await db.flush()
+    return lot
+
+
+async def test_hub_day_facts_count_surplus_offered_and_taken_in_grams(
+    db_session: AsyncSession,
+) -> None:
+    await seed_hubs(db_session)
+    lot = await _lot(db_session, None)
+    wednesday = TUESDAY + timedelta(days=1)
+
+    def offer(to: str, qty: str, made: datetime, **more: object) -> SurplusOffer:
+        return SurplusOffer(
+            hub_id=SEED_HUB_ID,
+            lot_id=lot.id,
+            product_id=lot.product_id,
+            qty=Decimal(qty),
+            unit="kg",
+            offered_to=to,
+            expires_at=made + timedelta(days=1),
+            created_at=made,
+            **more,
+        )
+
+    kitchen = offer(
+        "kitchen",
+        "5",
+        _ist(TUESDAY, 12, 30),
+        status="taken",
+        taken_qty=Decimal("3"),
+        settled_at=_ist(wednesday, 10),
+    )
+    db_session.add(kitchen)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            # The rest moved on to an NGO: not new surplus, so not offered again; taken on Thursday.
+            offer(
+                "ngo",
+                "2",
+                _ist(wednesday, 10),
+                previous_offer_id=kitchen.id,
+                status="taken",
+                taken_qty=Decimal("1.5"),
+                settled_at=_ist(wednesday + timedelta(days=1), 9),
+            ),
+            offer("kitchen", "1", _ist(wednesday, 12, 30), status="declined"),
+        ]
+    )
+    await db_session.flush()
+
+    facts = await hub_ops_api.hub_day_facts(
+        db_session, date_from=TUESDAY, date_to=wednesday + timedelta(days=1)
+    )
+
+    # Tuesday: 5 kg offered, nothing taken; Wednesday: 1 kg offered, 3 kg taken; Thursday: 1.5 kg.
+    assert [(f.on, f.surplus_offered_g, f.surplus_taken_g, f.cogs_paise) for f in facts] == [
+        (TUESDAY, 5_000, 0, None),
+        (wednesday, 1_000, 3_000, None),
+        (wednesday + timedelta(days=1), 0, 1_500, None),
+    ]
+    assert (
+        await hub_ops_api.hub_day_facts(
+            db_session, date_from=TUESDAY, date_to=wednesday, hub_ids=[uuid.uuid4()]
+        )
+        == []
+    )
+
+
+async def test_hub_day_cogs_is_the_cost_of_the_draw_down_only_when_it_is_complete(
+    db_session: AsyncSession,
+) -> None:
+    await seed_hubs(db_session)
+    costed, free = await _lot(db_session, 3_001), await _lot(db_session, None)
+
+    def drawn(day: date, seq: int, moves: list[tuple[InventoryLot | None, str]]) -> PackingTask:
+        task = _task(seq, "packed", day)
+        task.drawn_at = _ist(day, 12, 30)
+        task.packed_at = _ist(day, 6)
+        db_session.add(task)
+        task.id = uuid.uuid4()
+        for lot, qty in moves:
+            db_session.add(
+                StockMove(
+                    hub_id=SEED_HUB_ID,
+                    lot_id=None if lot is None else lot.id,
+                    product_id=uuid.uuid4(),
+                    unit="kg",
+                    qty=-Decimal(qty),
+                    kind="pack",
+                    ref_id=task.id,
+                )
+            )
+        return task
+
+    days = [TUESDAY + timedelta(days=n) for n in range(6)]
+    drawn(days[0], 1, [(costed, "2.5"), (costed, "0.3")])  # 7_502.5 + 900.3 -> 7_503 + 900
+    drawn(days[0], 2, [(costed, "1")])  # a second task of the day adds 3_001
+    drawn(days[1], 1, [(costed, "1"), (None, "0.5")])  # an unlotted rest: unknown
+    drawn(days[2], 1, [(costed, "1")])
+    drawn(days[2], 2, [(free, "1")])  # one lot without a cost spoils the whole day
+    drawn(days[3], 1, [])  # drawn with nothing to take: no cost
+    undrawn = _task(1, "packed", days[4])
+    db_session.add(undrawn)
+    db_session.add(_task(2, "picking", days[5]))  # not packed: no cogs, no packed grams
+    await db_session.flush()
+
+    facts = await hub_ops_api.hub_day_facts(db_session, date_from=days[0], date_to=days[5])
+
+    assert {f.on: f.cogs_paise for f in facts} == {
+        days[0]: 7_503 + 900 + 3_001,
+        days[1]: None,
+        days[2]: None,
+        days[3]: None,
+        days[4]: None,
+        days[5]: None,
+    }

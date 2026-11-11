@@ -29,7 +29,7 @@ import structlog
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -230,6 +230,46 @@ async def failed_jobs(session: AsyncSession, now: datetime) -> list[str]:
         .ext(distinct_on(JobRun.name))
     )
     return [f"{name} failed: {(error or '')[:120]}" for name, error in rows.all()]
+
+
+@ops.probe("platform.jobs_with_failed_hubs")
+async def jobs_with_failed_hubs(session: AsyncSession, now: datetime) -> list[str]:
+    """A per-hub job that ended `ok` but listed `failed_hubs` in its summary (a hub that failed
+    in its own savepoint while the others stood), in the last 24 h, with no later clean run of the
+    same job. The run keeps its `ok` status; this is how the failed hubs reach the `ops` alert.
+    The latest such run of each job is named, with its hubs."""
+    later = aliased(JobRun)
+    healed = (
+        select(later.id)
+        .where(
+            later.name == JobRun.name,
+            later.status == "ok",
+            later.started_at > JobRun.started_at,
+            or_(later.summary.is_(None), ~later.summary.has_key("failed_hubs")),
+        )
+        .exists()
+    )
+    rows = await session.execute(
+        select(JobRun.name, JobRun.summary, JobRun.started_at)
+        .where(
+            JobRun.status == "ok",
+            JobRun.started_at > now - FAILED_LOOKBACK,
+            JobRun.summary.has_key("failed_hubs"),
+            ~healed,
+        )
+        .order_by(JobRun.name, JobRun.started_at.desc())
+        .ext(distinct_on(JobRun.name))
+    )
+    problems: list[str] = []
+    for name, summary, started_at in rows.all():
+        hubs = (summary or {}).get("failed_hubs")
+        if isinstance(hubs, list) and hubs:
+            listed = ", ".join(str(hub) for hub in hubs[:10]) + (
+                f" and {len(hubs) - 10} more" if len(hubs) > 10 else ""
+            )
+            at = f"{started_at:%Y-%m-%d %H:%M} UTC"
+            problems.append(f"{name} ended ok but hubs failed: {listed} (run of {at})")
+    return problems
 
 
 @ops.probe("platform.outbox_stuck")
