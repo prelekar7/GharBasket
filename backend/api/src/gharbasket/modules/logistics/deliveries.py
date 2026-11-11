@@ -85,7 +85,11 @@ async def door_actor(
         return delivery, order, Actor("rider", user_id)
     if any(g.role == "captain" and g.scope_id == order.society_id for g in permit.grants):
         if delivery.order_kind == "tiffin" and not _in_her_hands(delivery):
-            raise delivery_not_found()  # M4 lets her move any dispatched tiffin; M7 is the guard
+            # A tiffin that was settled (delivered or refunded, so no longer in anyone's hands)
+            # answers as a box does: 409 closed. One she never held stays unknown to her (404);
+            # M4 lets her move any dispatched tiffin, so M7 is the guard.
+            _ensure_open(delivery, order)
+            raise delivery_not_found()
         partner = await ensure_captain(session, user_id, order.society_id)
         return delivery, order, Actor("captain", user_id, partner)
     raise delivery_not_found()

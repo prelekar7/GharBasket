@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.logistics import live, tracking
 from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop, StopOrder
 from gharbasket.modules.logistics.schemas import PingIn
+from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders.models import Order, OrderEvent
 from gharbasket.modules.partners.models import AssignmentOrder
 from gharbasket.platform.jobs import run_job
@@ -719,6 +720,33 @@ async def test_after_the_sweep_a_captain_settles_only_the_tiffins_she_took(
     assert (done.json()["status"], done.json()["by"]) == ("delivered", "captain")
     assert await statuses(db_session, lunch.orders[PRIYA]) == ["delivered"]
 
+    # Acting again on a tiffin that is settled answers as a box does (409 closed), not 404: hers
+    # that she delivered, and one the hub refunded; an unknown order stays 404.
+    manager = await as_user(api, google, VIKRAM)
+    await orders_api.transition(db_session, lunch.orders[MEENA], "undelivered", actor="hub")
+    (await attempt_of(db_session, lunch.orders[MEENA])).status = "undelivered"
+    await db_session.commit()
+    refunded = await api.post(
+        f"/v1/deliveries/{lunch.orders[MEENA]}/resolve",
+        json={"outcome": "refund", "note": "never reached the captain"},
+        headers={**manager, **key()},
+    )
+    assert refunded.status_code == 200, refunded.text
+    for order, proof in ((PRIYA, priya_proof), (MEENA, meena_proof)):
+        for outcome, body in (("proof", proof), ("undelivered", {"reason": "not_home"})):
+            again = await api.post(
+                f"/v1/deliveries/{lunch.orders[order]}/{outcome}",
+                json=body,
+                headers={**captain, **key()},
+            )
+            assert (again.status_code, again.json()["code"]) == (409, "logistics.delivery_closed")
+    unknown = await api.post(
+        f"/v1/deliveries/{uuid.uuid4()}/undelivered",
+        json={"reason": "not_home"},
+        headers={**captain, **key()},
+    )
+    assert (unknown.status_code, unknown.json()["code"]) == (404, "logistics.delivery_not_found")
+
 
 async def attempt_of(db: AsyncSession, order_id: uuid.UUID) -> Delivery:
     found = await db.scalar(
@@ -798,7 +826,7 @@ async def test_no_rider_position_reaches_a_captain_or_a_customer_while_he_is_bou
         return snapshot["position"]
 
     staff = live.Audience(None)  # the rider's and hub staff's stream
-    captain = live.Audience(sunrise)
+    captain = live.Audience(sunrise, society_id=SEED_SOCIETY_ID)  # as `audience` builds it
     assert await position(staff) is not None
     assert await position(captain) is None  # bound for a kitchen
 

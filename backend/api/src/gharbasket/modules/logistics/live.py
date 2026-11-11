@@ -1,14 +1,15 @@
 """Live tracking (spec §3.3): `GET /v1/routes/{id}/live` as Server-Sent Events.
 
 Who sees what: the route's rider and its hub's managers see every stop and every position; the
-captain of a stop's society sees her stop (with `stops_before`) and the van until her stop is
-handed over; a customer sees the same for the stop of their household's order, positions rounded
-to 4 decimals (about 11 m) and at most every 15 s. The first event is always `snapshot`, so a
-reconnect needs no `Last-Event-ID`. The stream reads the route and its stops and the latest
-position every 5 s (15 s without Valkey) and ends its read transaction after each read; it closes
-with `end` after 30 minutes (`reconnect`), at the handover of the viewer's stop (`handed_over`)
-or when the route is completed (`route_completed`). At most 3 streams per user are open at once
-(a sorted set of open streams in Valkey, pruned of streams past the 30-minute limit).
+captain of a stop's society sees her next open stop (with `stops_before`) and the van until her
+last stop is handed over; a customer sees the same for the stop of their household's order,
+positions rounded to 4 decimals (about 11 m) and at most every 15 s. The first event is always
+`snapshot`, so a reconnect needs no `Last-Event-ID`. The stream reads the route and its stops and
+the latest position every 5 s (15 s without Valkey) and ends its read transaction after each read;
+it closes with `end` after 30 minutes (`reconnect`), at the handover of the viewer's stop
+(`handed_over`; a captain with several stops on the route follows the next open one and ends at
+her last) or when the route is completed (`route_completed`). At most 3 streams per user are open
+at once (a sorted set of open streams in Valkey, pruned of streams past the 30-minute limit).
 """
 
 import json
@@ -45,6 +46,7 @@ PING_S = 20.0
 MAX_S = 30 * 60.0
 MAX_STREAMS = 3
 NEAR_KITCHEN_M = 500  # by routing.metres: no captain or customer sees the rider this near one
+OPEN = ("pending", "arrived")  # a stop still to do
 ON_ROUTE = ("packed", "dispatched", "at_society", "delivered", "undelivered")
 
 
@@ -53,6 +55,9 @@ class Audience:
     stop_id: uuid.UUID | None  # None: the whole route (its rider, a hub manager)
     customer: bool = False
     tiffin_id: uuid.UUID | None = None  # a customer's tiffin: watched while the rider has it
+    # A captain follows her society's next open stop on the route, not one fixed stop (she may
+    # have two, e.g. two slots); `stop_id` is then her first one, for scoping only.
+    society_id: uuid.UUID | None = None
 
 
 async def audience(session: AsyncSession, permit: Permit, route: Route) -> Audience:
@@ -69,7 +74,7 @@ async def audience(session: AsyncSession, permit: Permit, route: Route) -> Audie
             continue
         mine = [s for s in stops if s.society_id == grant.scope_id]
         if mine and await community_api.is_active_captain(session, user_id, grant.scope_id):
-            return Audience(mine[0].id)
+            return Audience(mine[0].id, society_id=grant.scope_id)
     if any(g.role == "customer" for g in permit.grants):
         household = await identity_api.household_for_user(session, user_id)
         if household is not None and route.kind == "tiffin":
@@ -132,10 +137,25 @@ class _View:
     position: tracking.Position | None
 
 
+def _viewers_stop(stops: list[RouteStop], who: Audience) -> tuple[RouteStop, str | None]:
+    """The one stop the viewer follows, and her own status when it is not that stop's. A customer
+    has her stop. A captain follows her society's next open stop; once none is open she sees the
+    last and is `handed_over` (some stop of hers was handed over) or `skipped` (all were)."""
+    if who.society_id is None:
+        [stop] = [s for s in stops if s.id == who.stop_id]
+        return stop, None
+    theirs = [s for s in stops if s.society_id == who.society_id]
+    for stop in theirs:
+        if stop.status in OPEN:
+            return stop, None
+    done = any(s.status == "handed_over" for s in theirs)
+    return theirs[-1], "handed_over" if done else "skipped"
+
+
 def _next_is_kitchen(stops: list[RouteStop]) -> bool:
     """The first stop still open (`pending` or `arrived`) is a kitchen stop."""
     for stop in sorted(stops, key=lambda s: s.seq):
-        if stop.status in ("pending", "arrived"):
+        if stop.status in OPEN:
             return stop.kind == "kitchen"
     return False
 
@@ -166,9 +186,9 @@ async def _read(
     live = {s.seq: {"seq": s.seq, "status": s.status, "eta_now": etas[s.id]} for s in stops}
     before = own = None
     if who.stop_id is not None:
-        [mine] = [s for s in stops if s.id == who.stop_id]
-        before = sum(s.seq < mine.seq and s.status in ("pending", "arrived") for s in stops)
-        live, own = {mine.seq: live[mine.seq]}, mine.status
+        mine, own = _viewers_stop(stops, who)
+        before = sum(s.seq < mine.seq and s.status in OPEN for s in stops)
+        live, own = {mine.seq: live[mine.seq]}, own or mine.status
     if who.tiffin_id is not None:  # handed to the captain, delivered or undelivered: it ends
         attempt = await attempts.latest(session, who.tiffin_id)
         if attempt is None or attempt.status != "on_route":

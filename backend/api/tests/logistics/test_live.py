@@ -218,6 +218,69 @@ async def test_a_running_stream_sends_positions_stops_keep_alives_and_reconnects
 
 
 @time_machine.travel(MORNING, tick=False)
+async def test_a_captain_with_two_stops_on_the_route_follows_the_next_open_one(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession, valkey: Redis
+) -> None:
+    api = clients(valkey=valkey)
+    day, _ = await started(api, google, db_session)
+    stops = {
+        s.society_id: s
+        for s in (
+            await db_session.execute(select(RouteStop).where(RouteStop.route_id == day.route_id))
+        ).scalars()
+    }
+    first, second = stops[SEED_SOCIETY_ID], stops[GREEN_VALLEY]
+    first_id, first_seq, second_id, second_seq = first.id, first.seq, second.id, second.seq
+    assert first_seq < second_seq
+    # Sunrise Towers has two stops on the route (two slots): the 07:00 one and the 09:00 one.
+    await db_session.execute(
+        update(RouteStop).where(RouteStop.id == second_id).values(society_id=SEED_SOCIETY_ID)
+    )
+    await db_session.commit()
+    await valkey.set(
+        tracking.loc_key(day.route_id),
+        json.dumps({"at": MORNING.isoformat(), "lat": 19.033123, "lng": 73.029876, "heading": 7}),
+    )
+
+    async def hand_over(stop_id: uuid.UUID) -> None:
+        await db_session.execute(
+            update(RouteStop).where(RouteStop.id == stop_id).values(status="handed_over")
+        )
+        await db_session.commit()
+
+    async def first_done() -> None:
+        await hand_over(first_id)
+
+    async def second_done() -> None:
+        await hand_over(second_id)
+
+    steps = [first_done, second_done]
+
+    async def sleep(_: float) -> None:
+        if steps:
+            await steps.pop(0)()
+
+    body = live.stream(
+        db_session,
+        valkey,
+        day.route_id,
+        live.Audience(first_id, society_id=SEED_SOCIETY_ID),
+        sleep=sleep,
+        clock=lambda: 0.0,
+    )
+    frames = parse(b"".join([chunk async for chunk in body]).decode())
+
+    # The first handover moves her to the second stop instead of ending the stream.
+    assert [f["event"] for f in frames] == ["snapshot", "stop", "stop", "end"]
+    snapshot = frames[0]["data"]
+    assert [s["seq"] for s in snapshot["stops"]] == [first_seq]
+    assert snapshot["position"] is not None
+    assert (frames[1]["data"]["seq"], frames[1]["data"]["status"]) == (second_seq, "pending")
+    assert (frames[2]["data"]["seq"], frames[2]["data"]["status"]) == (second_seq, "handed_over")
+    assert frames[3]["data"] == {"reason": "handed_over"}
+
+
+@time_machine.travel(MORNING, tick=False)
 async def test_another_societys_captain_or_customer_is_refused(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
