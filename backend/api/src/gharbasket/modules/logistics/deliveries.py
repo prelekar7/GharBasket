@@ -443,14 +443,25 @@ async def rebook(
         await announce_redelivery(session, order, delivery.delivery_date)
 
 
-async def _tiffin_left_behind(
+async def _tiffin_to_undelivered(
     session: AsyncSession, delivery: Delivery, order: orders_api.Order, user_id: uuid.UUID
 ) -> orders_api.Order:
-    """A tiffin never collected (`left_behind`, §3.7) has no way to `refunded` but through the
-    door: the hub's moves take it from where it is to `undelivered` (ADR-0026 §2), then the
-    caller refunds it. Any other tiffin is left as it is."""
+    """A tiffin in triage has no way to `refunded` but through `undelivered`, and M4 lets no
+    `system` move one there (ADR-0026 §2), so the hub makes the moves (§3.7), then the caller
+    refunds it. `left_behind` (never collected): from where it is, `locked → picking → packed →
+    dispatched → undelivered`. `not_confirmed` (the 16:00 sweep, still `dispatched`): the one
+    move `dispatched → undelivered`. Any other tiffin, or one already `undelivered`, is left as
+    it is."""
     path = ("locked", "picking", "packed", "dispatched", "undelivered")
-    if delivery.reason != "left_behind" or order.status not in path[:3]:
+    if delivery.status != "triage":
+        return order
+    if delivery.reason == "left_behind":
+        starts: tuple[str, ...] = path[:3]
+    elif delivery.reason == "not_confirmed":
+        starts = ("dispatched",)  # the sweep takes only tiffins that were collected
+    else:
+        return order
+    if order.status not in starts:
         return order
     for to in path[path.index(order.status) + 1 :]:
         order = await orders_api.transition(
@@ -459,7 +470,7 @@ async def _tiffin_left_behind(
             to,
             actor="hub",
             actor_user_id=user_id,
-            payload={"reason": "left_behind"} if to == "undelivered" else None,
+            payload={"reason": delivery.reason} if to == "undelivered" else None,
         )
     delivery.status = "undelivered"
     return order
@@ -478,12 +489,13 @@ async def resolve(
     the manager; also audited). A packed bag the day's route left behind can only ride again
     (`book_ride`). A redelivery no route picked up (an orphan) is booked again on the next
     solvable day, or refunded in full (its order moves `redelivery → refunded`, ADR-0028). A
-    tiffin is never redelivered; one never collected is moved by the hub to `undelivered` and
+    tiffin is never redelivered; one in triage that was never collected (`left_behind`) or never
+    confirmed (`not_confirmed`, still `dispatched`) is moved by the hub to `undelivered` and
     refunded (§3.7)."""
     if order.kind == "tiffin":
         if body.outcome == "redeliver":
             raise conflict("logistics.no_redelivery", "A tiffin is refunded, never redelivered.")
-        order = await _tiffin_left_behind(session, delivery, order, user_id)
+        order = await _tiffin_to_undelivered(session, delivery, order, user_id)
     left_behind = (
         delivery.status == "triage"
         and delivery.reason == "left_behind"
