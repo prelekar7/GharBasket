@@ -297,7 +297,7 @@ ProcurementPlan : {
   "built_at", "refreshed_at", "version" }
 
 GET /v1/hubs/{id}/procurement-plans?date=   200 ProcurementPlan (ETag = version)
-                                            | 404 "hub_ops.plan_not_found" (not built yet)
+                                            | 404 "hub_ops.plan_not_found"
 GET /v1/procurement-plans/{id}              200 ProcurementPlan | 404 "hub_ops.plan_not_found"
 POST /v1/hubs/{id}/procurement-plans/build  hub_manager; Idempotency-Key
   request : { "date": "2026-12-15" }        today … today + 2
@@ -368,7 +368,7 @@ Total ₹1,600.00 + 1 item at market price
 - A number sent as `order_qty` pins the line (`edited: true`) and needs a `reason`, unless the line is already edited at that quantity; `order_qty: null` needs none. A `PATCH` that changes nothing keeps the version and writes no audit row; otherwise `platform.audit_log` gets `procurement.line_updated` (entity `<plan id>:<product id>`) with the changed fields before and after, and the reason.
 - A rebuild uses the hub's current `procurement_buffer_pct`. `buffer_qty` is rounded half up to 0.001 before `suggested_qty` is rounded up. Lines are listed by the catalog category's sort order, then by name in Accept-Language.
 - `POST …/build` on a closed plan is 409 `hub_ops.plan_not_editable`; the jobs skip it and report how many plans were `built`, `rebuilt`, `unchanged` or `closed`. `refresh_procurement_plan` and the `intel.forecast_ready` consumer never create a plan.
-- Until the sections they read exist, three hooks stand in: the forecast (`_forecast_for`, wired to `intel_gateway.api.hub_forecast`; with none stored for the hub and date `source` is `fallback` and every line uses the buffer), usable stock (`_on_hand_for`, §3.4 lots; 0 today) and the last receipt cost (`_last_costs`, §3.4; null today). Carried-over lines are left out once M4's order lines carry `carried_from_order_id`.
+- Three readers feed the plan: the forecast (`_forecast_for`, wired to `intel_gateway.api.hub_forecast`; with none stored for the hub and date `source` is `fallback` and every line uses the buffer), usable stock (`_on_hand_for`: grade A and B lots whose best-before is after the day, §3.4) and the last receipt cost (`_last_costs`: the latest accepted receipt line with a cost, §3.4; null when there is none). Carried items are not order lines (M4 §3.8), so they never count as demand.
 - Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/…` paths and 404 `hub_ops.plan_not_found` for its plan ids.
 - `just seed` adds "Kharghar Kisan FPO" (`fpo`, leafy greens) and "Patil Wholesale" (`wholesaler`, staples) beside the default "Shinde Traders".
 

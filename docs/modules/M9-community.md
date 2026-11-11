@@ -513,7 +513,7 @@ POST /v1/ngo-handoffs/{id}/confirm                ngo_coordinator of the hand-of
   - **Who pays** (owner, 2026-10-09; §11). Points have no cash value, so a donated meal is GharBasket's cost.
     - **Prototype:** no money moves. A meal counts as served when a partner NGO records a `meals` hand-off.
     - **Before the pilot:** the owner and Prof. Kranti Bade set a sponsored cost per meal (about ₹25). M5 then books it as an INR expense at the `meals` hand-off, under a new `meal_sponsorship` entry kind (an M5 change made then).
-- **Photos.** A new M0 upload purpose, `handoff_photo` (JPEG, PNG or WebP, 5 MB, kept 3 years as impact proof), is an M0 follow-up. Photos show goods and the hand-over, **never beneficiaries' faces**: they are often children, and the console's upload copy says so. Links are 5-minute signed GETs for the hub's staff, admins and the NGO's coordinators, never public.
+- **Photos.** A new M0 upload purpose, `handoff_photo` (JPEG, PNG or WebP, 5 MB, kept 3 years as impact proof), is built in M0 (`platform/files.py`). Photos show goods and the hand-over, **never beneficiaries' faces**: they are often children, and the console's upload copy says so. Links are 5-minute signed GETs for the hub's staff, admins and the NGO's coordinators, never public.
 - **NGO coordinators** never see a donor: hand-offs and `ready` show items, kilograms and dates, never a household, flat or name.
 - **`community.handoff_recorded { handoff_id, ngo_id, hub_id, kind, items, kg_tenths, meals }`** feeds M12. It is not mapped in M11.
 

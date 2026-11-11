@@ -379,7 +379,7 @@ POST  /v1/partners/{id}/reinstate  hub_manager (hub), admin; Idempotency-Key; { 
 **As built (the partner core, S5; build order (a)).**
 - **Endpoints.** `GET /v1/partners/me`, `GET /v1/hubs/{id}/partners`, `GET /v1/partners/{id}`, `POST …/suspend`, `…/reinstate`, `…/pause` and `…/resume`. `PATCH /v1/partners/{id}` came in S6 (below).
 - **The suspension note is staff-only.** In the partner's own `Partner`, `suspension.note` is always null, while `reason_code` is shown; `PartnerStaff` carries the note. The data export leaves the note out too.
-- **Until applications exist** (S6), `application_id` and `requested_society` are null on `PartnerStaff`.
+- **Application link.** `application_id` and `requested_society` on `PartnerStaff` come from the partner's application; they are null for a partner made without one (the seed).
 - **Edge cases.**
   - Suspending a partner who left is 409 `partners.already_suspended`.
   - Pausing a paused partner, or resuming an active one, answers 200 and changes nothing.
@@ -727,7 +727,7 @@ billing.api.partner_months(session, partner_ids, first: "YYYY-MM", last: "YYYY-M
 
 **Formats.** Money is ₹ with Indian grouping and always two decimals ("₹1,23,456.00", "₹0.00"), the grouping of M11's `render.money`. Counts use Indian grouping too. Months are written "May 2026", dates "28 Oct 2026", times IST.
 
-**Rendering: a shared PDF helper.** The repository has no PDF stack yet. M5's statement PDF (M5 §3.2, "Later") is not built, so the certificate cannot reuse it. The certificate therefore introduces `gharbasket.platform.pdf` (M0), and M5's statement PDF uses the same helper when it comes.
+**Rendering: a shared PDF helper.** The certificate introduced `gharbasket.platform.pdf` (M0, built on `fpdf2`), and M5's statement PDF can use the same helper.
 - **Library:** fpdf2. It is pure Python, so the API image needs no system libraries (WeasyPrint needs Pango). Text shaping comes from `uharfbuzz`, so a name in Devanagari renders correctly.
 - **Fonts:** Noto Sans regular and bold, with Noto Sans Devanagari as the fallback font (SIL OFL). They are bundled as package data in `platform/fonts/`. The PDF core fonts are never used, because they have no ₹ glyph.
 - **Helper:** a small builder (heading, paragraph, table with a totals row, banner, footer with page numbers), `rupees(paise)`, and `output() -> bytes`. It sets the PDF's creation date to the issue time and the title and author metadata, and it embeds no links, JavaScript or attachments.
