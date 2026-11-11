@@ -83,11 +83,14 @@ async function sendNow(client, action) {
     client.setQueryData(DAY, (/** @type {import("./day.js").CaptainDay | undefined} */ d) =>
       d ? applyAction(d, a) : d,
     );
+  // One key for this write: if the send reached the server but its answer was lost, the queued
+  // replay is the same request, not a second handover or proof.
+  const key = crypto.randomUUID();
   try {
     answer = await request(action.path, {
       method: "POST",
       body: action.body,
-      headers: { "idempotency-key": crypto.randomUUID() },
+      headers: { "idempotency-key": key },
     });
     // A queued wrong code for this door is out of date now.
     dropStaleFailures(action).catch(() => {});
@@ -100,7 +103,7 @@ async function sendNow(client, action) {
   } catch (e) {
     if (e instanceof ApiError) throw e;
     show();
-    await enqueue({ method: "POST", ...action });
+    await enqueue({ method: "POST", ...action, key });
   }
 }
 

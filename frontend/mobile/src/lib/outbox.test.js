@@ -171,6 +171,65 @@ describe("outbox", () => {
     ]);
   });
 
+  it("keeps a failed shortage for one product when an action for another product on that bag succeeds", async () => {
+    const task = "/v1/packing-tasks/t1";
+    request.mockRejectedValueOnce(new ApiError({ status: 422, code: "hub_ops.qty_invalid" }));
+    await save({ path: `${task}/shortage`, body: { product_id: "A", short_qty: 1 } });
+    await flush();
+    request.mockResolvedValue({});
+    // Product B's shortage and pick on the same bag go through: A's refund must not vanish.
+    await save({ path: `${task}/shortage`, body: { product_id: "B", short_qty: 1 } });
+    await save({ path: `${task}/pick`, body: { product_id: "B", picked_qty: 1 } });
+    await flush();
+    expect(await rows()).toMatchObject([
+      { path: `${task}/shortage`, body: { product_id: "A" }, status: "failed" },
+    ]);
+    // A later success for A itself does make it out of date.
+    await save({ path: `${task}/shortage`, body: { product_id: "A", short_qty: 1 } });
+    await flush();
+    expect(await rows()).toEqual([]);
+  });
+
+  it("keeps delivery_closed on a not-home report as a failure: the bag may only be unholdable yet", async () => {
+    request
+      .mockRejectedValueOnce(new ApiError({ status: 409, code: "logistics.delivery_closed" }))
+      .mockRejectedValueOnce(new ApiError({ status: 409, code: "logistics.delivery_closed" }));
+    await save({ path: "/v1/deliveries/o1/undelivered", body: { reason: "not_home" } });
+    await save({ path: "/v1/deliveries/o2/proof", body: { proof: "scan" } });
+    await flush();
+    // The proof's goal is met (the order is closed); the not-home report is not.
+    expect(await rows()).toMatchObject([
+      {
+        path: "/v1/deliveries/o1/undelivered",
+        status: "failed",
+        lastError: "logistics.delivery_closed",
+      },
+    ]);
+  });
+
+  it("waits and sends again with the same key while the server still runs that request", async () => {
+    request.mockRejectedValueOnce(
+      new ApiError({ status: 409, code: "request.idempotency_in_progress" }),
+    );
+    const key = await save({ path: "/v1/stops/s1/handover" });
+    await flush();
+    expect(await rows()).toMatchObject([{ status: "waiting", attempts: 1 }]);
+    request.mockResolvedValue({});
+    await flush();
+    expect(request.mock.calls[1][1].headers["idempotency-key"]).toBe(key);
+    expect(await rows()).toEqual([]);
+  });
+
+  it("keeps the key a direct send already used, so a lost answer is never applied twice", async () => {
+    request.mockResolvedValue({});
+    const used = crypto.randomUUID();
+    online = false;
+    expect(await enqueue({ path: "/v1/stops/s1/handover", key: used })).toBe(used);
+    online = true;
+    await flush();
+    expect(request.mock.calls[0][1].headers["idempotency-key"]).toBe(used);
+  });
+
   it("lets the person dismiss failed actions", async () => {
     request.mockRejectedValue(new ApiError({ status: 409, code: "logistics.bags_not_packed" }));
     await save({ path: "/v1/routes/r1/start" });

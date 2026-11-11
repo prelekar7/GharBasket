@@ -119,11 +119,14 @@ async function send(client, action) {
  */
 async function sendNow(client, action) {
   const body = { ...action.body, client_at: new Date().toISOString() };
+  // One key for this write: if the send reached the server but its answer was lost, the queued
+  // replay is the same request (same body too), not a second one.
+  const key = crypto.randomUUID();
   try {
     const data = await request(action.path, {
       method: "POST",
       body,
-      headers: { "idempotency-key": crypto.randomUUID() },
+      headers: { "idempotency-key": key },
     });
     // A queued wrong code for this door is out of date now.
     dropStaleFailures(action).catch(() => {});
@@ -131,7 +134,7 @@ async function sendNow(client, action) {
     return { queued: false, data };
   } catch (e) {
     if (e instanceof ApiError && e.status < 500) throw e;
-    await enqueue({ path: action.path, body });
+    await enqueue({ path: action.path, body, key });
     return { queued: true, data: null };
   }
 }

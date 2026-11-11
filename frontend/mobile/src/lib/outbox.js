@@ -37,11 +37,16 @@ export const targetOf = (path) =>
     ?.slice(1, 3)
     .join("/");
 
-/** Saves a write and tries to send it straight away. @returns {Promise<string>} its Idempotency-Key */
+/**
+ * Saves a write and tries to send it straight away. `key` is the Idempotency-Key a direct send
+ * already used: if that send reached the server but its answer was lost, the replay is then the
+ * same request, never a second one.
+ * @returns {Promise<string>} its Idempotency-Key
+ */
 export async function enqueue(
-  /** @type {{ method?: string, path: string, body?: unknown }} */ action,
+  /** @type {{ method?: string, path: string, body?: unknown, key?: string }} */ action,
 ) {
-  const key = crypto.randomUUID();
+  const key = action.key ?? crypto.randomUUID();
   await outbox.add({
     key,
     method: action.method ?? "POST",
@@ -56,24 +61,38 @@ export async function enqueue(
   return key;
 }
 
-/** Errors worth retrying later: offline, server trouble, expired session, rate limits. */
+/**
+ * Errors worth retrying later: offline, server trouble, expired session, rate limits, and the same
+ * request still running on the server (409 `request.idempotency_in_progress`).
+ */
 const retryable = (/** @type {unknown} */ e) =>
-  !(e instanceof ApiError) || e.status >= 500 || [401, 408, 429].includes(e.status);
+  !(e instanceof ApiError) ||
+  e.status >= 500 ||
+  [401, 408, 429].includes(e.status) ||
+  e.code === "request.idempotency_in_progress";
 
 /**
  * Refusals that mean "this is already done (or no longer applies)": the action's goal is met, so
  * the item is dropped like a success instead of staying as a failure nobody can fix. Not every
  * `*_already_*` code belongs here: `logistics.photo_already_used` and
  * `logistics.pickup_already_reported` say the request itself was wrong, so those stay failed.
+ * Only codes of actions the field apps queue are listed.
  */
 const ALREADY_DONE = new Set([
   "logistics.routes_started", // the route is already running (a replayed Start)
   "logistics.already_handed_over", // the stop was already handed over
   "logistics.delivery_closed", // the order is already delivered, refunded or otherwise closed
   "hub_ops.task_packed", // the bag is already packed
-  "community.handoff_already_confirmed",
-  "community.donation_already_verified",
 ]);
+
+/**
+ * @param {string} code @param {string} path
+ * `logistics.delivery_closed` on `/undelivered` can also mean a not-home bag the captain cannot
+ * hold yet (logistics deliveries.py): dropping it would leave the bag never held and the family
+ * never told, so there it stays a failure she sees.
+ */
+const alreadyDone = (code, path) =>
+  ALREADY_DONE.has(code) && !(code === "logistics.delivery_closed" && /\/undelivered$/.test(path));
 
 /** @type {Promise<void> | null} */
 let flushing = null;
@@ -95,19 +114,36 @@ function scheduleRetry(/** @type {number} */ attempts) {
 }
 
 /**
- * A later action succeeded for a target: failed items of the same action on the same target are
- * out of date (a wrong delivery code, once the door was delivered by photo), so they go. Items
- * saved after it stay. Call it after a direct (not queued) send succeeds too.
- * @param {{ path: string, createdAt?: number }} done
+ * What, inside its path, an action is about: packing's pick and shortage name the line's product in
+ * the body, so two of them on one bag are about different lines. Other actions are about the path.
+ * @param {unknown} body
+ */
+const subjectOf = (body) =>
+  String(/** @type {{ product_id?: unknown } | null} */ (body)?.product_id ?? "");
+
+/**
+ * A later action succeeded for a target: failed items of the same action on the same target, and
+ * about the same thing, are out of date (a wrong delivery code, once the door was delivered by
+ * photo), so they go. A failed shortage for one product stays when a pick of another product on
+ * that bag succeeds: it drives a refund. Items saved after it stay. Call it after a direct (not
+ * queued) send succeeds too.
+ * @param {{ path: string, body?: unknown, createdAt?: number }} done
  */
 export async function dropStaleFailures(done) {
   const target = targetOf(done.path);
   if (!target) return;
   const before = done.createdAt ?? Date.now();
+  const subject = subjectOf(done.body);
   await outbox
     .where("status")
     .equals("failed")
-    .filter((f) => f.target === target && f.path === done.path && f.createdAt <= before)
+    .filter(
+      (f) =>
+        f.target === target &&
+        f.path === done.path &&
+        subjectOf(f.body) === subject &&
+        f.createdAt <= before,
+    )
     .delete();
 }
 
@@ -125,7 +161,7 @@ async function pass() {
       await dropStaleFailures(item);
     } catch (e) {
       const code = e instanceof ApiError ? e.code : "network";
-      if (e instanceof ApiError && ALREADY_DONE.has(code)) {
+      if (e instanceof ApiError && alreadyDone(code, item.path)) {
         // Same as a success for ordering: the next item goes on.
         await outbox.delete(/** @type {number} */ (item.id));
         await dropStaleFailures(item);

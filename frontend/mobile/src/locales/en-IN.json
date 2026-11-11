@@ -163,8 +163,10 @@
       "collect": "Kitchen pickup",
       "pickups": "Pickups",
       "pick": "Item picked",
-      "short": "Marked short",
-      "close": "Close bag",
+      "shortage": "Marked short",
+      "accept": "Order accepted",
+      "decline": "Order declined",
+      "ready": "Order ready",
       "other": "Action"
     },
     "reason": {
