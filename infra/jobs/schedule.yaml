@@ -152,6 +152,10 @@ jobs:
     cron: "40 2 * * *"
     why: M4 §6 daily 02:40 IST (Neon is awake then anyway for refresh_analytics_nightly)
 
+  - name: republish_closed_orders
+    runner: manual
+    why: M4 §3.8 backfill by hand only (`just job republish_closed_orders`), once after its deploy; idempotent
+
   # --- M5 billing -------------------------------------------------------------------------
   - name: send_refunds
     runner: vm

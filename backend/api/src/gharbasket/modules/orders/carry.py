@@ -11,19 +11,19 @@ This module does not import `service`: `service.transition` calls `follow` for t
 """
 
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import exists, func, select
+from sqlalchemy import and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders.events import CARRY_OVER_ATTACHED, CARRY_OVER_EXPIRED
-from gharbasket.modules.orders.models import CarryOver, Order, OrderLine
+from gharbasket.modules.orders.events import CARRY_OVER_ATTACHED, CARRY_OVER_EXPIRED, CLOSED
+from gharbasket.modules.orders.models import CarryOver, Order, OrderEvent, OrderLine
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 
@@ -57,6 +57,90 @@ def _line(row: CarryOver) -> CarriedLine:
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+async def publish_closed(session: AsyncSession, order: Order) -> None:
+    """`orders.closed` for a `refunded` order that has nothing left open (§3.8): M5 recognises what
+    it still holds. The caller has decided that it is closed, once."""
+    await publish(
+        session,
+        CLOSED,
+        {
+            "order_id": str(order.id),
+            "household_id": str(order.household_id),
+            "hub_id": str(order.hub_id),
+        },
+    )
+
+
+def _closed_at() -> Any:
+    """SQL: the moment a `refunded` order closed: its move to `refunded` (the order's own
+    `updated_at` if that timeline row is missing), or its last carried row settling, whichever is
+    later. Needs `OrderEvent` outer-joined on the `refunded` move."""
+    settled = (
+        select(func.max(CarryOver.settled_at))
+        .where(CarryOver.from_order_id == Order.id)
+        .scalar_subquery()
+    )
+    moved = func.coalesce(OrderEvent.at, Order.updated_at)
+    return func.greatest(moved, func.coalesce(settled, moved))
+
+
+def _closed_orders_query(*columns: Any) -> Any:
+    return (
+        select(*columns)
+        .select_from(Order)
+        .outerjoin(
+            OrderEvent,
+            and_(OrderEvent.order_id == Order.id, OrderEvent.to_status == "refunded"),
+        )
+        .where(
+            Order.status == "refunded",
+            ~exists().where(CarryOver.from_order_id == Order.id, CarryOver.status.in_(OPEN)),
+        )
+        .order_by(Order.id)
+    )
+
+
+async def closed_orders(
+    session: AsyncSession, *, after: uuid.UUID | None = None, limit: int | None = None
+) -> list[Order]:
+    """`refunded` orders with nothing left open, by id, for `republish_closed_orders`."""
+    query = _closed_orders_query(Order)
+    if after is not None:
+        query = query.where(Order.id > after)
+    if limit is not None:
+        query = query.limit(limit)
+    return list(await session.scalars(query))
+
+
+async def closed_order_ids(
+    session: AsyncSession, closed_from: datetime, closed_until: datetime
+) -> list[uuid.UUID]:
+    """Ids of the `refunded` orders that closed in `[closed_from, closed_until)`, for the ops
+    probe: the window is in SQL, so only the recent ones are read."""
+    closed_at = _closed_at()
+    query = _closed_orders_query(Order.id).where(closed_at >= closed_from, closed_at < closed_until)
+    return list(await session.scalars(query))
+
+
+async def close_settled(session: AsyncSession, order_ids: Iterable[uuid.UUID]) -> None:
+    """Rows of these missed orders just settled (delivered, refunded): publish `orders.closed` for
+    each order whose last row it was. The rows are flushed first and the order's row lock is taken
+    before the check, so two rows settled at the same moment in two transactions cannot each see
+    the other as open: the one that locks second sees the first's commit and publishes. A refunded
+    order's row is final, so it closes once. Lock order, everywhere in M4 and M5: the carry row,
+    the missed order's row, M5's order lock, the wallet's row; `refund_carry` and `expire` take
+    the missed order's row before they refund, so this only waits for what they hold."""
+    for order_id in sorted(set(order_ids)):
+        order = await session.get(Order, order_id, with_for_update=True, populate_existing=True)
+        if order is None or order.status != "refunded":
+            continue
+        still_open = await session.scalar(
+            select(exists().where(CarryOver.from_order_id == order_id, CarryOver.status.in_(OPEN)))
+        )
+        if not still_open:
+            await publish_closed(session, order)
 
 
 async def carry_over(
@@ -107,6 +191,8 @@ async def carry_over(
         out.append(row)
     await session.flush()
     await attach_to_next(session, order.household_id, order.delivery_date)
+    if not rows:  # a second miss that was to carry rows and carried none: nothing keeps it open
+        await close_settled(session, [order_id])
     return out
 
 
@@ -206,6 +292,8 @@ async def follow(session: AsyncSession, order: Order, to_status: str) -> None:
     await session.flush()
     if to_status == "refunded" and rows:
         await attach_to_next(session, order.household_id, min(r.missed_on for r in rows))
+    if to_status == "delivered":  # the last row of a missed order closes it (§3.8)
+        await close_settled(session, (row.from_order_id for row in rows))
 
 
 async def delivering(session: AsyncSession, order_id: uuid.UUID) -> list[dict[str, Any]]:
@@ -331,6 +419,9 @@ async def refund_carry(
         raise ProblemError(404, "orders.carry_not_found", "No such carried item.")
     if row.status == "refunded":
         return row
+    # Lock order: the carry row (above), the missed order's row, then M5's order lock and the
+    # wallet's row inside the refund; `close_settled` then finds the order row already held.
+    await session.get(Order, row.from_order_id, with_for_update=True, populate_existing=True)
     if row.status not in ("pending", "attached"):
         raise ProblemError(
             409,
@@ -339,6 +430,7 @@ async def refund_carry(
             extra={"current_status": row.status},
         )
     await _refund(session, row, "hub")
+    await close_settled(session, [row.from_order_id])
     log.info("carry_refunded", carry_id=str(row.id), actor_user_id=str(actor_user_id))
     return row
 
@@ -356,6 +448,10 @@ async def expire(session: AsyncSession, day: date) -> dict[str, Any]:
             .with_for_update(skip_locked=True)
         )
     )
+    # Lock order, as `refund_carry`: carry rows (above), the missed orders' rows (by id), then M5's
+    # order lock and the wallet's row inside each refund.
+    for order_id in sorted({row.from_order_id for row in rows}):
+        await session.get(Order, order_id, with_for_update=True, populate_existing=True)
     done: dict[uuid.UUID, list[CarryOver]] = {}
     paid = wallet_limit = no_owner = 0
     for row in rows:
@@ -371,6 +467,7 @@ async def expire(session: AsyncSession, day: date) -> dict[str, Any]:
             wallet_limit += 1
             continue
         done.setdefault(row.from_order_id, []).append(row)
+    await close_settled(session, done)
     for order_id, refunded in done.items():
         first = refunded[0]
         await publish(

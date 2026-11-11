@@ -257,8 +257,11 @@ async def paid_orders_debited_once(session: AsyncSession) -> list[str]:
 
 async def revenue_recognised_on_delivery(session: AsyncSession) -> list[str]:
     """M5 §3.9: no order holds less than nothing in unearned_revenue, a delivered order holds
-    nothing there (its revenue is recognised), and an order's own `revenue` entry is only ever
-    for a delivered order (a carried item's is keyed `revenue:<missed order>:carry_…`)."""
+    nothing there (its revenue is recognised), a refunded order with no carried row open holds
+    nothing there (M4's `orders.closed`: its kept money is recognised as `retained`), and an
+    order's own `revenue` entry (`revenue:<order id>`) is for a delivered order, or, with
+    `details.reason` `retained`, for a refunded one (a carried item's is keyed
+    `revenue:<missed order>:carry_…`)."""
     held = {
         r.ref_id: -int(r.total)
         for r in await _rows(
@@ -284,12 +287,32 @@ async def revenue_recognised_on_delivery(session: AsyncSession) -> list[str]:
         for order_id, s in status.items()
         if s == "delivered" and held.get(order_id, 0) != 0
     ]
+    open_rows = {
+        r.from_order_id
+        for r in await _rows(
+            session,
+            "SELECT DISTINCT from_order_id FROM orders.carry_overs "
+            "WHERE status IN ('pending', 'attached', 'packed')",
+        )
+    }
+    out += [
+        f"order {order_id} is refunded and closed but holds {held[order_id]} paise unearned"
+        for order_id, s in status.items()
+        if s == "refunded" and order_id not in open_rows and held.get(order_id, 0) != 0
+    ]
     for r in await _rows(
         session,
-        "SELECT ref_id, idempotency_key FROM billing.journal_entries WHERE kind = 'revenue'",
+        "SELECT ref_id, idempotency_key, details FROM billing.journal_entries "
+        "WHERE kind = 'revenue'",
     ):
-        if r.idempotency_key == f"revenue:{r.ref_id}" and status.get(r.ref_id) != "delivered":
-            out.append(f"revenue for order {r.ref_id}, which is {status.get(r.ref_id)}")
+        if r.idempotency_key != f"revenue:{r.ref_id}":
+            continue
+        got = status.get(r.ref_id)
+        retained = (r.details or {}).get("reason") == "retained"
+        if got == "refunded" and not retained or got not in ("delivered", "refunded"):
+            out.append(f"revenue for order {r.ref_id}, which is {got}")
+        elif got == "delivered" and retained:
+            out.append(f"retained revenue for order {r.ref_id}, which is delivered")
     return out
 
 
