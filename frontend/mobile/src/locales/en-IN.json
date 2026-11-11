@@ -1166,6 +1166,7 @@
       "applied": "{item} short in {n, plural, one {# bag} other {# bags}}. Families will be told.",
       "reported": "Reported today",
       "outcomes": "{swaps, plural, one {# swap} other {# swaps}} · {refunds} money back",
+      "swapRefused": "{n, plural, one {A swap was refused} other {# swaps were refused}}: the family’s choice or the line changed. {n, plural, one {That bag is} other {Those bags are}} back on Shortages; report again.",
       "noneTitle": "No shortages to report",
       "noneBody": "When an item comes in short, it shows here with what each family gets."
     }

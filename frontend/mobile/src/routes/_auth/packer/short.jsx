@@ -7,29 +7,16 @@ import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLine } from "@/features/packing/format.js";
 import { bagCode } from "@/features/packing/lines.js";
 import {
+  shortagePlan,
   substituteFor,
   usePackingActions,
   usePackingDay,
   useShortages,
 } from "@/features/packing/queries.js";
 
-/** @typedef {import("@/features/packing/queries.js").ShortBagOut} ShortBagOut */
-
 /** Report an item that came in short; each family's own choice decides a swap or money back (design Packer · Shortages; M6 US-5). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/packer/short")({ component: Shortages });
-
-/** The bags a shortage of `short` units falls on, in the server's order. @param {ShortBagOut[]} bags @param {number} short */
-function fallsOn(bags, short) {
-  const out = [];
-  let left = short;
-  for (const b of bags) {
-    if (left <= 0) break;
-    out.push(b);
-    left -= b.qty;
-  }
-  return out;
-}
 
 function Shortages() {
   const { t, i18n } = useTranslation();
@@ -69,7 +56,8 @@ function Shortages() {
     // Counted in steps: "bunch" for a step of one, else "× 250 g".
     const unit = item.step.qty === 1 ? t(`packer.unit.${item.step.unit}`) : `× ${item.step.label}`;
     const short = value ?? item.short_by;
-    const bags = fallsOn(item.bags, short);
+    const plan = shortagePlan(item, item.bags, short);
+    const bags = plan.map((p) => p.bag);
     const v = { item: item.name, unit, needed: item.needed, received: item.received };
     reporter = (
       <ShortageReporter
@@ -90,7 +78,7 @@ function Shortages() {
         }))}
         onApply={() => {
           if (!bags.length) return;
-          reportShortage(item, bags);
+          reportShortage(item, plan);
           setValue(null);
           toast(t("packer.short.applied", { item: v.item, n: bags.length }));
         }}
