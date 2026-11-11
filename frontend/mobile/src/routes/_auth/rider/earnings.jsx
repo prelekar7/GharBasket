@@ -8,7 +8,7 @@ import { ProfileActions } from "@/components/ProfileActions.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { RiderEarningsView } from "@/features/logistics/Earnings.jsx";
 import { openCertificate } from "@/features/partners/certificate.js";
-import { useKindEarnings } from "@/features/partners/earnings.js";
+import { useKindEarnings, useLastWeekPayouts } from "@/features/partners/earnings.js";
 import { useSession } from "@/lib/session.js";
 
 /** What the rider earned this week, the payout day and the income certificate (design RiderEarnings; M8 §3.6, M5). */
@@ -26,6 +26,7 @@ function EarningsCrashed({ reset }) {
     <ScreenError
       onRetry={() => {
         client.invalidateQueries({ queryKey: ["earnings-this-week"] });
+        client.invalidateQueries({ queryKey: ["earnings-week"] });
         reset();
       }}
     />
@@ -36,6 +37,7 @@ function RiderEarnings() {
   const { t } = useTranslation();
   const name = useSession((s) => s.user?.name);
   const earnings = useKindEarnings("rider");
+  const lastPayouts = useLastWeekPayouts("rider", earnings.data?.from);
   const [cert, setCert] = useState(/** @type {"idle" | "busy" | "failed"} */ ("idle"));
 
   const download = async () => {
@@ -56,11 +58,12 @@ function RiderEarnings() {
       />
       {earnings.isPending ? (
         <Skeleton lines={6} />
-      ) : earnings.isError || !earnings.data ? (
+      ) : !earnings.data ? (
+        // A failed background refetch keeps the week already on screen.
         <ScreenError onRetry={() => earnings.refetch()} />
       ) : (
         <>
-          <RiderEarningsView data={earnings.data} />
+          <RiderEarningsView data={earnings.data} lastPayouts={lastPayouts.data} />
           {cert === "failed" && (
             <p role="alert" className="text-sm font-semibold text-danger">
               {t("rider.earnings.certFailed")}

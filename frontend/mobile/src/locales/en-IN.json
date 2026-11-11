@@ -1288,6 +1288,12 @@
       "summary": "{orders, plural, =0 {No orders dispatched yet} one {# order dispatched} other {# orders dispatched}}",
       "line": "{orders, plural, one {# order} other {# orders}}",
       "payoutWeek": "Week {week}",
+      "payoutPeriod": "Pay for {from} to {to}",
+      "holdReason": {
+        "kyc_incomplete": "Finish your KYC documents to receive it.",
+        "no_payout_account": "Add your bank account to receive it.",
+        "suspended": "Your partner account is paused. Talk to your hub manager."
+      },
       "payoutStatus": "{status, select, processed {Paid to your bank} pending {On its way to your bank} processing {On its way to your bank} held {On hold} other {Didn’t go through; we’ll try again}}",
       "payout": "Paid every {day} to your bank account, from the same ledger as every rupee in GharBasket.",
       "cert": "Download income certificate",

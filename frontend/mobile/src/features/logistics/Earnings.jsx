@@ -4,15 +4,20 @@ import { shortDate } from "@/features/subscriptions/format.js";
 import { dayLabel } from "./format.js";
 
 /**
- * What the rider earned this week: the total, the days that paid and what M5 paid out (design
- * RiderEarnings; M8 §3.6). Every part may be missing or empty; none of it can throw.
- * @param {{ data: import("@/features/partners/earnings.js").KindEarnings }} props
+ * What the rider earned this week: the total, the days that paid, and what M5 paid out, which is
+ * last week's payout (it is listed under the week it pays; design RiderEarnings; M8 §3.6). Every
+ * part may be missing or empty; none of it can throw.
+ * @param {{ data: import("@/features/partners/earnings.js").KindEarnings,
+ *   lastPayouts?: import("@/features/partners/earnings.js").Payout[] }} props
  */
-export function RiderEarningsView({ data }) {
+export function RiderEarningsView({ data, lastPayouts = [] }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const items = data.items ?? [];
-  const payouts = data.payouts ?? [];
+  const seen = new Set();
+  const payouts = [...(data.payouts ?? []), ...(lastPayouts ?? [])].filter(
+    (p) => !seen.has(p.id) && seen.add(p.id),
+  );
   return (
     <>
       <section className="flex flex-col gap-1 rounded-md bg-info-soft p-4">
@@ -57,10 +62,22 @@ export function RiderEarningsView({ data }) {
               className="flex items-baseline justify-between gap-3 border-b border-line py-3"
             >
               <span className="flex flex-col">
-                <strong>{t("rider.earnings.payoutWeek", { week: p.week })}</strong>
+                <strong>
+                  {p.period?.from && p.period?.to
+                    ? t("rider.earnings.payoutPeriod", {
+                        from: shortDate(p.period.from, lang),
+                        to: shortDate(p.period.to, lang),
+                      })
+                    : t("rider.earnings.payoutWeek", { week: p.week })}
+                </strong>
                 <span className="text-[15px] leading-[22px] text-fg-secondary">
                   {t("rider.earnings.payoutStatus", { status: p.status })}
                 </span>
+                {p.status === "held" && p.hold_reason && (
+                  <span className="text-[15px] leading-[22px] font-semibold text-fg">
+                    {t(`rider.earnings.holdReason.${p.hold_reason}`)}
+                  </span>
+                )}
               </span>
               <MoneyText paise={p.amount_paise} />
             </li>

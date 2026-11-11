@@ -33,6 +33,12 @@ export function isoWeek(date) {
   return `${year}-W${String(n).padStart(2, "0")}`;
 }
 
+/** The ISO week before the week that starts on `monday` ("YYYY-MM-DD", a week's `from`). @param {string} monday */
+export function weekBefore(monday) {
+  const day = new Date(Date.parse(`${monday}T00:00:00Z`) - 7 * 86_400_000);
+  return isoWeek(day.toISOString().slice(0, 10));
+}
+
 /**
  * One week of earnings (GET /v1/earnings?week=, M8 §3.6). Always asks for a week, so the answer is
  * the contract's, whichever partner screen asks. @param {string} week "YYYY-Www"
@@ -95,5 +101,25 @@ export function useKindEarnings(kind) {
   return useQuery({
     queryKey: ["earnings-this-week", kind],
     queryFn: async () => forKind(/** @type {EarningsWeek} */ (await request("/v1/earnings")), kind),
+  });
+}
+
+/**
+ * Last week's payouts of one `kind`. M5 pays a week out on the Monday after it, and GET /v1/earnings
+ * lists a payout under the week it pays (billing/earnings.py `week_payouts`), so this week's answer
+ * never holds one: the payout is in last week's. Asked once this week's `from` is known, so the
+ * weeks are the server's, not the phone's clock.
+ * @param {"captain" | "rider" | "packer" | "kitchen"} kind @param {string | undefined} thisMonday this week's `from`
+ */
+export function useLastWeekPayouts(kind, thisMonday) {
+  const week = thisMonday ? weekBefore(thisMonday) : "";
+  return useQuery({
+    queryKey: ["earnings-week", week],
+    queryFn: () =>
+      /** @type {Promise<EarningsWeek>} */ (
+        request(`/v1/earnings?${new URLSearchParams({ week })}`)
+      ),
+    enabled: !!week,
+    select: (w) => forKind(w, kind).payouts,
   });
 }

@@ -1284,6 +1284,12 @@
       "summary": "{orders, plural, =0 {अभी कोई ऑर्डर नहीं भेजा} one {# ऑर्डर भेजा} other {# ऑर्डर भेजे}}",
       "line": "{orders, plural, one {# ऑर्डर} other {# ऑर्डर}}",
       "payoutWeek": "हफ़्ता {week}",
+      "payoutPeriod": "{from} से {to} की कमाई",
+      "holdReason": {
+        "kyc_incomplete": "इसे पाने के लिए अपने KYC दस्तावेज़ पूरे करें।",
+        "no_payout_account": "इसे पाने के लिए अपना बैंक खाता जोड़ें।",
+        "suspended": "आपका पार्टनर खाता रुका हुआ है। अपने हब मैनेजर से बात करें।"
+      },
       "payoutStatus": "{status, select, processed {आपके बैंक में भेज दिया} pending {आपके बैंक के रास्ते में} processing {आपके बैंक के रास्ते में} held {रुका हुआ} other {नहीं हो पाया; हम दोबारा कोशिश करेंगे}}",
       "payout": "हर {day} आपके बैंक खाते में, उसी खाते से जिसमें GharBasket का हर रुपया दर्ज है।",
       "cert": "आय प्रमाणपत्र डाउनलोड करें",
