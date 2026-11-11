@@ -121,9 +121,9 @@ function Today() {
       <ProgressBar
         tone="accent"
         label={t("captain.today.delivered")}
-        value={n.handled}
+        value={n.door}
         max={n.total}
-        valueLabel={t("captain.ofTotal", { done: n.handled, total: n.total })}
+        valueLabel={t("captain.ofTotal", { done: n.door, total: n.total })}
       />
       <Link
         to="/captain/flats/exceptions"

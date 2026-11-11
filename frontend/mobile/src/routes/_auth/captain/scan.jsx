@@ -9,6 +9,7 @@ import {
   bagQr,
   currentStop,
   findFlat,
+  flatOf,
   flatText,
   isHandedOver,
   tiffinStop,
@@ -306,7 +307,7 @@ function Handover() {
       >
         <TextField
           label={t("captain.handover.typeLabel")}
-          placeholder={next?.flat_label ?? "B-402"}
+          placeholder={(next && flatOf(next)) || "B-402"}
           autoComplete="off"
           value={typed}
           onChange={setTyped}

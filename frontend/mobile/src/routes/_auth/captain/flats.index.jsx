@@ -21,6 +21,7 @@ import {
   flatText,
   isHandedOver,
   nextFlat,
+  tally,
   towerOf,
 } from "@/features/captain/day.js";
 import { dayLabel, isOpen, proof, TiffinDoor } from "@/features/captain/parts.jsx";
@@ -71,7 +72,7 @@ function Flats() {
   const shown = wing ?? (next && towerOf(next)) ?? wings[0];
   const flats = d.flats.filter((f) => towerOf(f) === shown);
   // The bar says "delivered": a held or undelivered bag is not counted as done.
-  const delivered = flats.filter((f) => f.status === "delivered").length;
+  const { door: delivered } = tally({ ...d, flats });
 
   const deliver = (/** @type {string} */ raw) => {
     const flat = findFlat(d.flats, raw);
@@ -125,9 +126,7 @@ function Flats() {
       )}
       <FlatChecklist
         label={shown}
-        onSelect={(item) =>
-          setPicked(flats.find((f) => rowLabel(f) === item.flat)?.order_id ?? null)
-        }
+        onSelect={(item) => setPicked(item.id ?? null)}
         items={flats.map((f) => {
           const issue = issues[f.order_id];
           const [status, word] = issue
@@ -138,6 +137,7 @@ function Flats() {
                 ? ["planned", "tiffinOnTheWay"]
                 : PILL[f.status];
           return {
+            id: f.order_id,
             flat: rowLabel(f),
             note: [
               t(`captain.flats.contents.${f.kind}`),

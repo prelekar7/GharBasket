@@ -484,5 +484,28 @@ describe('a flat\'s label as the server writes it, "{tower}, {flat}" (logistics 
     expect(findFlat(flats, "402")).toBe(a);
     expect(findFlat([a, flat("B wing, 402")], "402")).toBeUndefined();
     expect(findFlat(flats, "c402")).toBeUndefined();
+    // The label exactly as the app shows it, in the sheet title, toasts and the placeholder.
+    expect(findFlat(flats, "B wing, B-402")).toBe(b);
+    expect(findFlat(flats, "Main building, 12")).toBe(main);
+  });
+
+  it("finds the bag still to deliver when one flat has a box and an add-on", () => {
+    const box = { ...flat("A wing, A-101"), status: "delivered" };
+    const addon = { ...flat("A wing, A-101", "addon"), status: "with_you" };
+    expect(findFlat([box, addon], "a101")).toBe(addon);
+  });
+
+  it("counts a wing as delivered only for bags at the door, not held or undelivered ones", () => {
+    const n = tally(
+      /** @type {any} */ ({
+        flats: [
+          { ...flat("A wing, A-1"), status: "delivered" },
+          { ...flat("A wing, A-2"), status: "held" },
+          { ...flat("A wing, A-3"), status: "undelivered" },
+          { ...flat("A wing, A-4"), status: "with_you" },
+        ],
+      }),
+    );
+    expect(n).toMatchObject({ total: 4, door: 1, handled: 3, held: 1 });
   });
 });

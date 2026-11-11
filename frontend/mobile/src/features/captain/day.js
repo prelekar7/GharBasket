@@ -167,15 +167,17 @@ export function findFlat(flats, raw) {
   if (!typed) return undefined;
   const found = bags.filter((f) => flatKeys(f).includes(typed));
   // Two towers can share a number ("402"): a bare number then finds neither, never the wrong one.
-  return new Set(found.map((f) => f.flat_label)).size === 1 ? found[0] : undefined;
+  if (new Set(found.map((f) => f.flat_label)).size !== 1) return undefined;
+  // One flat with a box and an add-on: the bag still to deliver, not the one already done.
+  return found.find((f) => f.status === "with_you" || f.status === "held") ?? found[0];
 }
 
 /** Letters and digits only, upper case: "b-402" → "B402". @param {string} s */
 const typedKey = (s) => s.toUpperCase().replace(/[^\p{L}\p{N}]/gu, "");
 
 /**
- * What a captain may type for "B wing, B-402": the flat ("B402"), or its number after the tower
- * ("B wing 402"). For "B wing, 402": "402", "B402", "B wing 402". A bare number is only the flat
+ * What a captain may type for "B wing, B-402": the flat ("B402"), its number after the tower
+ * ("B wing 402"), or the whole label as the app shows it ("B wing, B-402"). For "B wing, 402": "402", "B402", "B wing 402". A bare number is only the flat
  * itself, so "402" never finds B-402.
  * @param {Flat} f
  */
@@ -184,5 +186,6 @@ function flatKeys(f) {
   if (!flat) return [];
   const short = tower === NO_TOWER ? "" : (tower.split(/\s+/)[0] ?? "");
   const number = flat.replace(/^\p{L}+-/u, "");
-  return [flat, `${short}${number}`, `${tower}${number}`].map(typedKey);
+  // The last is the label as the app shows it, "A wing, A-1203".
+  return [flat, `${short}${number}`, `${tower}${number}`, `${tower}${flat}`].map(typedKey);
 }
