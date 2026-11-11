@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 import { inviteLink, whatsappShare } from "./invite.js";
 
 /**
- * Invite neighbours: the message they'll get, the reward rule, then WhatsApp or Copy link
- * (design Core-S3, M9 referrals).
+ * Invite neighbours: the message they'll get, then WhatsApp or Copy link (design Core-S3). No reward
+ * line: this link (`/s/<slug>`) carries no referral code, so a neighbour who joins from it is not
+ * credited (M9 §3.3; the referral link from GET /v1/referrals can bring it back).
  * `message` replaces the invite text, e.g. with this month's impact (HcImpact); the link stays.
  * @param {{ open: boolean, onClose: () => void, society: Pick<import("./queries.js").Society, "id" | "slug" | "name" | "captain">, unlock?: import("./queries.js").Unlock | null, message?: (link: string) => string }} props
  */
@@ -69,7 +70,6 @@ export function ShareSheet({ open, onClose, society: s, unlock, message: custom 
         <p className="rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5 text-sm leading-5">
           {message}
         </p>
-        <p className="text-sm leading-5 text-fg-secondary">{t("society.share.reward")}</p>
       </div>
     </Sheet>
   );

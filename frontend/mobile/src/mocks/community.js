@@ -102,20 +102,6 @@ const word = (/** @type {Request} */ r) => {
   return (/** @type {string} */ w) => (hi ? (HI[w] ?? w) : w);
 };
 
-/** A society with the homes that joined since: at the threshold it goes live with its captain. */
-function current(/** @type {Society} */ s) {
-  const extra = joinedExtra()[s.id] ?? 0;
-  if (s.status === "live" || extra === 0) return s;
-  const joined = Math.min(s.unlock.threshold, s.unlock.joined + extra);
-  if (joined < s.unlock.threshold) return { ...s, unlock: { ...s.unlock, joined } };
-  return {
-    ...s,
-    status: /** @type {const} */ ("live"),
-    unlock: { ...s.unlock, joined },
-    captain: { display_name: "Asha tai", photo_url: null },
-  };
-}
-
 /** SocietySummary: never any captain data, not even for residents. */
 const summary = (/** @type {Society} */ s, /** @type {Request} */ r) => ({
   id: s.id,
@@ -125,10 +111,6 @@ const summary = (/** @type {Society} */ s, /** @type {Request} */ r) => ({
   status: s.status,
   distance_m: s.distance_m,
 });
-
-/** Homes that joined through invites, by society (mock only, see POST /v1/referrals). */
-const JOINED_KEY = "gb-mock-joined";
-const joinedExtra = () => JSON.parse(localStorage.getItem(JOINED_KEY) ?? "{}");
 
 const problem = (
   /** @type {number} */ status,
@@ -164,7 +146,7 @@ export const communityHandlers = [
     if (!id) return problem(422, "request.invalid", "Give the society_id of the society.");
     const found = find(id);
     if (!found) return noSociety();
-    const society = current(found);
+    const society = found;
     const live = society.status === "live";
     const homes = live ? 50 : society.unlock.joined;
     return HttpResponse.json({
@@ -189,9 +171,9 @@ export const communityHandlers = [
   // ?q= filters by name or area; ?near=lat,lng sorts by distance (the mock is already sorted).
   http.get("*/v1/societies", ({ request }) => {
     const q = new URL(request.url).searchParams.get("q")?.trim().toLowerCase() ?? "";
-    const items = SOCIETIES.map(current)
-      .filter((s) => !q || `${s.name} ${s.area}`.toLowerCase().includes(q))
-      .map((s) => summary(s, request));
+    const items = SOCIETIES.filter(
+      (s) => !q || `${s.name} ${s.area}`.toLowerCase().includes(q),
+    ).map((s) => summary(s, request));
     return HttpResponse.json({ items, next_cursor: null });
   }),
 
@@ -199,7 +181,7 @@ export const communityHandlers = [
   http.get("*/v1/societies/:id", ({ request, params }) => {
     const found = find(String(params.id));
     if (!found) return noSociety();
-    const s = current(found);
+    const s = found;
     const w = word(request);
     return HttpResponse.json({
       ...summary(s, request),
@@ -212,7 +194,7 @@ export const communityHandlers = [
   http.get("*/v1/societies/:id/unlock", ({ params }) => {
     const found = find(String(params.id));
     if (!found) return noSociety();
-    const s = current(found);
+    const s = found;
     return HttpResponse.json({ society_id: s.id, status: s.status, ...s.unlock });
   }),
 
