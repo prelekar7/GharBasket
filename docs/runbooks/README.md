@@ -49,6 +49,7 @@ carries `problems`, one per line, each `<probe>: <what>`:
 |---|---|---|
 | `platform.failed_jobs` | `cutoff_lock failed: <error>`, a job with no `ok` run since | `cutoff-failed.md` for the cut-off; the job's own runbook, else [Any other failed job](#any-other-failed-job) |
 | `platform.jobs_with_failed_hubs` | `<job> ended ok but hubs failed: <hub ids> (run of <time> UTC)` | [Any other failed job](#any-other-failed-job): the failed hub's error is in the API log; run the job again for the same `scheduled_for` once fixed |
+| `platform.jobs_with_failed_households` | `<job> ended ok but households failed: <ids> (run of <time> UTC)` | [Any other failed job](#any-other-failed-job): the household's error is in the API log; run the job again for the same `scheduled_for` once fixed |
 | `platform.outbox_stuck` | `N events unsent for > 30 min after 3 or more tries (<event> xN)` | [Any other failed job](#any-other-failed-job): a consumer keeps failing |
 | `platform.database_size` | `the database is N MB, 85% of 512 MB` | Neon storage: delete old demo branches and data, or plan the paid database (Q3) |
 | `billing.webhook_backlog` | `N webhooks unprocessed for > 15 min` | `razorpay-down.md` |

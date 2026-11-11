@@ -137,7 +137,7 @@ The backend product scope was complete on **28 October** (#382–#404). The demo
 | 1–2 Nov | Served models load from the R2 registry (#457); the ML path hardened for the free host (#462); the mandi price collector moved to the Oracle VM (#477); the pantry twin switched on in staging (#470); drift alerts to admins and the ML service on AI health (#479); a guarded loader for demo data on staging (#480) |
 | 3–6 Nov | Add-on lines count as uncommitted demand ([ADR-0031](../adr/0031-uncommitted-demand-is-add-on-lines-and-tiffins.md), 3 Nov, #483); minute-level jobs called from the Oracle VM ([ADR-0032](../adr/0032-scheduled-jobs-from-the-oracle-vm.md), 5 Nov, #487); the final 5-seed evaluation (6 Nov, #488) |
 | 10 Nov | Ops alerts: [ADR-0033](../adr/0033-ops-alerts-healthchecks-and-uptimerobot.md) (#505), the job runs endpoint, ops probes and alert pings (#506), billing and logistics probes (#507), admin messages for reconciliation and routes to review (#508) |
-| 11 Nov | Runbooks (#510, #513); a weekly `pg_dump` of staging to R2 (#514); the audit fixes (#516, #517, #520, #521, #522); revenue recognised on delivery (#518, #519); specs synced with what is built (#512); the console's staff-only sign-in (#509). The custom domain `gharbasket.co.in` was bought the same day ([ADR-0035](../adr/0035-custom-domain-gharbasket-co-in.md)) |
+| 11 Nov | Runbooks (#510, #513); a weekly `pg_dump` of staging to R2 (#514); the audit fixes (#516, #517, #520, #521, #522); revenue recognised on delivery (#518, #519); specs synced with what is built (#512); the console's staff-only sign-in (#509). The custom domain `gharbasket.co.in` was bought the same day (ADR-0035, PR #511) |
 
 **Cut order if a milestone slips:** (UPI Autopay is already planned for the pilot phase; MS-A uses the wallet only.) Voice assistant → OTA live updates → UPI Autopay (wallet stays) → green-slot pricing → churn/uplift model. MVP flows are never cut.
 
@@ -201,7 +201,7 @@ R = Responsible, A = Accountable, C = Consulted, I = Informed.
 | Render (API, Key Value), Neon, Vercel, Cloudflare R2, Infisical, PostHog, UptimeRobot, Firebase (test numbers) | ₹0 | Free tiers that cannot bill us; free tiers only until the pilot (D20) |
 | Render free web service (ML service, no OSRM), GitHub Actions (training), an Oracle Cloud Always Free VM (minute-level jobs, mandi collector; D32) | ₹0 | Free tier, no card; MLflow stays local (Docker Compose), never hosted; decided in D25 ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)), the ML host moved from a Hugging Face Space to Render by D30 ([ADR-0030](../adr/0030-ml-service-on-render-free.md)) |
 | Paid plans for the pilot (Render Starter for the API, a worker, Firebase Blaze for real OTPs; the pilot database, Q3) | To be decided before P6 | |
-| Domain name | ≈ ₹800/year | `gharbasket.co.in`, bought on 2026-11-11 ([ADR-0035](../adr/0035-custom-domain-gharbasket-co-in.md)) |
+| Domain name | ≈ ₹800/year | `gharbasket.co.in`, bought on 2026-11-11 (ADR-0035, PR #511) |
 | Claude API (assistant) | ≈ ₹350–1,300/week at demo scale | Model chosen after the S8 eval; per-user caps |
 | Razorpay, WhatsApp | ₹0 | Test mode / test number |
 | Google Play Console | ≈ ₹2,100 one-time | Internal testing track |
