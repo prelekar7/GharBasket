@@ -232,12 +232,10 @@ async def test_held_paise_reads_each_order_for_m4(db_session: AsyncSession) -> N
     assert await billing_api.held_paise(db_session, []) == {}
 
 
-async def test_a_refund_and_the_recognition_at_once_never_take_the_same_money(
-    database_url: str,
-) -> None:
+async def _race(url: str) -> None:
     """Two transactions on one order (spec §3.9): whichever takes the order's lock first, the
     other waits for it, so the order's unearned money ends at 0, never below."""
-    engine = create_engine(database_url, pooled=False)
+    engine = create_engine(url, pooled=False)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     user = uuid.uuid4()
     first, second = uuid.uuid4(), uuid.uuid4()
@@ -283,27 +281,14 @@ async def test_a_refund_and_the_recognition_at_once_never_take_the_same_money(
         await engine.dispose()
 
 
-def test_the_migration_refuses_to_downgrade_once_revenue_is_recognised() -> None:
-    """Deleting `revenue` entries would leave refunds from sales_revenue below zero, so the
-    downgrade refuses while there are any; without them it goes down and up again."""
+def test_a_refund_raced_with_the_recognition_and_then_the_downgrade_refuses() -> None:
+    """On a database of its own (the race commits, and the ledger is append-only): the migration
+    goes down while nothing is recognised; a refund and the recognition at the same moment never
+    take the same money; then the downgrade refuses, as deleting the `revenue` entries would
+    leave the refund from sales_revenue below zero."""
     base = os.environ.get("TEST_DATABASE_URL", LOCAL_TEST_DATABASE_URL)
-    name = f"{make_url(base).database}_revdown"
+    name = f"{make_url(base).database}_revenue_race"
     url = make_url(base).set(database=name).render_as_string(hide_password=False)
-
-    async def recognise_one() -> None:
-        engine = create_engine(url, pooled=False)
-        try:
-            async with AsyncSession(engine) as session:
-                user, order = uuid.uuid4(), uuid.uuid4()
-                await wallet.credit_topup(
-                    session, user, 5_000, payment_ref="pay_down", topup_id=uuid.uuid4()
-                )
-                await wallet.debit_for_order(session, user, order, 5_000, DAY)
-                await revenue.recognise(session, order, f"revenue:{order}")
-                await session.commit()
-        finally:
-            await engine.dispose()
-
     run_on_server(base, f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
     run_on_server(base, f"CREATE DATABASE {name}")
     try:
@@ -311,7 +296,7 @@ def test_the_migration_refuses_to_downgrade_once_revenue_is_recognised() -> None
         command.upgrade(config, "head")
         command.downgrade(config, "8b2e5d4c7a19")  # nothing recognised yet: it goes down
         command.upgrade(config, "head")
-        asyncio.run(recognise_one())
+        asyncio.run(_race(url))
         with pytest.raises(RuntimeError, match="cannot downgrade 5d1e9b3a7c42"):
             command.downgrade(config, "8b2e5d4c7a19")
     finally:

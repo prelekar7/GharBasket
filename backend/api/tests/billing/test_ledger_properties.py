@@ -75,9 +75,11 @@ def expected(
         return "billing.entry_conflict" if recorded != amount else None
     if kind == "debit":
         return "billing.insufficient_balance" if model < amount else None
+    if model + amount > CAP:
+        return "billing.wallet_limit"  # no payment to send it back to, so it cannot go to source
     if kind == "refund" and amount > left:
         return "billing.order_refund_exceeds_paid"
-    return "billing.wallet_limit" if model + amount > CAP else None
+    return None
 
 
 async def check(session: AsyncSession, user: uuid.UUID, moves: list[Move]) -> None:

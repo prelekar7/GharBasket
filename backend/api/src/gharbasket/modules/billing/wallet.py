@@ -151,7 +151,6 @@ async def refund_to_wallet(
     existing = await service.find_entry(session, key)
     if existing is not None:
         return await revenue.replayed_refund(session, existing, amount_paise)
-    legs = await revenue.refund_legs(session, order_id, amount_paise)
     details: dict[str, str] = {"reason": reason}
     debit = await service.find_entry(session, f"box:{order_id}")
     if debit is not None and debit.details and "delivery_date" in debit.details:
@@ -162,8 +161,9 @@ async def refund_to_wallet(
         from gharbasket.modules.billing import refunds
 
         return await refunds.refund_order_to_source(
-            session, wallet, user_id, order_id, amount_paise, reason, details, current, legs
+            session, wallet, user_id, order_id, amount_paise, reason, details, current
         )
+    legs = await revenue.refund_legs(session, order_id, amount_paise)
     entry, _ = await service.post(
         session,
         kind="refund",

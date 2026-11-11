@@ -391,7 +391,9 @@ async def test_the_delivery_names_its_carried_rows_and_m5_recognises_them_on_the
     assert await billing_revenue.held_paise(db_session, next_box) == 0
     assert await billing_revenue.held_paise(db_session, missed) == deliveries.SECOND_MISS_FEE_PAISE
     recognised = await db_session.scalars(
-        select(JournalEntry.idempotency_key).where(JournalEntry.kind == "revenue")
+        select(JournalEntry.idempotency_key).where(
+            JournalEntry.kind == "revenue", JournalEntry.ref_id.in_([next_box, missed])
+        )
     )
     assert set(recognised) == {f"revenue:{next_box}"} | {
         f"revenue:{missed}:carry_{rows[slug].product_id.hex}" for slug in KEPT

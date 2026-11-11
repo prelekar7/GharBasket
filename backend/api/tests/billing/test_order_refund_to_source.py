@@ -16,7 +16,7 @@ from gharbasket.platform.errors import ProblemError
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from .paid import paid_topup
+from .paid import paid_order, paid_topup
 from .test_refunds import (
     ask,
     assert_ledger_balances,
@@ -59,7 +59,7 @@ async def fail(db: AsyncSession, part: RefundPart) -> str:
 
 
 async def test_a_refund_that_fits_goes_to_the_wallet_as_before(db_session: AsyncSession) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     await full_wallet(db_session, user, 600_000)
 
     entry = await wallet.refund_to_wallet(db_session, user, order, 100_000, "shortage")
@@ -73,7 +73,7 @@ async def test_a_refund_that_fits_goes_to_the_wallet_as_before(db_session: Async
 async def test_a_full_wallet_sends_the_whole_refund_to_the_payment_source(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     older, newer = await full_wallet(db_session, user, 600_000, 400_000)
 
     entry = await wallet.refund_to_wallet(db_session, user, order, 500_000, "shortage")
@@ -99,7 +99,7 @@ async def test_a_full_wallet_sends_the_whole_refund_to_the_payment_source(
 async def test_the_same_call_twice_makes_one_refund_and_no_second_entry(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     await full_wallet(db_session, user, 600_000, 400_000)
 
     first = await wallet.refund_to_wallet(db_session, user, order, 500_000, "shortage")
@@ -116,7 +116,7 @@ async def test_the_same_call_twice_makes_one_refund_and_no_second_entry(
 async def test_top_ups_that_cannot_take_it_all_leave_wallet_limit_and_post_nothing(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     await paid_topup(db_session, user, 600_000, age_days=181)  # past Razorpay's window
     await paid_topup(db_session, user, 400_000)
 
@@ -135,7 +135,7 @@ async def test_top_ups_that_cannot_take_it_all_leave_wallet_limit_and_post_nothi
 async def test_a_wallet_with_no_payment_to_go_back_to_keeps_wallet_limit(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     await wallet.credit_topup(db_session, user, CAP, payment_ref="pay_x", topup_id=uuid.uuid4())
 
     with pytest.raises(ProblemError) as refused:
@@ -146,7 +146,7 @@ async def test_a_wallet_with_no_payment_to_go_back_to_keeps_wallet_limit(
 
 
 async def test_under_one_rupee_on_a_full_wallet_is_wallet_limit(db_session: AsyncSession) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     await full_wallet(db_session, user, 600_000, 400_000)
 
     with pytest.raises(ProblemError) as refused:
@@ -162,7 +162,7 @@ async def test_under_one_rupee_on_a_full_wallet_is_wallet_limit(db_session: Asyn
 async def test_an_order_refund_runs_beside_the_customers_own_open_refund(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     await full_wallet(db_session, user, 600_000, 400_000)
     mine = await refunds.request_refund(
         db_session, user, 300_000, settings=make_settings(), idempotency_key="mine"
@@ -186,7 +186,7 @@ async def test_an_order_refund_runs_beside_the_customers_own_open_refund(
 async def test_an_order_refund_alone_does_not_hold_back_a_customer_request(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     await full_wallet(db_session, user, 600_000, 400_000)
     await wallet.refund_to_wallet(db_session, user, order, 100_000, "shortage")
 
@@ -201,7 +201,7 @@ async def test_an_order_refund_alone_does_not_hold_back_a_customer_request(
 async def test_a_failed_part_moves_once_to_another_top_up_then_is_unclaimed(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     _, b, c = await full_wallet(db_session, user, 500_000, 300_000, 200_000)
     await wallet.refund_to_wallet(db_session, user, order, 250_000, "shortage")
     (refund,) = await refund_rows(db_session, user)
@@ -245,7 +245,7 @@ async def test_a_failed_part_moves_once_to_another_top_up_then_is_unclaimed(
 async def test_a_failed_part_stays_in_the_wallet_when_it_fits_under_the_cap(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     await full_wallet(db_session, user, 600_000, 400_000)
     await wallet.refund_to_wallet(db_session, user, order, 200_000, "shortage")
     (refund,) = await refund_rows(db_session, user)
@@ -268,7 +268,7 @@ async def test_the_customer_sees_the_order_refund_and_its_parts(
     api = clients()
     auth, user = await customer(api, google)
     topup = await dev_topup(api, auth, CAP)
-    order = uuid.uuid4()
+    order = await paid_order(db_session)
     await billing_api.refund_to_wallet(db_session, user, order, 50_000, "shortage")
     await db_session.commit()
 
@@ -313,7 +313,7 @@ async def test_the_customer_sees_the_order_refund_and_its_parts(
 async def test_a_moved_part_that_is_processed_ends_the_refund_processed(
     db_session: AsyncSession,
 ) -> None:
-    user, order = uuid.uuid4(), uuid.uuid4()
+    user, order = uuid.uuid4(), await paid_order(db_session)
     _, b, c = await full_wallet(db_session, user, 500_000, 300_000, 200_000)
     await wallet.refund_to_wallet(db_session, user, order, 250_000, "shortage")
     (refund,) = await refund_rows(db_session, user)

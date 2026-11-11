@@ -53,3 +53,12 @@ async def order_refund_to_source(
     entry = (await db.execute(entries)).scalar_one()
     assert (entry.details or {}).get("to_source") == str(refund.id)
     return refund, parts
+
+
+async def paid_order(db: AsyncSession, amount: int = 900_000) -> uuid.UUID:
+    """An order someone else's wallet paid `amount` for (a `box_debit`, held unearned): order
+    refunds may then pay back up to that much (spec §3.9) without touching the test's wallet."""
+    payer, order = uuid.uuid4(), uuid.uuid4()
+    await wallet.credit_topup(db, payer, amount, payment_ref=f"pay_{payer.hex}", topup_id=payer)
+    await wallet.debit_for_order(db, payer, order, amount, datetime.now(UTC).date())
+    return order
