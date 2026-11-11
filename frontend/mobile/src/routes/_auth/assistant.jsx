@@ -52,6 +52,8 @@ function Assistant() {
       return /** @type {{ code?: string, status?: number }} */ (reject.error);
     return null;
   };
+  /** Answered elsewhere, and its real status could not be read: Yes or No would only be refused again. */
+  const decided = (/** @type {string} */ id) => failed(id)?.code === "assistant.proposal_decided";
 
   return (
     <RoleFrame userRole={role}>
@@ -115,7 +117,9 @@ function Assistant() {
                       variant="primary"
                       isPending={confirm.isPending && confirm.variables?.id === p.id}
                       isDisabled={
-                        reject.isPending || (confirm.isPending && confirm.variables?.id !== p.id)
+                        reject.isPending ||
+                        (confirm.isPending && confirm.variables?.id !== p.id) ||
+                        decided(p.id)
                       }
                       onPress={() => confirm.mutate(p)}
                     >
@@ -124,7 +128,7 @@ function Assistant() {
                     </Button>
                     <Button
                       variant="secondary"
-                      isDisabled={confirm.isPending}
+                      isDisabled={confirm.isPending || decided(p.id)}
                       onPress={() => reject.mutate(p)}
                     >
                       {t("ghar.no")}
@@ -139,7 +143,11 @@ function Assistant() {
                   </p>
                 )}
                 {p.status === "expired" && (
-                  <Button variant="secondary" onPress={() => askAgain(p)}>
+                  <Button
+                    variant="secondary"
+                    isDisabled={send.isPending}
+                    onPress={() => askAgain(p)}
+                  >
                     {t("ghar.askAgain")}
                   </Button>
                 )}

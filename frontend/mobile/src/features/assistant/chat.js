@@ -213,6 +213,7 @@ export function useAssistant() {
   };
   /** A stale proposal: mark it expired and ask the same question again for a fresh one. @param {Proposal} p */
   const askAgain = (p) => {
+    if (send.isPending) return; // one question at a time, as the message box allows
     const i = state.messages.findIndex((m) => m.proposals?.some((x) => x.id === p.id));
     const question = state.messages.slice(0, i).findLast((m) => m.from === "me");
     setProposal({ ...p, status: "expired" });
