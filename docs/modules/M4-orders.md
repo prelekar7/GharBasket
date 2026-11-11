@@ -450,6 +450,7 @@ After a box's second miss, M7 refunds its perishable lines minus ₹20, and its 
 - **Events.**
   - `orders.carry_over_attached { order_id, household_id, hub_id, lines: [ { carry_id, carried_from_order_id, product_id, steps } ] }`, for M11's "your kept items ride on Thursday's box" (a later template).
   - `orders.carry_over_expired { order_id, household_id, hub_id, lines: [ { carry_id, product_id, steps, paid_paise } ], reason: "carry_over_expired" }`, for M6 (release the kept items, M6 §3.5) and M11.
+  - `orders.delivered` of a box or add-on order gains `carried: [ { carry_id, from_order_id, product_id, paid_paise } ]` (additive, `[]` when nothing rode on it), the rows that are delivered with it, so M5 recognises their revenue on the missed order (M5 §3.9).
 - **No backfill.** The `logistics.carry_over_pending` events published before this ships were dev and test data. The outbox does not replay an event that had no consumer.
 
 ### 3.9 Green-slot discount (drafted 2026-10-28, frozen on approval; contract in M10 §3.8)
