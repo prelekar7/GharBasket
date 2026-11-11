@@ -16,17 +16,19 @@ too), CORS for the Capacitor WebView and the presigned file links on the local S
 
 How the past is reached without moving the clock of the API the phone talks to: the cut-off
 (T-1 21:00) is before "now" by definition, so the customer endpoints and the auto-approve rule
-(which read `service.now()`) would refuse it. While the day is being built, the four module
-clocks the simulator also sets (`subscriptions.service.now`, `orders.service.now`,
-`partners.kitchens.now`) read the step's time; they are put back before the server starts, and
-every module that is not about a past deadline (logistics, hub operations, packing, receiving,
-the wallet, the phone's sign-in) runs on the real clock throughout. No `time_machine`, and the
+(which read `service.now()`) would refuse it. While the day is being built, four module clocks
+(`subscriptions.service.now`, `orders.service.now`, `partners.kitchens.now`, and
+`catalog.tiffin_review.now` for the tiffin menu) read the step's time; they are put back before
+the server starts, and every module that is not about a past deadline (logistics, hub
+operations, packing, receiving, the wallet, the phone's sign-in) runs on the real clock
+throughout. No `time_machine`, and the
 database's clock is never touched. Nothing but `gharbasket_device` is written.
 """
 
 import argparse
 import asyncio
 import contextlib
+import json
 import math
 import os
 import secrets
@@ -194,7 +196,23 @@ class DeviceConfig:
             razorpay_key_secret=None,
             ml_service_url=None,
             ml_service_token=None,
+            # Nor WhatsApp: run under `infisical run`, the process environment would otherwise
+            # switch it on, and the every-minute send_deliveries would message the seed phones.
+            whatsapp_token=None,
+            whatsapp_phone_number_id=None,
+            whatsapp_app_secret=None,
+            whatsapp_verify_token=None,
         )
+
+    @property
+    def client_host(self) -> str:
+        """Where this Mac reaches the server: the host it listens on, loopback for 0.0.0.0."""
+        any_host = ("0.0.0.0", "::", "")  # noqa: S104 (compared, never bound here)
+        return "127.0.0.1" if self.host in any_host else self.host
+
+    @property
+    def loopback(self) -> bool:
+        return self.host in ("127.0.0.1", "localhost", "::1")
 
     def sub_env(self) -> dict[str, str]:
         return {
@@ -356,9 +374,11 @@ class Api:
             json={"scheduled_for": at.isoformat()},
             headers={"Authorization": f"Bearer {self.config.jobs_token}"},
         )
+        if answer.status_code != 200:
+            raise DeviceError(f"job {name} at {at}: {answer.status_code} {answer.text[:500]}")
         body = answer.json()
-        if answer.status_code != 200 or body.get("status") != "ok":
-            raise DeviceError(f"job {name} at {at}: {answer.status_code} {body}")
+        if body.get("status") != "ok":
+            raise DeviceError(f"job {name} at {at}: {body}")
         return body["summary"]
 
     async def sweep(self, at: datetime) -> None:
@@ -889,6 +909,43 @@ def port_open(host: str, port: int) -> bool:
         return probe.connect_ex((host, port)) == 0
 
 
+# --- which server is which --------------------------------------------------------------------
+
+SERVER_FILE = OUT / "server.json"
+
+
+def ensure_port_free(config: DeviceConfig) -> None:
+    """Before the build: something already on the port (`just dev`, `just dev-real`) would keep
+    uvicorn from binding, and the phone, the ticker and `pack` would then talk to that API and its
+    database instead of gharbasket_device."""
+    if port_open(config.client_host, config.port):
+        raise SystemExit(
+            f"Port {config.port} is in use (is `just dev` or `just dev-real` running?). "
+            "Stop it, or set DEVICE_PORT to a free port."
+        )
+
+
+def mark_server(config: DeviceConfig) -> None:
+    """Written once this process serves the device day, so `pack` knows the API is ours."""
+    OUT.mkdir(parents=True, exist_ok=True)
+    SERVER_FILE.write_text(json.dumps({"port": config.port, "pid": os.getpid()}))
+
+
+def ensure_device_server(config: DeviceConfig) -> None:
+    """`pack` writes through the API on the port: only when it is this tool's server."""
+    try:
+        mark = json.loads(SERVER_FILE.read_text())
+        os.kill(int(mark["pid"]), 0)  # the process is alive (signal 0 sends nothing)
+        ours = mark["port"] == config.port and port_open(config.client_host, config.port)
+    except (OSError, ValueError, KeyError, TypeError):
+        ours = False
+    if not ours:
+        raise SystemExit(
+            f"No device-day server on port {config.port}: start `just device-day` first. "
+            "`pack` never writes to another API (it could be `just dev` on gharbasket)."
+        )
+
+
 def connection_lines(config: DeviceConfig) -> list[str]:
     api, files = config.port, port_of(config.s3_url)
     lines = [
@@ -904,6 +961,14 @@ def connection_lines(config: DeviceConfig) -> list[str]:
         "Pack the queue from another terminal: just device-day pack [--leave 3]",
         "Stop with Ctrl-C; the next `just device-day` rebuilds the database.",
     ]
+    if not config.loopback:
+        lines[1:1] = [
+            "!" * 78,
+            f"WARNING: the API listens on {config.host}: anyone on this Wi-Fi can dev-sign-in",
+            "as any seed person, the admin included, with only a phone number. Use it on a",
+            "network you trust, and stop it when you are done.",
+            "!" * 78,
+        ]
     if not port_open("localhost", files):
         lines.insert(
             1, f"WARNING: nothing listens on port {files}: `just up-storage` (photos will fail)"
@@ -918,14 +983,22 @@ async def ticker(config: DeviceConfig) -> None:
     """The every-minute crons of a delivery morning, so the phone sees the day move: GPS pings
     to Postgres, the outbox swept, deliveries sent."""
     headers = {"Authorization": f"Bearer {config.jobs_token}"}
-    async with httpx2.AsyncClient(base_url=f"http://127.0.0.1:{config.port}", timeout=30.0) as http:
+    base = f"http://{config.client_host}:{config.port}"
+    failing: set[str] = set()  # said once, until the job works again
+    async with httpx2.AsyncClient(base_url=base, timeout=30.0) as http:
         while True:
             await asyncio.sleep(60)
             for name in ("persist_gps_pings", "outbox_sweep", "send_deliveries"):
                 try:
-                    await http.post(f"/v1/internal/jobs/{name}", json={}, headers=headers)
-                except httpx2.HTTPError:
-                    continue
+                    answer = await http.post(f"/v1/internal/jobs/{name}", json={}, headers=headers)
+                    problem = None if answer.status_code == 200 else f"HTTP {answer.status_code}"
+                except httpx2.HTTPError as error:
+                    problem = type(error).__name__
+                if problem and name not in failing:
+                    say(f"ticker: {name} failed ({problem}); the phone's day may stop moving")
+                    failing.add(name)
+                elif not problem:
+                    failing.discard(name)
 
 
 async def serve(config: DeviceConfig) -> None:
@@ -941,10 +1014,12 @@ async def serve(config: DeviceConfig) -> None:
         )
     )
     background = asyncio.create_task(ticker(config))
+    mark_server(config)
     try:
         await server.serve()
     finally:
         background.cancel()
+        SERVER_FILE.unlink(missing_ok=True)
 
 
 async def prepare(config: DeviceConfig) -> list[str]:
@@ -972,7 +1047,9 @@ async def prepare(config: DeviceConfig) -> list[str]:
 async def pack(config: DeviceConfig, leave: int) -> None:
     """Pack the queue through the running server as the packer (`POST …/packing-tasks/next`, pick
     every line, complete), leaving `leave` bags for the phone."""
-    async with httpx2.AsyncClient(base_url=f"http://127.0.0.1:{config.port}", timeout=60.0) as http:
+    ensure_device_server(config)
+    base = f"http://{config.client_host}:{config.port}"
+    async with httpx2.AsyncClient(base_url=base, timeout=60.0) as http:
         signed = await http.post(
             "/v1/auth/exchange",
             json={"dev_phone": PACKER, "device": {"platform": "web", "push_token": None}},
@@ -1032,6 +1109,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "pack":
         asyncio.run(pack(config, args.leave))
         return 0
+    if args.command in ("run", "serve"):
+        ensure_port_free(config)  # before the database is rebuilt, not after
     lines: list[str] = []
     if args.command != "serve":
         lines = asyncio.run(prepare(config))

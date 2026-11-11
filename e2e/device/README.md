@@ -48,16 +48,19 @@ stop in five societies. Two of them have a captain (Sunrise Towers: Meena 01004;
 rider hands over to her and she delivers the doors; the rest have none, so the rider switches those stops to door
 delivery when he starts the route. Arjun can have only one route in progress: run the morning box route and complete it, then the lunch tiffin run.
 The route cannot start with unpacked bags: pack some on the phone as the packer, then
-`just device-day pack` for the rest (or `pack --leave N`).
+`just device-day pack` for the rest (or `pack --leave N`). `pack` only talks to this tool's own server (it
+writes `out/server.json` while it serves) and refuses any other API on the port.
 
 Then it serves the real app on `127.0.0.1:8000` (`DEVICE_HOST=0.0.0.0` for a phone on the Wi-Fi; dev sign-in has no
-code, so it stays on loopback by default) with:
+code, so it stays on loopback by default and prints a warning otherwise). It will not start while the port is busy:
+stop `just dev` or `just dev-real`, or set `DEVICE_PORT`. It serves with:
 
 - `app_env=dev`; `firebase_project_id=gharbasket-2f523` (the phone's Firebase test numbers are verified as real ID
   tokens; dev sign-in with `{"dev_phone": ...}` also works);
 - `cors_allow_origins` `https://localhost` and `http://localhost` (the Capacitor WebView);
 - S3 on `http://localhost:8333` (SeaweedFS), bucket `gb-private`, so presigned links work from the phone;
-- no FCM, no Razorpay (top-ups are dev orders), no ML (the rule-based fallbacks answer);
+- no FCM, no Razorpay (top-ups are dev orders), no ML (the rule-based fallbacks answer), no WhatsApp (even when
+  run under `infisical run`, whose environment would otherwise switch it on);
 - the JOBS token (random per run, printed; `DEVICE_JOBS_TOKEN` fixes it) for the operator endpoints, and a small
   ticker that triggers `persist_gps_pings`, `outbox_sweep` and `send_deliveries` once a minute (what the crons do on a
   delivery morning), so GPS pings reach Postgres and the customer's messages appear without you running anything.
