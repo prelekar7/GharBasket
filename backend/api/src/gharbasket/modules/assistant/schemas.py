@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-ProposalAction = Literal["edit_box_line", "skip_week"]
+ProposalAction = Literal["edit_box_line", "skip_week", "book_tiffin"]
 ProposalStatus = Literal["pending", "confirmed", "rejected", "expired"]
 
 

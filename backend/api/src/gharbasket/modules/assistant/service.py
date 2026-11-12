@@ -30,7 +30,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.assistant import events, tools
+from gharbasket.modules.assistant import events, tiffin_cards, tools
 from gharbasket.modules.assistant.models import Message, Proposal, Session, UsageDaily
 from gharbasket.modules.assistant.scrub import scrub
 from gharbasket.modules.catalog import api as catalog_api
@@ -451,6 +451,13 @@ async def resolve(
     lang, view = prepared.lang, prepared.view
     if intent.get("action") == "skip_week":
         return await _resolve_skip(session, prepared, intent)
+    if intent.get("action") == "book_tiffin":
+        card = await tiffin_cards.resolve(
+            session, prepared.tools, prepared.chat.household_id, lang, prepared.day, intent
+        )
+        if isinstance(card, str):
+            return card
+        return _proposal(prepared, "book_tiffin", card.payload, card.summary)
     if intent.get("action") != "edit_box_line":
         log.warning("assistant_intent_unknown", action=str(intent.get("action"))[:30])
         return None
@@ -616,6 +623,31 @@ async def confirm(
     was made from (M3's own 412 `subscriptions.version_conflict` if the week changed since)."""
     _decided(proposal)
     payload = proposal.payload
+    if proposal.action == "book_tiffin":  # M4 books it (§3.1): no cycle, no version to carry
+        result = await tiffin_cards.book(session, actor_user_id, payload)
+    else:
+        result = await _confirm_box(session, proposal)
+    proposal.status = "confirmed"
+    proposal.decided_at = now()
+    proposal.result = result
+    await session.flush()
+    await publish(
+        session,
+        events.PROPOSAL_CONFIRMED,
+        {
+            "proposal_id": str(proposal.id),
+            "household_id": str(proposal.household_id),
+            "user_id": str(actor_user_id),
+            "action": proposal.action,
+        },
+    )
+    return proposal
+
+
+async def _confirm_box(session: AsyncSession, proposal: Proposal) -> dict[str, Any]:
+    """The box change through M3's facade at the card's version; the other cards of the week
+    move to the new version."""
+    payload = proposal.payload
     if not payload.get("cycle_id"):
         raise ProblemError(409, "assistant.no_cycle", "There is no week to change right now.")
     cycle_id = uuid.UUID(str(payload["cycle_id"]))
@@ -633,22 +665,8 @@ async def confirm(
         result = await subscriptions_api.edit_cycle_lines(
             session, proposal.household_id, cycle_id, [edit], expected_version=version
         )
-    proposal.status = "confirmed"
-    proposal.decided_at = now()
-    proposal.result = result
     await _carry_version(session, proposal, version, int(result["version"]))
-    await session.flush()
-    await publish(
-        session,
-        events.PROPOSAL_CONFIRMED,
-        {
-            "proposal_id": str(proposal.id),
-            "household_id": str(proposal.household_id),
-            "user_id": str(actor_user_id),
-            "action": proposal.action,
-        },
-    )
-    return proposal
+    return result
 
 
 async def _carry_version(session: AsyncSession, confirmed: Proposal, old: int, new: int) -> None:
@@ -681,12 +699,13 @@ async def reject(session: AsyncSession, proposal: Proposal) -> Proposal:
 
 
 async def expire_pending(session: AsyncSession, at: datetime) -> int:
-    rows = await session.execute(
-        select(Proposal).where(Proposal.status == "pending", Proposal.expires_at <= at)
+    """Pending cards past their time become expired in one statement that tests `pending` itself:
+    a confirm in flight holds the row, so the update waits for it, then finds the card decided and
+    leaves it alone (reading the rows first and writing them by key would overwrite it)."""
+    expired = await session.execute(
+        update(Proposal)
+        .where(Proposal.status == "pending", Proposal.expires_at <= at)
+        .values(status="expired", decided_at=at)
+        .execution_options(synchronize_session=False)
     )
-    expired = list(rows.scalars())
-    for proposal in expired:
-        proposal.status = "expired"
-        proposal.decided_at = at
-    await session.flush()
-    return len(expired)
+    return int(expired.rowcount)  # pyright: ignore[reportAttributeAccessIssue]
