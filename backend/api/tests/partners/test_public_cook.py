@@ -11,10 +11,12 @@ from typing import Any
 import httpx2
 import pytest
 from redis.asyncio import Redis
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
+from gharbasket.modules.catalog.models import Product
+from gharbasket.modules.identity.models import User
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.partners import kitchens, service
 from gharbasket.modules.partners.models import (
@@ -177,6 +179,14 @@ async def test_a_handle_that_is_taken_is_drawn_again(
 
     assert row.public_handle == "bbbbbbbbbb" and row.public_since is not None
 
+    # Every draw taken: a deliberate error, not a handle that is someone else's.
+    monkeypatch.setattr(kitchens, "new_handle", lambda: "aaaaaaaaaa")
+    lata = await kitchen_row(db_session, lata_id)
+    await kitchens.set_public(db_session, partner, lata, on=False)
+    with pytest.raises(kitchens.HandleUnavailable):
+        await kitchens.set_public(db_session, partner, lata, on=True)
+    assert lata.public_handle is None
+
 
 async def test_the_page_needs_no_sign_in_and_has_exactly_the_contracts_keys(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
@@ -202,11 +212,25 @@ async def test_the_page_needs_no_sign_in_and_has_exactly_the_contracts_keys(
     )
     await db_session.commit()
 
-    answer = await api.get(f"/v1/public/cooks/{handle}")  # no Authorization header at all
+    lata, _ = await as_user(api, google, LATA)
+    await db_session.refresh(row)
+    assert row.lat is not None and row.lng is not None  # the kitchen has a pin (`kitchen()`)
+    user = await db_session.get(User, await user_id(db_session, LATA))
+    assert user is not None and user.phone_e164  # and she has a phone
+    phone = user.phone_e164
 
-    assert answer.status_code == 200, answer.text
+    answer = await api.get(f"/v1/public/cooks/{handle}")  # no Authorization header at all
+    signed_in = await api.get(f"/v1/public/cooks/{handle}", headers=lata)
+
+    assert answer.status_code == 200 == signed_in.status_code, answer.text
     body = answer.json()
+    assert signed_in.json() == body  # signing in shows nothing more
+    for header in ("Cache-Control", "Vary", "Content-Language"):
+        assert signed_in.headers[header] == answer.headers[header], header
     assert set(body) == KEYS
+    assert set(body["hub"]) == {"name"} and set(body["fssai"]) == {"reg_no", "valid_until"}
+    assert set(body["hygiene"]) == {"grade", "inspected_on"}
+    assert set(body["rating"]) == {"average", "count"}
     assert body["handle"] == handle and body["display_name"] == "Lata tai"
     assert body["hub"] == {"name": "Kharghar hub"} and body["photo_url"] is None
     assert body["fssai"] == {"reg_no": "11521999000123", "valid_until": "2028-03-31"}
@@ -217,7 +241,8 @@ async def test_the_page_needs_no_sign_in_and_has_exactly_the_contracts_keys(
     forbidden = {"area", "address", "location", "phone", "portions_served", "partner_id"}
     assert not forbidden & keys_of(body)
     text = json.dumps(body, ensure_ascii=False)
-    for trace in ("Sector 20", "B-1103", str(partner_id), "secret words", "+91", "comment"):
+    traces = ("Sector 20", "B-1103", str(partner_id), "secret words", "comment", "+91")
+    for trace in (*traces, phone, phone[3:], f"{row.lat:.4f}", f"{row.lng:.4f}"):
         assert trace not in text, trace
     # The route is public in the contract too: no security requirement in the OpenAPI document.
     operation = create_app(make_settings()).openapi()["paths"]["/v1/public/cooks/{handle}"]["get"]
@@ -229,33 +254,63 @@ async def test_every_missing_page_is_the_same_404_and_a_paused_kitchen_still_ans
 ) -> None:
     api = clients()
     partner_id, handle, lata = await turned_on(api, google, db_session)
-    path = f"/v1/public/cooks/{handle}"
+    vikram = await user_id(db_session, VIKRAM)
     partner = await db_session.get(Partner, partner_id)
     assert partner is not None
+    # Priya's kitchen had a page, then she left.
+    priya_id = await kitchen(db_session, PRIYA, "Priya")
+    priya = await db_session.get(Partner, priya_id)
+    assert priya is not None
+    await kitchens.set_public(db_session, priya, await kitchen_row(db_session, priya_id), on=True)
+    departed = (await kitchen_row(db_session, priya_id)).public_handle
+    await service.leave_for_user(db_session, priya.user_id)
+    await db_session.commit()
 
     unknown = await api.get("/v1/public/cooks/zzzzzzzzzz")
     malformed = await api.get("/v1/public/cooks/NOT-A-HANDLE")
+    upper = await api.get(f"/v1/public/cooks/{handle.upper()}")  # handles are lower case
     by_id = await api.get(f"/v1/public/cooks/{partner_id}")  # never the partner id
+    left = await api.get(f"/v1/public/cooks/{departed}")
     partner.status = "paused"
     await db_session.commit()
-    paused = await api.get(path)
-    partner.status = "suspended"
-    partner.suspended_at, partner.suspend_reason_code = datetime.now(UTC), "hygiene"
+    paused = await api.get(f"/v1/public/cooks/{handle}")
+    partner.status = "active"
     await db_session.commit()
-    suspended = await api.get(path)
-    kept = (await kitchen_row(db_session, partner_id)).public_handle
-    partner.status = "active"  # reinstated: back with the same handle
-    await db_session.commit()
-    reinstated = await api.get(path)
-    turned_off = await switch(api, lata, False)
-    off = await api.get(path)
+    await switch(api, lata, False)
+    off = await api.get(f"/v1/public/cooks/{handle}")
+    second = (await switch(api, lata, True)).json()["public_profile"]["handle"]
 
-    assert paused.status_code == 200 == reinstated.status_code
-    assert kept == handle and turned_off.status_code == 200
-    missing = [unknown, malformed, by_id, suspended, off]
+    await db_session.refresh(partner)  # the refused requests rolled the shared session back
+    await service.suspend(db_session, partner, reason_code="hygiene", note=None, by_user_id=vikram)
+    await db_session.commit()
+    suspended = await api.get(f"/v1/public/cooks/{second}")
+    cleared = await kitchen_row(db_session, partner_id)
+    assert (cleared.public_handle, cleared.public_since) == (None, None)
+    await db_session.refresh(partner)
+    await service.reinstate(db_session, partner, note=None, by_user_id=vikram)
+    await db_session.commit()
+    reinstated = await api.get(f"/v1/public/cooks/{second}")  # she turns it on again herself
+
+    assert paused.status_code == 200
+    assert (await kitchen_row(db_session, partner_id)).public_handle is None
+    missing = [unknown, malformed, upper, by_id, left, off, suspended, reinstated]
     assert {a.status_code for a in missing} == {404}
     assert all(stable(a) == stable(unknown) for a in missing)
+    assert {a.headers["Cache-Control"] for a in missing} == {"no-store"}
     assert unknown.json()["code"] == "partners.cook_not_found"
+    clears = await db_session.execute(
+        select(AuditEntry.actor_user_id, AuditEntry.entity_id, AuditEntry.after).where(
+            AuditEntry.action == "kitchen.public_profile",
+            AuditEntry.after["reason"].is_not(None),
+        )
+    )
+    assert sorted(clears.all(), key=str) == sorted(
+        [
+            (None, str(priya_id), {"on": False, "reason": "left"}),
+            (vikram, str(partner_id), {"on": False, "reason": "suspended"}),
+        ],
+        key=str,
+    )
 
 
 async def test_leaving_and_erasure_clear_the_handle_and_the_export_shows_it(
@@ -283,6 +338,17 @@ async def test_leaving_and_erasure_clear_the_handle_and_the_export_shows_it(
     await db_session.refresh(row)
     assert counts["kitchens"] == 1
     assert (row.public_handle, row.public_since) == (None, None)
+    reasons = await db_session.execute(
+        select(AuditEntry.actor_user_id, AuditEntry.after)
+        .where(
+            AuditEntry.action == "kitchen.public_profile", AuditEntry.entity_id == str(partner_id)
+        )
+        .order_by(AuditEntry.id)
+    )
+    assert reasons.all()[-2:] == [
+        (None, {"on": False, "reason": "left"}),
+        (None, {"on": False, "reason": "erased"}),  # no actor: the purge keeps no user id
+    ]
 
 
 async def test_trainings_and_dishes_follow_accept_language(
@@ -293,7 +359,8 @@ async def test_trainings_and_dishes_follow_accept_language(
     lata_user = await user_id(db_session, LATA)
     for module, passed in (
         ("kitchen_ops", True),
-        ("packing", True),  # not a kitchen's: after the required ones
+        ("packing", True),  # a packer's module: never on her page
+        ("captain_handover", True),  # a captain's: never on her page
         ("hygiene", False),
         ("hygiene", True),  # a later pass counts
         ("app_basics", True),
@@ -325,6 +392,7 @@ async def test_trainings_and_dishes_follow_accept_language(
         ("red-amaranth", 3, 6, "delivered"),  # seventh: cut
         ("tomato", 20, 60, "delivered"),  # 61 days back: out of the window
         ("bhindi", 30, 1, "failed"),  # not delivered
+        ("brinjal", 40, 2, "delivered"),  # the most, but no longer sold: left out
     ]
     for slug, portions, days_back, status in plan:
         order = await tiffin_order(db_session, PRIYA, 1, slug=slug)
@@ -351,6 +419,7 @@ async def test_trainings_and_dishes_follow_accept_language(
                 status=status,
             )
         )
+    await db_session.execute(update(Product).where(Product.slug == "brinjal").values(active=False))
     await db_session.commit()
 
     english = await api.get(f"/v1/public/cooks/{handle}")
@@ -361,12 +430,11 @@ async def test_trainings_and_dishes_follow_accept_language(
         assert answer.status_code == 200, answer.text
         assert "Accept-Language" in answer.headers["Vary"]
     assert english.headers["Content-Language"] == "en"
-    assert [t["code"] for t in english.json()["trainings"]] == [
-        "app_basics",
-        "hygiene",
-        "kitchen_ops",
-        "packing",
-    ]
+    codes = [t["code"] for t in english.json()["trainings"]]
+    assert codes == ["app_basics", "hygiene", "kitchen_ops"]
+    assert "packing" not in codes and "captain_handover" not in codes
+    assert {frozenset(t) for t in english.json()["trainings"]} == {frozenset({"code", "title"})}
+    assert {frozenset(d) for d in english.json()["dishes"]} == {frozenset({"name"})}
     assert [t["title"] for t in english.json()["trainings"]][:2] == [
         "Using the GharBasket app",
         "Kitchen hygiene",
@@ -387,7 +455,7 @@ async def test_trainings_and_dishes_follow_accept_language(
     assert [d["name"] for d in hindi.json()["dishes"]][:3] == ["पालक", "मेथी", "हरा धनिया"]
 
 
-async def test_cache_headers_on_200_only_and_the_per_ip_limit_is_shared_with_public_pages(
+async def test_cache_headers_on_200_no_store_on_errors_and_a_shared_per_ip_limit(
     clients: ClientFactory,
     google: FakeGoogle,
     db_session: AsyncSession,
@@ -406,7 +474,11 @@ async def test_cache_headers_on_200_only_and_the_per_ip_limit_is_shared_with_pub
     assert found.status_code == 200
     assert found.headers["Cache-Control"] == "public, max-age=300, stale-while-revalidate=600"
     assert missing.status_code == 404
-    assert "public" not in missing.headers.get("Cache-Control", "")
+    assert missing.headers["Cache-Control"] == "no-store"
     assert society.status_code != 429  # the society page counts against the same IP
     assert limited.status_code == 429
     assert limited.json()["code"] == "request.rate_limited" and "Retry-After" in limited.headers
+    assert limited.headers["Cache-Control"] == "no-store"
+    society_missing = await api.get("/v1/public/societies/no-such-society")
+    assert society_missing.status_code == 429  # still the same counter
+    assert society_missing.headers["Cache-Control"] == "no-store"

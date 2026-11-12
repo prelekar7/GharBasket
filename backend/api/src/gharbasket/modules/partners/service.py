@@ -121,8 +121,8 @@ async def suspend(
 ) -> Partner:
     """Suspend at once (audit-logged) and publish `partners.suspended`: M1 suspends the hub role
     and M9 ends a captain's appointment; a kitchen's offered and accepted assignments from today
-    are cancelled (§3.3). 409 `partners.already_suspended` when she is suspended
-    already or has left."""
+    are cancelled (§3.3), and her public page is cleared (§3.5). 409 `partners.already_suspended`
+    when she is suspended already or has left."""
     if partner.status in ("suspended", "left"):
         raise ProblemError(
             409,
@@ -149,15 +149,27 @@ async def suspend(
     )
     if partner.kind == "kitchen":  # her offered and accepted tiffins go to the next round
         await cooking.cancel_for_partner(session, partner.id, kitchens.today())
+        # Suspended, she cannot reach /kitchens/me to withdraw consent, so her public page goes
+        # now and reinstatement does not bring it back (§3.5).
+        await _clear_page(session, partner, by_user_id, "suspended")
     await publish(session, events.SUSPENDED, {**_ref(partner), "reason_code": reason_code})
     return partner
+
+
+async def _clear_page(
+    session: AsyncSession, partner: Partner, actor_user_id: uuid.UUID | None, reason: str
+) -> None:
+    kitchen = await session.get(Kitchen, partner.id)
+    if kitchen is not None:
+        await kitchens.clear_public(session, kitchen, actor_user_id=actor_user_id, reason=reason)
 
 
 async def reinstate(
     session: AsyncSession, partner: Partner, *, note: str | None, by_user_id: uuid.UUID | None
 ) -> Partner:
     """Make a suspended partner active again (audit-logged) and publish `partners.reinstated`.
-    A captain is not re-appointed: the hub manager decides in M9."""
+    A captain is not re-appointed: the hub manager decides in M9; a kitchen turns her public page
+    on again herself (§3.5)."""
     if partner.status != "suspended":
         raise ProblemError(409, "partners.not_suspended", "This partner is not suspended.")
     before = {"status": "suspended", "reason_code": partner.suspend_reason_code}
@@ -225,9 +237,7 @@ async def leave_for_user(session: AsyncSession, user_id: uuid.UUID) -> int:
         )
         if partner.kind == "kitchen":
             await cooking.cancel_for_partner(session, partner.id, kitchens.today())
-            kitchen = await session.get(Kitchen, partner.id)
-            if kitchen is not None:
-                kitchens.clear_public(kitchen)  # her public page goes with her (§3.5)
+            await _clear_page(session, partner, None, "left")  # it goes with her (§3.5)
         await publish(session, events.SUSPENDED, {**_ref(partner), "reason_code": "left"})
     if gone:
         await kyc.release_files(

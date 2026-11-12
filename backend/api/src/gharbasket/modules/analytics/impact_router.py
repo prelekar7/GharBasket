@@ -12,7 +12,6 @@ from gharbasket.modules.analytics.schemas import KpiSource
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
-from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.permissions import Permit, require
 from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.valkey import Valkey
@@ -121,6 +120,6 @@ async def public_society(
     await rate_limit.enforce_public(valkey, request)  # per IP, shared with /v1/public/* (§3.9)
     page = await public.page(session, settings, slug)
     if page is None:
-        raise ProblemError(404, "community.society_not_found", "No such society.")
+        raise rate_limit.public_not_found("community.society_not_found", "No such society.")
     response.headers["Cache-Control"] = rate_limit.PUBLIC_CACHE
     return page

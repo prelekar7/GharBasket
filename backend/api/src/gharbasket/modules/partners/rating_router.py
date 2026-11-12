@@ -26,7 +26,6 @@ from gharbasket.modules.partners.service import not_found as partner_not_found
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
-from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang
 from gharbasket.platform.permissions import Permit, require
@@ -120,7 +119,7 @@ async def public_cook(
     await rate_limit.enforce_public(valkey, request)
     found = await public.cook_rows(session, handle)
     if found is None:  # one answer for every case, so it never says which
-        raise ProblemError(404, "partners.cook_not_found", "No such cook.")
+        raise rate_limit.public_not_found("partners.cook_not_found", "No such cook.")
     partner, kitchen = found
     hub = await hub_ops_api.get_hub(session, partner.hub_id)
     fssai = None

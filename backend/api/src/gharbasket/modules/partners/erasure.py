@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Executable, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import ratings, service
+from gharbasket.modules.partners import kitchens, ratings, service
 from gharbasket.modules.partners.models import (
     Application,
     AssignmentEvent,
@@ -59,6 +59,17 @@ async def erase_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str,
         counts[model.__tablename__] = await _run(
             session, delete(model).where(model.user_id == user_id)
         )
+    # A page still on (she left before leaving cleared it) goes now, audit-logged without an
+    # actor, as `partners.left` is: the audit row keeps no personal data (M1 §3.5 row 10).
+    on = await session.scalars(
+        select(Kitchen).where(
+            Kitchen.partner_id.in_(select(Partner.id).where(Partner.user_id == user_id)),
+            Kitchen.public_handle.is_not(None),
+        )
+    )
+    for kitchen in on.all():
+        await kitchens.clear_public(session, kitchen, actor_user_id=None, reason="erased")
+    await session.flush()
     personal = (
         Kitchen.area,
         Kitchen.address,

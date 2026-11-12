@@ -51,23 +51,21 @@ async def cook_rows(session: AsyncSession, handle: str) -> tuple[Partner, Kitche
 async def trainings(
     session: AsyncSession, user_id: uuid.UUID, lang: Language
 ) -> list[tuple[str, str]]:
-    """Her passed modules as (code, title), the kitchen's required order first, titled in `lang`
-    (else English)."""
-    passed = set(
-        await session.scalars(
-            select(TrainingAttempt.module_code)
-            .where(TrainingAttempt.user_id == user_id, TrainingAttempt.passed)
-            .distinct()
-        )
+    """Her passed modules of the kitchen track (the current version's `for_kinds` has `kitchen`)
+    as (code, title): the required ones in their order first, titled in `lang` (else English).
+    Never a captain's, rider's or packer's own module, which would tell the internet more."""
+    passed = await session.scalars(
+        select(TrainingAttempt.module_code)
+        .where(TrainingAttempt.user_id == user_id, TrainingAttempt.passed)
+        .distinct()
     )
+    modules = await training.current_modules(session, list(passed))
     required = REQUIRED_TRAININGS["kitchen"]
-    codes = [code for code in required if code in passed] + sorted(passed - set(required))
-    modules = await training.current_modules(session, codes)
-    return [
-        (code, training.localised(modules[code], lang)["title"])
-        for code in codes
-        if code in modules
-    ]
+    codes = sorted(
+        (code for code, module in modules.items() if "kitchen" in module.for_kinds),
+        key=lambda code: (required.index(code) if code in required else len(required), code),
+    )
+    return [(code, training.localised(modules[code], lang)["title"]) for code in codes]
 
 
 async def dishes(session: AsyncSession, partner_id: uuid.UUID, lang: Language) -> list[str]:

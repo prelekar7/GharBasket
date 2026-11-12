@@ -676,7 +676,7 @@ PATCH /v1/kitchens/me  also takes "public_profile": true | false             (If
   The route is in M8's router, with the same per-IP limiter and cache headers as M12's society page.
 - **Lifecycle.**
   - Paused: the page stays, like the card.
-  - Suspended: 404 while suspended, and back on reinstatement with the same handle.
+  - Suspended: the handle and `public_since` are cleared in the suspension's transaction (audit `{ on: false, reason: "suspended" }`), and reinstatement does not bring the page back: she turns it on again herself and gets a new handle. A suspended kitchen cannot reach `PATCH /v1/kitchens/me` (403), so she could not withdraw her consent while suspended. (Changed on review, 2026-11-13; the draft kept the handle.)
   - Left, `leave_for_user`, or erasure (`anonymise_for_user`): the handle and `public_since` are cleared.
   - Export: `export_for_user` gains `public_profile: { since } | null`.
 
@@ -701,13 +701,14 @@ PATCH /v1/kitchens/me  also takes "public_profile": true | false             (If
 3. **Portions served.** Recommended: left off the public page, as above. It stays on the signed-in card.
 
 **As built (the public cook page, 2026-11-13).** The three questions are settled with the recommended answers: the FSSAI number in full, the hub's name, and no `portions_served`.
-- **The switch.** `PATCH /v1/kitchens/me` takes `public_profile: true | false` with `If-Match`, as the other fields do; `null` changes nothing. Asking for the state the page is already in keeps the handle and writes no audit row. Each real change bumps the kitchen's `version` and writes `kitchen.public_profile` (`after: { on }`, actor her user id, entity the kitchen). `public_profile.since` is the UTC time she turned it on, and `url` is `PUBLIC_WEB_URL` without a trailing slash, then `/cook/<handle>`. The inspection's answer (the same `Kitchen`) shows hub staff the same `public_profile`.
-- **The handle** is drawn with `secrets.choice` and drawn again on a clash with a live handle (up to 8 times); the column is unique. A path that is not 10 characters of `a-z2-7` gets the same 404 without a lookup, so a malformed handle is never a 422.
+- **Gate before the pilot (question 1).** The full FSSAI number stays only if FoSCoS does not show the premises address for a basic registration. Someone checks this before the pilot; if FoSCoS shows the address, the public page shows only the last 4 digits (`…0123`) with the validity, and the signed-in card keeps the full number.
+- **The switch.** `PATCH /v1/kitchens/me` takes `public_profile: true | false` with `If-Match`, as the other fields do; `null` changes nothing. Asking for the state the page is already in keeps the handle and writes no audit row. Each real change bumps the kitchen's `version` and writes `kitchen.public_profile` (`after: { on }`, actor her user id, entity the kitchen). A page cleared without her writes the same action with a reason: `{ on: false, reason: "suspended" }` (actor the hub manager), `"left"` and `"erased"` (no actor, as `partners.left` has none, so the audit log keeps no personal data; M1 §3.5 row 10). `public_profile.since` is the UTC time she turned it on, and `url` is `PUBLIC_WEB_URL` without a trailing slash, then `/cook/<handle>`. The inspection's answer (the same `Kitchen`) shows hub staff the same `public_profile`.
+- **The handle** is drawn with `secrets.choice` and drawn again on a clash with a live handle (up to 8 times, then `kitchens.HandleUnavailable`, a 500 that is not expected with 50 bits a draw); the column is unique. A path that is not 10 characters of `a-z2-7` gets the same 404 without a lookup, so a malformed handle is never a 422.
 - **`fssai`** is null when the kitchen has no registration number (a seeded kitchen); `valid_until` may be null, as on the card.
-- **`trainings`** lists the modules she has a passed attempt for: the kitchen's required ones in their order (`app_basics`, `hygiene`, `kitchen_ops`), then any other passed module by code. Titles come from the module's current active version, so a retired module is not shown.
+- **`trainings`** lists only the kitchen track: the modules she has a passed attempt for whose current active version has `kitchen` in `for_kinds`, the required ones in their order (`app_basics`, `hygiene`, `kitchen_ops`) first, then any other kitchen module by code. A captain's, rider's or packer's own module (`captain_handover`, `rider_safety`, `packing`) is never shown, because it would tell the open internet more about her (a captain is the captain of her own society). Titles come from the current active version, so a retired module is not shown.
 - **`dishes`** counts assignment rows that are `delivered` on assignment dates from today − 59 to today (60 IST dates). Portions are summed per product through a new M4 facade, `orders.api.tiffin_products(order_ids)` (the order's box line, in one read). Names come from `catalog.api.line_products`, so an inactive product is left out; equal portions are ordered by name.
-- **Limiter and cache.** The per-IP counter (`public:ip:<ip>`, 60 a minute) and the cache header moved from M12's router into `platform.rate_limit` (`enforce_public`, `PUBLIC_CACHE`), because import-linter forbids M8 to import M12's router. Both public pages count against one counter. `Vary: Accept-Language` and `Content-Language` come from the shared `Lang` dependency. A 404 or a 429 has no cache header.
-- **Lifecycle.** `leave_for_user` clears a departing kitchen's handle and `public_since`; `anonymise_for_user` clears both as personal kitchen fields too. The export's `public_profile.since` is a UTC timestamp.
+- **Limiter and cache.** The per-IP counter (`public:ip:<ip>`, 60 a minute) and the cache header moved from M12's router into `platform.rate_limit` (`enforce_public`, `PUBLIC_CACHE`), because import-linter forbids M8 to import M12's router. Both public pages count against one counter. `Vary: Accept-Language` and `Content-Language` come from the shared `Lang` dependency. A 404 or a 429 of either public page sends `Cache-Control: no-store` (`rate_limit.NO_STORE`, `public_not_found`).
+- **Lifecycle.** Suspension and `leave_for_user` clear the handle and `public_since` of the kitchen; `anonymise_for_user` clears a page still on (audit-logged) and both columns again as personal kitchen fields. The export's `public_profile.since` is a UTC timestamp.
 
 ### 3.6 Earnings (frozen for S6)
 Money stays in M5's ledger. M8 only decides **who earns what for which event**, from its rate card, and asks M5 to post it.
@@ -1074,12 +1075,12 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - the rating window, one per order, only the owner;
   - the average is shown from 5 ratings.
 - **Public cook page (§3.5):**
-  - 404 `partners.cook_not_found` with the same body for an unknown handle, a kitchen that never agreed, one that turned it off, and a suspended or departed kitchen; a paused one still answers;
+  - 404 `partners.cook_not_found` with the same body for an unknown handle, a kitchen that never agreed, one that turned it off, and a suspended or departed kitchen; a paused one still answers; suspension clears the handle, and reinstatement does not bring the page back;
   - only she can turn it on; turning it off and on again mints a new handle, and the old one is 404;
   - the response has exactly the contract's keys, and never `area`, `address`, `location`, a phone, `portions_served`, `partner_id` or a rating comment;
   - `trainings` and `dishes` follow `Accept-Language`, with `Vary: Accept-Language`; `dishes` covers 60 days, at most 6;
   - the cache headers on 200 and none on 404; the shared per-IP limit gives 429;
-  - erasure and leaving clear the handle; each switch writes an audit row.
+  - erasure and leaving clear the handle; each switch, and each clear by suspension, leaving or erasure, writes an audit row.
 - **Earnings (§3.6):**
   - each basis posts once per order, even when the event is delivered twice;
   - a captain earns on `delivered` with actor `captain`, not on `at_society`, and nothing for a rider-mode delivery or a tiffin she delivers;
