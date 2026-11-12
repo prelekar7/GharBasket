@@ -117,6 +117,18 @@ services:
       # to CONSOLE_URL/ai-health so the push opens in a browser; unset: the relative /ai-health.
       - key: CONSOLE_URL
         sync: false
+      # Traces (M0 §6.2) to Grafana Cloud's OTLP gateway, from Infisical: the base URL
+      # (https://otlp-gateway-<zone>.grafana.net/otlp, without /v1/traces) and the auth header,
+      # "Authorization=Basic%20<base64 of instance-id:token>" (a secret). Unset: nothing is exported.
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: OTEL_SERVICE_NAME
+        value: gharbasket-api
+      # Parent-based sampling; all of staging's traffic. The pilot sets it from the measured volume.
+      - key: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
 
   # The ML service (backend/ml, M10) on a second free web service, without OSRM: routing and slot
   # pricing use their haversine fallback (OSRM_URL is unset). The image is backend/ml/Dockerfile.render;
@@ -170,6 +182,15 @@ services:
         value: auto
       - key: S3_BUCKET_MLFLOW # gitleaks:allow (a bucket name, not a secret)
         value: gb-staging-mlflow
+      # Traces (M0 §6.2), the same Grafana Cloud stack and values as the API's; unset: none.
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: OTEL_SERVICE_NAME
+        value: gharbasket-ml
+      - key: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
 
   - type: keyvalue
     name: gharbasket-valkey

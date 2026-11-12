@@ -3,6 +3,7 @@
 Run with `just dev`, or `uvicorn gharbasket.main:create_app --factory`.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -27,7 +28,7 @@ from gharbasket.modules.orders.router import router as orders_router
 from gharbasket.modules.partners.router import router as partners_router
 from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions.router import router as subscriptions_router
-from gharbasket.platform import files, health, jobs, openapi, outbox
+from gharbasket.platform import files, health, jobs, openapi, outbox, tracing
 from gharbasket.platform.db import create_engine, create_sessionmaker
 from gharbasket.platform.errors import register_error_handlers
 from gharbasket.platform.idempotency import REPLAY_HEADER, register_idempotency
@@ -71,8 +72,9 @@ def _lifespan(settings: Settings):
         app.state.sessionmaker = create_sessionmaker(engine) if engine else None
         app.state.valkey = valkey
         app.state.storage = files.create_store(settings)
-        # Outbound HTTP (Google's Firebase keys now; Razorpay later): short timeouts.
-        http = httpx2.AsyncClient(timeout=httpx2.Timeout(5.0))
+        # Outbound HTTP (the ML service, Razorpay, Firebase, FCM, WhatsApp): short timeouts, and a
+        # span per request (M0 §6.2).
+        http = tracing.http_client(timeout=httpx2.Timeout(5.0))
         app.state.http = http
         app.state.razorpay = (
             RazorpayClient(
@@ -97,6 +99,8 @@ def _lifespan(settings: Settings):
                 await valkey.aclose()
             if engine is not None:
                 await engine.dispose()
+            # Last, so the spans above are flushed; at most 5 s with the collector down.
+            await asyncio.to_thread(tracing.shutdown)
 
     return lifespan
 
@@ -105,6 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     use_settings(settings)
     configure_logging(settings.log_level, json=settings.log_json)
+    tracing.setup(settings)  # exports only when OTEL_EXPORTER_OTLP_ENDPOINT is set
     load_modules()  # every module's jobs and outbox consumers, before anything relays
 
     docs = settings.docs_enabled
@@ -121,6 +126,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # browsers send through the same-origin proxies.
         redirect_slashes=False,
         lifespan=_lifespan(settings),
+        telemetry=tracing.FASTAPI_TELEMETRY_OFF,  # our own spans only (platform/tracing.py)
     )
     app.dependency_overrides[get_settings] = lambda: settings
 

@@ -97,6 +97,13 @@ class Settings(DatabaseSettings):
     # Browsers reach the API through same-origin proxies, so CORS is only needed for the
     # Capacitor app (https://localhost). Comma-separated, e.g. "https://localhost".
     cors_allow_origins: CommaSeparated = []
+    # Traces (M0 §6.2) to Grafana Cloud over OTLP/HTTP, only when the endpoint is set (the base URL,
+    # without /v1/traces). The headers ("Authorization=Basic%20<base64>") are a secret. Sampling is
+    # parent-based with this ratio of new traces.
+    otel_exporter_otlp_endpoint: Annotated[str | None, BeforeValidator(lambda v: v or None)] = None
+    otel_exporter_otlp_headers: SecretStr | None = None
+    otel_service_name: str = "gharbasket-api"
+    otel_traces_sampler_arg: float = Field(default=1.0, ge=0, le=1)
 
     # Valkey (Redis protocol). Optional until something needs it; /v1/ready then reports "skipped".
     valkey_url: SecretStr | None = None

@@ -36,6 +36,7 @@ from gharbasket.modules.assistant.scrub import scrub
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.subscriptions import api as subscriptions_api
+from gharbasket.platform import tracing
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.locale import Language, localised
 from gharbasket.platform.outbox import publish
@@ -110,7 +111,7 @@ async def http_client(given: httpx2.AsyncClient | None) -> AsyncIterator[httpx2.
     if given is not None:
         yield given
         return
-    async with httpx2.AsyncClient() as client:
+    async with tracing.http_client() as client:
         yield client
 
 
