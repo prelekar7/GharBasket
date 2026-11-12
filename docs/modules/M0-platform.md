@@ -126,6 +126,31 @@ Scheduled jobs are internal endpoints `POST /v1/internal/jobs/<name>`, protected
 - **Actions.** `jobs-staging.yml` and `training-jobs.yml` POST the workflow and job name to `HC_OPS_URL/fail` when a job fails (skipped while the secret is unset).
 - **Manual runs.** Runbooks always pass `scheduled_for` (the API's default is now, which after IST midnight is the next day for date-based jobs).
 
+### 6.2 Tracing (drafted 2026-11-12, frozen on approval)
+OpenTelemetry traces from the API and the ML service to Grafana Cloud (free tier), as chosen in handbook 04 and 12 §12.5. It is for finding slow and failing requests and jobs, and it gives ADR-0033 the error-rate alert it waits for. Traces only: logs stay structlog JSON on stdout (Render's log view), and no OpenTelemetry metrics or logs are exported in this step.
+
+- **Off unless configured.** The exporter is on only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (OTLP over HTTP). Its auth header `OTEL_EXPORTER_OTLP_HEADERS` is a secret: Infisical, then Render. Tests and local runs export nothing, and a missing or unreachable collector never changes an answer or fails a job: spans go through a bounded batch queue, a full queue drops spans, and an export error is logged once a minute at most. `OTEL_SERVICE_NAME` is `gharbasket-api` or `gharbasket-ml`, and `deployment.environment` is `APP_ENV`. The resource also carries the deployed commit.
+- **Sampling.** Parent-based, with a ratio from `OTEL_TRACES_SAMPLER_ARG`. The default is 1.0, which suits staging's traffic; the pilot sets it from the measured volume.
+- **What becomes a span.**
+  - Each HTTP request: the span name is the method and the route template (`GET /v1/orders/{order_id}`), with the status code and the problem `code` of an RFC 9457 answer.
+  - Database calls: the SQL text with placeholders only.
+  - Outgoing HTTP: the ML service, Razorpay, FCM, Firebase, WhatsApp and the S3 store, as method, host and status.
+  - Each job run: `job <name>`, with `scheduled_for`, the status and the run id.
+  - Each outbox event handled by a consumer: `consume <event_type>`, with the consumer's name and the attempt number.
+  - API → ML calls carry the trace context (W3C `traceparent`), so one trace covers both services.
+- **Never in a span or its events**, however the instrumentation defaults change:
+  - request and response bodies;
+  - any header value (`Authorization`, `Cookie`, `Set-Cookie`, `X-Razorpay-Signature`, `Idempotency-Key`, the operator and ML tokens);
+  - query strings;
+  - the raw URL path (it holds ids): only the route template;
+  - SQL bind parameters (the KYC key is one, M8 §3.1);
+  - phone numbers, names, addresses, user, household or partner ids, tokens, and KYC numbers.
+
+  An exception is recorded by its type and the problem `code` only, not its message, which can carry values. A test asserts these rules on the spans of a request that carries every one of them.
+- **Logs ↔ traces.** Every log line written inside a span carries `trace_id` and `span_id`, and the request span carries `gb.request_id`, so a Render log line leads to its trace and back.
+- **The error-rate alert** (ADR-0033's follow-up) is set up in Grafana Cloud by the owner. It fires on the share of request spans with a 5xx status over 15 minutes, and it notifies the same Telegram group and email. Its rule is written down in handbook 12 §12.5 when it is made.
+- **The ML service** gets the same setup (FastAPI and its outgoing calls), with the same rules.
+
 ## 7. Permissions
 Provides the `require(permission, scope)` dependency and the permission registry that modules contribute to. `audit:read` → admin.
 
