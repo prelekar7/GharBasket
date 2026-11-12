@@ -138,7 +138,7 @@ flowchart LR
 ## 8. Go-to-market (pilot)
 
 1. **Society-first:** approach RWAs in Panvel/Kharghar; recruit one Captain per society before launch.
-2. **Trial week:** first Autopilot week at an introductory price; referral page per society (`gharbasket.in/s/<society>`).
+2. **Trial week:** first Autopilot week at an introductory price; referral page per society (`gharbasket.co.in/s/<society>`).
 3. **Unlock mechanic:** show the progress towards free delivery for the society.
 4. **Kitchens:** onboard a small number of home kitchens with FSSAI basic registration; "Know your cook" profiles.
 5. **Measure everything** (acceptance, waste, cost per order, captain earnings) for the report and paper.

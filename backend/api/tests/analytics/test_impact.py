@@ -744,7 +744,7 @@ async def test_a_live_society_page_needs_no_sign_in_and_is_cached(
         "live_since": sunrise.live_at.astimezone(IST).date().isoformat(),
         "delivery_days": ["tue"],
         "impact": None,
-        "join_url": "https://app.gharbasket.in/join?s=sunrise-towers-kharghar",
+        "join_url": "https://app.gharbasket.co.in/join?s=sunrise-towers-kharghar",
     }
 
 

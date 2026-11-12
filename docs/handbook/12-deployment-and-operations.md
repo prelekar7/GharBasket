@@ -1,7 +1,7 @@
 # Chapter 12 — Deployment and Operations
 
 > **In short:**
-> - Staging is **live** at `https://gharbasket-api.onrender.com` and runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
+> - Staging is **live** at `https://api.gharbasket.co.in` (D35; `https://gharbasket-api.onrender.com` still works) and runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
 > - **PostgreSQL 18 is on Neon** (Singapore): one shared database for the Infisical `dev` and `staging` environments, with guardrails. There is no database branch per PR. Daily work uses local Docker Postgres.
 > - **Deploys:** every green CI run on `main` triggers `deploy-staging.yml`, which runs `alembic upgrade head` on Neon, calls the Render deploy hook and runs a smoke test. CI on `main` cancels a superseded run, so only the newest commit deploys. The repository is public, so Actions minutes are free. Scheduled jobs are internal endpoints called by a GitHub Actions schedule for daily and weekly jobs (D21) and by a scheduler on the staging **Oracle VM** for minute-level ones (D32). Training and data jobs run in GitHub Actions (`training-jobs.yml`, `backend/training`). Secrets live in **Infisical**.
 > - **Backups:** staging is a Neon child branch with no point-in-time restore. Its restore points are the `before-demo-*` branches of `just staging-demo`, and a weekly `pg_dump` to a private R2 bucket (`backup-staging.yml`, §12.4).
@@ -107,7 +107,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 | Minute-level schedules | Oracle Cloud Always Free VM, Mumbai | `scripts/jobs_scheduler.py` (service `gharbasket-jobs`): the 21:00 cut-off, the outbox sweep every few minutes, proposal expiry: `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` (D32). The same VM runs the mandi collector |
 | Alerts | healthchecks.io (free) and UptimeRobot (free) | Three healthchecks (`scheduler`, `cutoff`, `ops`) tell a team Telegram group and email when a job fails or the cut-off is missed; UptimeRobot watches `/v1/health` every 5 minutes (D33, §12.5) |
 | ML serving | Render free web service, a second one next to the API | The ML service, without OSRM (D30) |
-| DNS and TLS | Render and Vercel default URLs | No custom domain yet; TLS by the platforms |
+| DNS and TLS | Cloudflare DNS for `gharbasket.co.in` (D35) | Records are DNS only (not proxied); TLS by Render and Vercel. §12.2 "Pointing the domain" |
 | Cost | Free tiers only until the pilot | Nothing here can bill us during development. The repository is public, so GitHub Actions minutes are free |
 
 ### How a change reaches staging
@@ -133,7 +133,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 
 ### Vercel projects (PWA and console)
 
-Two Vercel projects are imported from this repository (Git integration, production branch `main`, a preview per PR). Today the handbook names Prathamesh Relekar as owner of the Vercel projects (§12.8); Yash Salunkhe creates them because he holds the frontends.
+Two Vercel projects are imported from this repository (Git integration, production branch `main`, a preview per PR). Prathamesh Relekar creates and owns them on his Vercel account (§12.8): Vercel connects a repository only through its owner's GitHub account, and the free Hobby plan has no team members, so a collaborator cannot create or join them. Yash Salunkhe supplies the settings below and checks each site after a deploy. Hobby is for non-commercial use, which covers staging on Razorpay test keys; taking real payments needs the Pro plan or another host (a pilot decision).
 
 | Setting | PWA (`frontend/mobile`) | Console (`frontend/console`) |
 |---|---|---|
@@ -147,11 +147,27 @@ The root `prepare` script installs the git hooks (`lefthook install`), which exi
 
 **PWA.** `frontend/mobile/vercel.json` sends `/v1/*` to the API and every other path to `index.html` (the single-page app), so browsers use the API's cookies same-origin (ADR-0024). The destination is fixed in that file: moving to a production API means editing it. The service worker already keeps `/v1/` out of its navigation fallback. Environment (public values, from Infisical `staging`; `pnpm env:pull` in `frontend/mobile` prints them): the five `VITE_FIREBASE_*`, `VITE_FIREBASE_TEST_MODE` (`true` only while using Firebase's fictional test numbers), and `VITE_PUBLIC_WEB_URL` (the PWA's own address, used in neighbour invite links). Never set `VITE_API_MOCK`: builds drop the mocks anyway. Also add the PWA's domain under Firebase console → Authentication → Settings → Authorized domains, or phone sign-in is refused.
 
-**Console.** It does **not** use a `/v1/*` rewrite, by design (`lib/auth-api.js`): its server calls the API and copies the cookies, and nothing in the browser calls the API, so a rewrite would only publish the whole API on the console's address. In real mode it needs `GB_API_MOCK=false` and `GB_API_URL=https://gharbasket-api.onrender.com`. **Its sign-in is not built yet**: the console accepts only the dev phone path, which the API allows only when `APP_ENV=dev`, so a console in real mode cannot be signed into on staging until Firebase phone sign-in is added to it. Until then a Vercel console can only show its demo data: leave `GB_API_MOCK` unset (mock mode is the default) and set `GB_DEV_LOGIN=1` so the seed staff buttons appear. Without `GB_API_MOCK=false` the console serves fake data, whatever API exists.
+**Console.** It does **not** use a `/v1/*` rewrite, by design (`lib/auth-api.js`): its server calls the API and copies the cookies, and nothing in the browser calls the API, so a rewrite would only publish the whole API on the console's address. In real mode it needs `GB_API_MOCK=false` and `GB_API_URL=https://api.gharbasket.co.in`. **Its sign-in is not built yet**: the console accepts only the dev phone path, which the API allows only when `APP_ENV=dev`, so a console in real mode cannot be signed into on staging until Firebase phone sign-in is added to it. Until then a Vercel console can only show its demo data: leave `GB_API_MOCK` unset (mock mode is the default) and set `GB_DEV_LOGIN=1` so the seed staff buttons appear. Without `GB_API_MOCK=false` the console serves fake data, whatever API exists.
 
 **After the first deploy:**
-1. Send both addresses to Prathamesh to add to `WEB_ORIGINS` on Render. The API's origin check applies to browser requests, so the PWA needs it; the console's server calls carry no `Origin`, so it probably does not. A preview deployment has its own address that is not in `WEB_ORIGINS`, so signing in on a preview is expected to be refused until that address is added.
+1. Point the domains at them ("Pointing the domain" below), then send both addresses (`https://gharbasket.co.in`, `https://app.gharbasket.co.in`) to Prathamesh to add to `WEB_ORIGINS` on Render. The API's origin check applies to browser requests, so the PWA needs it; the console's server calls carry no `Origin`, so it probably does not. A preview deployment has its own address that is not in `WEB_ORIGINS`, so signing in on a preview is expected to be refused until that address is added.
 2. Smoke test the PWA: `curl https://<pwa-address>/v1/health` answers `{"status":"ok",...}` through the rewrite; deep links such as `/week` load; sign in with a Firebase test number and reload the page (the session survives).
+
+### Pointing the domain (D35)
+
+`gharbasket.co.in` is registered with its DNS on Cloudflare. Every record is **DNS only** (grey cloud): Render and Vercel issue their own certificates, and Cloudflare's proxy would sit in front of them. Cloudflare's SSL/TLS mode is Full (strict), so a record proxied by mistake still checks the certificate. The platform addresses (`*.onrender.com`, `*.vercel.app`) keep working, so a record can be removed at any time without an outage.
+
+| Name | Serves | Record | State |
+|---|---|---|---|
+| `api.gharbasket.co.in` | The API (Render `gharbasket-api`) | CNAME `gharbasket-api.onrender.com`, added under Render → Settings → Custom Domains | Live since 2026-11-11 |
+| `gharbasket.co.in`, `www` | The console: its public pages (`/s/<slug>`) and the staff console. `www` redirects to the bare name | The records Vercel shows under the console project → Settings → Domains | When the console is on Vercel |
+| `app.gharbasket.co.in` | The PWA | The CNAME Vercel shows under the PWA project → Settings → Domains | When the PWA is on Vercel |
+
+Both web names are already authorised in Firebase (Authentication → Settings → Authorized domains). When a name goes live, set the values that point at it:
+- **Render:** `WEB_ORIGINS` (`https://gharbasket.co.in,https://app.gharbasket.co.in`), `PUBLIC_WEB_URL`, `APP_WEB_URL`, `CONSOLE_URL`.
+- **Vercel:** `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL` and `GB_API_URL` on the console; `VITE_PUBLIC_WEB_URL` on the PWA. Redeploy after a change: Vite and `NEXT_PUBLIC_*` values are baked into the build.
+- **Infisical `staging` and GitHub Actions:** `STAGING_API_URL` and `API_BASE_URL` (the Capacitor build) are `https://api.gharbasket.co.in`. After changing `STAGING_API_URL`, run `just jobs-vm env` and `scripts/mandi-on-vm.sh env` again so the Oracle VM uses it.
+- **Outside the repo:** the Razorpay test webhook and the UptimeRobot monitor use `https://api.gharbasket.co.in`.
 
 ## 12.3 Database hosting and the latency note
 
@@ -349,6 +365,7 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 - **D25** — ML runtime: training in GitHub Actions, models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020). Its minute-level trigger moved to the Oracle VM by D32.
 - **D30** — the ML service on a second free Render web service, without OSRM, replacing the Hugging Face Space of D25 ([ADR-0030](../adr/0030-ml-service-on-render-free.md)).
 - **D32** — staging's minute-level jobs are called by a scheduler on the Oracle VM, not cron-job.org, whose calls Render's edge turned away ([ADR-0032](../adr/0032-scheduled-jobs-from-the-oracle-vm.md)).
+- **D35** — the custom domain `gharbasket.co.in` on Cloudflare DNS: `api.` for the API, the bare name for the console, `app.` for the PWA ([ADR-0035](../adr/0035-custom-domain-gharbasket-co-in.md)).
 - **Open:** paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before Phase 6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 11 — Engineering process](11-engineering-process.md) · [Chapter 13 — Security and compliance](13-security-and-compliance.md)

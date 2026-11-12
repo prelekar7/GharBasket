@@ -218,7 +218,7 @@ A customer shares a link for their society; a neighbour who joins with it and ge
 Referrals : { "code": "K7Q2XD",                     one per user, made on first GET; 6 characters of
                                                     Crockford base32 (no I, L, O, U), case-insensitive,
                                                     random: never derived from a name or phone
-              "link": "https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD",
+              "link": "https://gharbasket.co.in/s/sunrise-towers-kharghar?ref=K7Q2XD",
                                                     PUBLIC_WEB_URL + the caller's society slug; null
                                                     while the caller has no household
               "share_text": "…",                    rendered in the request language; carries the link
@@ -276,7 +276,7 @@ POST /v1/referrals              customer (the neighbour who was referred); Idemp
 - **Order of refusals** when claiming: 422 `community.household_required`, 404 `community.referral_code_unknown`, 422 `community.referral_self`, 409 `community.already_referred`, 409 `community.referral_window_closed`. Codes are matched in any case, spaces trimmed. The household rule compares the referrer's household with the caller's (only an owner has one today).
 - **Points are fixed at the claim**: the row keeps the `REFERRAL_POINTS_*` in force then, and the conversion pays them (the referrer's becomes 0 over the cap). `points` in `items` and `referred_by` is null until converted. `summary.joined` counts the referrals that are not void. `converted_on` is the IST date of the `orders.delivered` event.
 - **Kindness points** come from M5's `credit_points` (`referral_welcome` for the neighbour, `referral` for the referrer), built for this (M5 §3.6 as built). Concurrent conversions of one referrer are counted one at a time (an advisory lock), so the cap holds.
-- **`share_text`** is one sentence per language with the code, then the link (`PUBLIC_WEB_URL`, default `https://gharbasket.in`).
+- **`share_text`** is one sentence per language with the code, then the link (`PUBLIC_WEB_URL`, default `https://gharbasket.co.in`).
 - **Deletion.** M9 consumes `identity.deletion_requested`, which M1 publishes once M1 §3.5 is built. `community.api.anonymise_for_user(session, user_id, household_id)` deletes the code and the society requests and voids open referrals; it joins M1's erasers when M1 §3.5 ships.
 - **Facade.** `referral_facts(session, *, date_from, date_to, hub_ids=None)` returns `ReferralFact { referral_id, society_id, hub_id, status, joined_on, converted_on, referrer_points, referee_points, data_source }` (points null until converted), with no user id. The export section gains `referral_code`, `referrals_made` and `referred` (`{ status, joined_on, converted_on, points }`, never the neighbour).
 

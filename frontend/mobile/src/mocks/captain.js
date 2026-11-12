@@ -145,7 +145,7 @@ const problem = (
 ) =>
   HttpResponse.json(
     {
-      type: `https://gharbasket.in/problems/${code}`,
+      type: `urn:gharbasket:problem:${code}`,
       title,
       status,
       detail: title,

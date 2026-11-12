@@ -249,7 +249,7 @@ class ReferralItem(BaseModel):
 class ReferralsOut(BaseModel):
     code: str = Field(examples=["K7Q2XD"])
     link: str | None = Field(
-        examples=["https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD"],
+        examples=["https://gharbasket.co.in/s/sunrise-towers-kharghar?ref=K7Q2XD"],
         description="null while the caller has no household",
     )
     share_text: str = Field(description="In the request language; carries the link")

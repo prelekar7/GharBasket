@@ -443,7 +443,7 @@ GET /v1/public/societies/{slug}          no auth; Cache-Control: public, max-age
         "live_since": "2027-02-27" | null,  IST date
         "delivery_days": [ "tue" ],         live societies only (M3 delivery days)
         "impact": { "items_donated": 18, "meals_donated": 7 } | null,   M9's k rule (5 contributors)
-        "join_url": "https://app.gharbasket.in/join?s=sunrise-towers-kharghar" }
+        "join_url": "https://app.gharbasket.co.in/join?s=sunrise-towers-kharghar" }
   404 "community.society_not_found"   unknown, prospect or paused (a prospect's page would announce a
                                       place that is not being opened)
   429 "request.rate_limited"
@@ -460,7 +460,7 @@ GET /v1/public/societies/{slug}          no auth; Cache-Control: public, max-age
 | `GET /v1/public/societies` (list) | Not in v1 |
 
 **As built** (`feat/M12-impact-public`, 2026-10-25):
-- The endpoint is in M12's router (`analytics/public.py`). `join_url` is `APP_WEB_URL/join?s=<slug>` (new setting, default `https://app.gharbasket.in`). `?ref=` is ignored, so the answer is the same with or without a code, and the console adds the code to `join_url` itself. The per-IP limit is 60 a minute on the caller's address (`request.client`; uvicorn's `--proxy-headers` makes it the real one). The 200 carries `Cache-Control: public, max-age=300, stale-while-revalidate=600`; a 404 does not.
+- The endpoint is in M12's router (`analytics/public.py`). `join_url` is `APP_WEB_URL/join?s=<slug>` (new setting, default `https://app.gharbasket.co.in`). `?ref=` is ignored, so the answer is the same with or without a code, and the console adds the code to `join_url` itself. The per-IP limit is 60 a minute on the caller's address (`request.client`; uvicorn's `--proxy-headers` makes it the real one). The 200 carries `Cache-Control: public, max-age=300, stale-while-revalidate=600`; a 404 does not.
 - `delivery_days` are `mon`..`sun` from the new `subscriptions.api.delivery_days`, and `[]` for an `unlocking` society. `progress_bp` is `min(joined, target) / target` in basis points, half up. `impact` is `{items_donated, meals_donated}` from `community.api.society_impact(…, "all", with_hub=False)`, `null` until 5 households contributed.
 
 ### 3.8 AI health (built on `feat/M10-forecast-v1`, F25)
