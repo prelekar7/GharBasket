@@ -6,6 +6,10 @@ involved: `lib/api.js` builds a `Request` and resolves it with `getResponse(hand
 (the same idea as `frontend/mobile/src/mocks/index.js`). Switch to the real API with
 `GB_API_MOCK=false GB_API_URL=http://localhost:8000`; page code does not change.
 
+The public pages (society invite `/s/<slug>`) have their own switch, `GB_PUBLIC_API_MOCK`, which defaults to
+`GB_API_MOCK`: `GB_PUBLIC_API_MOCK=false GB_API_URL=…` reads real societies while the staff screens stay on mocks
+(`lib/public-source.js`). Know-your-cook pages always use `mocks/public.js` until the API has `GET /v1/public/cooks/{id}`.
+
 ## Real mode
 
 `GB_API_MOCK=false GB_API_URL=http://localhost:8000 pnpm dev` (the API on :8000, the console on :3000; a dev API
