@@ -452,7 +452,7 @@ GET /v1/public/societies/{slug}          no auth; Cache-Control: public, max-age
 - **Never on this page:** a captain (her name and photo are for residents only, M9 §3.1), a flat or tower count of who joined, a household, a partner, or earnings.
 - **Referral codes.** The page passes `?ref=` from its own URL into `join_url`. The API never says whether a code exists, because a public validity check would let anyone enumerate codes. An unknown code simply fails at the claim (M9 §3.3).
 - **Sources.** M12 composes the page from `community.api.public_society` and `society_impact` (k already applied in M9) and `subscriptions.api.delivery_days`. Nothing is read from M12's views, so the page is current within the 5-minute cache.
-- **Not in v1:** a public list of societies (`GET /v1/public/societies`, proposed by the console mock) and public cook profiles (M8 owns "know your cook").
+- **Not in v1:** a public list of societies (`GET /v1/public/societies`, proposed by the console mock) and public cook profiles (M8 owns "know your cook"; since 2026-11-12 its public cook page is M8 §3.5, `GET /v1/public/cooks/{handle}`, with the same cache and per-IP limit as this page).
 
 | Mock today (console `mocks/public.js`) | Contract |
 |---|---|
