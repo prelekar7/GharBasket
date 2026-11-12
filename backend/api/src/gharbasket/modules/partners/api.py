@@ -92,7 +92,15 @@ __all__ = [
 
 # Never in an export: the files, the encrypted number and its key, the hash, the reviewer.
 KYC_PRIVATE = frozenset(
-    {"file_keys", "number_enc", "key_version", "number_hash", "reviewed_by", "user_id"}
+    {
+        "file_keys",
+        "number_enc",
+        "key_version",
+        "number_hash",
+        "hash_version",
+        "reviewed_by",
+        "user_id",
+    }
 )
 
 

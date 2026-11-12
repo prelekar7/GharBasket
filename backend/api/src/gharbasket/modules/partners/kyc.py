@@ -6,9 +6,11 @@ fails, the test hook in every environment), and a duplicate check across people 
 number. A failed check does not block the upload: the hub manager sees it and decides.
 
 Numbers are stored only as `pgp_sym_encrypt(number, KYC_ENCRYPTION_KEY)` with its key version, a
-masked copy (the last 4 characters) and the HMAC; nothing here decrypts. The FSSAI registration
-number is public by law and kept in clear. Files are the applicant's own private `kyc_document`
-uploads, claimed here and read only through 5-minute links for hub staff (audit-logged).
+masked copy (the last 4 characters) and the HMAC with its pepper version; nothing here decrypts.
+Duplicates match under the current pepper and every retired one (rotation.py). The FSSAI
+registration number is public by law and kept in clear. Files are the applicant's own private
+`kyc_document` uploads, claimed here and read only through 5-minute links for hub staff
+(audit-logged).
 """
 
 import hashlib
@@ -20,7 +22,8 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import Executable, Result, and_, func, or_, select
+from sqlalchemy.exc import StatementError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.partners.models import (
@@ -168,26 +171,58 @@ async def _claim(
             raise _file_key_invalid()
 
 
+class KycStatementError(RuntimeError):
+    """A statement carrying a KYC key, pepper or number failed. SQLAlchemy's own error prints the
+    statement's parameters, so this one names only the driver's error type."""
+
+
+async def execute_secret(
+    session: AsyncSession, statement: Executable, params: dict[str, Any] | None = None
+) -> Result[Any]:
+    """Run a statement whose parameters are secret. A failure raises KycStatementError without
+    the original as its cause or context, so no log line, traceback or job error shows one."""
+    try:
+        return await session.execute(statement, params)
+    except StatementError as exc:
+        reason = type(exc.orig).__name__ if exc.orig is not None else type(exc).__name__
+    raise KycStatementError(f"a KYC statement failed ({reason})")
+
+
 def number_hash(settings: Settings, kind: str, number: str) -> bytes:
-    """HMAC-SHA256 with KYC_HASH_PEPPER, for duplicate checks; never reversible."""
+    """HMAC-SHA256 with the current pepper, for duplicate checks; never reversible."""
     return hmac.new(settings.kyc_pepper, f"{kind}:{number}".encode(), hashlib.sha256).digest()
+
+
+def number_hashes(settings: Settings, kind: str, number: str) -> dict[int, bytes]:
+    """The number's HMAC under every configured pepper (current and retired), by version."""
+    message = f"{kind}:{number}".encode()
+    return {
+        version: hmac.new(pepper, message, hashlib.sha256).digest()
+        for version, pepper in settings.kyc_peppers.items()
+    }
 
 
 async def _encrypt(session: AsyncSession, settings: Settings, number: str) -> bytes:
     """pgp_sym_encrypt in Postgres (pgcrypto), the key sent as a bind parameter. A statement of
     its own, so no INSERT error could ever echo the key."""
     return (
-        await session.execute(select(func.pgp_sym_encrypt(number, settings.kyc_key)))
+        await execute_secret(session, select(func.pgp_sym_encrypt(number, settings.kyc_key)))
     ).scalar_one()
 
 
-async def _duplicate(session: AsyncSession, digest: bytes, user_id: uuid.UUID) -> bool:
-    """The same number on another person's open application or partner record."""
+async def _duplicate(session: AsyncSession, digests: dict[int, bytes], user_id: uuid.UUID) -> bool:
+    """The same number on another person's open application or partner record, matched under
+    every configured pepper (`digests` by pepper version, §3.1 rotation)."""
     found = await session.execute(
         select(KycDocument.id)
         .join(Application, Application.id == KycDocument.application_id)
         .where(
-            KycDocument.number_hash == digest,
+            or_(
+                *(
+                    and_(KycDocument.hash_version == version, KycDocument.number_hash == digest)
+                    for version, digest in digests.items()
+                )
+            ),
             KycDocument.user_id != user_id,
             KycDocument.superseded_by.is_(None),
             Application.status.in_((*OPEN_STATUSES, "verified")),
@@ -248,10 +283,11 @@ async def upload(
     clean = validate(application.kind, body, today=now.astimezone(IST).date())
     keys = list(body["file_keys"])
     await _claim(session, keys, application.user_id, store)
-    digest = None
+    digests: dict[int, bytes] = {}
     if clean.number is not None:
-        digest = number_hash(settings, clean.id_kind or clean.doc_type, clean.number)
-    duplicate = digest is not None and await _duplicate(session, digest, application.user_id)
+        digests = number_hashes(settings, clean.id_kind or clean.doc_type, clean.number)
+    digest = digests.get(settings.kyc_pepper_version)  # stored under the current pepper
+    duplicate = bool(digests) and await _duplicate(session, digests, application.user_id)
     check_status, check_code = _check(clean.doc_type, clean.number, duplicate)
     document = KycDocument(
         application_id=application.id,
@@ -259,6 +295,7 @@ async def upload(
         doc_type=clean.doc_type,
         id_kind=clean.id_kind,
         number_hash=digest,
+        hash_version=settings.kyc_pepper_version if digest is not None else None,
         details=clean.details,
         file_keys=keys,
         check_status=check_status,

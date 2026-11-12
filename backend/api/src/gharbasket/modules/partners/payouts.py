@@ -84,16 +84,24 @@ async def payout_account(
     """The partner's bank account in clear, for a real payout provider only: decrypted here, and
     every call writes `partners.payout_account_read` to the audit log (who, which document; never
     the number). 409 `partners.no_payout_account` without an accepted bank document whose penny
-    drop passed."""
+    drop passed. 503 `partners.kyc_key_unavailable` when no key is configured for the document's
+    key version (§3.1, key rotation)."""
     partner = await service.get(session, partner_id)
     bank = (await _documents(session, partner)).get("bank")
     if bank is None or not _bank_ok(bank):
         raise ProblemError(
             409, "partners.no_payout_account", "This partner has no verified bank account."
         )
-    key = (settings or get_settings()).kyc_key
+    # The key of the row's own version: the current one, or a retired one not yet re-keyed.
+    key = (settings or get_settings()).kyc_keys.get(bank.key_version or 0)
+    if key is None:
+        raise ProblemError(
+            503,
+            "partners.kyc_key_unavailable",
+            "This bank account is stored under a key that is not configured.",
+        )
     number = (
-        await session.execute(select(func.pgp_sym_decrypt(bank.number_enc, key)))
+        await kyc.execute_secret(session, select(func.pgp_sym_decrypt(bank.number_enc, key)))
     ).scalar_one()
     await audit.record(
         session,

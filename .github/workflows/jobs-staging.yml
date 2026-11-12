@@ -28,6 +28,7 @@ on:
     - cron: "0 1-4,7,9,13,15,16 * * *" # 06:30-09:30, 12:30, 14:30, 18:30-21:30 IST: reconcile_payments
     - cron: "3 22 * * 0" # Monday 03:33 IST weekly: compute_vendor_scores (the past IST week)
     - cron: "13 22 * * *" # 03:43 IST daily: purge_gps_pings (pings older than 90 days, M7)
+    - cron: "23 22 * * *" # 03:53 IST daily: rekey_kyc_documents (M8 §3.1 key rotation)
     - cron: "10 21 * * *" # 02:40 IST daily: refresh_analytics_nightly (M12 §3.2)
     - cron: "33 4 * * 1" # Monday 10:03 IST weekly: weekly_payouts (the past IST week, M5 §3.5)
   workflow_dispatch:

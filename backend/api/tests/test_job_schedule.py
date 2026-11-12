@@ -138,10 +138,11 @@ def test_neon_stays_inside_its_free_compute_budget() -> None:
     hours = awake_hours_per_day()
     print(f"\nNeon awake about {hours:.1f} h a day = {hours * 0.25 * 30:.0f} CU-h a month")
     # Free tier: 100 CU-hours a month, and the compute is suspended when they run out. At a fixed
-    # 0.25 CU that is 13.3 h a day; the schedule gets 8.1 h (61 CU-hours) so that people, deploys
+    # 0.25 CU that is 13.3 h a day; the schedule gets 8.2 h (62 CU-hours) so that people, deploys
     # and the journey script have the rest. 8.1 since refund_unassigned_tiffins got an 11:00 wake
-    # for the lunch slots that close after 09:30's (M8 §6).
-    assert hours <= 8.1
+    # for the lunch slots that close after 09:30's (M8 §6); 8.2 since rekey_kyc_documents got its
+    # 03:53 wake (M8 §6, 6 minutes a day).
+    assert hours <= 8.2
 
 
 def test_every_lunch_slots_close_is_refunded_within_the_hour() -> None:

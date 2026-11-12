@@ -319,6 +319,7 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 | `logistics.plans_failed` | M7 | A `failed` route plan for the delivery day being prepared (tomorrow from the 23:15 solve, today until the routes close at 16:00) that no published plan replaced | [`route-solve-failed.md`](../runbooks/route-solve-failed.md) |
 | `logistics.plans_unreviewed` | M7 | A plan left `solved` for a manager's review (it had problems) at 06:30 on its day | [`route-solve-failed.md`](../runbooks/route-solve-failed.md) |
 | `orders.revenue_unrecognised` | M4 (reads `orders.*`; money through `billing.api`) | An order delivered more than an hour ago, within 7 days, that still holds money in `unearned_revenue` (M5 recognises it on `orders.delivered`) | Run `recognise_delivered_revenue` by hand (`just job recognise_delivered_revenue`, M5 §3.9; idempotent), then README "Run a job by hand" |
+| `partners.kyc_key_missing` | M8 | A stored KYC row whose `key_version` or `hash_version` has no configured key or pepper (its number cannot be read, or matched as a duplicate); names the versions and row counts, never a number | [`rotate-secrets.md`](../runbooks/rotate-secrets.md) "KYC_ENCRYPTION_KEY and KYC_HASH_PEPPER" |
 
 **Not built yet:** error-rate spikes (they need logs or traces collected somewhere, so they wait for the OpenTelemetry and Grafana Cloud work) and Neon compute hours near the free limit (only storage is watched, by the `database_size` probe; watch the hours in the Neon console, see the budget in `infra/jobs/schedule.yaml`).
 

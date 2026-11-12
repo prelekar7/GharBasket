@@ -10,6 +10,9 @@ never the clock, and stands in for "now" in the rounds' reply deadlines.
 
 - `prompt_tiffin_ratings` (T 14:30 IST): `partners.rating_requested` for the day's delivered lunch
   tiffins that nobody asked about yet and that are not rated.
+- `rekey_kyc_documents` (daily 03:53 IST, and by hand after a rotation): KYC rows to the current
+  key and pepper (§3.1, rotation.py). Probe `partners.kyc_key_missing`: rows under a key or pepper
+  version that is not configured.
 
 Consumers (§5): M4's `orders.dispatched`, `orders.delivered` and `orders.delivery_failed` of tiffins
 move the assignment's orders along and complete it, and `orders.delivered`, `orders.dispatched` and
@@ -18,7 +21,7 @@ partner records `left`.
 """
 
 import uuid
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 import structlog
@@ -27,10 +30,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.partners import assignments, cooking, earnings, fulfilment, ratings, service
+from gharbasket.modules.partners import (
+    assignments,
+    cooking,
+    earnings,
+    fulfilment,
+    ratings,
+    rotation,
+    service,
+)
+from gharbasket.platform import audit, ops
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
+from gharbasket.platform.settings import get_settings
 
 log = structlog.get_logger("gharbasket.partners")
 NOON = time(12, 0)  # a run in the evening works for tomorrow, one after midnight for today
@@ -139,6 +152,39 @@ async def prompt_tiffin_ratings(ctx: JobContext) -> dict[str, Any]:
         "delivery_date": day.isoformat(),
         "prompted": await ratings.prompt(ctx.session, day, "lunch"),
     }
+
+
+@job("rekey_kyc_documents", "Move KYC numbers to the current key and pepper (daily 03:53 IST)")
+async def rekey_kyc_documents(ctx: JobContext) -> dict[str, Any]:
+    """Batches of 100 rows, each committed; a row under a key version with no configured key is
+    left alone and counted as `missing_key` (it is also in `remaining`). The audit row
+    `kyc.rekeyed` holds only the counts, and is written only when a row moved."""
+    rekeyed = rehashed = 0
+    while (moved := await rotation.rekey_batch(ctx.session, ctx.settings)) is not None:
+        rekeyed, rehashed = rekeyed + moved.rekeyed, rehashed + moved.rehashed
+        await ctx.session.commit()
+    left, missing_key = await rotation.remaining(ctx.session, ctx.settings)
+    summary = {
+        "rekeyed": rekeyed,
+        "rehashed": rehashed,
+        "remaining": left,
+        "missing_key": missing_key,
+    }
+    if rekeyed or rehashed:
+        await audit.record(
+            ctx.session,
+            actor_user_id=None,
+            action="kyc.rekeyed",
+            entity_type="kyc_documents",
+            entity_id="all",
+            after=summary,
+        )
+    return summary
+
+
+@ops.probe("partners.kyc_key_missing")
+async def kyc_key_missing(session: AsyncSession, now: datetime) -> list[str]:
+    return await rotation.unconfigured(session, get_settings())
 
 
 async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> None:
