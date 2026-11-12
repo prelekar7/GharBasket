@@ -4,6 +4,7 @@
 // the server prices it, the model never does. Like the API, a body field the contract does not list is a 422.
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
+import { bookedTiffins, bookTiffin, menuDishes, TIFFIN_OFFER, tiffinMenuId } from "./orders.js";
 import { uid } from "./subscriptions.js";
 
 /** @param {number} status @param {string} code @param {string} title @param {Record<string, string>} [headers] */
@@ -57,10 +58,21 @@ const REPLIES = {
     hi: "ठीक है, अगले हफ़्ते का बॉक्स स्किप कर सकती हूँ। कार्ड देखकर हाँ कहिए।",
     mr: "ठीक आहे, पुढच्या आठवड्याचा बॉक्स स्किप करू शकते. कार्ड पाहून हो म्हणा.",
   },
+  tiffin: {
+    en: "Lata tai can cook lunch for you. Check the card and say yes to book it.",
+    hi: "लता ताई आपके लिए दोपहर का खाना बना सकती हैं। कार्ड देखकर हाँ कहिए, बुक हो जाएगा।",
+    mr: "लता ताई तुमच्यासाठी दुपारचं जेवण बनवू शकतात. कार्ड पाहून हो म्हणा, बुक होईल.",
+  },
+  // tiffin_cards.py SAY.booked: every open lunch this week already has a tiffin, so no card.
+  booked: {
+    en: "You already have a tiffin booked for every lunch I can book this week.",
+    hi: "इस हफ़्ते जितने दोपहर के टिफ़िन बुक हो सकते हैं, सब आपने पहले ही बुक कर लिए हैं।",
+    mr: "या आठवड्यात बुक होणारे सगळे दुपारचे डबे तुम्ही आधीच बुक केले आहेत.",
+  },
   help: {
-    en: "I can change next week’s box or skip a week. Tell me what you’d like.",
-    hi: "मैं अगले हफ़्ते का बॉक्स बदल सकती हूँ या एक हफ़्ता स्किप कर सकती हूँ। बताइए क्या चाहिए।",
-    mr: "मी पुढच्या आठवड्याचा बॉक्स बदलू शकते किंवा एक आठवडा स्किप करू शकते. काय हवं ते सांगा.",
+    en: "I can change next week’s box, skip a week or book a tiffin. Tell me what you’d like.",
+    hi: "मैं अगले हफ़्ते का बॉक्स बदल सकती हूँ, एक हफ़्ता स्किप कर सकती हूँ या टिफ़िन बुक कर सकती हूँ। बताइए क्या चाहिए।",
+    mr: "मी पुढच्या आठवड्याचा बॉक्स बदलू शकते, एक आठवडा स्किप करू शकते किंवा डबा बुक करू शकते. काय हवं ते सांगा.",
   },
 };
 /** The summary the API writes in the person's language (service.py SUMMARY). */
@@ -76,6 +88,92 @@ const SUMMARY = {
     mr: "13 Oct चा बॉक्स स्किप करा",
   },
 };
+
+/**
+ * The days the tiffin mock still sells lunch (GET /v1/tiffin-menus: this mock week, not Wednesday,
+ * which is cooked at home, and not a day already booked).
+ */
+const OPEN_TIFFIN_DAYS = ["2026-10-06", "2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"];
+/** tiffin_cards.py: the portions are the household's default, here the seed family's two. */
+const TIFFIN_PORTIONS = 2;
+/** tiffin_cards.py SUMMARY, in the person's language. @param {"en" | "hi" | "mr"} lang @param {string} date @param {string[]} dishes */
+function tiffinSummary(lang, date, dishes) {
+  const day = `${Number(date.slice(8))} Oct`;
+  const price = TIFFIN_OFFER.price_paise / 100;
+  const sum = `${dishes.join(", ").slice(0, 50)}, ${TIFFIN_PORTIONS} x ₹${price} = ₹${TIFFIN_PORTIONS * price}`;
+  return {
+    en: `Book the lunch tiffin for ${day}: ${sum}. Paid at the 21:00 cut-off; free to cancel until then.`,
+    hi: `${day}: दोपहर का टिफ़िन बुक करें: ${sum}। भुगतान 21:00 के कट-ऑफ़ पर; तब तक मुफ़्त रद्द।`,
+    mr: `${day}: दुपारचा टिफिन बुक करा: ${sum}. पेमेंट 21:00 च्या कट-ऑफला; तोपर्यंत मोफत रद्द.`,
+  }[lang].slice(0, 200);
+}
+
+/**
+ * A book_tiffin card for the first lunch still open, priced by the "server" (tiffin_cards.py
+ * resolve), or null when every one is booked.
+ * @param {"en" | "hi" | "mr"} lang @param {string} sessionId
+ */
+function makeTiffinProposal(lang, sessionId) {
+  const taken = new Set(bookedTiffins().map((b) => b.delivery_date));
+  const date = OPEN_TIFFIN_DAYS.find((d) => !taken.has(d));
+  if (!date) return null;
+  const dishes = menuDishes(lang === "hi" ? "hi" : "en").map((d) => d.name);
+  const proposal = {
+    id: crypto.randomUUID(),
+    action: "book_tiffin",
+    payload: {
+      menu_id: tiffinMenuId(date),
+      date,
+      meal: "lunch",
+      portions: TIFFIN_PORTIONS,
+      unit_price_paise: TIFFIN_OFFER.price_paise,
+      total_paise: TIFFIN_PORTIONS * TIFFIN_OFFER.price_paise,
+      dishes,
+    },
+    summary: tiffinSummary(lang, date, dishes),
+    status: "pending",
+    expires_at: new Date(Date.now() + PROPOSAL_TTL_MS).toISOString(),
+    result: null,
+  };
+  proposals[proposal.id] = proposal;
+  cardsOf[sessionId] = [...(cardsOf[sessionId] ?? []), proposal.id];
+  return proposal;
+}
+
+/**
+ * Confirm a book_tiffin card: M4 books it (one per date and meal), and the card's result names the
+ * order (tiffin_cards.py book). @param {any} p @param {string} key @param {"en" | "hi" | "mr"} lang
+ */
+function confirmTiffin(p, key, lang) {
+  const { order, twin } = bookTiffin(
+    p.payload.date,
+    p.payload.portions,
+    key,
+    lang === "hi" ? "hi" : "en",
+  );
+  if (twin)
+    return HttpResponse.json(
+      {
+        type: "urn:gharbasket:problem:orders.tiffin_already_booked",
+        title: "A tiffin is already booked for that meal",
+        status: 409,
+        code: "orders.tiffin_already_booked",
+        order_id: twin.id,
+      },
+      { status: 409, headers: { "content-type": "application/problem+json" } },
+    );
+  p.status = "confirmed";
+  p.result = {
+    order_id: order.id,
+    status: order.status,
+    delivery_date: order.delivery_date,
+    meal: p.payload.meal,
+    portions: p.payload.portions,
+    total_paise: order.total_paise,
+  };
+  confirmedByKey[key] = { proposal: p };
+  return HttpResponse.json(confirmedByKey[key]);
+}
 
 /** @param {string} content */
 const messageOut = (content) => ({
@@ -173,6 +271,18 @@ export const assistantHandlers = [
     const lower = text.toLowerCase();
     const wantsSkip = /skip|स्किप|छोड़/.test(lower);
     const wantsChange = /paneer|पनीर|light|halka|हल्का/.test(lower);
+    const wantsTiffin = /tiffin|टिफ़िन|टिफिन|डबा|dabba/.test(lower);
+    if (wantsTiffin && !wantsSkip && !wantsChange) {
+      const card = makeTiffinProposal(lang, session_id);
+      return HttpResponse.json({
+        session_id,
+        reply: messageOut(REPLIES[card ? "tiffin" : "booked"][lang]),
+        proposals: card ? [card] : [],
+        source: "ml",
+        tokens_today: turns * TOKENS_PER_TURN,
+        tokens_cap: TOKENS_CAP,
+      });
+    }
     const action = wantsSkip ? "skip_week" : wantsChange ? "edit_box_line" : null;
     return HttpResponse.json({
       session_id,
@@ -208,6 +318,7 @@ export const assistantHandlers = [
     if (confirmedByKey[key]) return HttpResponse.json(confirmedByKey[key]);
     const { p, error } = pending(String(params.id));
     if (error) return error;
+    if (p.action === "book_tiffin") return confirmTiffin(p, key, langOf(request));
     if (p.payload.version !== NEXT_BOX.version)
       return problem(412, "subscriptions.version_conflict", "The week changed since the card.");
     NEXT_BOX.version += 1;

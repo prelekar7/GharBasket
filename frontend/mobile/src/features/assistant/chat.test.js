@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  bookedOrderId,
   canRetry,
+  cardDate,
   confirmOrRead,
   confirmProposal,
   getSession,
   isStale,
   postMessage,
   rejectProposal,
+  tiffinBooked,
 } from "@/features/assistant/chat.js";
-import { ApiError } from "@/lib/api.js";
+import { ApiError, request } from "@/lib/api.js";
 import { mockFetch } from "@/mocks/index.js";
 
 // The chat's real request functions run against the mock API (vitest.config.js turns it on), and the mock
@@ -153,5 +156,92 @@ describe("Ghar Saathi request bodies (openapi.json MessageIn, ConfirmOut, Propos
     expect(canRetry("http.error")).toBe(true);
     // A message the API refused (422, e.g. over MessageIn's 2000 characters) fails the same way again.
     expect(canRetry("request.invalid")).toBe(false);
+  });
+});
+
+describe("book_tiffin cards (assistant tiffin_cards.py, ConfirmOut)", () => {
+  /** @param {Partial<import("@/features/assistant/chat.js").Proposal>} over @returns {import("@/features/assistant/chat.js").Proposal} */
+  const card = (over = {}) => ({
+    id: "p1",
+    action: "book_tiffin",
+    status: "pending",
+    expires_at: "2026-11-12T12:00:00Z",
+    summary: "Book the lunch tiffin for 13 Nov: dal, rice, 2 x ₹90 = ₹180.",
+    payload: { menu_id: "m1", date: "2026-11-13", meal: "lunch", portions: 2, total_paise: 18000 },
+    result: null,
+    ...over,
+  });
+
+  it("dates a tiffin card by its own day, and a box card by its week", () => {
+    expect(cardDate(card())).toBe("2026-11-13");
+    expect(cardDate(card({ action: "skip_week", payload: { delivery_date: "2026-11-17" } }))).toBe(
+      "2026-11-17",
+    );
+  });
+
+  it("reads the booked order only from a confirmed tiffin card", () => {
+    const result = {
+      order_id: "o1",
+      status: "placed",
+      delivery_date: "2026-11-13",
+      meal: "lunch",
+      portions: 2,
+      total_paise: 18000,
+    };
+    expect(tiffinBooked(card({ status: "confirmed", result }))).toEqual(result);
+    expect(tiffinBooked(card())).toBeNull();
+    expect(tiffinBooked(card({ action: "skip_week", status: "confirmed", result }))).toBeNull();
+  });
+
+  it("asks again only when a fresh card can help", () => {
+    // The price moved or the menu closed: a new card shows today's price or another menu.
+    expect(isStale({ status: 409, code: "assistant.price_changed" })).toBe(true);
+    expect(isStale({ status: 422, code: "orders.menu_unknown" })).toBe(true);
+    // Already booked, the slot is full, or the hub has no slot: asking again gets the same answer.
+    expect(isStale({ status: 409, code: "orders.tiffin_already_booked" })).toBe(false);
+    expect(isStale({ status: 409, code: "orders.slot_full" })).toBe(false);
+    expect(isStale({ status: 422, code: "orders.slot_invalid" })).toBe(false);
+  });
+
+  it("books through M4 on confirm, and the card's result names the order", async () => {
+    const { proposals } = await postMessage(null, "book a tiffin for tomorrow");
+    const [p] = proposals;
+    expect(p).toMatchObject({ action: "book_tiffin", status: "pending", result: null });
+    expect(p.payload).toMatchObject({ date: "2026-10-06", meal: "lunch", portions: 2 });
+    expect(p.payload.total_paise).toBe(2 * Number(p.payload.unit_price_paise));
+    const key = crypto.randomUUID();
+    const { proposal } = await confirmProposal(p.id, key);
+    const booked = tiffinBooked(proposal);
+    expect(booked).toMatchObject({ delivery_date: "2026-10-06", meal: "lunch", portions: 2 });
+    expect(booked?.total_paise).toBe(p.payload.total_paise);
+    // The order is real: Orders and the Week see it.
+    const order = await request(`/v1/orders/${booked?.order_id}`);
+    expect(order).toMatchObject({ kind: "tiffin", delivery_date: "2026-10-06" });
+    // The same key again is the same answer, not a second tiffin.
+    expect(await confirmProposal(p.id, key)).toEqual({ proposal });
+    // The next card offers the next open lunch.
+    const next = (await postMessage(null, "one more tiffin please")).proposals[0];
+    expect(next.payload.date).toBe("2026-10-08");
+  });
+
+  it("refuses a second card for a meal booked meanwhile, and names the order", async () => {
+    const first = (await postMessage(null, "book a tiffin")).proposals[0];
+    const second = (await postMessage(null, "book a tiffin")).proposals[0];
+    expect(second.payload.date).toBe(first.payload.date);
+    const { proposal } = await confirmProposal(first.id, crypto.randomUUID());
+    const err = await confirmProposal(second.id, crypto.randomUUID()).catch((e) => e);
+    expect([err.status, err.code]).toEqual([409, "orders.tiffin_already_booked"]);
+    expect(bookedOrderId(err)).toBe(tiffinBooked(proposal)?.order_id);
+    expect(isStale(err)).toBe(false);
+  });
+
+  it("links an already-booked meal to the order the problem names", () => {
+    const booked = new ApiError({
+      status: 409,
+      code: "orders.tiffin_already_booked",
+      order_id: "o9",
+    });
+    expect(bookedOrderId(booked)).toBe("o9");
+    expect(bookedOrderId(new ApiError({ status: 409, code: "orders.slot_full" }))).toBeNull();
   });
 });

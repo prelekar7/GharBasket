@@ -1,11 +1,19 @@
 import { Button, Chip, IconButton, MoneyText } from "@gharbasket/ui";
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "@/components/BrandMark.jsx";
 import { RoleFrame } from "@/components/RoleFrame.jsx";
-import { canRetry, isStale, MAX_MESSAGE, useAssistant } from "@/features/assistant/chat.js";
+import {
+  bookedOrderId,
+  canRetry,
+  cardDate,
+  isStale,
+  MAX_MESSAGE,
+  tiffinBooked,
+  useAssistant,
+} from "@/features/assistant/chat.js";
 import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
@@ -36,7 +44,8 @@ function Assistant() {
     end.current?.scrollIntoView({ block: "end" });
   }, [messages.length, send.isPending]);
 
-  const day = (/** @type {string} */ iso) => `${weekdayName(iso, lang)} ${shortDate(iso, lang)}`;
+  const day = (/** @type {string | undefined} */ iso) =>
+    iso ? `${weekdayName(iso, lang)} ${shortDate(iso, lang)}` : "";
   const submit = (/** @type {string} */ value) => {
     const v = value.trim();
     if (!v || send.isPending) return;
@@ -52,8 +61,22 @@ function Assistant() {
       return /** @type {{ code?: string, status?: number }} */ (reject.error);
     return null;
   };
+  /** A decided card's line: a booked tiffin names its meal and day, a box card its week. @param {import("@/features/assistant/chat.js").Proposal} p */
+  const outcome = (p) => {
+    if (p.action !== "book_tiffin") return t(`ghar.status.${p.status}`, { day: day(cardDate(p)) });
+    if (p.status === "confirmed") {
+      const booked = tiffinBooked(p);
+      return t("ghar.tiffin.booked", {
+        meal: t(`ghar.tiffin.meal.${booked?.meal ?? p.payload.meal ?? "lunch"}`),
+        day: day(booked?.delivery_date ?? cardDate(p)),
+      });
+    }
+    return t(p.status === "expired" ? "ghar.tiffin.expired" : `ghar.status.${p.status}`);
+  };
   /** Answered elsewhere, and its real status could not be read: Yes or No would only be refused again. */
   const decided = (/** @type {string} */ id) => failed(id)?.code === "assistant.proposal_decided";
+  /** The meal is booked already (that order is linked): Yes would only be refused again; No still dismisses the card. */
+  const taken = (/** @type {string} */ id) => !!bookedOrderId(failed(id));
 
   return (
     <RoleFrame userRole={role}>
@@ -111,6 +134,9 @@ function Assistant() {
                 {p.payload.price_change_paise ? (
                   <MoneyText paise={p.payload.price_change_paise} delta />
                 ) : null}
+                {p.action === "book_tiffin" && p.payload.total_paise ? (
+                  <MoneyText paise={p.payload.total_paise} />
+                ) : null}
                 {p.status === "pending" ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -119,12 +145,13 @@ function Assistant() {
                       isDisabled={
                         reject.isPending ||
                         (confirm.isPending && confirm.variables?.id !== p.id) ||
-                        decided(p.id)
+                        decided(p.id) ||
+                        taken(p.id)
                       }
                       onPress={() => confirm.mutate(p)}
                     >
                       <CheckIcon aria-hidden size={20} weight="bold" />
-                      {t("ghar.yes")}
+                      {t(p.action === "book_tiffin" ? "ghar.tiffin.yes" : "ghar.yes")}
                     </Button>
                     <Button
                       variant="secondary"
@@ -139,9 +166,10 @@ function Assistant() {
                     role="status"
                     className={`text-sm font-semibold ${p.status === "confirmed" ? "text-primary" : "text-fg-secondary"}`}
                   >
-                    {t(`ghar.status.${p.status}`, { day: day(p.payload.delivery_date) })}
+                    {outcome(p)}
                   </p>
                 )}
+                <OrderLink orderId={tiffinBooked(p)?.order_id ?? null} />
                 {p.status === "expired" && (
                   <Button
                     variant="secondary"
@@ -158,6 +186,7 @@ function Assistant() {
                         defaultValue: t("ghar.errors.other"),
                       })}
                     </p>
+                    <OrderLink orderId={bookedOrderId(failed(p.id))} />
                     {isStale(failed(p.id)) && (
                       <Button variant="secondary" onPress={() => askAgain(p)}>
                         {t("ghar.askAgain")}
@@ -206,6 +235,21 @@ function Assistant() {
         </IconButton>
       </form>
     </RoleFrame>
+  );
+}
+
+/** The booked tiffin's order, where its steps show from kitchen to door (M7 §3.7). @param {{ orderId: string | null }} props */
+function OrderLink({ orderId }) {
+  const { t } = useTranslation();
+  if (!orderId) return null;
+  return (
+    <Link
+      to="/orders/$orderId/track"
+      params={{ orderId }}
+      className="flex min-h-12 items-center font-semibold text-link underline underline-offset-[3px]"
+    >
+      {t("ghar.tiffin.view")}
+    </Link>
   );
 }
 

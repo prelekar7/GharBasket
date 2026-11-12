@@ -5,10 +5,18 @@ import { request } from "@/lib/api.js";
 
 /**
  * The contract (backend/api/openapi.json, M13 §3). The card is the API's own sentence (`summary`, in
- * the person's language); `payload` carries the week it applies to and the price change in paise
- * (`price_change_paise`, edit_box_line only). The version the change is made against stays on the server.
- * @typedef {{ id: string, action: "edit_box_line" | "skip_week", status: "pending" | "confirmed" | "rejected" | "expired",
- *   expires_at: string, summary: string, payload: { delivery_date: string, price_change_paise?: number } & Record<string, unknown>,
+ * the person's language). For edit_box_line and skip_week, `payload` carries the week it applies to
+ * (`delivery_date`) and the price change in paise (`price_change_paise`, edit_box_line only); the
+ * version the change is made against stays on the server. For book_tiffin (assistant
+ * tiffin_cards.py), it carries the day and meal, the portions and the total the API priced, and a
+ * confirmed card's `result` names the order M4 booked.
+ * @typedef {{ delivery_date?: string, price_change_paise?: number, menu_id?: string, date?: string,
+ *   meal?: "lunch" | "dinner", portions?: number, unit_price_paise?: number, total_paise?: number,
+ *   dishes?: string[] } & Record<string, unknown>} ProposalPayload
+ * @typedef {{ order_id: string, status: string, delivery_date: string, meal: "lunch" | "dinner",
+ *   portions: number, total_paise: number }} TiffinBooked A confirmed book_tiffin card's `result`.
+ * @typedef {{ id: string, action: "edit_box_line" | "skip_week" | "book_tiffin", status: "pending" | "confirmed" | "rejected" | "expired",
+ *   expires_at: string, summary: string, payload: ProposalPayload,
  *   result: Record<string, unknown> | null }} Proposal
  * @typedef {{ session_id: string, reply: { id: string, role: "assistant", content: string }, proposals: Proposal[],
  *   source: "ml" | "fallback", tokens_today: number, tokens_cap: number }} Turn
@@ -57,18 +65,54 @@ const STALE = new Set([
   "assistant.no_cycle",
   "subscriptions.cutoff_passed",
   "subscriptions.not_editable",
+  // book_tiffin: the total moved since the card, or the menu closed (21:00 the day before) or was
+  // taken off sale. A fresh card shows today's price or another menu.
+  "assistant.price_changed",
+  "orders.menu_unknown",
+]);
+/**
+ * Confirm failures that asking again cannot fix, though most are a 409: the first confirm is still
+ * running; the card was already decided (confirmOrRead resolves it to the card's real status, and
+ * asking again could repeat a change); the meal is already booked (the problem names the order);
+ * the kitchen's slot is full; this hub has no tiffin slot for the meal.
+ */
+const FINAL = new Set([
+  "request.idempotency_in_progress",
+  "assistant.proposal_decided",
+  "orders.tiffin_already_booked",
+  "orders.slot_full",
+  "orders.slot_invalid",
 ]);
 /** @param {unknown} e */
 export const isStale = (e) => {
   const code = /** @type {{ code?: string }} */ (e)?.code ?? "";
-  // Not stale: the first confirm is still running (409), or the card was already decided, which
-  // confirmOrRead resolves to the card's real status (asking again could repeat a change).
-  if (code === "request.idempotency_in_progress" || code === "assistant.proposal_decided")
-    return false;
+  if (FINAL.has(code)) return false;
   return (
     STALE.has(code) || [409, 412].includes(/** @type {{ status?: number }} */ (e)?.status ?? 0)
   );
 };
+
+/**
+ * The order a book_tiffin confirm found already booked for that date and meal (409
+ * `orders.tiffin_already_booked` carries `order_id`), to link to it; null for any other failure.
+ * @param {unknown} e @returns {string | null}
+ */
+export function bookedOrderId(e) {
+  const err = /** @type {{ code?: string, extra?: Record<string, unknown> }} */ (e);
+  if (err?.code !== "orders.tiffin_already_booked") return null;
+  const id = err.extra?.order_id;
+  return typeof id === "string" ? id : null;
+}
+
+/** The day a card is about: a tiffin's date, else the week's box date. @param {Proposal} p @returns {string | undefined} */
+export const cardDate = (p) =>
+  p.action === "book_tiffin" ? p.payload.date : p.payload.delivery_date;
+
+/** A confirmed book_tiffin card's booked order, or null. @param {Proposal} p @returns {TiffinBooked | null} */
+export function tiffinBooked(p) {
+  if (p.action !== "book_tiffin" || p.status !== "confirmed" || !p.result) return null;
+  return typeof p.result.order_id === "string" ? /** @type {TiffinBooked} */ (p.result) : null;
+}
 /** @param {string | undefined} code */
 export const canRetry = (code) => !NO_RETRY.has(code ?? "");
 /**
@@ -195,6 +239,7 @@ export function useAssistant() {
     onSuccess: (r) => {
       setProposal(r.proposal);
       client.invalidateQueries({ queryKey: ["cycle"] });
+      // The Week tab (the cycle) and Orders both show a booked tiffin, and the box a changed week.
       client.invalidateQueries({ queryKey: ["orders"] });
     },
   });

@@ -943,7 +943,22 @@
       "subscriptions_not_editable": "That box can’t be changed any more.",
       "subscriptions_product_unknown": "That item isn’t available any more. Ask again and I’ll suggest something else.",
       "subscriptions_qty_invalid": "That amount isn’t allowed. Ask again with a smaller number.",
+      "assistant_price_changed": "The price changed since this suggestion. Ask again for today’s price.",
+      "orders_menu_unknown": "That menu has closed. Ask again and I’ll look for another.",
+      "orders_tiffin_already_booked": "You already have a tiffin booked for that meal.",
+      "orders_slot_full": "The kitchen is full for that meal. Try another day.",
+      "orders_slot_invalid": "Tiffins don’t come to your area for that meal yet.",
       "other": "I couldn’t reach the kitchen just now. Check your internet and try again."
+    },
+    "tiffin": {
+      "yes": "Yes, book it",
+      "booked": "Booked. Your {meal} tiffin comes on {day}.",
+      "expired": "This suggestion expired. Ask again and I’ll check the menu.",
+      "view": "See the order",
+      "meal": {
+        "lunch": "lunch",
+        "dinner": "dinner"
+      }
     }
   },
   "help": {
