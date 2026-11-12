@@ -21,7 +21,7 @@
 
 | Milestone | End of | Demo script |
 |---|---|---|
-| **MS-A** Commerce core | S3 (13 Dec) | A customer onboards, receives a rule-based weekly box, edits it, pays from the wallet; the 21:00 cut-off locks orders and posts ledger entries |
+| **MS-A** Commerce core | S3 (13 Dec) | A customer onboards, receives a rule-based weekly box, edits it, pays from the wallet; the 21:00 cut-off locks orders and posts ledger entries. Run sheet: [docs/demo/ms-a.md](../demo/ms-a.md) |
 | **MS-B** Operations | S6 (24 Jan) | Simulated day end-to-end: procurement plan → receiving → packing → OR-Tools routes → captain handover → delivered; a tiffin day; a partner completes KYC |
 | **MS-C** Intelligence | S8 (21 Feb) | Autopilot produces an explained meal plan and box under Budget Lock; forecast-driven procurement; fair kitchen assignment; text assistant edits a box with confirmation |
 | **MS-D** Community | S9 (7 Mar) | Society unlock, referrals, Kindness pickup on a return leg, NGO handoff, impact dashboard, green-slot pricing |
@@ -137,7 +137,7 @@ The backend product scope was complete on **28 October** (#382–#404). The demo
 | 1–2 Nov | Served models load from the R2 registry (#457); the ML path hardened for the free host (#462); the mandi price collector moved to the Oracle VM (#477); the pantry twin switched on in staging (#470); drift alerts to admins and the ML service on AI health (#479); a guarded loader for demo data on staging (#480) |
 | 3–6 Nov | Add-on lines count as uncommitted demand ([ADR-0031](../adr/0031-uncommitted-demand-is-add-on-lines-and-tiffins.md), 3 Nov, #483); minute-level jobs called from the Oracle VM ([ADR-0032](../adr/0032-scheduled-jobs-from-the-oracle-vm.md), 5 Nov, #487); the final 5-seed evaluation (6 Nov, #488) |
 | 10 Nov | Ops alerts: [ADR-0033](../adr/0033-ops-alerts-healthchecks-and-uptimerobot.md) (#505), the job runs endpoint, ops probes and alert pings (#506), billing and logistics probes (#507), admin messages for reconciliation and routes to review (#508) |
-| 11 Nov | Runbooks (#510, #513); a weekly `pg_dump` of staging to R2 (#514); the audit fixes (#516, #517, #520, #521, #522); revenue recognised on delivery (#518, #519); specs synced with what is built (#512); the console's staff-only sign-in (#509). The custom domain `gharbasket.co.in` was bought the same day (ADR-0035, PR #511) |
+| 11 Nov | Runbooks (#510, #513); a weekly `pg_dump` of staging to R2 (#514); the audit fixes (#516, #517, #520, #521, #522); revenue recognised on delivery (#518, #519); specs synced with what is built (#512); staff-only sign-in on the API side for the console (#509: a stranger's number makes no account; the console's own phone sign-in screen is not built yet, handbook 12 §12.2). The custom domain `gharbasket.co.in` was bought the same day (ADR-0035, PR #511) |
 
 **Cut order if a milestone slips:** (UPI Autopay is already planned for the pilot phase; MS-A uses the wallet only.) Voice assistant → OTA live updates → UPI Autopay (wallet stays) → green-slot pricing → churn/uplift model. MVP flows are never cut.
 

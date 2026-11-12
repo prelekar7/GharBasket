@@ -170,6 +170,14 @@ sim *args:
 staging-demo *args:
     ./scripts/staging-demo.sh {{args}}
 
+# MS-A demo operator steps on staging (docs/demo/ms-a.md), e.g. `infisical run --env=staging -- just demo-ms-a check`
+demo-ms-a *args:
+    ./scripts/demo-ms-a.sh {{args}}
+
+# One customer's orders and ledger entries with every leg, read only (MS-A demo): `just demo-ledger +91…`
+demo-ledger *args:
+    cd backend/api && uv run --frozen python -m gharbasket.tools.demo_ledger {{args}}
+
 # Undo a demo load: restore staging from the restore point it printed, e.g. `GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-20261107T0758Z`
 staging-rollback point:
     uv run --quiet python scripts/neon_restore_point.py rollback {{point}}
