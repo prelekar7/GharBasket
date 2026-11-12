@@ -10,11 +10,15 @@ value, query string, raw path (OSRM's holds coordinates), id or exception messag
 - Logs: `TraceFormatter` adds `trace_id` and `span_id` to every line written inside a span.
 """
 
+import hmac
 import logging
+import re
+import threading
 import time
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import Any
+from urllib.parse import unquote
 
 import httpx2
 from fastapi.telemetry import TelemetryConfig
@@ -26,6 +30,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter, Spa
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 from opentelemetry.trace import Span, SpanKind, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from pydantic import SecretStr
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from gharbasket_ml import __version__
@@ -34,6 +39,8 @@ from gharbasket_ml.settings import Settings
 log = logging.getLogger(__name__)
 QUEUE_SIZE = 2048
 EXPORT_TIMEOUT_S = 10.0
+SHUTDOWN_S = 5.0
+_HEADER_NAME = re.compile(r"[a-z0-9!#$%&'*+.^_`|~-]+")
 ERROR_LOG_EVERY_S = 60.0
 METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 # FastAPI's own OpenTelemetry is off: it would export traces, metrics and logs (with exception
@@ -60,7 +67,7 @@ class QuietExporter(SpanExporter):
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         try:
-            result, reason = self._inner.export(spans), "rejected"
+            result, reason = self._inner.export(spans), "export_failed"
         except Exception as exc:
             result, reason = SpanExportResult.FAILURE, type(exc).__name__
         now = time.monotonic()
@@ -95,21 +102,43 @@ def extract(traceparent: str) -> otel_context.Context:
     return _propagator.extract({"traceparent": traceparent})
 
 
+def otlp_headers(raw: str) -> dict[str, str] | None:
+    """OTEL_EXPORTER_OTLP_HEADERS (`name=value,...`, values percent-encoded), parsed here and never
+    logged; None when an entry is malformed or no `authorization` results. (The SDK's own parser
+    logs a malformed entry whole, token included.)"""
+    headers: dict[str, str] = {}
+    for item in raw.split(","):
+        name, sep, value = item.partition("=")
+        name, value = name.strip().lower(), unquote(value.strip())
+        if not sep or not value or not _HEADER_NAME.fullmatch(name):
+            return None
+        headers[name] = value
+    return headers if "authorization" in headers else None
+
+
 def setup(settings: Settings) -> TracerProvider | None:
-    """Export when OTEL_EXPORTER_OTLP_ENDPOINT is set, once per process."""
+    """Export when OTEL_EXPORTER_OTLP_ENDPOINT is set, once per process. Unreadable
+    OTEL_EXPORTER_OTLP_HEADERS leave export off, logged without the value."""
     global _exporting
     if settings.otel_exporter_otlp_endpoint is None or _exporting is not None:
         return _exporting
+    # The exporter also parses the environment's headers with the SDK's parser, which logs a
+    # malformed entry whole: its logger is silenced before the exporter exists.
+    logging.getLogger("opentelemetry.util.re").setLevel(logging.CRITICAL + 1)
+    logging.getLogger("opentelemetry.exporter.otlp").setLevel(logging.CRITICAL)
+    headers = None
+    if settings.otel_exporter_otlp_headers is not None:
+        headers = otlp_headers(settings.otel_exporter_otlp_headers.get_secret_value())
+        if headers is None:
+            log.warning("otel_headers_invalid: OTEL_EXPORTER_OTLP_HEADERS unreadable, export off")
+            return None
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from opentelemetry.util.re import parse_env_headers
 
-    headers = settings.otel_exporter_otlp_headers
     exporter = OTLPSpanExporter(
         endpoint=f"{settings.otel_exporter_otlp_endpoint.rstrip('/')}/v1/traces",
-        headers=parse_env_headers(headers.get_secret_value(), liberal=True) if headers else None,
+        headers=headers,
         timeout=EXPORT_TIMEOUT_S,
     )
-    logging.getLogger("opentelemetry.exporter.otlp").setLevel(logging.CRITICAL)
     resource = Resource.create(
         {
             "service.name": settings.otel_service_name,
@@ -119,13 +148,30 @@ def setup(settings: Settings) -> TracerProvider | None:
         }
     )
     _exporting = TracerProvider(
-        resource=resource, sampler=ParentBased(TraceIdRatioBased(settings.otel_traces_sampler_arg))
+        resource=resource,
+        sampler=ParentBased(TraceIdRatioBased(settings.otel_traces_sampler_arg)),
+        shutdown_on_exit=False,  # `shutdown` bounds it; the SDK's own exit can take 30 s
     )
     _exporting.add_span_processor(
         BatchSpanProcessor(QuietExporter(exporter), max_queue_size=QUEUE_SIZE)
     )
     use_provider(_exporting)
     return _exporting
+
+
+def shutdown(timeout_s: float = SHUTDOWN_S) -> None:
+    """Flush and stop the exporter within `timeout_s` (inside Render's 30 s grace)."""
+    provider = _exporting
+    if provider is None:
+        return
+
+    def stop() -> None:
+        provider.force_flush(int(timeout_s * 1000))
+        provider.shutdown()
+
+    worker = threading.Thread(target=stop, name="trace-shutdown", daemon=True)
+    worker.start()
+    worker.join(timeout_s)
 
 
 @contextmanager
@@ -156,17 +202,25 @@ def record_problem(code: str, status: int) -> None:
 
 
 class TracingMiddleware:
-    """The server span of each request, a child of the API's span when it sent `traceparent`."""
+    """The server span of each request, a child of the API's span when it sent `traceparent`
+    with the service token. Without the token (or with a wrong one) the request starts a new
+    trace: the service is on the public internet, which must not pick trace ids or force
+    sampling. With no token configured (local development only) the context is honoured."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, token: SecretStr | None = None) -> None:
         self.app = app
+        self._expected = f"Bearer {token.get_secret_value()}".encode() if token else None
+
+    def _trusted(self, authorization: bytes) -> bool:
+        return self._expected is None or hmac.compare_digest(authorization, self._expected)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
         headers = dict(scope.get("headers") or [])
-        parent = extract(headers.get(b"traceparent", b"").decode("latin-1"))
+        trusted = self._trusted(headers.get(b"authorization", b""))
+        parent = extract(headers.get(b"traceparent", b"").decode("latin-1") if trusted else "")
         method = scope["method"] if scope["method"] in METHODS else "_OTHER"
         status = 500
 
@@ -231,12 +285,12 @@ class TracedTransport(httpx2.BaseTransport):
 
 
 class TraceFormatter(logging.Formatter):
-    """Appends `trace_id=… span_id=…` to a line written inside a span."""
+    """Appends `trace_id=… span_id=…` to a line written inside a sampled span."""
 
     def format(self, record: logging.LogRecord) -> str:
         line = super().format(record)
         found = trace.get_current_span().get_span_context()
-        if not found.is_valid:
+        if not found.is_valid or not found.trace_flags.sampled:
             return line
         return f"{line} trace_id={found.trace_id:032x} span_id={found.span_id:016x}"
 

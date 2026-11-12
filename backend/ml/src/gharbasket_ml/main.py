@@ -127,15 +127,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             if not await asyncio.to_thread(sync.wait_idle, settings.models_sync_timeout_s + 5):
                 log.warning("model registry: a sync was still running at shutdown")
             sync.close()
+        await asyncio.to_thread(tracing.shutdown)  # at most 5 s with the collector down
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     # Deployed, the service is on the public internet but is only for the API: no interactive
     # docs and no schema listing. `settings` is None under `uvicorn --factory`, so it is read here.
-    deployed = (settings or get_settings()).is_deployed
+    resolved = settings or get_settings()
+    deployed = resolved.is_deployed
     # Log lines with trace ids; spans exported only when OTEL_EXPORTER_OTLP_ENDPOINT is set.
     tracing.configure_logging()
-    tracing.setup(settings or get_settings())
+    tracing.setup(resolved)
     app = FastAPI(
         title="GharBasket ML service",
         version=__version__,
@@ -310,5 +312,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # The solver is CPU-bound: keep it off the event loop.
         return await run_in_threadpool(plan_week, body)
 
-    app.add_middleware(tracing.TracingMiddleware)  # outermost: every request is a span
+    # Outermost: every request is a span; the API's trace is continued only with the token.
+    app.add_middleware(tracing.TracingMiddleware, token=resolved.ml_service_token)
     return app

@@ -2,22 +2,30 @@
 on every span of a request that carries a body, a token, a query string and coordinates."""
 
 import logging
+import time
 from collections.abc import Iterator
 
 import httpx2
 import pytest
+from fastapi.testclient import TestClient
 from gharbasket_ml import registry, tracing
 from gharbasket_ml.main import create_app
 from gharbasket_ml.settings import Settings
+from opentelemetry import metrics, trace
+from opentelemetry._logs import get_logger_provider
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.trace.sampling import ALWAYS_OFF
 from opentelemetry.trace import SpanContext, SpanKind, StatusCode
 from pydantic import SecretStr
 
 TOKEN = "ml-test-token-0123456789abcdef0123456789"
 TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736"
 PARENT = f"00-{TRACE_ID}-00f067aa0ba902b7-01"
+GRAFANA = "c2VjcmV0LWdyYWZhbmEtdG9rZW4tMDEyMzQ1"
 
 
 @pytest.fixture
@@ -55,7 +63,9 @@ async def test_a_request_continues_the_apis_trace_and_holds_no_value(
             "/models?household=hh-secret-42",
             headers={"Authorization": f"Bearer {TOKEN}", "traceparent": PARENT},
         )
-        refused = await client.get("/models", headers={"Authorization": "Bearer wrong-secret"})
+        refused = await client.get(
+            "/models", headers={"Authorization": "Bearer wrong-secret", "traceparent": PARENT}
+        )
     assert (answer.status_code, refused.status_code) == (200, 401)
 
     first, second = spans.get_finished_spans()
@@ -67,6 +77,8 @@ async def test_a_request_continues_the_apis_trace_and_holds_no_value(
         "http.response.status_code": 200,
     }
     assert (second.attributes or {})["gb.problem_code"] == "ml.unauthorized"
+    # Without the token the caller's traceparent is ignored: a new trace, no parent.
+    assert f"{ids(second).trace_id:032x}" != TRACE_ID and second.parent is None
     for span in (first, second):
         assert not [v for v in (TOKEN, "hh-secret-42", "wrong-secret") if v in everything(span)]
 
@@ -182,3 +194,64 @@ def test_the_service_logs_with_trace_ids_unless_the_root_logger_has_a_handler() 
         assert root.handlers == [handler]
     finally:
         root.handlers = saved
+
+
+def test_fastapis_own_telemetry_stays_off_with_an_endpoint_in_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:9")
+    app = create_app(Settings(app_env="test", otel_exporter_otlp_endpoint=None))
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+    assert not isinstance(trace.get_tracer_provider(), TracerProvider)
+    assert not isinstance(metrics.get_meter_provider(), MeterProvider)
+    assert not isinstance(get_logger_provider(), LoggerProvider)
+
+
+@pytest.mark.parametrize(
+    "headers", [f"Authorization: Basic {GRAFANA}", f'"Authorization=Basic%20{GRAFANA}"']
+)
+def test_unreadable_headers_leave_export_off_and_are_never_logged(
+    headers: str, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", headers)  # the exporter reads it too
+    settings = Settings(
+        app_env="test",
+        otel_exporter_otlp_endpoint="http://127.0.0.1:9",
+        otel_exporter_otlp_headers=SecretStr(headers),
+    )
+    try:
+        with caplog.at_level(logging.DEBUG):
+            assert tracing.setup(settings) is None
+    finally:
+        tracing.reset()
+    assert "otel_headers_invalid" in caplog.text and GRAFANA not in caplog.text
+
+
+def test_log_lines_carry_no_ids_from_a_span_that_is_not_sampled() -> None:
+    tracing.use_provider(TracerProvider(sampler=ALWAYS_OFF))
+    record = logging.LogRecord("gharbasket_ml", logging.WARNING, __file__, 1, "slow", None, None)
+    try:
+        with tracing.span("work", SpanKind.INTERNAL, {}, None):
+            assert tracing.TraceFormatter("%(message)s").format(record) == "slow"
+    finally:
+        tracing.use_provider(None)
+
+
+def test_shutdown_waits_5_seconds_at_most_with_the_collector_down() -> None:
+    settings = Settings(
+        app_env="test",
+        otel_exporter_otlp_endpoint="http://127.0.0.1:9",
+        otel_exporter_otlp_headers=SecretStr(f"Authorization=Basic%20{GRAFANA}"),
+    )
+    assert tracing.setup(settings) is not None
+    try:
+        for n in range(50):
+            with tracing.span(f"queued {n}", SpanKind.INTERNAL, {}, None):
+                pass
+        started = time.monotonic()
+        tracing.shutdown(timeout_s=1.0)
+        assert time.monotonic() - started < 2.0
+    finally:
+        tracing.reset()
+    tracing.shutdown()  # nothing to stop
