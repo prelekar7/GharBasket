@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, Protocol, cast
 
+from gharbasket_ml import tracing
 from gharbasket_ml.schemas import (
     AssistantIntent,
     AssistantTurnRequest,
@@ -586,7 +587,12 @@ def anthropic_client(api_key: str, timeout_s: float = 12.0, max_retries: int = 1
     per process. Its timeout stays below the API's ASSISTANT_TIMEOUT_S, with one retry."""
     import anthropic
 
-    sdk = anthropic.AsyncAnthropic(api_key=api_key, timeout=timeout_s, max_retries=max_retries)
+    # The SDK's own client with a traced transport: one span per request (M0 §6.2), method, host
+    # and status only (the key travels in a header, which no span holds).
+    http = anthropic.DefaultAsyncHttpxClient(transport=tracing.AsyncTracedTransport())
+    sdk = anthropic.AsyncAnthropic(
+        api_key=api_key, timeout=timeout_s, max_retries=max_retries, http_client=http
+    )
 
     class _Wrapped:
         async def create(self, **params: Any) -> Any:  # pragma: no cover (the real API)
