@@ -699,12 +699,13 @@ async def reject(session: AsyncSession, proposal: Proposal) -> Proposal:
 
 
 async def expire_pending(session: AsyncSession, at: datetime) -> int:
-    rows = await session.execute(
-        select(Proposal).where(Proposal.status == "pending", Proposal.expires_at <= at)
+    """Pending cards past their time become expired in one statement that tests `pending` itself:
+    a confirm in flight holds the row, so the update waits for it, then finds the card decided and
+    leaves it alone (reading the rows first and writing them by key would overwrite it)."""
+    expired = await session.execute(
+        update(Proposal)
+        .where(Proposal.status == "pending", Proposal.expires_at <= at)
+        .values(status="expired", decided_at=at)
+        .execution_options(synchronize_session=False)
     )
-    expired = list(rows.scalars())
-    for proposal in expired:
-        proposal.status = "expired"
-        proposal.decided_at = at
-    await session.flush()
-    return len(expired)
+    return int(expired.rowcount)  # pyright: ignore[reportAttributeAccessIssue]
