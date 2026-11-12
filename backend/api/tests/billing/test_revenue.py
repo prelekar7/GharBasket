@@ -44,7 +44,10 @@ async def owner(db: AsyncSession, order: uuid.UUID) -> uuid.UUID:
         select(LedgerAccount.owner_id)
         .join(Posting, Posting.account_id == LedgerAccount.id)
         .join(JournalEntry, JournalEntry.id == Posting.entry_id)
-        .where(JournalEntry.idempotency_key == f"box:{order}")
+        .where(
+            JournalEntry.idempotency_key == f"box:{order}",
+            LedgerAccount.owner_id.is_not(None),  # the wallet leg, not unearned_revenue's
+        )
     )
     assert found is not None
     return found
