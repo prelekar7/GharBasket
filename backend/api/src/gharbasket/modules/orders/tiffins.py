@@ -8,6 +8,8 @@ while that kitchen can take the order (M8 §3.4). One tiffin per household, date
 
 import hashlib
 import uuid
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,9 +19,84 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import events, service
 from gharbasket.modules.orders.models import Order, OrderEvent, OrderLine, Slot
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.locale import Language, localised
 from gharbasket.platform.outbox import publish
 
 MAX_PORTIONS = 12
+MENU_DAYS = 7  # tomorrow … tomorrow + 6
+MAX_CHOICES = 14  # dates and meals offered to the assistant (7 days x 2 meals)
+MAX_MENUS = 5  # menus of one date and meal offered to the assistant
+
+
+def bookable_window() -> tuple[date, date]:
+    tomorrow = service.now().astimezone(service.IST).date() + timedelta(days=1)
+    return tomorrow, tomorrow + timedelta(days=MENU_DAYS - 1)
+
+
+@dataclass(frozen=True)
+class MenuChoice:
+    id: uuid.UUID
+    dishes: tuple[str, ...]  # in the person's language
+    price_paise: int  # per portion
+
+
+@dataclass(frozen=True)
+class TiffinChoice:
+    """One date and meal a household may book: its open menus, or `booked` (then no menus)."""
+
+    on_date: date
+    meal: str
+    order_by: datetime
+    booked: bool
+    menus: tuple[MenuChoice, ...]
+
+
+async def choices(
+    session: AsyncSession, household_id: uuid.UUID, hub_id: uuid.UUID, lang: Language
+) -> list[TiffinChoice]:
+    """The menus `GET /v1/tiffin-menus` lists (approved, before their `order_by`, tomorrow …
+    tomorrow + 6) grouped by date and meal, with `booked` where the household already has a
+    tiffin that is not cancelled. No kitchen or partner is named."""
+    first, last = bookable_window()
+    menus = await catalog_api.tiffin_menus(session, hub_id, first, last)
+    taken: set[tuple[date, str]] = {
+        (day, meal)
+        for day, meal in (
+            await session.execute(
+                select(Order.delivery_date, Slot.meal)
+                .join(Slot, Slot.id == Order.slot_id)
+                .where(
+                    Order.household_id == household_id,
+                    Order.kind == "tiffin",
+                    Order.status != "cancelled",
+                    Order.delivery_date.between(first, last),
+                )
+            )
+        ).all()
+        if meal is not None
+    }
+    grouped: dict[tuple[date, str], list[MenuChoice]] = {}
+    for menu in menus:
+        if service.now() < service.cutoff_for(menu.on_date):
+            names = tuple(localised(n, lang) for _, n in menu.dishes)
+            grouped.setdefault((menu.on_date, menu.meal), []).append(
+                MenuChoice(menu.id, names, menu.price_paise)
+            )
+    for key in taken:  # a booked meal is listed (without menus) while it could still be booked
+        if service.now() < service.cutoff_for(key[0]):
+            grouped.setdefault(key, [])
+    return [
+        TiffinChoice(
+            on_date,
+            meal,
+            service.cutoff_for(on_date),
+            (on_date, meal) in taken,
+            () if (on_date, meal) in taken else tuple(found[:MAX_MENUS]),
+        )
+        for (on_date, meal), found in sorted(
+            grouped.items(), key=lambda g: (g[0][0], g[0][1] != "lunch")
+        )
+    ][:MAX_CHOICES]
 
 
 def _lock_key(household_id: uuid.UUID) -> int:

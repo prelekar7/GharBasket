@@ -3,7 +3,9 @@ service, the intents it returns resolved into proposal cards, confirmation throu
 the daily token cap, and the scrub of personal data before anything is stored or sent.
 
 What leaves the API for the ML service (hosted outside India, ADR-0025) is only the scrubbed
-conversation and a trimmed week (§3): no household or user id, name, address, captain or token.
+conversation, a trimmed week (§3) and, for `track_order` and `book_tiffin` (§3.1), the IST date,
+the household's current orders and the bookable tiffin menus: no household, user, order or menu id,
+name, address, captain or token.
 The ML service answers from that week and calls nothing back; what it wants changed comes back
 as intents, which are resolved here (the line, the catalog product, the default quantity, which
 week) into proposals the person confirms. Quantities and prices are the API's, never the model's.
@@ -28,7 +30,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.assistant import events
+from gharbasket.modules.assistant import events, tools
 from gharbasket.modules.assistant.models import Message, Proposal, Session, UsageDaily
 from gharbasket.modules.assistant.scrub import scrub
 from gharbasket.modules.catalog import api as catalog_api
@@ -272,6 +274,7 @@ class Prepared:
     view: subscriptions_api.WeekView | None
     handles: dict[str, subscriptions_api.WeekLineView]
     body: dict[str, Any]
+    tools: tools.ToolContext
 
 
 async def prepare_turn(
@@ -299,8 +302,14 @@ async def prepare_turn(
         None if cycle is None else await subscriptions_api.week_view(session, cycle, hub_id, lang)
     )
     handles = {f"L{i}": line for i, line in enumerate(view.lines if view else (), start=1)}
-    body = {"locale": chat.locale, "messages": history, "week": week_context(view, handles)}
-    return Prepared(chat, day, lang, hub_id, terms, view, handles, body)
+    extra = await tools.build(session, chat.household_id, hub_id, lang, day)
+    body = {
+        "locale": chat.locale,
+        "messages": history,
+        "week": week_context(view, handles),
+        **extra.fields,
+    }
+    return Prepared(chat, day, lang, hub_id, terms, view, handles, body, extra)
 
 
 async def ask(
@@ -313,13 +322,21 @@ async def ask(
     headers = {}
     if settings.ml_service_token is not None:
         headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
+    url = f"{settings.ml_service_url.rstrip('/')}/assistant/turn"
     try:
         response = await http.post(
-            f"{settings.ml_service_url.rstrip('/')}/assistant/turn",
-            json=body,
-            headers=headers,
-            timeout=settings.assistant_timeout_s,
+            url, json=body, headers=headers, timeout=settings.assistant_timeout_s
         )
+        if response.status_code == 422 and any(f in body for f in tools.NEW_FIELDS):
+            if tools.refused_only_new_fields(response):
+                # An ML service from before M13 §3.1 refuses the new fields: ask it the old way.
+                log.warning("assistant_old_ml_retry")
+                old = {k: v for k, v in body.items() if k not in tools.NEW_FIELDS}
+                response = await http.post(
+                    url, json=old, headers=headers, timeout=settings.assistant_timeout_s
+                )
+            else:  # some other 422: not an old service, so the tools stay
+                log.warning("assistant_ml_422", locations=tools.error_locations(response)[:10])
         response.raise_for_status()
         answer = response.json()
     except (httpx2.HTTPError, ValueError) as exc:
@@ -435,6 +452,7 @@ async def resolve(
     if intent.get("action") == "skip_week":
         return await _resolve_skip(session, prepared, intent)
     if intent.get("action") != "edit_box_line":
+        log.warning("assistant_intent_unknown", action=str(intent.get("action"))[:30])
         return None
     if view is None or not view.can_edit:
         return _say(lang, "not_editable")

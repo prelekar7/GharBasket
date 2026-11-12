@@ -21,7 +21,7 @@ from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import carry, issues, service
+from gharbasket.modules.orders import carry, issues, service, tiffins
 from gharbasket.modules.orders.carry import CarriedLine
 from gharbasket.modules.orders.cutoff import CutoffCounts, PaymentFailedOrder, hub_cutoff_counts
 from gharbasket.modules.orders.events import (
@@ -44,6 +44,7 @@ from gharbasket.modules.orders.facts import (
     order_facts,
 )
 from gharbasket.modules.orders.fees import box_fee
+from gharbasket.modules.orders.household import household_orders
 from gharbasket.modules.orders.models import (
     STATUSES,
     CarryOver,
@@ -65,6 +66,7 @@ from gharbasket.modules.orders.service import (
     orders_for_delivery,
 )
 from gharbasket.modules.orders.state import FINAL
+from gharbasket.modules.orders.tiffins import MenuChoice, TiffinChoice
 from gharbasket.modules.orders.today import (
     OpenIssueSummary,
     TodayCounts,
@@ -72,6 +74,7 @@ from gharbasket.modules.orders.today import (
     today_counts,
 )
 from gharbasket.platform import files
+from gharbasket.platform.locale import Language
 
 __all__ = [
     "CANCELLED",
@@ -95,6 +98,7 @@ __all__ = [
     "CutoffCounts",
     "CycleLine",
     "IssueFact",
+    "MenuChoice",
     "Move",
     "OpenIssueSummary",
     "Order",
@@ -107,8 +111,10 @@ __all__ = [
     "SlotAvailability",
     "SlotRef",
     "SoldLine",
+    "TiffinChoice",
     "TodayCounts",
     "anonymise_for_user",
+    "book_tiffin",
     "box_fee",
     "box_slots",
     "cancel_from_cycle",
@@ -127,6 +133,7 @@ __all__ = [
     "has_delivered_box",
     "has_open_issues",
     "has_open_orders",
+    "household_orders",
     "hub_cutoff_counts",
     "issue_facts",
     "last_move",
@@ -142,6 +149,7 @@ __all__ = [
     "slot_ref",
     "sold_lines",
     "summaries",
+    "tiffin_choices",
     "today_counts",
     "transition",
 ]
@@ -149,6 +157,22 @@ __all__ = [
 
 async def get(session: AsyncSession, order_id: uuid.UUID, *, for_update: bool = False) -> Order:
     return await service.get(session, order_id, for_update=for_update)
+
+
+async def tiffin_choices(
+    session: AsyncSession, household_id: uuid.UUID, hub_id: uuid.UUID, lang: Language
+) -> list[TiffinChoice]:
+    """The tiffin menus a household may still book, by date and meal (M13 §3.1, M4 §3.5)."""
+    return await tiffins.choices(session, household_id, hub_id, lang)
+
+
+async def book_tiffin(
+    session: AsyncSession, user_id: uuid.UUID, menu_id: uuid.UUID, portions: int | None = None
+) -> Order:
+    """Book a menu for the user's household: `POST /v1/orders` with `kind: tiffin`, with the same
+    rules and errors (M4 §3.5): one per date and meal, closed after the menu's `order_by`."""
+    order, _ = await tiffins.book(session, user_id, menu_id, portions)
+    return order
 
 
 async def has_delivered_box(session: AsyncSession, household_id: uuid.UUID) -> bool:
