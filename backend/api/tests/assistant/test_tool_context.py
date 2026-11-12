@@ -11,6 +11,7 @@ from typing import Any
 import httpx2
 import pytest
 import time_machine
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.logistics import api as logistics_api
@@ -38,9 +39,47 @@ class OldML(FakeML):
                 return httpx2.Response(503)
             body = json.loads(request.content)
             self.requests.append(body)
-            if set(body) - {"locale", "messages", "week"}:
-                return httpx2.Response(422, json={"detail": "extra fields not permitted"})
+            extra = sorted(set(body) - {"locale", "messages", "week"})
+            if extra:  # FastAPI's validation error for fields a model forbids
+                detail = [
+                    {
+                        "type": "extra_forbidden",
+                        "loc": ["body", f],
+                        "msg": "Extra inputs",
+                        "input": 1,
+                    }
+                    for f in extra
+                ]
+                return httpx2.Response(422, json={"detail": detail})
             return httpx2.Response(200, json=self.answer)
+
+        return httpx2.MockTransport(handler)
+
+
+class Drifted(FakeML):
+    """A new ML service that answers 422 for another reason (here: a status it finds too long),
+    alone or together with a forbidden field."""
+
+    def __init__(self, *, also_forbids_today: bool) -> None:
+        super().__init__()
+        self.also_forbids_today = also_forbids_today
+
+    def transport(self) -> httpx2.MockTransport:
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            if request.url != f"{ML_URL}/assistant/turn":
+                return httpx2.Response(503)
+            self.requests.append(json.loads(request.content))
+            detail = [
+                {
+                    "type": "string_too_long",
+                    "loc": ["body", "orders", 0, "status"],
+                    "msg": "too long",
+                    "input": "a-very-long-status-value",
+                }
+            ]
+            if self.also_forbids_today:
+                detail.append({"type": "extra_forbidden", "loc": ["body", "today"], "msg": "x"})
+            return httpx2.Response(422, json={"detail": detail})
 
         return httpx2.MockTransport(handler)
 
@@ -134,6 +173,32 @@ async def test_a_part_that_fails_is_left_out_and_the_turn_goes_on(
 
 
 @time_machine.travel(NOW, tick=False)
+async def test_a_database_error_inside_a_part_rolls_back_to_its_savepoint(
+    clients: ClientFactory, google: FakeGoogle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A real error from the database (not a Python exception) would abort the transaction; the
+    part's savepoint contains it, so the turn proceeds and the session serves the next turn."""
+    ml = FakeML()
+    api, priya, _ = await ready_api(clients, google, ml)
+    ml.says("Theek hai.")
+    real = orders_api.tiffin_choices
+
+    async def divides_by_zero(session: AsyncSession, *args: Any, **kwargs: Any) -> Any:
+        await session.execute(text("SELECT 1/0"))
+
+    monkeypatch.setattr(orders_api, "tiffin_choices", divides_by_zero)
+    first = await say(api, priya, "tiffin?")
+    monkeypatch.setattr(orders_api, "tiffin_choices", real)
+    second = await say(api, priya, "tiffin?", first["session_id"])
+
+    assert "tiffin" not in ml.requests[0] and "orders" in ml.requests[0]
+    assert ml.requests[1]["tiffin"] == {"options": []}  # the next turn sees its menus again
+    assert first["source"] == second["source"] == "ml"
+    history = (await api.get(f"/v1/assistant/sessions/{first['session_id']}", headers=priya)).json()
+    assert [m["role"] for m in history["messages"]] == ["user", "assistant"] * 2
+
+
+@time_machine.travel(NOW, tick=False)
 async def test_an_old_ml_service_is_asked_again_the_old_way(
     clients: ClientFactory, google: FakeGoogle
 ) -> None:
@@ -147,6 +212,20 @@ async def test_an_old_ml_service_is_asked_again_the_old_way(
     new, old = ml.requests
     assert {"today", "orders", "tiffin"} <= set(new) and set(old) == {"locale", "messages", "week"}
     assert old["messages"] == new["messages"] and old["week"] == new["week"]
+
+
+@pytest.mark.parametrize("also_forbids_today", [False, True])
+@time_machine.travel(NOW, tick=False)
+async def test_a_422_of_another_meaning_is_not_taken_for_an_old_ml_service(
+    clients: ClientFactory, google: FakeGoogle, also_forbids_today: bool
+) -> None:
+    ml = Drifted(also_forbids_today=also_forbids_today)
+    api, priya, _ = await ready_api(clients, google, ml)
+
+    turn = await say(api, priya, "tiffin?")
+
+    assert len(ml.requests) == 1  # not asked again without the new fields
+    assert turn["source"] == "fallback" and {"today", "orders", "tiffin"} <= set(ml.requests[0])
 
 
 @time_machine.travel(NOW, tick=False)

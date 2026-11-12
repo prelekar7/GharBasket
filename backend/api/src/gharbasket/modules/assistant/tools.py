@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+import httpx2
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +22,33 @@ from gharbasket.platform.locale import Language
 
 log = structlog.get_logger("gharbasket.assistant")
 NEW_FIELDS = ("today", "orders", "tiffin")  # what an older ML service rejects (§3.1)
+
+
+def error_locations(response: httpx2.Response) -> list[str]:
+    """Where a 422 from the ML service points (`body.today`, `body.messages.0.content`), never the
+    values; empty when the answer is not FastAPI's validation error."""
+    try:
+        detail = response.json()["detail"]
+        return [".".join(str(p) for p in e["loc"]) for e in detail]
+    except (ValueError, KeyError, TypeError):
+        return []
+
+
+def refused_only_new_fields(response: httpx2.Response) -> bool:
+    """Whether an ML service from before M13 §3.1 said no: every error in its 422 is an extra
+    field forbidden at `body.today`, `body.orders` or `body.tiffin`. Any other 422 (schema drift
+    of the new service) is not an old service and must not drop the tools."""
+    try:
+        detail = response.json()["detail"]
+        return bool(detail) and all(
+            e["type"] == "extra_forbidden"
+            and len(e["loc"]) == 2
+            and e["loc"][0] == "body"
+            and e["loc"][1] in NEW_FIELDS
+            for e in detail
+        )
+    except (ValueError, KeyError, TypeError):
+        return False
 
 
 @dataclass

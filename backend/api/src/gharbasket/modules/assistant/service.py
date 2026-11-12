@@ -328,12 +328,15 @@ async def ask(
             url, json=body, headers=headers, timeout=settings.assistant_timeout_s
         )
         if response.status_code == 422 and any(f in body for f in tools.NEW_FIELDS):
-            # An ML service from before M13 §3.1 refuses the new fields: ask it the old way.
-            log.warning("assistant_old_ml_retry")
-            old = {k: v for k, v in body.items() if k not in tools.NEW_FIELDS}
-            response = await http.post(
-                url, json=old, headers=headers, timeout=settings.assistant_timeout_s
-            )
+            if tools.refused_only_new_fields(response):
+                # An ML service from before M13 §3.1 refuses the new fields: ask it the old way.
+                log.warning("assistant_old_ml_retry")
+                old = {k: v for k, v in body.items() if k not in tools.NEW_FIELDS}
+                response = await http.post(
+                    url, json=old, headers=headers, timeout=settings.assistant_timeout_s
+                )
+            else:  # some other 422: not an old service, so the tools stay
+                log.warning("assistant_ml_422", locations=tools.error_locations(response)[:10])
         response.raise_for_status()
         answer = response.json()
     except (httpx2.HTTPError, ValueError) as exc:
