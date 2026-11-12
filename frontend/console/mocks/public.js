@@ -12,11 +12,12 @@ import { problem } from "./util.js";
  * @typedef {object} PublicSociety
  * @property {string} slug
  * @property {string} name
- * @property {string} area e.g. "Sector 35, Kharghar"
+ * @property {string | null} area e.g. "Sector 35, Kharghar"; null when none is on record
  * @property {"live" | "unlocking"} status
- * @property {number} homes_joined
+ * @property {number | null} homes_joined null under 5 households (privacy, M9 §3.7)
  * @property {number} unlock_target homes needed before delivery starts (M9 `unlock_threshold`)
- * @property {string | null} captain_name first name only, once a Society Captain is chosen
+ * @property {string | null} [captain_name] first name only, once a Society Captain is chosen
+ *   (mock only: the real PublicSocietyOut has no captain yet)
  */
 
 /**
@@ -33,7 +34,7 @@ import { problem } from "./util.js";
  * @property {{ name: string, tag: string }[]} dishes
  */
 
-/** @type {{ en: PublicSociety, hi: { name: string, area: string } }[]} */
+/** @type {{ en: PublicSociety, hi: { name: string, area?: string } }[]} */
 const SOCIETIES = [
   {
     en: {
@@ -82,6 +83,19 @@ const SOCIETIES = [
       captain_name: null,
     },
     hi: { name: "श्री गणेश सीएचएस", area: "सेक्टर 12, खारघर" },
+  },
+  // Just started, as the real API sends it: fewer than 5 homes, so no count, and no area on record.
+  {
+    en: {
+      slug: "lake-view-chs-taloja",
+      name: "Lake View CHS",
+      area: null,
+      status: "unlocking",
+      homes_joined: null,
+      unlock_target: 20,
+      captain_name: null,
+    },
+    hi: { name: "लेक व्यू सीएचएस" },
   },
 ];
 
