@@ -23,7 +23,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 society="${DEMO_SOCIETY:-sunrise-towers-kharghar}"
-api="${STAGING_API_URL:-${API_URL:-}}"
+api="${STAGING_API_URL:-https://api.gharbasket.co.in}"  # the staging API (ADR-0035)
 
 usage() {
   sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
@@ -32,7 +32,7 @@ usage() {
 
 need_api() {
   if [ -z "$api" ]; then
-    echo "STAGING_API_URL is not set: run under infisical run --env=staging -- …" >&2
+    echo "STAGING_API_URL is empty" >&2
     exit 1
   fi
   api="${api%/}"
