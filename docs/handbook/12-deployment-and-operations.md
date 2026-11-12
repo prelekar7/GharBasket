@@ -133,7 +133,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 
 ### Vercel projects (PWA and console)
 
-Two Vercel projects are imported from this repository (Git integration, production branch `main`, a preview per PR). Today the handbook names Prathamesh Relekar as owner of the Vercel projects (§12.8); Yash Salunkhe creates them because he holds the frontends.
+Two Vercel projects are imported from this repository (Git integration, production branch `main`, a preview per PR). Prathamesh Relekar creates and owns them on his Vercel account (§12.8): Vercel connects a repository only through its owner's GitHub account, and the free Hobby plan has no team members, so a collaborator cannot create or join them. Yash Salunkhe supplies the settings below and checks each site after a deploy. Hobby is for non-commercial use, which covers staging on Razorpay test keys; taking real payments needs the Pro plan or another host (a pilot decision).
 
 | Setting | PWA (`frontend/mobile`) | Console (`frontend/console`) |
 |---|---|---|
