@@ -285,7 +285,8 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 
 | Signal | Tool | What we watch |
 |---|---|---|
-| Errors and logs | structlog JSON logs (Render log view); OpenTelemetry → Grafana Cloud free tier, set up before the pilot | Errors and slow requests. Sentry is not used |
+| Errors and logs | structlog JSON logs (Render log view) | Errors. Every line inside a span carries `trace_id` and `span_id`. Sentry is not used |
+| Traces | OpenTelemetry (API and ML service) → Grafana Cloud free tier over OTLP/HTTP (M0 §6.2), on when `OTEL_EXPORTER_OTLP_ENDPOINT` is set on Render | Slow and failing requests (`<METHOD> <route template>`), database calls, outgoing calls (ML, Razorpay, FCM, Firebase, WhatsApp, R2) and job and consumer runs; one trace across the API and the ML service. Traces only: no OpenTelemetry metrics or logs |
 | Jobs | healthchecks.io (below); GitHub Actions run history; the VM scheduler's journal (`just jobs-vm status <ip> <key>`); `just job-runs` (the runs endpoint, M0 §3) | Scheduled job calls and training runs that failed or ran late |
 | Uptime | UptimeRobot | `/v1/health` every 5 minutes (also keeps the free API awake); `/v1/ready` (operator token) checks the database and Valkey. The ML service is not pinged (ADR-0030: a keep-alive would starve the API of the shared 750 free hours); the daily `Smoke ML` run (06:40 IST) checks `/health` and every endpoint |
 | Product | PostHog | Funnels (onboarding, approve week), feature flags, A/B experiments. No names or phone numbers in events |
@@ -320,7 +321,7 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 | `logistics.plans_unreviewed` | M7 | A plan left `solved` for a manager's review (it had problems) at 06:30 on its day | [`route-solve-failed.md`](../runbooks/route-solve-failed.md) |
 | `orders.revenue_unrecognised` | M4 (reads `orders.*`; money through `billing.api`) | An order delivered more than an hour ago, within 7 days, that still holds money in `unearned_revenue` (M5 recognises it on `orders.delivered`) | Run `recognise_delivered_revenue` by hand (`just job recognise_delivered_revenue`, M5 §3.9; idempotent), then README "Run a job by hand" |
 
-**Not built yet:** error-rate spikes (they need logs or traces collected somewhere, so they wait for the OpenTelemetry and Grafana Cloud work) and Neon compute hours near the free limit (only storage is watched, by the `database_size` probe; watch the hours in the Neon console, see the budget in `infra/jobs/schedule.yaml`).
+**Not built yet:** the error-rate alert. The traces it needs are built (M0 §6.2); the owner makes the rule in Grafana Cloud (the share of request spans with a 5xx status over 15 minutes, to the same Telegram group and email), and it is written down here when it exists. Also not watched: Neon compute hours near the free limit (only storage is watched, by the `database_size` probe; watch the hours in the Neon console, see the budget in `infra/jobs/schedule.yaml`).
 
 ## 12.6 Service-level objectives (pilot)
 

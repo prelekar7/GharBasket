@@ -1,4 +1,5 @@
-"""Per-request context: a request id on every log line and response, plus one access-log line.
+"""Per-request context: a request id on every log line and response, one access-log line, and
+the request's span (M0 §6.2, platform/tracing.py), which carries the request id as `gb.request_id`.
 
 A caller-supplied `X-Request-ID` is kept when it looks safe, so a request can be traced from the
 app through the proxy to the API; otherwise a new id is generated.
@@ -10,6 +11,8 @@ import uuid
 
 import structlog
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from gharbasket.platform import tracing
 
 REQUEST_ID_HEADER = b"x-request-id"
 _SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
@@ -46,13 +49,17 @@ class RequestContextMiddleware:
             await send(message)
 
         try:
-            await self.app(scope, receive, send_with_request_id)
+            with tracing.request_span(scope["method"]) as span:
+                try:
+                    await self.app(scope, receive, send_with_request_id)
+                finally:
+                    tracing.finish_request(span, scope, status_code, request_id)
+                    log.info(  # inside the span, so the line carries its trace id
+                        "request",
+                        method=scope["method"],
+                        path=scope["path"],
+                        status=status_code,
+                        duration_ms=round((time.perf_counter() - started) * 1000, 1),
+                    )
         finally:
-            log.info(
-                "request",
-                method=scope["method"],
-                path=scope["path"],
-                status=status_code,
-                duration_ms=round((time.perf_counter() - started) * 1000, 1),
-            )
             structlog.contextvars.clear_contextvars()

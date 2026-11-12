@@ -30,6 +30,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from gharbasket.platform import tracing
 from gharbasket.platform.models import OutboxEvent
 
 # "<module>.<event>", e.g. "orders.locked", "identity.household_created".
@@ -126,7 +127,12 @@ async def relay(session: AsyncSession, *, limit: int = 100) -> Relayed:
         try:
             async with session.begin_nested():
                 for handler in handlers:
-                    await handler(session, event)
+                    attributes = {
+                        "gb.consumer": f"{handler.__module__}.{handler.__qualname__}",
+                        "gb.attempt": event.attempts + 1,
+                    }
+                    with tracing.span(f"consume {event.event_type}", attributes):
+                        await handler(session, event)
         except Exception as exc:
             failed += 1
             event.attempts += 1
