@@ -114,6 +114,7 @@ Scheduled jobs are internal endpoints `POST /v1/internal/jobs/<name>`, protected
 - **Platform probes:**
   - `platform.failed_jobs`: a `failed` run in the last 24 h with no later `ok` run of the same job (it names the job and the first 120 characters of `error`);
   - `platform.jobs_with_failed_hubs`: an `ok` run in the last 24 h whose summary has a non-empty `failed_hubs` (the per-hub jobs `assign_kitchens`, `assignment_acceptance_timeout`, `refund_unassigned_tiffins` and `surplus_cascade` run each hub in its own savepoint and keep the others' work, so the run stays `ok`), with no later `ok` run of the same job that is clean (no `failed_hubs`); it names the job, the hub ids of the job's latest such run and its start time. A later `failed` or `skipped` run does not clear it;
+  - `platform.jobs_with_failed_households`: the same for a non-empty `failed_households` (`generate_weekly_plans` commits each household's draft as it is made and lists the households whose draft failed; the key is omitted when none failed). It heals on its own key: a later `ok` run without `failed_households` clears it even if that run lists `failed_hubs`, and the reverse. It names the job, up to 10 household ids and the start time;
   - `platform.outbox_stuck`: an unsent event older than 30 min with 3 or more attempts;
   - `platform.database_size`: `pg_database_size(current_database())` above 80 % of `OPS_DB_LIMIT_MB` (default 512, Neon's free tier).
 - **Module probes** (M5, M7): see those specs' job tables.
