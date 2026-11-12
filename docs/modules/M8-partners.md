@@ -203,6 +203,24 @@ A document type that is not on the kind's list gets 422 `partners.doc_type_inval
   - `number_hash` (HMAC-SHA256 with `KYC_HASH_PEPPER`, for duplicate checks).
 
   No endpoint decrypts. The only decryption is `partners.api.payout_account` for M5's payouts (§3.7), and each call is audit-logged. The FSSAI registration number is public by law, so it is stored in clear on the kitchen (§3.4).
+- **Key and pepper rotation (drafted 2026-11-12, frozen on approval).** Today no row can be read under an older key, and a new pepper would break duplicate checks, so neither secret may be rotated (runbook `rotate-secrets.md`). This makes both rotatable without a gap.
+  - **Settings.** The current key stays `KYC_ENCRYPTION_KEY` with `KYC_KEY_VERSION`. Earlier keys go in `KYC_RETIRED_KEYS`, as `<version>:<key>` pairs separated by commas (base64 keys contain neither character). The pepper gets the same pair: `KYC_HASH_PEPPER` with a new `KYC_PEPPER_VERSION` (default 1), and `KYC_RETIRED_PEPPERS`. At start-up the API refuses a retired version equal to the current one, a version listed twice, or a value under 32 bytes. Every value is a secret: never logged, never in a span (M0 §6.2), and sent to Postgres only as a bind parameter.
+  - **A column.** `kyc_documents.hash_version smallint`, set to 1 on existing rows by the migration, and null exactly when `number_hash` is null.
+  - **Reading.** `payout_account` decrypts with the key of the row's `key_version`. A version with no configured key is 503 `partners.kyc_key_unavailable`, and the ops probe below reports it.
+  - **Duplicate checks** compute the HMAC under the current pepper and every retired one, and match a row whose `(hash_version, number_hash)` equals any of them. A new document is always hashed with the current pepper.
+  - **The job `rekey_kyc_documents`** (nightly at 03:53 IST from GitHub Actions, and by hand) moves rows to the current key and pepper.
+    - It handles batches of 100 rows (`FOR UPDATE SKIP LOCKED`) whose `key_version` or `hash_version` is not current, committing each batch.
+    - Each batch is one SQL statement: `number_enc = pgp_sym_encrypt(pgp_sym_decrypt(number_enc, :old_key), :new_key)` and `number_hash = hmac(<type> || ':' || pgp_sym_decrypt(number_enc, :old_key), :new_pepper, 'sha256')`. The number never leaves Postgres, so it is never in Python's memory or a log.
+    - A row whose version has no configured key is left alone and counted.
+    - The summary is `{ rekeyed, rehashed, remaining, missing_key }`, and one audit row `kyc.rekeyed` holds the counts. With nothing to do it is a no-op.
+  - **Ops probe `partners.kyc_key_missing`:** a stored row whose `key_version` or `hash_version` has no configured key or pepper. Its numbers cannot be read or matched. It names the versions and the row counts, never a number.
+  - **The procedure** goes in `rotate-secrets.md`:
+    1. Generate the new key.
+    2. In Infisical, add the current key to `KYC_RETIRED_KEYS` under its version, then set the new key and `KYC_KEY_VERSION + 1`. Copy both to Render, which redeploys.
+    3. Run `rekey_kyc_documents` and wait for `remaining: 0`.
+    4. Remove the retired key from Render. Keep it in Infisical for as long as the weekly backups hold rows encrypted with it (8 weeks, handbook 12), then delete it.
+
+    The pepper follows the same steps. If a key leaked, the same steps apply, and the backups made before the rotation are treated as exposed ([`dpdp-breach.md`](../runbooks/dpdp-breach.md)).
 - **Files.**
   - **Claiming.** Each key must be the caller's own `kyc_document` upload with an object behind it (`platform.files.verify` and `claim` in the same transaction); otherwise 422 `partners.file_key_invalid`.
   - **Reading.** Hub managers of the application's hub and admins read files only through `POST /v1/kyc-documents/{id}/file-links`, which answers `{ "files": [ { "url", "content_type", "expires_at" } ] }` (5-minute signed GETs). Every call writes `platform.audit_log` (action `kyc.file_read`). The applicant never reads the files back. Decided by the owner (2026-10-09): admins and the hub managers of the application's hub, nobody else (M0 §3.1 changes, §10).
@@ -866,6 +884,7 @@ The draft's `intel.assignment_ready` is dropped: the assignment is a synchronous
 | `assignment_acceptance_timeout` | Every 15 min, T-1 21:45 → T 00:30 (VM scheduler) | Expires offers past `respond_by` (22:30 for round 1), then runs the next round for released and late-locked orders; no new round after T 00:00 |
 | `refund_unassigned_tiffins` | T 09:30 for the 12:30 lunch slot (`ready_by` 11:30 − 2 h = slot start − 3 h), 11:00 and 12:30 for later lunch slots (a slot closes 3 h before it starts, so 13:00 closes at 10:00 and is refunded at 11:00, 14:00 at 11:00, 15:30 at 12:30; 11:00 is a wake of its own, 12:30 shares `surplus_cascade`'s), and 18:00 for dinner slots up to 21:00 (VM scheduler) | Locked tiffins of the meal with no live assignment → `refunded` in full (actor `system`, reason `no_kitchen`; §3.4) |
 | `prompt_tiffin_ratings` | T 14:30 (VM scheduler) | `partners.rating_requested` for lunch tiffins delivered today and not yet rated |
+| `rekey_kyc_documents` | Daily 03:53 (GitHub Actions), and by hand after a rotation | Moves KYC rows to the current key and pepper in batches of 100; a no-op when all are current (§3.1, key and pepper rotation) |
 
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day T follows from it), not the run time (ADR-0021, ADR-0025). The weekly statement and payouts are M5's jobs (§3.7).
 
