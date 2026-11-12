@@ -22,7 +22,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Executable, Result, and_, func, or_, select
+from sqlalchemy import Executable, Result, and_, func, literal_column, or_, select
 from sqlalchemy.exc import StatementError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -171,21 +171,31 @@ async def _claim(
             raise _file_key_invalid()
 
 
+# pgcrypto's "Wrong key or corrupt data" (external_routine_invocation_exception).
+WRONG_KEY = "39000"
+
+
 class KycStatementError(RuntimeError):
     """A statement carrying a KYC key, pepper or number failed. SQLAlchemy's own error prints the
-    statement's parameters, so this one names only the driver's error type."""
+    statement's parameters, so this one names only the SQLSTATE."""
+
+    def __init__(self, sqlstate: str | None) -> None:
+        super().__init__(f"a KYC statement failed (SQLSTATE {sqlstate or 'unknown'})")
+        self.sqlstate = sqlstate
 
 
 async def execute_secret(
     session: AsyncSession, statement: Executable, params: dict[str, Any] | None = None
 ) -> Result[Any]:
     """Run a statement whose parameters are secret. A failure raises KycStatementError without
-    the original as its cause or context, so no log line, traceback or job error shows one."""
+    the original as its cause or context, so no log line, traceback or job error shows one. No
+    autoflush: a pending ORM write that fails is its own error, not this statement's."""
     try:
-        return await session.execute(statement, params)
+        with session.no_autoflush:
+            return await session.execute(statement, params)
     except StatementError as exc:
-        reason = type(exc.orig).__name__ if exc.orig is not None else type(exc).__name__
-    raise KycStatementError(f"a KYC statement failed ({reason})")
+        sqlstate = getattr(exc.orig, "sqlstate", None)
+    raise KycStatementError(sqlstate if isinstance(sqlstate, str) else None)
 
 
 def number_hash(settings: Settings, kind: str, number: str) -> bytes:
@@ -212,14 +222,16 @@ async def _encrypt(session: AsyncSession, settings: Settings, number: str) -> by
 
 async def _duplicate(session: AsyncSession, digests: dict[int, bytes], user_id: uuid.UUID) -> bool:
     """The same number on another person's open application or partner record, matched under
-    every configured pepper (`digests` by pepper version, §3.1 rotation)."""
+    every configured pepper (`digests` by pepper version, §3.1 rotation). A hash without a
+    `hash_version` (written by the API before this column, during a deploy) is version 1."""
+    pepper_version = func.coalesce(KycDocument.hash_version, literal_column("1"))
     found = await session.execute(
         select(KycDocument.id)
         .join(Application, Application.id == KycDocument.application_id)
         .where(
             or_(
                 *(
-                    and_(KycDocument.hash_version == version, KycDocument.number_hash == digest)
+                    and_(pepper_version == version, KycDocument.number_hash == digest)
                     for version, digest in digests.items()
                 )
             ),

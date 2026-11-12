@@ -106,20 +106,25 @@ second-pepper setting, so there is no gradual way. Do it only if the pepper leak
 KYC numbers are stored as `pgp_sym_encrypt(number, key)` with the key's version, and as
 `HMAC-SHA256(pepper, "<type>:<number>")` with the pepper's version (M8 §3.1). The API reads a row with the key of its
 own version and matches duplicates under every configured pepper, so an old key or pepper keeps working while it is
-listed as retired. The job `rekey_kyc_documents` moves rows to the current pair inside Postgres; it runs daily at 03:53
+listed as retired. The job `rekey_kyc_documents` moves rows to the current pair inside Postgres; it runs daily at 03:33
 IST and is a no-op when every row is current. Rotating the key:
 
 1. Generate the new key: `openssl rand -base64 48`.
 2. In Infisical `staging`, add the current key to `KYC_RETIRED_KEYS` under its version (`1:<old key>`; more than one is
    comma-separated, `1:<key>,2:<key>`), then set `KYC_ENCRYPTION_KEY` to the new key and `KYC_KEY_VERSION` to the old
    version + 1. Copy the three values to Render `gharbasket-api`, which redeploys. The API refuses to start on a retired
-   version equal to the current one, a version listed twice, a malformed pair or a value under 32 bytes, naming the
-   variable only.
-3. Run the job and wait for `remaining: 0`:
-   `gh workflow run jobs-staging.yml -f job=rekey_kyc_documents`, then `just job-runs rekey_kyc_documents`. The summary
-   is `{ rekeyed, rehashed, remaining, missing_key }`. `missing_key` above 0 means rows under a version with no key
-   configured: put that key back in `KYC_RETIRED_KEYS` and run again.
-4. Remove the retired key from Render (`KYC_RETIRED_KEYS` unset or without it). Keep it in Infisical for as long as the
+   version equal to the current one, a version listed twice, a malformed pair, spaces around a version or value, or a
+   value under 32 bytes, naming the variable only.
+3. **Wait until the Render dashboard shows the new deploy live.** A job run that reaches the old instance still has the
+   old settings, sees every row as current and answers `remaining: 0`.
+4. Run the job: `gh workflow run jobs-staging.yml -f job=rekey_kyc_documents`, then
+   `just job-runs rekey_kyc_documents`. The summary is
+   `{ rekeyed, rehashed, remaining, missing_key, key_version, pepper_version }`. **Go on only when it names the new
+   `key_version` (and `pepper_version`) and says `remaining: 0`.** `missing_key` above 0 means rows under a version with
+   no key configured: put that key back in `KYC_RETIRED_KEYS` and run again. A run that fails with
+   `KycStatementError (SQLSTATE 39000)` reached a row whose configured key is wrong: the rows before it have moved (the
+   `kyc.rekeyed` audit row says how many, with `failed: true`); fix the key and run again.
+5. Remove the retired key from Render (`KYC_RETIRED_KEYS` unset or without it). Keep it in Infisical for as long as the
    weekly backups hold rows encrypted with it (8 weeks, handbook 12), then delete it there too.
 
 The pepper follows the same steps with `KYC_HASH_PEPPER`, `KYC_PEPPER_VERSION` and `KYC_RETIRED_PEPPERS`; both may be
@@ -127,8 +132,9 @@ rotated together and one run of the job does both. If a key or pepper leaked, th
 before the rotation are treated as exposed: open [`dpdp-breach.md`](dpdp-breach.md).
 
 Checks: the `ops_check` probe `partners.kyc_key_missing` names any stored key or pepper version that is no longer
-configured (with its row count, never a number); a payout read of such a row answers 503
-`partners.kyc_key_unavailable`.
+configured (with its row count), and any configured key that does not decrypt a sample row or pepper that does not
+reproduce its hash ("KYC key version V does not decrypt", "KYC pepper version V does not match"); versions and counts
+only, never a number. A payout read of such a row answers 503 `partners.kyc_key_unavailable`.
 
 ### `JOBS_TOKEN`
 

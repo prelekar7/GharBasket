@@ -8,12 +8,12 @@ from datetime import UTC, datetime
 import pytest
 import structlog
 from pydantic import ValidationError
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.partners import jobs as partner_jobs
-from gharbasket.modules.partners import kyc
+from gharbasket.modules.partners import kyc, rotation
 from gharbasket.modules.partners.models import Application, KycDocument
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import run_job
@@ -52,6 +52,7 @@ NUMBERED = [
     ("fssai", None, "11521999000123"),
     ("driving_licence", None, "MH4620190004321"),
 ]
+NEW_VERSIONS = {"key_version": 2, "pepper_version": 2}
 SECRETS = [KEY1, KEY2, KEY7, PEPPER1, PEPPER2, BANK_NUMBER, *(n for _, _, n in NUMBERED)]
 
 
@@ -142,8 +143,15 @@ async def test_a_full_rotation_keeps_reading_and_matching_and_moves_every_row(
         "rehashed": len(NUMBERED),
         "remaining": 0,
         "missing_key": 0,
+        **NEW_VERSIONS,
     }
-    assert second.summary == {"rekeyed": 0, "rehashed": 0, "remaining": 0, "missing_key": 0}
+    assert second.summary == {
+        "rekeyed": 0,
+        "rehashed": 0,
+        "remaining": 0,
+        "missing_key": 0,
+        **NEW_VERSIONS,
+    }
     audits = (
         (await db_session.execute(select(AuditEntry).where(AuditEntry.action == "kyc.rekeyed")))
         .scalars()
@@ -192,7 +200,13 @@ async def test_a_row_under_an_unconfigured_version_is_counted_flagged_and_unread
 
     run = await rekey(db_session, V2)
 
-    assert run.summary == {"rekeyed": 1, "rehashed": 1, "remaining": 1, "missing_key": 1}
+    assert run.summary == {
+        "rekeyed": 1,
+        "rehashed": 1,
+        "remaining": 1,
+        "missing_key": 1,
+        **NEW_VERSIONS,
+    }
     await db_session.refresh(stale)
     assert (stale.key_version, stale.hash_version) == (2, 2)
     with pytest.raises(ProblemError) as unavailable:
@@ -202,7 +216,7 @@ async def test_a_row_under_an_unconfigured_version_is_counted_flagged_and_unread
         "partners.kyc_key_unavailable",
     )
     problems = await partner_jobs.kyc_key_missing(db_session, datetime.now(UTC))
-    assert problems == ["1 KYC documents under key version 7, which is not configured"]
+    assert problems == ["1 KYC document under key version 7, which is not configured"]
 
 
 @pytest.mark.anyio
@@ -215,7 +229,7 @@ async def test_the_probe_names_a_pepper_version_that_is_gone(db_session: AsyncSe
     problems = await partner_jobs.kyc_key_missing(db_session, datetime.now(UTC))
 
     assert problems == [
-        "1 KYC documents under key version 1, which is not configured",
+        "1 KYC document under key version 1, which is not configured",
         "2 KYC documents under pepper version 1, which is not configured",
     ]
     assert not [s for s in SECRETS if s in str(problems)]
@@ -234,9 +248,99 @@ async def test_a_failing_statement_shows_no_key_in_the_job_error(
         run = await rekey(db_session, wrong)
 
     assert run.status == "failed"
-    assert run.error is not None and run.error.startswith("KycStatementError")
+    assert run.error == "KycStatementError: a KYC statement failed (SQLSTATE 39000)"
     captured = f"{logs} {caplog.text} {run.error}"
     assert not [secret for secret in SECRETS if secret in captured]
+
+
+async def wrong_key_row(db: AsyncSession) -> KycDocument:
+    """A bank number that says key version 1 but was encrypted with another key."""
+    document = await store(db, make_settings(kyc_encryption_key=KEY7), "bank", None, "445566778899")
+    assert document.key_version == 1
+    return document
+
+
+@pytest.mark.anyio
+@pytest.mark.services
+async def test_a_wrong_key_fails_only_the_batch_that_reaches_its_row(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(rotation, "BATCH", 1)
+    good = await store(db_session, V1, "pan", None, "ABCDE1234F")
+    bad = await wrong_key_row(db_session)  # uuidv7: created later, so a higher id
+    assert good.id < bad.id
+
+    run = await rekey(db_session, V2)
+
+    assert run.status == "failed" and run.error is not None and "39000" in run.error
+    await db_session.refresh(good)
+    await db_session.refresh(bad)
+    assert (good.key_version, good.hash_version) == (2, 2)  # its batch committed first
+    assert (bad.key_version, bad.hash_version) == (1, 1)
+    (audited,) = (
+        await db_session.scalars(select(AuditEntry).where(AuditEntry.action == "kyc.rekeyed"))
+    ).all()
+    assert audited.after == {"rekeyed": 1, "rehashed": 1, **NEW_VERSIONS, "failed": True}
+
+
+@pytest.mark.anyio
+@pytest.mark.services
+async def test_the_probe_and_payouts_notice_a_wrong_retired_key(
+    db_session: AsyncSession,
+) -> None:
+    await wrong_key_row(db_session)
+    use_settings(make_settings(kyc_encryption_key=KEY7))
+    partner = await make_partner(db_session)  # its bank number under KEY7, as version 1
+    use_settings(V2)
+
+    problems = await partner_jobs.kyc_key_missing(db_session, datetime.now(UTC))
+    with pytest.raises(ProblemError) as unavailable:
+        await partners_api.payout_account(db_session, partner.id, settings=V2)
+
+    assert problems == ["KYC key version 1 does not decrypt"]
+    assert (unavailable.value.status, unavailable.value.code) == (
+        503,
+        "partners.kyc_key_unavailable",
+    )
+    # The session is still usable after the refused decrypt (it ran in a savepoint).
+    assert await db_session.scalar(select(func.count()).select_from(KycDocument)) is not None
+
+
+@pytest.mark.anyio
+@pytest.mark.services
+async def test_the_probe_notices_a_pepper_changed_without_a_new_version(
+    db_session: AsyncSession,
+) -> None:
+    await store(db_session, V1, "pan", None, "ABCDE1234F")
+    await store(db_session, V1, "fssai", None, "11521999000123")
+    use_settings(make_settings(kyc_encryption_key=KEY1, kyc_hash_pepper=PEPPER2))
+
+    problems = await partner_jobs.kyc_key_missing(db_session, datetime.now(UTC))
+
+    assert problems == ["KYC pepper version 1 does not match"]
+    assert not [s for s in SECRETS if s in str(problems)]
+
+
+@pytest.mark.anyio
+@pytest.mark.services
+async def test_a_hash_without_a_version_from_the_old_api_counts_as_pepper_1(
+    db_session: AsyncSession,
+) -> None:
+    # Written during a deploy by the API that does not know the column yet.
+    document = await store(db_session, V1, "pan", None, "ABCDE1234F")
+    await db_session.execute(
+        update(KycDocument).where(KycDocument.id == document.id).values(hash_version=None)
+    )
+    use_settings(V2)
+
+    assert await is_duplicate(db_session, V2, "pan", None, "ABCDE1234F")
+    assert await partner_jobs.kyc_key_missing(db_session, datetime.now(UTC)) == []
+    run = await rekey(db_session, V2)
+
+    assert run.summary is not None and (run.summary["rehashed"], run.summary["remaining"]) == (1, 0)
+    await db_session.refresh(document)
+    assert document.hash_version == 2
+    assert document.number_hash == kyc.number_hash(V2, "pan", "ABCDE1234F")
 
 
 def test_a_number_is_hashed_under_every_configured_pepper() -> None:
@@ -270,6 +374,10 @@ def test_retired_keys_and_peppers_are_read_by_version() -> None:
         ("2:", "must look like '1:<key>,2:<key>'"),
         (f"0:{KEY1}", "a version is 1 to 32767"),
         (f"40000:{KEY1}", "a version is 1 to 32767"),
+        (f" 2:{KEY1}", "without spaces"),
+        (f"2: {KEY1}", "without spaces"),
+        (f"2:{KEY1} ", "without spaces"),
+        (f"2:{KEY1}, 3:{KEY2}", "without spaces"),
     ],
 )
 def test_bad_retired_values_are_refused_naming_the_variable_only(

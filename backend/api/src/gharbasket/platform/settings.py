@@ -42,14 +42,18 @@ LogLevel = Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], BeforeValidat
 
 def _versioned(name: str, raw: SecretStr | None, current: int) -> dict[int, SecretStr]:
     """`<version>:<value>` pairs separated by commas, by version. An error names `name`, never a
-    value: a malformed pair, a version out of range, the current version, or one listed twice."""
+    value: a malformed pair, whitespace around a version or value (a pasted key with a space
+    would otherwise be a different key), a version out of range, the current version, or one
+    listed twice."""
     if raw is None or not raw.get_secret_value().strip():
         return {}
     found: dict[int, SecretStr] = {}
     for item in raw.get_secret_value().split(","):
-        version, sep, value = item.strip().partition(":")
+        version, sep, value = item.partition(":")
         if not sep or not value or not VERSION.fullmatch(version):
-            raise ValueError(f"{name} must look like '1:<key>,2:<key>'")
+            raise ValueError(f"{name} must look like '1:<key>,2:<key>', without spaces")
+        if value != value.strip():
+            raise ValueError(f"{name} must look like '1:<key>,2:<key>', without spaces")
         number = int(version)
         if not 1 <= number <= SMALLINT_MAX:
             raise ValueError(f"{name}: a version is 1 to {SMALLINT_MAX}")

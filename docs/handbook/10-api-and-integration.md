@@ -135,7 +135,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | T 20:30 | `hold_expiry` (bags still at the society become undelivered; VM scheduler) | logistics |
 | T 20:45 | `schedule_redeliveries` (the one free redelivery for T+1, or the second miss refunded; VM scheduler) | logistics |
 | Daily 03:43 | `purge_gps_pings` (pings older than 90 days; GitHub Actions) | logistics |
-| Daily 03:53 | `rekey_kyc_documents` (KYC rows to the current key and pepper after a rotation; a no-op otherwise; GitHub Actions; M8 §3.1) | partners |
+| Daily 03:33 | `rekey_kyc_documents` (KYC rows to the current key and pepper after a rotation; a no-op otherwise; GitHub Actions; M8 §3.1) | partners |
 | T-1 21:10 | `forecast_uncommitted` → `build_procurement_plan` | intel → ops |
 | T-1 21:30 | `assign_kitchens` (tiffin for day T) | intel → partners |
 | T 05:00 | `build_packing_tasks` | ops |

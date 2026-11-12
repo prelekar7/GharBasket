@@ -41,8 +41,8 @@
 # refund_unassigned_tiffins also has an 11:00 wake of its own: a lunch slot closes manual assignment
 # 3 hours before it starts, so the later lunch slots a hub manager adds are refunded within the hour.
 # reconcile_payments rides the same wakes (M5 says hourly; see its `why`).
-# Estimated awake time: about 8.1 hours a day, about 61 CU-hours a month at 0.25 CU, before
-# people and deploys. `test_job_schedule.py` computes it (run with `-s`) and fails above 8.2 hours.
+# Estimated awake time: about 8.0 hours a day, about 60 CU-hours a month at 0.25 CU, before
+# people and deploys. `test_job_schedule.py` computes it (run with `-s`) and fails above 8.1 hours.
 # The VM scheduler waits up to 5 minutes for an answer, so a Render cold start (~1 minute) needs
 # no keep-alive ping.
 
@@ -289,9 +289,9 @@ jobs:
 
   - name: rekey_kyc_documents
     runner: actions
-    cron: "23 22 * * *"
-    ist: "03:53 daily"
-    why: M8 §6 and §3.1 key and pepper rotation; a no-op unless a key or pepper was rotated. Also run by hand after a rotation (rotate-secrets.md)
+    cron: "3 22 * * *"
+    ist: "03:33 daily"
+    why: M8 §6 and §3.1 key and pepper rotation; a no-op unless a key or pepper was rotated. Shares the 03:33 wake of purge_deleted_users and monitor_drift (no Neon wake of its own). Also run by hand after a rotation (rotate-secrets.md)
 
   # --- M9 community -----------------------------------------------------------------------
   - name: recompute_unlock_thresholds

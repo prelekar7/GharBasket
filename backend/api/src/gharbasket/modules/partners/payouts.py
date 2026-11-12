@@ -85,7 +85,7 @@ async def payout_account(
     every call writes `partners.payout_account_read` to the audit log (who, which document; never
     the number). 409 `partners.no_payout_account` without an accepted bank document whose penny
     drop passed. 503 `partners.kyc_key_unavailable` when no key is configured for the document's
-    key version (§3.1, key rotation)."""
+    key version, or when the configured key does not decrypt it (§3.1, key rotation)."""
     partner = await service.get(session, partner_id)
     bank = (await _documents(session, partner)).get("bank")
     if bank is None or not _bank_ok(bank):
@@ -94,15 +94,23 @@ async def payout_account(
         )
     # The key of the row's own version: the current one, or a retired one not yet re-keyed.
     key = (settings or get_settings()).kyc_keys.get(bank.key_version or 0)
+    unavailable = ProblemError(
+        503,
+        "partners.kyc_key_unavailable",
+        "This bank account is stored under a key that is not configured.",
+    )
     if key is None:
-        raise ProblemError(
-            503,
-            "partners.kyc_key_unavailable",
-            "This bank account is stored under a key that is not configured.",
-        )
-    number = (
-        await kyc.execute_secret(session, select(func.pgp_sym_decrypt(bank.number_enc, key)))
-    ).scalar_one()
+        raise unavailable
+    try:
+        async with session.begin_nested():  # a refused key leaves the caller's transaction usable
+            decrypted = await kyc.execute_secret(
+                session, select(func.pgp_sym_decrypt(bank.number_enc, key))
+            )
+            number = decrypted.scalar_one()
+    except kyc.KycStatementError as exc:
+        if exc.sqlstate == kyc.WRONG_KEY:
+            raise unavailable from None
+        raise
     await audit.record(
         session,
         actor_user_id=actor_user_id,

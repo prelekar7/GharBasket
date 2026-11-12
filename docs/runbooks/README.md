@@ -58,7 +58,7 @@ carries `problems`, one per line, each `<probe>: <what>`:
 | `logistics.plans_failed` | `box plan for <date> at hub <id> failed: <error>` | `route-solve-failed.md` |
 | `logistics.plans_unreviewed` | `box plan for <date> at hub <id> is waiting for review; see /routes` | `route-solve-failed.md` |
 | `orders.revenue_unrecognised` | `N delivered orders still hold unearned revenue; run recognise_delivered_revenue` | Run `recognise_delivered_revenue` by hand (idempotent, M5 §3.9), see [Run a job by hand](#run-a-job-by-hand) |
-| `partners.kyc_key_missing` | `N KYC documents under key version V, which is not configured` (or `pepper version`) | `rotate-secrets.md` § KYC: put the retired key or pepper back, then run `rekey_kyc_documents` |
+| `partners.kyc_key_missing` | `N KYC documents under key version V, which is not configured` (or `pepper version`); `KYC key version V does not decrypt`; `KYC pepper version V does not match` | `rotate-secrets.md` § KYC: put the retired key or pepper back, then run `rekey_kyc_documents` |
 
 The `ops` check comes back up by itself at the next clean `ops_check` (06:30, 12:30, 21:15 and 23:45 IST). To bring it
 back sooner after a fix, run `ops_check` by hand (below).

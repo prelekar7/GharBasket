@@ -10,9 +10,9 @@ never the clock, and stands in for "now" in the rounds' reply deadlines.
 
 - `prompt_tiffin_ratings` (T 14:30 IST): `partners.rating_requested` for the day's delivered lunch
   tiffins that nobody asked about yet and that are not rated.
-- `rekey_kyc_documents` (daily 03:53 IST, and by hand after a rotation): KYC rows to the current
+- `rekey_kyc_documents` (daily 03:33 IST, and by hand after a rotation): KYC rows to the current
   key and pepper (§3.1, rotation.py). Probe `partners.kyc_key_missing`: rows under a key or pepper
-  version that is not configured.
+  version that is not configured, or under a configured one that is wrong.
 
 Consumers (§5): M4's `orders.dispatched`, `orders.delivered` and `orders.delivery_failed` of tiffins
 move the assignment's orders along and complete it, and `orders.delivered`, `orders.dispatched` and
@@ -154,37 +154,63 @@ async def prompt_tiffin_ratings(ctx: JobContext) -> dict[str, Any]:
     }
 
 
-@job("rekey_kyc_documents", "Move KYC numbers to the current key and pepper (daily 03:53 IST)")
+async def _audit_rekeyed(ctx: JobContext, after: dict[str, Any]) -> None:
+    await audit.record(
+        ctx.session,
+        actor_user_id=None,
+        action="kyc.rekeyed",
+        entity_type="kyc_documents",
+        entity_id="all",
+        after=after,
+    )
+
+
+@job("rekey_kyc_documents", "Move KYC numbers to the current key and pepper (daily 03:33 IST)")
 async def rekey_kyc_documents(ctx: JobContext) -> dict[str, Any]:
     """Batches of 100 rows, each committed; a row under a key version with no configured key is
-    left alone and counted as `missing_key` (it is also in `remaining`). The audit row
-    `kyc.rekeyed` holds only the counts, and is written only when a row moved."""
+    left alone and counted as `missing_key` (it is also in `remaining`). The summary names the
+    current key and pepper versions, so a run on an instance that still has the old settings is
+    told apart. The audit row `kyc.rekeyed` holds the counts and versions, written when a row
+    moved; a run that fails midway keeps its committed batches and writes them with
+    `failed: true` before failing."""
+    versions = {
+        "key_version": ctx.settings.kyc_key_version,
+        "pepper_version": ctx.settings.kyc_pepper_version,
+    }
     rekeyed = rehashed = 0
-    while (moved := await rotation.rekey_batch(ctx.session, ctx.settings)) is not None:
-        rekeyed, rehashed = rekeyed + moved.rekeyed, rehashed + moved.rehashed
-        await ctx.session.commit()
+    try:
+        while (moved := await rotation.rekey_batch(ctx.session, ctx.settings)) is not None:
+            rekeyed, rehashed = rekeyed + moved.rekeyed, rehashed + moved.rehashed
+            await ctx.session.commit()
+    except Exception:
+        await ctx.session.rollback()
+        if rekeyed or rehashed:
+            partial = {"rekeyed": rekeyed, "rehashed": rehashed, **versions, "failed": True}
+            await _audit_rekeyed(ctx, partial)
+            await ctx.session.commit()
+        raise
     left, missing_key = await rotation.remaining(ctx.session, ctx.settings)
     summary = {
         "rekeyed": rekeyed,
         "rehashed": rehashed,
         "remaining": left,
         "missing_key": missing_key,
+        **versions,
     }
     if rekeyed or rehashed:
-        await audit.record(
-            ctx.session,
-            actor_user_id=None,
-            action="kyc.rekeyed",
-            entity_type="kyc_documents",
-            entity_id="all",
-            after=summary,
-        )
+        await _audit_rekeyed(ctx, summary)
     return summary
 
 
 @ops.probe("partners.kyc_key_missing")
 async def kyc_key_missing(session: AsyncSession, now: datetime) -> list[str]:
-    return await rotation.unconfigured(session, get_settings())
+    """Stored versions with no configured key or pepper, and configured ones that are wrong (a
+    sample row per version does not decrypt, or does not reproduce its hash). Versions and row
+    counts only."""
+    settings = get_settings()
+    return await rotation.unconfigured(session, settings) + await rotation.wrong_secrets(
+        session, settings
+    )
 
 
 async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> None:
