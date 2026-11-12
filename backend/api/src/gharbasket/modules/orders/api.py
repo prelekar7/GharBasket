@@ -178,6 +178,7 @@ async def transition(
     actor: str,
     actor_user_id: uuid.UUID | None = None,
     payload: dict[str, object] | None = None,
+    closes: bool = True,
 ) -> Order:
     """Move an order along its kind's state machine (ADR-0026 §2, §3): `actor` is the kind of
     actor (`system`, `hub`, `packer`, `rider`, `captain`, `kitchen`, `customer`) and
@@ -189,10 +190,18 @@ async def transition(
     A move to `refunded` returns money to the owner's wallet through `billing.api`:
     `payload.refund_paise` (0 up to `refundable_paise`, the paid total less everything already
     paid back; default all of it), keyed by order and `payload.reason` (default `undelivered`;
-    `no_kitchen` for a locked tiffin no kitchen took, ADR-0027), so a replay never pays twice."""
+    `no_kitchen` for a locked tiffin no kitchen took, ADR-0027), so a replay never pays twice.
+    It then publishes `orders.closed` (M4 §3.8), unless `closes` is False: M7's second miss
+    carries rows right after, and the order closes when the last of them settles."""
     order = await service.get(session, order_id, for_update=True)
     return await service.transition(
-        session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
+        session,
+        order,
+        to_status,
+        actor=actor,
+        actor_user_id=actor_user_id,
+        payload=payload,
+        closes=closes,
     )
 
 

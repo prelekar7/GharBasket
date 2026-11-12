@@ -237,9 +237,12 @@ async def refund(
     amount: int,
     reason: str,
     actor_user_id: uuid.UUID | None = None,
+    *,
+    closes: bool = True,
 ) -> None:
     """undelivered → refunded (actor system; a manager's triage names the manager); M4 pays the
-    wallet."""
+    wallet. `closes=False`: the caller carries rows on right after (a second miss with
+    non-perishables), so M4 does not close the order at this move (M4 §3.8)."""
     await orders_api.transition(
         session,
         order_id,
@@ -247,6 +250,7 @@ async def refund(
         actor="system",
         actor_user_id=actor_user_id,
         payload={"refund_paise": amount, "reason": reason},
+        closes=closes,
     )
     delivery.status, delivery.refund_paise, delivery.at = "refunded", amount, now()
 
@@ -258,12 +262,14 @@ async def try_refund(
     amount: int,
     reason: str,
     actor_user_id: uuid.UUID | None = None,
+    *,
+    closes: bool = True,
 ) -> bool:
     """`refund` in a savepoint; False (nothing changed) when M5 refuses it because the wallet would
     go over its cap (`billing.wallet_limit`), so the caller can leave the order for triage."""
     try:
         async with session.begin_nested():
-            await refund(session, delivery, order_id, amount, reason, actor_user_id)
+            await refund(session, delivery, order_id, amount, reason, actor_user_id, closes=closes)
     except ProblemError as exc:
         if exc.code != "billing.wallet_limit":
             raise
@@ -717,7 +723,7 @@ async def schedule_day(session: AsyncSession, day: date) -> dict[str, int]:
             )
             return "redelivery"
         amount, kept = await second_miss_refund(session, order)
-        if not await try_refund(session, attempt, order.id, amount, "second_miss"):
+        if not await try_refund(session, attempt, order.id, amount, "second_miss", closes=not kept):
             attempt.status = "triage"
             return "triage"
         stop = None if attempt.stop_id is None else await session.get(RouteStop, attempt.stop_id)

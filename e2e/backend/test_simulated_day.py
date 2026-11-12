@@ -994,6 +994,16 @@ def test_the_revenue_backfill_finds_every_delivery_already_recognised(
     assert summary["events"] > 0 and summary["recognised"] == 0, summary
 
 
+def test_the_closed_orders_backfill_finds_every_refunded_order_already_recognised(
+    app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 21:10, `republish_closed_orders` by hand (M4 §3.8, M5 §3.9): the consumer of
+    `orders.closed` recognised what every closed refunded order kept, so none is sent again."""
+    when = ist(day.t, 21, 10)
+    summary = step(loop, when, app.job("republish_closed_orders", when))
+    assert summary["published"] == 0, summary
+
+
 def test_the_watchdog_finds_nothing_wrong_after_the_day(app: App, day: Day, loop: Runner) -> None:
     """Tuesday T 21:15, `ops_check` (ADR-0033, M0 §6.1): the day's jobs leave no problem for the
     `ops` alert (no failed run, no stuck event, no probe that raises)."""
