@@ -20,7 +20,7 @@ const MORNING = {
 const SOCIETIES = [
   {
     id: "0199a000-0000-7000-8000-00000000b001",
-    slug: "sunrise-towers",
+    slug: "sunrise-towers-kharghar",
     name: "Sunrise Towers",
     area: "Sector 20, Kharghar",
     status: "live",
@@ -37,7 +37,7 @@ const SOCIETIES = [
   },
   {
     id: "0199a000-0000-7000-8000-00000000b002",
-    slug: "green-valley",
+    slug: "green-valley-heights-kharghar",
     name: "Green Valley Heights",
     area: "Sector 35, Kharghar",
     status: "unlocking",
@@ -53,7 +53,7 @@ const SOCIETIES = [
   },
   {
     id: "0199a000-0000-7000-8000-00000000b003",
-    slug: "shree-ganesh",
+    slug: "shree-ganesh-chs-kharghar",
     name: "Shree Ganesh CHS",
     area: "Sector 12, Kharghar",
     status: "unlocking",
@@ -66,7 +66,7 @@ const SOCIETIES = [
   },
   {
     id: "0199a000-0000-7000-8000-00000000b004",
-    slug: "panchavati-residency",
+    slug: "panchavati-residency-kamothe",
     name: "Panchavati Residency",
     area: "Sector 7, Kamothe",
     status: "prospect",
@@ -216,9 +216,10 @@ export const communityHandlers = [
 
   // ?q= filters by name or area; ?near=lat,lng sorts by distance (the mock is already sorted).
   http.get("*/v1/societies", ({ request }) => {
-    const q = new URL(request.url).searchParams.get("q")?.trim().toLowerCase() ?? "";
+    // Every word must appear in the name or area (the API's search is fuzzier, M9 §3.1).
+    const words = (new URL(request.url).searchParams.get("q") ?? "").toLowerCase().split(/\s+/);
     const items = SOCIETIES.map(current)
-      .filter((s) => !q || `${s.name} ${s.area}`.toLowerCase().includes(q))
+      .filter((s) => words.every((w) => `${s.name} ${s.area}`.toLowerCase().includes(w)))
       .map((s) => summary(s, request));
     return HttpResponse.json({ items, next_cursor: null });
   }),

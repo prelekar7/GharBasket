@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { invitedSociety, slugWords } from "@/features/community/join.js";
 import { useSocieties, useSocietyUnlocks } from "@/features/community/queries.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
@@ -18,17 +19,22 @@ const km = (/** @type {number} */ m) =>
 function SocietyPicker() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { societyId, update } = useOnboardingDraft();
-  const [typed, setTyped] = useState("");
-  const [q, setQ] = useState("");
+  const { societyId, inviteSlug, update } = useOnboardingDraft();
+  // A neighbour's invite (/join?s=) starts the search at that society, unless one is already chosen.
+  const invite = societyId ? null : inviteSlug;
+  const [typed, setTyped] = useState(invite ? slugWords(invite) : "");
+  const [q, setQ] = useState(typed);
   const [near, setNear] = useState(/** @type {{ lat: number, lng: number } | null} */ (null));
   const { data, isPending, isError, refetch } = useSocieties({ q, near });
 
   const items = data?.items ?? [];
   // The list has no unlock counts (and never a captain), so ask for each society's own.
   const unlocks = useSocietyUnlocks(items.map((s) => s.id));
+  const invited = invitedSociety(items, invite);
   const selected =
-    societyId && items.some((s) => s.id === societyId) ? societyId : (items[0]?.id ?? "");
+    societyId && items.some((s) => s.id === societyId)
+      ? societyId
+      : (invited?.id ?? items[0]?.id ?? "");
   // Another society's towers and flats are different: a new choice clears the old tower and flat.
   const choose = (/** @type {string} */ id) =>
     update(id === societyId ? { societyId: id } : { societyId: id, towerId: null, flat: "" });
@@ -54,6 +60,7 @@ function SocietyPicker() {
             isDisabled={!selected}
             onPress={() => {
               choose(selected);
+              if (inviteSlug) update({ inviteSlug: null });
               navigate({ to: nextStep("/onboarding/society") });
             }}
           >
@@ -65,6 +72,11 @@ function SocietyPicker() {
       <h1 className="font-display text-[28px] leading-[34px] font-semibold text-balance">
         {t("onboarding.society.title")}
       </h1>
+      {invited && (
+        <p role="note" className="rounded-md border border-accent bg-accent-soft px-3 py-2 text-sm">
+          {t("onboarding.society.invited", { name: invited.name })}
+        </p>
+      )}
       <form
         className="flex items-end gap-2"
         onSubmit={(e) => {
