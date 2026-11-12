@@ -3,6 +3,7 @@
 Run with `just dev`, or `uvicorn gharbasket.main:create_app --factory`.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -98,6 +99,8 @@ def _lifespan(settings: Settings):
                 await valkey.aclose()
             if engine is not None:
                 await engine.dispose()
+            # Last, so the spans above are flushed; at most 5 s with the collector down.
+            await asyncio.to_thread(tracing.shutdown)
 
     return lifespan
 

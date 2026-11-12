@@ -1,7 +1,9 @@
 """Tracing (M0 §6.2): what becomes a span, and the never-list, asserted on the spans of a request
 that carries every kind of value a span must not hold."""
 
+import contextlib
 import logging
+import time
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
@@ -11,21 +13,26 @@ import pytest
 import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from opentelemetry import trace
+from opentelemetry import metrics, trace
+from opentelemetry._logs import get_logger_provider
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.trace.sampling import ALWAYS_OFF
 from opentelemetry.trace import SpanContext, SpanKind, StatusCode
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import delete, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
-from gharbasket.platform import tracing
-from gharbasket.platform.db import DbSession, get_session
+from gharbasket.platform import outbox, tracing
+from gharbasket.platform.db import DbSession, create_engine, create_sessionmaker, get_session
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import JOBS, JobContext, job, run_job
-from gharbasket.platform.logging import add_trace_ids
+from gharbasket.platform.logging import add_trace_ids, scrub
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import CONSUMERS, publish, relay, subscribe
 
@@ -50,7 +57,27 @@ NEVER = [
     ML_TOKEN,
     "kitchen-secret-path",
     "hunter2",
+    # Literal forms the SQL scrubber must not let through (fix 4 of the review).
+    "dollar-secret",
+    "tag-secret",
+    "escaped-secret",
+    "after-escape-secret",
+    "comment-secret",
+    "dash-secret",
+    "98765",
+    "43210",
+    "DEADBEEF",
 ]
+# Statements with literals in every form PostgreSQL has; the never-list request runs each.
+LITERAL_FORMS = [
+    "SELECT $$dollar-secret$$",
+    "SELECT $t$tag-secret$t$",
+    "SELECT E'escaped\\'-secret', 'after-escape-secret'",
+    "SELECT 1 /* comment-secret */",
+    "SELECT 1 -- dash-secret",
+    "SELECT 9.8765e4, .43210, 0xDEADBEEF",
+]
+TOKEN = "c2VjcmV0LWdyYWZhbmEtdG9rZW4tMDEyMzQ1"  # gitleaks:allow
 
 
 @pytest.fixture
@@ -67,9 +94,14 @@ def spans() -> Iterator[InMemorySpanExporter]:
 
 
 def everything(span: ReadableSpan) -> str:
-    """All a span holds that is exported: name, attributes, events and status."""
+    """All a span holds that is exported: name, attributes, events, links, status, resource."""
     events = [(e.name, dict(e.attributes or {})) for e in span.events]
-    return f"{span.name} {dict(span.attributes or {})} {events} {span.status.description}"
+    links = [(link.context, dict(link.attributes or {})) for link in span.links]
+    resource = dict(span.resource.attributes)
+    return (
+        f"{span.name} {dict(span.attributes or {})} {events} {links} {span.status.description} "
+        f"{resource}"
+    )
 
 
 def ids(span: ReadableSpan) -> SpanContext:
@@ -105,6 +137,15 @@ def traced_app(seen: list[httpx2.Request]) -> FastAPI:
                 json={"phone": phone},
             )
             await http.get(f"https://api.razorpay.com/v1/orders/{item_id}?phone={phone}")
+        # The app's own client, to a port nobody listens on: a failing outgoing call.
+        async with tracing.http_client(timeout=2) as real:
+            with contextlib.suppress(httpx2.HTTPError):
+                await real.get(f"http://127.0.0.1:9/v1/orders/{item_id}?phone={phone}")
+        for statement in LITERAL_FORMS:
+            await session.execute(text(statement))
+        # A database error whose message carries the value ("invalid input syntax ... +91...").
+        with contextlib.suppress(DBAPIError):
+            await session.execute(text("SELECT CAST(:phone AS integer)"), {"phone": phone})
         structlog.get_logger("gharbasket.test").info("traced", phone=phone)
         raise ProblemError(409, "orders.cutoff_passed", f"Not for {phone} ({item_id}).")
 
@@ -168,6 +209,65 @@ async def test_no_span_holds_a_body_header_query_path_parameter_id_or_message(
     to_ml, to_razorpay = seen
     assert to_ml.headers["traceparent"].split("-")[1] == f"{ids(server).trace_id:032x}"
     assert "traceparent" not in to_razorpay.headers
+    refused = by_name["GET 127.0.0.1"]
+    assert (refused.attributes or {})["error.type"] == "ConnectError"
+    assert refused.status.status_code is StatusCode.ERROR
+    (failed,) = [s for s in queries if (s.attributes or {}).get("error.type")]
+    # asyncpg refuses the value client-side (DataError, "invalid input ... +91..."): the code only.
+    assert (failed.attributes or {})["db.response.status_code"] == "22000"
+    texts = [str((s.attributes or {}).get("db.query.text")) for s in queries]
+    assert texts.count("SELECT") >= 5  # the opaque forms are reduced to their keyword
+    assert "SELECT ?, ?, ?" in texts
+
+
+@pytest.mark.anyio
+@pytest.mark.services
+async def test_a_404_span_holds_no_path(
+    traced: tuple[httpx2.AsyncClient, list[httpx2.Request]], spans: InMemorySpanExporter
+) -> None:
+    client, _ = traced
+    answer = await client.get(f"/v1/_nothing/{ITEM}/members/{PHONE}?phone={PHONE}")
+    assert answer.status_code == 404
+
+    (server,) = spans.get_finished_spans()
+    assert server.name == "GET" and "http.route" not in (server.attributes or {})
+    assert not [value for value in NEVER if value in everything(server)]
+
+
+@pytest.mark.anyio
+@pytest.mark.services
+async def test_the_after_commit_relay_is_a_trace_of_its_own_linked_to_the_request(
+    database_url: str, spans: InMemorySpanExporter
+) -> None:
+    engine = create_engine(database_url, pooled=False)
+    sessionmaker = create_sessionmaker(engine)
+
+    async def consumer(session: AsyncSession, event: OutboxEvent) -> None:
+        return None
+
+    subscribe("test.relayed", consumer)
+    event_id = None
+    try:
+        with tracing.span("POST /v1/_test/publish", kind=SpanKind.SERVER):
+            async with sessionmaker() as session:
+                event_id = await publish(session, "test.relayed", {"phone": PHONE})
+                await session.commit()
+            outbox.relay_soon(sessionmaker)
+        await outbox.drain()
+    finally:
+        CONSUMERS.pop("test.relayed")
+        async with sessionmaker() as session:
+            await session.execute(delete(OutboxEvent).where(OutboxEvent.id == event_id))
+            await session.commit()
+        await engine.dispose()
+
+    by_name = {span.name: span for span in spans.get_finished_spans()}
+    request, relayed = by_name["POST /v1/_test/publish"], by_name["outbox relay"]
+    consumed = by_name["consume test.relayed"]
+    assert relayed.parent is None and ids(relayed).trace_id != ids(request).trace_id
+    assert [link.context.span_id for link in relayed.links] == [ids(request).span_id]
+    assert ids(consumed).trace_id == ids(relayed).trace_id
+    assert not [value for value in NEVER if value in everything(consumed)]
 
 
 @pytest.mark.anyio
@@ -176,7 +276,8 @@ async def test_an_unexpected_error_is_recorded_by_its_type_only(
     traced: tuple[httpx2.AsyncClient, list[httpx2.Request]], spans: InMemorySpanExporter
 ) -> None:
     client, _ = traced
-    answer = await client.get("/v1/_test/boom")  # RuntimeError("database password is hunter2")
+    with structlog.testing.capture_logs() as logs:
+        answer = await client.get("/v1/_test/boom")  # RuntimeError("... hunter2")
     assert answer.status_code == 500
 
     (server,) = [s for s in spans.get_finished_spans() if s.kind is SpanKind.SERVER]
@@ -185,6 +286,12 @@ async def test_an_unexpected_error_is_recorded_by_its_type_only(
     assert (server.attributes or {})["error.type"] == "RuntimeError"
     assert (server.attributes or {})["gb.problem_code"] == "server.error"
     assert "hunter2" not in everything(server)
+    # Logged outside the span (Starlette's outermost middleware), yet it leads to the trace.
+    (line,) = [e for e in logs if e["event"] == "unhandled_error"]
+    assert (line["trace_id"], line["span_id"]) == (
+        f"{ids(server).trace_id:032x}",
+        f"{ids(server).span_id:016x}",
+    )
 
 
 @pytest.mark.anyio
@@ -274,6 +381,29 @@ def test_fastapis_own_telemetry_stays_off_with_an_endpoint_in_the_environment(
     with TestClient(app) as client:
         assert client.get("/v1/health").status_code == 200
     assert not isinstance(trace.get_tracer_provider(), TracerProvider)
+    assert not isinstance(metrics.get_meter_provider(), MeterProvider)
+    assert not isinstance(get_logger_provider(), LoggerProvider)
+
+
+def test_log_lines_carry_no_ids_from_a_span_that_is_not_sampled() -> None:
+    provider = TracerProvider(sampler=ALWAYS_OFF)
+    tracing.use_provider(provider)
+    try:
+        with tracing.span("unsampled") as current:
+            line = add_trace_ids(None, "info", {"event": "inside"})
+        assert current.get_span_context().is_valid and line == {"event": "inside"}
+    finally:
+        tracing.use_provider(None)
+
+
+def test_no_statement_costs_anything_while_tracing_is_off() -> None:
+    class Context:
+        pass
+
+    context = Context()
+    tracing.use_provider(None)
+    tracing._before(None, None, "SELECT 'x'", None, context, False)  # pyright: ignore[reportPrivateUsage]
+    assert not hasattr(context, "gb_span")
 
 
 def test_log_lines_in_a_span_carry_its_ids(spans: InMemorySpanExporter) -> None:
@@ -291,6 +421,13 @@ def test_log_lines_in_a_span_carry_its_ids(spans: InMemorySpanExporter) -> None:
 def test_sql_text_keeps_placeholders_and_drops_literals() -> None:
     sql = "SELECT a1, $1, 'x''y' FROM t2 WHERE n = 42 AND p = '+919876543210' LIMIT $2"
     assert tracing.sql_text(sql) == "SELECT a1, $1, ? FROM t2 WHERE n = ? AND p = ? LIMIT $2"
+    assert tracing.sql_text("SELECT 9.8765e4, .43210, 0xDEADBEEF, 1E-3") == "SELECT ?, ?, ?, ?"
+    for opaque in LITERAL_FORMS[:5]:  # dollar quotes, E'', comments: the keyword only
+        assert tracing.sql_text(opaque) == "SELECT"
+    assert tracing.sql_text("update t set a = $tag$x$tag$") == "UPDATE"
+    # Cut inside a literal: the unmatched fragment is dropped, not shown.
+    long = "SELECT " + "a, " * 1500 + "'kitchen-secret-path that goes on'"
+    assert "kitchen" not in tracing.sql_text(long)
 
 
 def test_tracing_is_off_unless_an_endpoint_is_set_and_export_errors_are_quiet(
@@ -319,10 +456,48 @@ def test_tracing_is_off_unless_an_endpoint_is_set_and_export_errors_are_quiet(
     assert "secret" not in caplog.text
 
 
+@pytest.mark.parametrize(
+    "headers", [f"Authorization: Basic {TOKEN}", f'"Authorization=Basic%20{TOKEN}"']
+)
+def test_unreadable_headers_leave_export_off_and_are_never_logged(
+    headers: str, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", headers)  # the exporter reads it too
+    settings = make_settings(
+        otel_exporter_otlp_endpoint="http://127.0.0.1:9", otel_exporter_otlp_headers=headers
+    )
+    try:
+        with structlog.testing.capture_logs() as logs, caplog.at_level(logging.DEBUG):
+            assert tracing.setup(settings) is None
+    finally:
+        tracing.reset()
+    assert [e["event"] for e in logs] == ["otel_headers_invalid"]
+    assert TOKEN not in f"{logs} {caplog.text}"
+    assert TOKEN not in scrub(f"export failed with {headers}")
+
+
+def test_shutdown_waits_5_seconds_at_most_with_the_collector_down() -> None:
+    settings = make_settings(
+        otel_exporter_otlp_endpoint="http://127.0.0.1:9",
+        otel_exporter_otlp_headers=f"Authorization=Basic%20{TOKEN}",
+    )
+    provider = tracing.setup(settings)
+    try:
+        for n in range(50):
+            with tracing.span(f"queued {n}"):
+                pass
+        started = time.monotonic()
+        tracing.shutdown(timeout_s=1.0)
+        assert time.monotonic() - started < 2.0
+    finally:
+        tracing.reset()
+    assert provider is not None
+
+
 def test_an_endpoint_turns_on_a_bounded_batch_export() -> None:
     settings = make_settings(
         otel_exporter_otlp_endpoint="http://127.0.0.1:9",
-        otel_exporter_otlp_headers="Authorization=Basic%20c2VjcmV0",
+        otel_exporter_otlp_headers=f"Authorization=Basic%20{TOKEN}",
         otel_traces_sampler_arg=0.25,
         GIT_COMMIT="abc1234",
     )

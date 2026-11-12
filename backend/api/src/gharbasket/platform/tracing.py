@@ -3,8 +3,9 @@ is set; tests and local runs export nothing.
 
 The spans are built here, not by the contrib instrumentations, so the never-list holds whatever
 their defaults become: no body, no header value, no query string, no raw path (the route template
-only), no SQL parameter (literals in SQL text become `?` too), no id or personal data, and an
-exception only as its type and the problem `code`, never its message.
+only), no SQL parameter (literals in SQL text become `?` too, and a statement whose literals cannot
+be told apart is reduced to its keyword), no id or personal data, and an exception only as its
+type and the problem `code`, never its message.
 
 - A request (`request_span`, opened by `RequestContextMiddleware`): `<METHOD> <route template>`,
   the status, `gb.request_id` and `gb.problem_code` (set by `errors.problem_response`).
@@ -12,30 +13,35 @@ exception only as its type and the problem `code`, never its message.
 - Outgoing HTTP (`http_client()`): `<METHOD> <host>` with the method, host and status. The W3C
   `traceparent` goes to the ML service only, so one trace covers both services. The S3 store
   (boto3) gets the same spans from `instrument_boto`.
-- A job run and a consumer (`span`, in platform/jobs.py and platform/outbox.py).
-- Logs: `platform.logging.add_trace_ids` puts `trace_id` and `span_id` on every line in a span.
+- A job run and a consumer (`span`, in platform/jobs.py and platform/outbox.py); background work a
+  request starts (the after-commit relay, a route solve) is a trace of its own (`root_span`),
+  linked to the request's span.
+- Logs: `platform.logging.add_trace_ids` puts `trace_id` and `span_id` on every line in a sampled
+  span.
 
 A missing or unreachable collector changes nothing: spans wait in a bounded queue (a full one
-drops them) and an export error is logged at most once a minute.
+drops them), an export error is logged at most once a minute, and shutting down waits 5 s at most.
 """
 
 import logging
 import re
+import threading
 import time
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import httpx2
 import structlog
 from fastapi.telemetry import TelemetryConfig
+from opentelemetry import context as otel_context
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter, SpanExportResult
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
-from opentelemetry.trace import Span, SpanKind, StatusCode
+from opentelemetry.trace import Link, Span, SpanContext, SpanKind, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from sqlalchemy import event
 from sqlalchemy.engine import Engine, ExceptionContext
@@ -46,12 +52,20 @@ from gharbasket.platform.settings import Settings
 log = structlog.get_logger("gharbasket.tracing")
 QUEUE_SIZE = 2048  # spans waiting for export; more are dropped
 EXPORT_TIMEOUT_S = 10.0
+SHUTDOWN_S = 5.0
 ERROR_LOG_EVERY_S = 60.0
 SQL_MAX = 2000
 METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
-# Quoted strings and bare numbers in SQL text; `$1` placeholders and names like `t1` stay.
-_SQL_LITERALS = re.compile(r"'(?:[^']|'')*'|(?<![\w$.])\d+(?:\.\d+)?(?![\w.])")
-
+# Quoted strings, then numbers (hex, exponent, leading dot); `$1` placeholders and names like `t1`
+# stay.
+_SQL_LITERALS = re.compile(
+    r"'(?:[^']|'')*'"
+    r"|(?<![\w$.])(?:0[xX][0-9a-fA-F]+|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?![\w.])"
+)
+# Forms whose literals the pattern above cannot pair reliably: dollar quoting, E'' strings with
+# backslash escapes, and comments. A statement with one is reduced to its keyword.
+_SQL_OPAQUE = re.compile(r"\$\$|\$[A-Za-z_]\w*\$|(?<![\w'])[eE]'|--|/\*")
+_HEADER_NAME = re.compile(r"[a-z0-9!#$%&'*+.^_`|~-]+")
 # FastAPI's own OpenTelemetry (0.142+) is off: it would export traces, metrics and logs (with
 # exception messages) on its own as soon as OTEL_EXPORTER_OTLP_ENDPOINT is set, and record the raw
 # path and query string. Every span is built here instead.
@@ -79,7 +93,7 @@ class QuietExporter(SpanExporter):
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         try:
-            result, reason = self._inner.export(spans), "rejected"
+            result, reason = self._inner.export(spans), "export_failed"
         except Exception as exc:
             result, reason = SpanExportResult.FAILURE, type(exc).__name__
         now = time.monotonic()
@@ -110,24 +124,46 @@ def reset() -> None:
     use_provider(None)
 
 
+def otlp_headers(raw: str) -> dict[str, str] | None:
+    """OTEL_EXPORTER_OTLP_HEADERS (`name=value,...`, values percent-encoded) parsed here, never
+    logged; None when an entry is malformed or no `authorization` results. (The SDK's own parser
+    logs a malformed entry whole, token included.)"""
+    headers: dict[str, str] = {}
+    for item in raw.split(","):
+        name, sep, value = item.partition("=")
+        name, value = name.strip().lower(), unquote(value.strip())
+        if not sep or not value or not _HEADER_NAME.fullmatch(name):
+            return None
+        headers[name] = value
+    return headers if "authorization" in headers else None
+
+
 def setup(settings: Settings) -> TracerProvider | None:
     """Export to OTEL_EXPORTER_OTLP_ENDPOINT when it is set, once per process; otherwise tracing
-    stays as it is (off, or a test's provider). Returns the exporting provider."""
+    stays as it is (off, or a test's provider). Returns the exporting provider. Unreadable
+    OTEL_EXPORTER_OTLP_HEADERS leave export off, logged without the value."""
     global _exporting, _propagate_to
     if settings.ml_service_url and (host := urlsplit(settings.ml_service_url).hostname):
         _propagate_to = frozenset({host})
     if settings.otel_exporter_otlp_endpoint is None or _exporting is not None:
         return _exporting
+    # The exporter also reads the environment's headers with the SDK's parser, which logs a
+    # malformed entry whole: its logger is silenced before the exporter exists.
+    logging.getLogger("opentelemetry.util.re").setLevel(logging.CRITICAL + 1)
+    logging.getLogger("opentelemetry.exporter.otlp").setLevel(logging.CRITICAL)
+    headers = None
+    if settings.otel_exporter_otlp_headers is not None:
+        headers = otlp_headers(settings.otel_exporter_otlp_headers.get_secret_value())
+        if headers is None:
+            log.warning("otel_headers_invalid", variable="OTEL_EXPORTER_OTLP_HEADERS")
+            return None
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from opentelemetry.util.re import parse_env_headers
 
-    headers = settings.otel_exporter_otlp_headers
     exporter = OTLPSpanExporter(
         endpoint=f"{settings.otel_exporter_otlp_endpoint.rstrip('/')}/v1/traces",
-        headers=parse_env_headers(headers.get_secret_value(), liberal=True) if headers else None,
+        headers=headers,
         timeout=EXPORT_TIMEOUT_S,
     )
-    logging.getLogger("opentelemetry.exporter.otlp").setLevel(logging.CRITICAL)
     resource = Resource.create(
         {
             "service.name": settings.otel_service_name,
@@ -137,13 +173,31 @@ def setup(settings: Settings) -> TracerProvider | None:
         }
     )
     _exporting = TracerProvider(
-        resource=resource, sampler=ParentBased(TraceIdRatioBased(settings.otel_traces_sampler_arg))
+        resource=resource,
+        sampler=ParentBased(TraceIdRatioBased(settings.otel_traces_sampler_arg)),
+        shutdown_on_exit=False,  # `shutdown` bounds it; the SDK's own exit can take 30 s
     )
     _exporting.add_span_processor(
         BatchSpanProcessor(QuietExporter(exporter), max_queue_size=QUEUE_SIZE)
     )
     use_provider(_exporting)
     return _exporting
+
+
+def shutdown(timeout_s: float = SHUTDOWN_S) -> None:
+    """Flush and stop the exporter within `timeout_s` (the app's shutdown, inside Render's 30 s
+    grace): spans still queued after that are dropped, never waited for."""
+    provider = _exporting
+    if provider is None:
+        return
+
+    def stop() -> None:
+        provider.force_flush(int(timeout_s * 1000))
+        provider.shutdown()
+
+    worker = threading.Thread(target=stop, name="trace-shutdown", daemon=True)
+    worker.start()
+    worker.join(timeout_s)
 
 
 def _fail(span: Span, exc: BaseException) -> None:
@@ -171,6 +225,30 @@ def span(
             raise
 
 
+def current_context() -> SpanContext:
+    """The current span's context, to link background work to the request that started it."""
+    return trace.get_current_span().get_span_context()
+
+
+@contextmanager
+def root_span(name: str, link_to: SpanContext | None = None) -> Iterator[Span]:
+    """A trace of its own for background work a request started (it may outlive the request and
+    handle other requests' rows), linked to the request's span."""
+    links = [Link(link_to)] if link_to is not None and link_to.is_valid else None
+    token = otel_context.attach(otel_context.Context())
+    try:
+        with _tracer.start_as_current_span(
+            name, links=links, record_exception=False, set_status_on_exception=False
+        ) as current:
+            try:
+                yield current
+            except BaseException as exc:
+                _fail(current, exc)
+                raise
+    finally:
+        otel_context.detach(token)
+
+
 def record_problem(code: str, status: int) -> None:
     """The RFC 9457 answer's `code` on the request's span (errors.problem_response)."""
     current = trace.get_current_span()
@@ -181,6 +259,14 @@ def record_problem(code: str, status: int) -> None:
 
 def record_error(exc: BaseException) -> None:
     _fail(trace.get_current_span(), exc)
+
+
+def log_ids(current: Span) -> dict[str, str]:
+    """`trace_id` and `span_id` of a sampled span, for a log line; nothing otherwise."""
+    context = current.get_span_context()
+    if not context.is_valid or not context.trace_flags.sampled:
+        return {}
+    return {"trace_id": f"{context.trace_id:032x}", "span_id": f"{context.span_id:016x}"}
 
 
 @contextmanager
@@ -246,17 +332,33 @@ def http_client(**kwargs: Any) -> httpx2.AsyncClient:
 # --- the database -------------------------------------------------------------------------------
 
 
+def _operation(statement: str) -> str:
+    words = statement[:40].split(None, 1)
+    return words[0].upper() if words and words[0].isalpha() else "SQL"
+
+
 def sql_text(statement: str) -> str:
-    """The statement with placeholders only: any literal string or number becomes `?`."""
-    return _SQL_LITERALS.sub("?", " ".join(statement.split()))[:SQL_MAX]
+    """The statement with placeholders only: any literal string or number becomes `?`. A
+    statement with dollar quoting, an E'' string or a comment is only its keyword."""
+    if _SQL_OPAQUE.search(statement):
+        return _operation(statement)
+    text = " ".join(statement[: SQL_MAX * 2].split())[: SQL_MAX * 2]
+    if text.count("'") % 2:  # cut inside a literal: drop the unmatched fragment
+        text = text[: text.rfind("'")]
+    return _SQL_LITERALS.sub("?", text)[:SQL_MAX]
 
 
 def _before(_conn: Any, _cursor: Any, statement: str, _params: Any, context: Any, _many: bool):
-    query = sql_text(statement)
-    operation = query.split(" ", 1)[0].upper() or "SQL"
-    attributes = {"db.system.name": "postgresql", "db.query.text": query}
-    if context is not None:
-        context.gb_span = _tracer.start_span(operation, kind=SpanKind.CLIENT, attributes=attributes)
+    if context is None or isinstance(_tracer, trace.NoOpTracer):
+        return  # tracing off: no work per statement
+    current = _tracer.start_span(
+        _operation(statement),
+        kind=SpanKind.CLIENT,
+        attributes={"db.system.name": "postgresql"},
+    )
+    if current.is_recording():  # not sampled: the text is not needed
+        current.set_attribute("db.query.text", sql_text(statement))
+    context.gb_span = current
 
 
 def _after(_conn: Any, _cursor: Any, _statement: str, _params: Any, context: Any, _many: bool):
@@ -267,6 +369,9 @@ def _after(_conn: Any, _cursor: Any, _statement: str, _params: Any, context: Any
 def _error(error: ExceptionContext) -> None:
     if (current := getattr(error.execution_context, "gb_span", None)) is not None:
         _fail(current, error.original_exception)
+        sqlstate = getattr(error.original_exception, "sqlstate", None)
+        if isinstance(sqlstate, str):  # a code, never the message (it can carry values)
+            current.set_attribute("db.response.status_code", sqlstate)
         current.end()
 
 

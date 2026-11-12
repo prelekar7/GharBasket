@@ -158,12 +158,16 @@ _tasks: set[asyncio.Task[None]] = set()
 
 
 def relay_soon(sessionmaker: async_sessionmaker[AsyncSession]) -> asyncio.Task[None]:
-    """Relay in the background, after the request that published has finished."""
+    """Relay in the background, after the request that published has finished. The relay is a
+    trace of its own (`outbox relay`), linked to the request's span: it outlives the request and
+    delivers other requests' events too. The task keeps the request's log context (request_id)."""
+    request = tracing.current_context()
 
     async def run() -> None:
         try:
-            async with sessionmaker() as session:
-                await relay(session)
+            with tracing.root_span("outbox relay", request):
+                async with sessionmaker() as session:
+                    await relay(session)
         except Exception as exc:  # the sweep job retries; a request must never fail for this
             log.warning("outbox_relay_failed", error=type(exc).__name__)
 
