@@ -66,6 +66,7 @@ from gharbasket.modules.orders.service import (
     orders_for_delivery,
 )
 from gharbasket.modules.orders.state import FINAL
+from gharbasket.modules.orders.tiffins import MENU_DAYS as TIFFIN_MENU_DAYS
 from gharbasket.modules.orders.tiffins import MenuChoice, TiffinChoice
 from gharbasket.modules.orders.today import (
     OpenIssueSummary,
@@ -91,6 +92,7 @@ __all__ = [
     "PAYMENT_FAILED",
     "SOLD",
     "TIFFIN_BOOKED",
+    "TIFFIN_MENU_DAYS",
     "UNCOMMITTED_KINDS",
     "ApprovedCycle",
     "CarriedLine",
@@ -123,6 +125,7 @@ __all__ = [
     "carry_target",
     "create_from_cycle",
     "cutoff_for",
+    "default_tiffin_portions",
     "demand_kind",
     "export_for_user",
     "fees_of",
@@ -164,6 +167,12 @@ async def tiffin_choices(
 ) -> list[TiffinChoice]:
     """The tiffin menus a household may still book, by date and meal (M13 §3.1, M4 §3.5)."""
     return await tiffins.choices(session, household_id, hub_id, lang)
+
+
+async def default_tiffin_portions(session: AsyncSession, household_id: uuid.UUID) -> int:
+    """The portions `book_tiffin` books when none are given (M4 §3.5): the household size, at
+    most 12."""
+    return await tiffins.default_portions(session, household_id)
 
 
 async def book_tiffin(

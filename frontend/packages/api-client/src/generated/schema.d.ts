@@ -13279,7 +13279,7 @@ export interface components {
              * Action
              * @enum {string}
              */
-            action: "edit_box_line" | "skip_week";
+            action: "edit_box_line" | "skip_week" | "book_tiffin";
             /**
              * Expires At
              * Format: date-time
@@ -23456,7 +23456,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, subscriptions.cutoff_passed, subscriptions.not_editable */
+            /** @description assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, assistant.price_changed, subscriptions.cutoff_passed, subscriptions.not_editable, orders.tiffin_already_booked (order_id), orders.slot_full */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -23474,7 +23474,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description subscriptions.product_unknown, subscriptions.qty_invalid */
+            /** @description subscriptions.product_unknown, subscriptions.qty_invalid, orders.menu_unknown (closed or no longer offered), orders.slot_invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

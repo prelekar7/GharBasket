@@ -56,7 +56,8 @@ async def test_two_first_turns_of_the_day_at_once_are_both_counted(database_url:
         await engine.dispose()
 
 
-async def test_two_decisions_on_one_card_at_once_apply_once(database_url: str) -> None:
+@pytest.mark.parametrize("action", ["skip_week", "book_tiffin"])
+async def test_two_decisions_on_one_card_at_once_apply_once(database_url: str, action: str) -> None:
     """The card's row is locked while it is decided: the second waits, then finds it decided
     (confirm takes the same lock through `get_proposal(lock=True)`)."""
     engine = create_engine(database_url, pooled=False)
@@ -71,7 +72,7 @@ async def test_two_decisions_on_one_card_at_once_apply_once(database_url: str) -
                 session_id=chat.id,
                 user_id=user,
                 household_id=chat.household_id,
-                action="skip_week",
+                action=action,
                 payload={},
                 summary="Skip",
                 expires_at=service.now() + timedelta(minutes=15),

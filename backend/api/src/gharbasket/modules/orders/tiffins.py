@@ -33,6 +33,12 @@ def bookable_window() -> tuple[date, date]:
     return tomorrow, tomorrow + timedelta(days=MENU_DAYS - 1)
 
 
+async def default_portions(session: AsyncSession, household_id: uuid.UUID) -> int:
+    """What a booking gets when the person does not say: the household size, at most 12."""
+    profile = await identity_api.household_plan_profile(session, household_id)
+    return min(profile.size if profile else 1, MAX_PORTIONS)
+
+
 @dataclass(frozen=True)
 class MenuChoice:
     id: uuid.UUID
@@ -154,8 +160,7 @@ async def book(
     if service.now() >= service.cutoff_for(menu.on_date):
         raise menu_unknown("Bookings for this menu closed at 21:00 the day before.")
     if portions is None:
-        profile = await identity_api.household_plan_profile(session, household.id)
-        portions = min(profile.size if profile else 1, MAX_PORTIONS)
+        portions = await default_portions(session, household.id)
     if not 1 <= portions <= MAX_PORTIONS:
         raise ProblemError(422, "orders.qty_invalid", "Book 1 to 12 portions.")
     product = (await catalog_api.line_products(session, [menu.product_id])).get(menu.product_id)

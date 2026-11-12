@@ -20068,7 +20068,8 @@
           "action": {
             "enum": [
               "edit_box_line",
-              "skip_week"
+              "skip_week",
+              "book_tiffin"
             ],
             "title": "Action",
             "type": "string"
@@ -42019,7 +42020,7 @@
                 }
               }
             },
-            "description": "assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, subscriptions.cutoff_passed, subscriptions.not_editable"
+            "description": "assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, assistant.price_changed, subscriptions.cutoff_passed, subscriptions.not_editable, orders.tiffin_already_booked (order_id), orders.slot_full"
           },
           "412": {
             "content": {
@@ -42039,7 +42040,7 @@
                 }
               }
             },
-            "description": "subscriptions.product_unknown, subscriptions.qty_invalid"
+            "description": "subscriptions.product_unknown, subscriptions.qty_invalid, orders.menu_unknown (closed or no longer offered), orders.slot_invalid"
           }
         },
         "security": [
