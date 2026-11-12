@@ -124,6 +124,7 @@ async def test_documents_are_encrypted_masked_and_move_the_application_to_review
     row = await db_session.get(KycDocument, uuid.UUID(body["id"]))
     assert row is not None and row.key_version == 1
     assert row.number_hash is not None and len(row.number_hash) == 32
+    assert row.hash_version == SETTINGS.kyc_pepper_version
     assert b"ABC1234567" not in (row.number_enc or b"")
     decrypt = text("SELECT pgp_sym_decrypt(:enc, :key)")
     clear = await db_session.scalar(decrypt, {"enc": row.number_enc, "key": SETTINGS.kyc_key})

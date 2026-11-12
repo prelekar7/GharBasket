@@ -100,7 +100,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 |---|---|
 | Encryption in transit | TLS everywhere, terminated by the platforms (Render, Vercel, Neon, R2, third parties) |
 | Encryption at rest | Neon and R2 default encryption |
-| Field-level encryption | KYC numbers (PAN, ID number) encrypted in the application with a key from Infisical; only a masked value (`XXXX-1234`) is shown |
+| Field-level encryption | KYC numbers (PAN, ID number, bank account) encrypted with pgcrypto (`pgp_sym_encrypt`) under a versioned key from Infisical, sent to Postgres only as a bind parameter, and hashed (HMAC-SHA256 with a versioned pepper) for duplicate checks; only a masked value (`XXXX-1234`) is shown, and only the payout account read decrypts (audit-logged). Key and pepper are rotatable: the old one stays as retired until the job `rekey_kyc_documents` has moved every row inside Postgres (M8 §3.1, runbook `rotate-secrets.md`) |
 | No Aadhaar storage | We never store Aadhaar numbers or images. Identity is verified, then only a "verified" flag + masked reference is kept |
 | Private files | KYC documents and delivery proofs in a private bucket; reads use signed URLs valid for 5 minutes. When a module accepts an uploaded photo, the API removes its location (GPS) and other EXIF/XMP metadata (M0 §3.1) |
 | Payment card data | Never touches our servers (Razorpay hosted checkout) |

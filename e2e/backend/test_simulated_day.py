@@ -442,7 +442,7 @@ def test_the_small_hours_before_the_cut_off_run_the_weekly_and_nightly_jobs(
 ) -> None:
     """Monday T-1 00:30 to 03:33 IST, the nightly and Monday jobs of M5, M9, M10, M8, M1: each runs
     clean on the world the day has built (the Kindness lots, referrals, thresholds, vendor scores,
-    deletions and drift it has to find nothing, or little, to do for)."""
+    deletions, drift and KYC keys it has to find nothing, or little, to do for)."""
     monday = day.t - timedelta(days=1)
     summaries: dict[str, Any] = {}
 
@@ -454,6 +454,7 @@ def test_the_small_hours_before_the_cut_off_run_the_weekly_and_nightly_jobs(
             ("compute_vendor_scores", 3, 33),
             ("purge_deleted_users", 3, 33),
             ("monitor_drift", 3, 33),
+            ("rekey_kyc_documents", 3, 33),
         ):
             summaries[name] = await app.job(name, ist(monday, hour, minute))
         await app.sweep(ist(monday, 3, 40))
@@ -467,6 +468,13 @@ def test_the_small_hours_before_the_cut_off_run_the_weekly_and_nightly_jobs(
     purge = summaries["purge_deleted_users"]
     assert (purge["purged"], purge["blocked"], purge["overdue"], purge["failed"]) == (0, {}, [], {})
     assert summaries["monitor_drift"]["drifted"] == 0, summaries
+    rekey = summaries["rekey_kyc_documents"]  # every KYC number is already on the current key
+    assert (rekey["rekeyed"], rekey["rehashed"], rekey["remaining"], rekey["missing_key"]) == (
+        0,
+        0,
+        0,
+        0,
+    ), rekey
 
 
 def test_monday_morning_pays_the_partners_last_week_once(

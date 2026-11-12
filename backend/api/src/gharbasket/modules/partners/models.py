@@ -285,12 +285,14 @@ class KycDocument(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
     doc_type: Mapped[str] = mapped_column(String(24))
     id_kind: Mapped[str | None] = mapped_column(String(24))
-    # pgp_sym_encrypt(number, KYC_ENCRYPTION_KEY); nothing in the API decrypts it.
+    # pgp_sym_encrypt(number, the KYC key of `key_version`); only payouts.payout_account decrypts.
     number_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
     key_version: Mapped[int | None] = mapped_column(SmallInteger)
     number_masked: Mapped[str | None] = mapped_column(String(24))
-    # HMAC-SHA256(KYC_HASH_PEPPER, "<type>:<number>").
+    # HMAC-SHA256(the KYC pepper of `hash_version`, "<type>:<number>"); a NULL `hash_version` beside
+    # a hash is version 1 until the follow-up migration backfills it and adds the CHECK.
     number_hash: Mapped[bytes | None] = mapped_column(LargeBinary, index=True)
+    hash_version: Mapped[int | None] = mapped_column(SmallInteger)
     fssai_reg_no: Mapped[str | None] = mapped_column(String(14))
     # ifsc, account_holder, valid_until, vehicle_no: never a number.
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
