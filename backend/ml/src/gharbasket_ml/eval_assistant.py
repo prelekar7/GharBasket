@@ -1,8 +1,9 @@
 """`just eval-assistant`: score Ghar Saathi on the labelled utterance set (M13 §9, ADR-0013).
 
 Each utterance in `data/eval/assistant_utterances.jsonl` has `text`, `language`, `intent` (one of
-the four tools, `greeting` or `out_of_scope`), `slots` and `injection`. The loop runs against a
-fixed trimmed week (what the API would send; no database, no network but Anthropic), once per
+the six tools, `get_tiffin_menus`, `greeting` or `out_of_scope`), `slots` and `injection`. The loop
+runs against a fixed trimmed week, orders and tiffin menus (what the API would send; no database,
+no network but Anthropic), once per
 candidate model; the report gives intent accuracy, slot F1, the injection rule (no intent, no
 write tool) and the cost a turn at the list prices.
 
@@ -16,7 +17,7 @@ import json
 import re
 import sys
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,8 @@ from gharbasket_ml.schemas import (
     AssistantMessage,
     AssistantTurnRequest,
     AssistantTurnResponse,
+    OrderContext,
+    TiffinContext,
     WeekContext,
 )
 from gharbasket_ml.settings import Settings
@@ -32,8 +35,18 @@ from gharbasket_ml.settings import Settings
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_SET = REPO_ROOT / "data" / "eval" / "assistant_utterances.jsonl"
 DEFAULT_OUT = REPO_ROOT / "docs" / "eval"
-INTENTS = ("get_my_week", "explain_item", "edit_box_line", "skip_week", "greeting", "out_of_scope")
-WRITE_TOOLS = ("edit_box_line", "skip_week")
+INTENTS = (
+    "get_my_week",
+    "explain_item",
+    "edit_box_line",
+    "skip_week",
+    "track_order",
+    "get_tiffin_menus",
+    "book_tiffin",
+    "greeting",
+    "out_of_scope",
+)
+WRITE_TOOLS = ("edit_box_line", "skip_week", "book_tiffin")
 # USD per million tokens: (input, output, cache read, cache write at the 5-minute TTL), the
 # Anthropic list prices (claude-api skill, 25 Sep 2026): cache writes are 1.25x input; cache reads
 # are $0.20 on Opus 5.5 and Sonnet 5.5 and 0.1x input ($0.10) on Haiku 4.5.
@@ -80,6 +93,67 @@ WEEK = WeekContext.model_validate(
 )
 
 
+# What the API would send besides the week (M13 §3.1): the IST date, the household's orders and
+# the bookable tiffin menus. "Tomorrow" has two lunch menus and one dinner menu; the day after
+# tomorrow's lunch is already booked.
+TODAY = "2026-10-12"
+ORDERS = [
+    OrderContext.model_validate(o)
+    for o in (
+        {
+            "handle": "O1",
+            "kind": "tiffin",
+            "status": "dispatched",
+            "delivery_date": TODAY,
+            "meal": "lunch",
+            "window": {"start": "12:30", "end": "13:30"},
+            "eta": "13:10",
+            "on_the_way": True,
+        },
+        {
+            "handle": "O2",
+            "kind": "box",
+            "status": "approved",
+            "delivery_date": "2026-10-13",
+            "window": {"start": "08:00", "end": "10:00"},
+        },
+    )
+]
+TIFFIN = TiffinContext.model_validate(
+    {
+        "options": [
+            {
+                "date": "2026-10-13",
+                "meal": "lunch",
+                "order_by": "2026-10-12T15:30:00Z",
+                "menus": [
+                    {"handle": "T1", "dishes": ["Dal tadka", "Jeera rice"], "price_paise": 11000},
+                    {"handle": "T2", "dishes": ["Paneer bhurji", "Roti"], "price_paise": 13000},
+                ],
+            },
+            {
+                "date": "2026-10-13",
+                "meal": "dinner",
+                "order_by": "2026-10-12T15:30:00Z",
+                "menus": [{"handle": "T3", "dishes": ["Khichdi", "Kadhi"], "price_paise": 9500}],
+            },
+            {
+                "date": "2026-10-14",
+                "meal": "lunch",
+                "order_by": "2026-10-13T15:30:00Z",
+                "booked": True,
+            },
+            {
+                "date": "2026-10-14",
+                "meal": "dinner",
+                "order_by": "2026-10-13T15:30:00Z",
+                "menus": [{"handle": "T4", "dishes": ["Rajma", "Rice"], "price_paise": 10500}],
+            },
+        ]
+    }
+)
+
+
 def price_of(model: str) -> tuple[float, float, float, float]:
     """The list prices of a model, by alias or dated snapshot id."""
     found = PRICES.get(model) or PRICES.get(DATED.sub("", model))
@@ -120,6 +194,12 @@ def intent_hit(expected: str, answer: AssistantTurnResponse) -> bool:
     return predicted_intent(answer) == expected
 
 
+def day_word(iso: str) -> str:
+    """A date as the labels write it: today, tomorrow, else the ISO date."""
+    days = (date.fromisoformat(iso) - date.fromisoformat(TODAY)).days
+    return {0: "today", 1: "tomorrow"}.get(days, iso)
+
+
 def predicted_slots(answer: AssistantTurnResponse) -> dict[str, str]:
     for intent in answer.intents:
         if intent.action == "edit_box_line":
@@ -131,6 +211,11 @@ def predicted_slots(answer: AssistantTurnResponse) -> dict[str, str]:
             return slots
         if intent.action == "skip_week" and intent.week:
             return {"week": intent.week}
+        if intent.action == "book_tiffin":
+            slots = {"date": day_word(intent.date or TODAY), "meal": str(intent.meal)}
+            if intent.menu:
+                slots["menu"] = intent.menu
+            return slots
     return {}
 
 
@@ -163,7 +248,10 @@ def summarise(model: str, rows: list[dict[str, Any]], answers: list[AssistantTur
         correct += hit
         by_language.setdefault(row["language"], []).append(hit)
         if row["intent"] in WRITE_TOOLS:  # the product, op and qty of an edit; a skip's week
-            a, b, c = slot_counts(row.get("slots", {}), predicted_slots(answer))
+            got = predicted_slots(answer)
+            if "menu" not in row.get("slots", {}):  # the menu is scored only where it is chosen
+                got.pop("menu", None)
+            a, b, c = slot_counts(row.get("slots", {}), got)
             tp, predicted, expected = tp + a, predicted + b, expected + c
         if row.get("injection"):
             injections += 1
@@ -202,6 +290,9 @@ async def score(
             locale={"hi": "hi-IN", "mr": "mr-IN"}.get(row["language"], "en-IN"),
             messages=[AssistantMessage(role="user", content=row["text"])],
             week=WEEK,
+            today=TODAY,
+            orders=ORDERS,
+            tiffin=TIFFIN,
         )
         answers.append(await assistant.turn(request, client, model=model))
     return answers

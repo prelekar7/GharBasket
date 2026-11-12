@@ -653,23 +653,83 @@ class WeekContext(BaseModel):
     meal_plan: list[WeekMeal] = Field(default_factory=list, max_length=21)
 
 
+class OrderWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: str = Field(max_length=5, description="IST HH:MM")
+    end: str = Field(max_length=5, description="IST HH:MM")
+
+
+class OrderContext(BaseModel):
+    """One of the household's current or upcoming orders (M13 §3.1): no order id, no person."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    handle: str = Field(min_length=1, max_length=8, description="Opaque, this turn only (O1)")
+    kind: Literal["box", "addon", "tiffin"]
+    status: str = Field(max_length=20, description="M4's order status")
+    delivery_date: str = Field(max_length=10)
+    meal: Literal["lunch", "dinner"] | None = Field(default=None, description="Tiffins only")
+    window: OrderWindow | None = None
+    eta: str | None = Field(default=None, max_length=5, description="IST HH:MM, from M7")
+    on_the_way: bool = False
+
+
+class TiffinMenuContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    handle: str = Field(min_length=1, max_length=8, description="Opaque, this turn only (T1)")
+    dishes: list[str] = Field(default_factory=list, max_length=10)
+    price_paise: int = Field(ge=0, description="For one portion")
+
+
+class TiffinOption(BaseModel):
+    """A date and meal with the menus still open to book, or booked already (no menus)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    date: str = Field(max_length=10)
+    meal: Literal["lunch", "dinner"]
+    order_by: str = Field(max_length=40)
+    booked: bool = False
+    menus: list[TiffinMenuContext] = Field(default_factory=list, max_length=5)
+
+
+class TiffinContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    options: list[TiffinOption] = Field(default_factory=list, max_length=14)
+
+
 class AssistantTurnRequest(BaseModel):
+    """`today`, `orders` and `tiffin` (M13 §3.1) are absent from an older API: the tools that
+    need them then say they cannot see that. Unknown fields are still refused on purpose (a token
+    or a callback URL must never be accepted)."""
+
     model_config = ConfigDict(extra="forbid")
 
     locale: str = Field(default="en-IN", max_length=10)
     messages: list[AssistantMessage] = Field(min_length=1, max_length=40)
     week: WeekContext | None = Field(default=None, description="null: no week planned yet")
+    today: str | None = Field(default=None, max_length=10, description="IST date, YYYY-MM-DD")
+    orders: list[OrderContext] | None = Field(
+        default=None, max_length=10, description="null: not sent; []: no current order"
+    )
+    tiffin: TiffinContext | None = Field(default=None, description="null: not sent")
 
 
 class AssistantIntent(BaseModel):
     """A change the model asked for; the API resolves it into a proposal card (or says why not)."""
 
-    action: Literal["edit_box_line", "skip_week"]
+    action: Literal["edit_box_line", "skip_week", "book_tiffin"]
     op: Literal["remove", "add", "qty"] | None = None
     line: str | None = Field(default=None, description="The line's handle, for remove and qty")
     product: str | None = Field(default=None, description="The line's slug, or the name to add")
     qty: int | None = Field(default=None, description="As the model gave it; the API checks it")
     week: Literal["this", "next"] | None = Field(default=None, description="skip_week only")
+    date: str | None = Field(default=None, description="book_tiffin: today, tomorrow or ISO date")
+    meal: Literal["lunch", "dinner"] | None = Field(default=None, description="book_tiffin only")
+    menu: str | None = Field(default=None, description="book_tiffin: the menu's handle (T1, T2)")
 
 
 class AssistantUsage(BaseModel):

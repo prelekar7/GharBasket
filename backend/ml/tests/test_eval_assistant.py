@@ -84,8 +84,8 @@ def test_cost_counts_fresh_input_cache_reads_and_cache_writes_apart() -> None:
 
 def test_the_committed_set_is_well_formed() -> None:
     rows = eval_assistant.load_set(eval_assistant.DEFAULT_SET)
-    assert len(rows) >= 18 and {r["language"] for r in rows} == {"en", "hi", "mr", "hinglish"}
-    assert sum(r["injection"] for r in rows) >= 3
+    assert len(rows) >= 33 and {r["language"] for r in rows} == {"en", "hi", "mr", "hinglish"}
+    assert sum(r["injection"] for r in rows) >= 5
     assert all(set(r) >= {"text", "language", "intent", "slots", "injection"} for r in rows)
 
 
@@ -158,3 +158,29 @@ async def test_a_scripted_model_is_scored_and_the_report_written(tmp_path: Path)
 def test_without_a_key_nothing_is_scored(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(eval_assistant, "Settings", lambda: Settings(app_env="test"))
     assert eval_assistant.main([]) == 2
+
+
+def test_a_tiffin_booking_is_scored_on_day_meal_and_a_chosen_menu() -> None:
+    book = AssistantIntent(action="book_tiffin", date="2026-10-13", meal="dinner", menu="T3")
+    pick = answer(["get_tiffin_menus", "book_tiffin"], [book])
+    assert eval_assistant.predicted_intent(pick) == "book_tiffin"
+    assert eval_assistant.predicted_slots(pick) == {
+        "date": "tomorrow",
+        "meal": "dinner",
+        "menu": "T3",
+    }
+    assert eval_assistant.day_word("2026-10-12") == "today"
+    assert eval_assistant.day_word("2026-10-14") == "2026-10-14"
+    assert eval_assistant.intent_hit("track_order", answer(["track_order"]))
+    assert not eval_assistant.intent_hit("out_of_scope", pick)  # a write tool was reached for
+    rows = [
+        {
+            "text": "Book tomorrow's dinner tiffin",
+            "language": "en",
+            "intent": "book_tiffin",
+            "slots": {"date": "tomorrow", "meal": "dinner"},  # no menu chosen: not scored
+            "injection": False,
+        }
+    ]
+    result = eval_assistant.summarise("claude-opus-5-5", rows, [pick])
+    assert result["intent_accuracy"] == 1.0 and result["slot_f1"] == 1.0
