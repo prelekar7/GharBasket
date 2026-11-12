@@ -410,6 +410,7 @@ POST /v1/admin/order-issues/{id}/resolve      Idempotency-Key required (it may m
 
 ### 3.7 Facade additions for the leftovers (drafted 2026-10-09)
 - `has_open_orders(session, household_id) -> bool` and `has_open_issues(session, household_id) -> bool`: preconditions of M1's purge (M1 §3.5).
+- **For M13's `book_tiffin` and `track_order` (M13 §3.1, drafted 2026-11-12):** `household_orders(session, household_id, today) -> list[Order]` (not cancelled, delivering today or later or not yet final, oldest first, at most 10); `tiffin_choices(session, household_id, hub_id, lang) -> list[TiffinChoice]` (the menus `GET /v1/tiffin-menus` lists for tomorrow … +6, grouped by date and meal, with `booked` for a meal the household already has); `default_tiffin_portions(session, household_id) -> int` (the household size, at most 12); and `book_tiffin(session, user_id, menu_id, portions=None) -> Order`, the function behind `POST /v1/orders` for `kind: tiffin` with the same rules and errors (§3.5).
 - `anonymise_for_user(session, user_id, household_id) -> dict[str, int]` (M1 §3.5):
   - deletes the household's issue photos (`platform.files`) and clears `photo_keys` and `note`;
   - sets `order_events.actor_user_id` to null where it is this user;

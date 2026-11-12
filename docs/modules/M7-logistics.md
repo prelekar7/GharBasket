@@ -340,6 +340,8 @@ GET /v1/deliveries/{order_id}     the order's household (any member) or hub staf
   404 "logistics.delivery_not_found"   not an order of the caller's household
 ```
 
+**For M13** (the assistant's `track_order`, M13 §3.1, drafted 2026-11-12): `logistics.api.delivery_signals(session, orders) -> {order_id: DeliverySignal(status, window, eta, on_the_way)}` is read-only and gives the same `status`, `window` and `eta` as this card, and `on_the_way` is `tracking is not None`. It returns no captain, code, proof or route id.
+
 **For the mobile mocks** (`feat/mobile-orders`, `mocks/orders.js`; `feat/mobile-box-addons`, `lib/outbox.test.js`)
 
 | Mock today | Contract |

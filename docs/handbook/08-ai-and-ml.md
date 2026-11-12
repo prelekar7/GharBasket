@@ -282,7 +282,7 @@ Every experiment runs on at least 5 simulator seeds and reports mean ± 95 % CI;
 
 **Built 5 Oct 2026 (F23/F24):** the loop in `backend/ml/src/gharbasket_ml/assistant.py` (`POST /assistant/turn`, four tools, strict schemas, caching, refusal fallback, four tool rounds a turn), the API module `assistant` (sessions, scrubbed messages, 15-minute proposals, `usage_daily` cap, `expire_proposals`), and `just eval-assistant` (intent accuracy, slot F1, the injection rule, cost a turn) on `data/eval/assistant_utterances.jsonl`. The ML service needs the secret `ANTHROPIC_API_KEY` (not set on staging, ADR-0030); without it the API answers with a fixed fallback reply (`source: fallback`).
 - Built with the Anthropic Python SDK. **The ML service never calls our API** (decided 8 Oct 2026, M13 §3): the API sends the scrubbed conversation and a trimmed week (no household or user id, name, address or token), the read tools answer from that week, and the write tools come back as intents that the API resolves into proposals:
-  - `get_my_week`, `edit_box_line`, `skip_week`, `explain_item` (S8); `book_tiffin`, `track_order` later.
+  - `get_my_week`, `edit_box_line`, `skip_week`, `explain_item` (S8); `track_order` and `book_tiffin` (M13 §3.1; drafted 12 Nov 2026, built after approval).
 - Tools use `strict: true` schemas (no numeric bounds; ranges are in the descriptions and the API checks them) with `tool_choice: auto` (current Claude models reject forced tool choice); low effort, thinking blocks echoed unchanged between tool rounds.
 - Every write returns a **proposed change** that the user must confirm in the UI; the LLM never commits changes on its own.
 - **Prompt caching** on the system prompt and tool definitions.
