@@ -9,11 +9,17 @@ import hashlib
 import time
 
 import structlog
+from fastapi import Request
 from redis.asyncio import Redis
 
 from gharbasket.platform.errors import ProblemError
 
 log = structlog.get_logger("gharbasket.rate_limit")
+
+# The pages anyone may read without signing in (`/v1/public/*`: M12's society page, M8's cook
+# page) share one counter per IP and one cache header (sent on 200 only).
+PUBLIC_PER_MINUTE = 60
+PUBLIC_CACHE = "public, max-age=300, stale-while-revalidate=600"
 
 
 def private_key(value: str) -> str:
@@ -50,3 +56,20 @@ async def enforce(
     if int(count) > limit:
         retry_after = window_s - now % window_s
         raise ProblemError(429, code, detail, headers={"Retry-After": str(retry_after)})
+
+
+def client_ip(request: Request) -> str:
+    # On Render, uvicorn runs with --proxy-headers, so this is the real caller's address.
+    return request.client.host if request.client else "unknown"
+
+
+async def enforce_public(valkey: Redis | None, request: Request) -> None:
+    """Count one request to a `/v1/public/*` page against the caller's IP (60 a minute)."""
+    await enforce(
+        valkey,
+        f"public:ip:{client_ip(request)}",
+        limit=PUBLIC_PER_MINUTE,
+        window_s=60,
+        code="request.rate_limited",
+        detail="Too many requests. Wait a little and try again.",
+    )

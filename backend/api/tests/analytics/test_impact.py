@@ -28,6 +28,7 @@ from gharbasket.modules.analytics.models import (
 )
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.community.models import Ngo, Society
+from gharbasket.platform import rate_limit
 from gharbasket.tools.seed import (
     SEED_HUB_ID,
     SEED_NGO_ID,
@@ -855,7 +856,7 @@ def walk_set(value: Any) -> set[str]:
 async def test_the_per_ip_rate_limit_applies(
     clients: ClientFactory, valkey: Redis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(impact_router, "PUBLIC_REQUESTS_PER_MINUTE", 2)
+    monkeypatch.setattr(rate_limit, "PUBLIC_PER_MINUTE", 2)
     api: httpx2.AsyncClient = clients(valkey=valkey)
     path = "/v1/public/societies/sunrise-towers-kharghar"
 

@@ -700,6 +700,15 @@ PATCH /v1/kitchens/me  also takes "public_profile": true | false             (If
 2. **Locality.** Recommended: the hub's name, not her `area`, as above. The alternative is the `area` she typed, which she sees in the preview before agreeing.
 3. **Portions served.** Recommended: left off the public page, as above. It stays on the signed-in card.
 
+**As built (the public cook page, 2026-11-13).** The three questions are settled with the recommended answers: the FSSAI number in full, the hub's name, and no `portions_served`.
+- **The switch.** `PATCH /v1/kitchens/me` takes `public_profile: true | false` with `If-Match`, as the other fields do; `null` changes nothing. Asking for the state the page is already in keeps the handle and writes no audit row. Each real change bumps the kitchen's `version` and writes `kitchen.public_profile` (`after: { on }`, actor her user id, entity the kitchen). `public_profile.since` is the UTC time she turned it on, and `url` is `PUBLIC_WEB_URL` without a trailing slash, then `/cook/<handle>`. The inspection's answer (the same `Kitchen`) shows hub staff the same `public_profile`.
+- **The handle** is drawn with `secrets.choice` and drawn again on a clash with a live handle (up to 8 times); the column is unique. A path that is not 10 characters of `a-z2-7` gets the same 404 without a lookup, so a malformed handle is never a 422.
+- **`fssai`** is null when the kitchen has no registration number (a seeded kitchen); `valid_until` may be null, as on the card.
+- **`trainings`** lists the modules she has a passed attempt for: the kitchen's required ones in their order (`app_basics`, `hygiene`, `kitchen_ops`), then any other passed module by code. Titles come from the module's current active version, so a retired module is not shown.
+- **`dishes`** counts assignment rows that are `delivered` on assignment dates from today − 59 to today (60 IST dates). Portions are summed per product through a new M4 facade, `orders.api.tiffin_products(order_ids)` (the order's box line, in one read). Names come from `catalog.api.line_products`, so an inactive product is left out; equal portions are ordered by name.
+- **Limiter and cache.** The per-IP counter (`public:ip:<ip>`, 60 a minute) and the cache header moved from M12's router into `platform.rate_limit` (`enforce_public`, `PUBLIC_CACHE`), because import-linter forbids M8 to import M12's router. Both public pages count against one counter. `Vary: Accept-Language` and `Content-Language` come from the shared `Lang` dependency. A 404 or a 429 has no cache header.
+- **Lifecycle.** `leave_for_user` clears a departing kitchen's handle and `public_since`; `anonymise_for_user` clears both as personal kitchen fields too. The export's `public_profile.since` is a UTC timestamp.
+
 ### 3.6 Earnings (frozen for S6)
 Money stays in M5's ledger. M8 only decides **who earns what for which event**, from its rate card, and asks M5 to post it.
 
@@ -1092,11 +1101,11 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 ## 10. Dependencies
 - **M1** (`identity.api`: household and society of a user, `household_location`, names and phones for hub staff, `user_names` for the income certificate; role grants on M8's and M9's events).
 - **M9** (`community.api`: society names and points, `captain_for_society` for the review queue; appoints captains on `partners.verified`).
-- **M4** (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with actor `kitchen` and `actor_user_id`, `set_kitchen`, `get_order_ref` for ratings; fulfilment events with `kind`, `actor` and `actor_user_id`).
+- **M4** (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with actor `kitchen` and `actor_user_id`, `set_kitchen`, `get_order_ref` for ratings, `tiffin_products` for the public cook page; fulfilment events with `kind`, `actor` and `actor_user_id`).
 - **M10** (`intel_gateway.api.assign_kitchens`, M10 §3.5 on `feat/M10-assign-kitchens`).
 - **M2** (`catalog.api`: tiffin products and their skill tags).
 - **M5** (`billing.api`: `accrue_earning`, `partner_week`, `partner_rolling_earnings`; M5 §3.5; `partner_months` for the income certificate, §3.7).
-- **M6** (`hub_ops.api.get_hub`: the hub's name on the income certificate).
+- **M6** (`hub_ops.api.get_hub`: the hub's name on the income certificate and the public cook page).
 - **M0** (`platform.files` for `kyc_document` and `income_certificate`, audit log, rate limits, jobs, and the PDF helper `platform.pdf`, §3.7).
 - **M7** (rider pickup through `partners.api.pickup`).
 - **M11** (notifications for the events above).

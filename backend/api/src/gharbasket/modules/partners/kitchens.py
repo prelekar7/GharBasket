@@ -10,6 +10,7 @@ Capacity for a date and meal is her `set` override, else her weekday default. Ov
 offered: the assignment rounds read what is left (`capacity_left`, §3.4).
 """
 
+import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -41,6 +42,8 @@ MAX_PORTIONS = 100
 WINDOW_DAYS = 14  # capacity is read and set from today for at most 14 days
 DEFAULT_DAYS = 7
 DAYS_IN_WEEK = 7
+HANDLE_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567"  # base32 in lower case: 5 bits a character
+HANDLE_LENGTH = 10
 
 
 def now() -> datetime:
@@ -185,10 +188,51 @@ async def edit(
     if "location" in changes:
         pin = changes["location"]
         kitchen.location = None if pin is None else point(pin["lat"], pin["lng"])
+    if "public_profile" in changes:
+        await set_public(session, partner, kitchen, on=changes["public_profile"])
     kitchen.version += 1
     await session.flush()
     await session.refresh(kitchen)  # lat and lng follow the new location
     return kitchen
+
+
+def new_handle() -> str:
+    return "".join(secrets.choice(HANDLE_ALPHABET) for _ in range(HANDLE_LENGTH))
+
+
+async def set_public(
+    session: AsyncSession, partner: Partner, kitchen: Kitchen, *, on: bool
+) -> None:
+    """Her public cook page (§3.5), on or off, by her alone; each change is audit-logged. On mints
+    a fresh handle (drawn again on a clash); off clears it, so an old link stays dead."""
+    if on == (kitchen.public_handle is not None):
+        return
+    if on:
+        for _ in range(8):
+            handle = new_handle()
+            taken = await session.scalar(
+                select(Kitchen.partner_id).where(Kitchen.public_handle == handle)
+            )
+            if taken is None:
+                break
+        else:
+            raise RuntimeError("could not draw a free public handle")
+        kitchen.public_handle, kitchen.public_since = handle, now()
+    else:
+        clear_public(kitchen)
+    await audit.record(
+        session,
+        actor_user_id=partner.user_id,
+        action="kitchen.public_profile",
+        entity_type="kitchen",
+        entity_id=str(kitchen.partner_id),
+        after={"on": on},
+    )
+
+
+def clear_public(kitchen: Kitchen) -> None:
+    """No public page: she turned it off or left (§3.5)."""
+    kitchen.public_handle, kitchen.public_since = None, None
 
 
 async def inspect(

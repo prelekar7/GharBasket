@@ -14,7 +14,7 @@ from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.partners import cooking, events, kitchens
-from gharbasket.modules.partners.models import Partner
+from gharbasket.modules.partners.models import Kitchen, Partner
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
@@ -202,7 +202,8 @@ async def set_paused(session: AsyncSession, partner: Partner, *, paused: bool) -
 async def leave_for_user(session: AsyncSession, user_id: uuid.UUID) -> int:
     """She asked to delete her account (M1 §3.5): every record of hers that has not left becomes
     `left`, her offered and accepted tiffins are cancelled as for a suspension, `partners.suspended`
-    goes out with `reason_code: "left"` (M9 ends a captain's appointment, M1 the role), and her
+    goes out with `reason_code: "left"` (M9 ends a captain's appointment, M1 the role), a kitchen's
+    public page is cleared, and her
     KYC files may be deleted 30 days later. What she earned is still paid (§3.7). Returns how
     many records left; running it again changes nothing."""
     from gharbasket.modules.partners import kyc  # deferred: kyc imports this module's siblings
@@ -224,6 +225,9 @@ async def leave_for_user(session: AsyncSession, user_id: uuid.UUID) -> int:
         )
         if partner.kind == "kitchen":
             await cooking.cancel_for_partner(session, partner.id, kitchens.today())
+            kitchen = await session.get(Kitchen, partner.id)
+            if kitchen is not None:
+                kitchens.clear_public(kitchen)  # her public page goes with her (§3.5)
         await publish(session, events.SUSPENDED, {**_ref(partner), "reason_code": "left"})
     if gone:
         await kyc.release_files(

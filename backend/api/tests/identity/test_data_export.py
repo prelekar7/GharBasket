@@ -319,6 +319,7 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
         "training_attempts": [],
         "partners": [],
         "ratings": [],
+        "public_profile": None,
     }
     assert sections["community"] == {
         "captain_appointments": [],
