@@ -309,7 +309,7 @@ async def revenue_recognised_on_delivery(session: AsyncSession) -> list[str]:
             continue
         got = status.get(r.ref_id)
         retained = (r.details or {}).get("reason") == "retained"
-        if got == "refunded" and not retained or got not in ("delivered", "refunded"):
+        if (got == "refunded" and not retained) or got not in ("delivered", "refunded"):
             out.append(f"revenue for order {r.ref_id}, which is {got}")
         elif got == "delivered" and retained:
             out.append(f"retained revenue for order {r.ref_id}, which is delivered")
