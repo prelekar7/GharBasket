@@ -27,6 +27,7 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
     func,
@@ -343,6 +344,10 @@ class Kitchen(Base):
     default_portions: Mapped[dict[str, list[int]]] = mapped_column(JSONB)
     hygiene_grade: Mapped[str | None] = mapped_column(String(1))
     inspected_on: Mapped[date | None] = mapped_column(Date)
+    # Her public page (§3.5), only while she has it on: 10 random characters from a-z2-7, never
+    # reused after she turns it off.
+    public_handle: Mapped[str | None] = mapped_column(Text, unique=True)
+    public_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
 
     lat: Mapped[float | None] = column_property(func.ST_Y(func.geometry(location)))

@@ -20,6 +20,7 @@ from gharbasket.modules.partners.schemas import (
     InspectionIn,
     KitchenOut,
     KitchenPatchIn,
+    PublicProfileOut,
     WeekPortions,
 )
 from gharbasket.platform.db import DbSession
@@ -28,6 +29,7 @@ from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.geo import LatLng
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.settings import get_settings
 
 router = APIRouter(tags=["partners"])
 
@@ -44,6 +46,18 @@ OWN: dict[int | str, dict[str, Any]] = {
     403: _problem("auth.forbidden, auth.role_not_granted"),
     404: _problem("partners.kitchen_not_found"),
 }
+
+
+def public_profile(kitchen: Kitchen) -> PublicProfileOut | None:
+    """Her public page's handle and link, for her to share (§3.5); None while it is off."""
+    if kitchen.public_handle is None or kitchen.public_since is None:
+        return None
+    base = get_settings().public_web_url.rstrip("/")
+    return PublicProfileOut(
+        handle=kitchen.public_handle,
+        url=f"{base}/cook/{kitchen.public_handle}",
+        since=kitchen.public_since,
+    )
 
 
 def kitchen_out(partner: Partner, kitchen: Kitchen) -> KitchenOut:
@@ -68,6 +82,7 @@ def kitchen_out(partner: Partner, kitchen: Kitchen) -> KitchenOut:
         skills=list(kitchen.skills),
         default_portions=WeekPortions(**kitchen.default_portions),
         hygiene=hygiene,
+        public_profile=public_profile(kitchen),
         version=kitchen.version,
     )
 
@@ -91,7 +106,8 @@ async def my_kitchen(permit: CanWrite, session: DbSession, response: Response) -
 
 @router.patch(
     "/kitchens/me",
-    summary="Edit your kitchen: name, area, address, pin, skills, weekly portions (If-Match)",
+    summary="Edit your kitchen: name, area, address, pin, skills, weekly portions, public page "
+    "(If-Match)",
     responses={
         **OWN,
         412: _problem("request.version_mismatch: reload and try again"),
@@ -109,8 +125,9 @@ async def edit_kitchen(
     if kitchen.version != expected:
         raise ProblemError(412, "request.version_mismatch", "The kitchen changed; reload it.")
     changes = body.model_dump(exclude_unset=True)
-    if changes.get("display_name", "") is None:
-        changes.pop("display_name")
+    for field in ("display_name", "public_profile"):
+        if field in changes and changes[field] is None:
+            changes.pop(field)
     await kitchens.edit(session, partner, kitchen, changes)
     out = kitchen_out(partner, kitchen)
     await session.commit()

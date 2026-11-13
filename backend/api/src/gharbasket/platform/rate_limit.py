@@ -7,13 +7,21 @@ limits OTP sending, and a broken limiter must not stop people signing in.
 
 import hashlib
 import time
+from collections.abc import Mapping
 
 import structlog
+from fastapi import Request
 from redis.asyncio import Redis
 
 from gharbasket.platform.errors import ProblemError
 
 log = structlog.get_logger("gharbasket.rate_limit")
+
+# The pages anyone may read without signing in (`/v1/public/*`: M12's society page, M8's cook
+# page) share one counter per IP and one cache header (sent on 200 only).
+PUBLIC_PER_MINUTE = 60
+PUBLIC_CACHE = "public, max-age=300, stale-while-revalidate=600"
+NO_STORE = {"Cache-Control": "no-store"}  # a public page's 404 or 429 is never cached
 
 
 def private_key(value: str) -> str:
@@ -30,6 +38,7 @@ async def enforce(
     offset_s: int = 0,
     code: str = "auth.rate_limited",
     detail: str = "Too many attempts. Wait a little and try again.",
+    headers: Mapping[str, str] | None = None,
 ) -> None:
     """Count one attempt for `name`; 429 with `code` once `limit` is passed.
 
@@ -49,4 +58,29 @@ async def enforce(
         return
     if int(count) > limit:
         retry_after = window_s - now % window_s
-        raise ProblemError(429, code, detail, headers={"Retry-After": str(retry_after)})
+        raise ProblemError(
+            429, code, detail, headers={**(headers or {}), "Retry-After": str(retry_after)}
+        )
+
+
+def client_ip(request: Request) -> str:
+    # On Render, uvicorn runs with --proxy-headers, so this is the real caller's address.
+    return request.client.host if request.client else "unknown"
+
+
+async def enforce_public(valkey: Redis | None, request: Request) -> None:
+    """Count one request to a `/v1/public/*` page against the caller's IP (60 a minute)."""
+    await enforce(
+        valkey,
+        f"public:ip:{client_ip(request)}",
+        limit=PUBLIC_PER_MINUTE,
+        window_s=60,
+        code="request.rate_limited",
+        detail="Too many requests. Wait a little and try again.",
+        headers=NO_STORE,
+    )
+
+
+def public_not_found(code: str, detail: str) -> ProblemError:
+    """A public page's 404, sent with `Cache-Control: no-store`."""
+    return ProblemError(404, code, detail, headers=NO_STORE)
