@@ -228,7 +228,7 @@ flowchart LR
 | Maps / routing | MapLibre + OpenFreeMap/MapTiler; OSRM self-hosted | No Google Maps bills |
 | Hosting | Free tiers (D20): Render (API, Key Value), Vercel (PWA, console, PR previews), Neon Postgres (Singapore, one shared dev/staging database), Cloudflare R2 (files), Infisical (secrets). The ML service on a second free Render web service (no OSRM on staging, D30), training in GitHub Actions, MLflow local only (D25) | No bill possible during development; no server to maintain |
 | CI/CD | GitHub Actions (CI; after merge `alembic upgrade head` on Neon, then the Render deploy hook); Render builds the Docker image; Docker Compose locally | |
-| Observability | structlog JSON logs, OpenTelemetry → Grafana Cloud, PostHog | Sentry is not used |
+| Observability | structlog JSON logs, OpenTelemetry traces → Grafana Cloud (as built for the API and the ML service, M0 §6.2), PostHog | Sentry is not used; spans are built by hand, not by the contrib instrumentations or FastAPI's own telemetry, so no value reaches them |
 | Architecture | Service-based: modular monolith + ML service + background jobs | Not microservices (§6) |
 
 Detailed library lists per layer are in `docs/TDD.md` (Part 2) and [Chapter 09](09-frontend-and-design.md) for the frontend.

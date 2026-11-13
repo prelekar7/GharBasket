@@ -16,13 +16,13 @@ export async function pickLang(param) {
 }
 
 /** Where the app lives: the PWA the pages' buttons open. */
-export const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.gharbasket.in").replace(
+export const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.gharbasket.co.in").replace(
   /\/$/,
   "",
 );
 
 /** The public website's origin, for canonical URLs, robots.txt and the sitemap. */
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://gharbasket.in").replace(
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://gharbasket.co.in").replace(
   /\/$/,
   "",
 );

@@ -128,7 +128,8 @@ async def test_only_scrubbed_text_and_a_trimmed_week_leave_the_api(
     )
 
     sent = ml.requests[0]
-    assert set(sent) == {"locale", "messages", "week"} and sent["locale"] == "hi"
+    assert set(sent) == {"locale", "messages", "week", "today", "orders", "tiffin"}
+    assert sent["locale"] == "hi" and sent["orders"] == [] and sent["tiffin"] == {"options": []}
     said = sent["messages"][0]["content"]
     secrets = ("Priya", "Sharma", "A-1203", "Sunrise", "410210", "98200", "priya.sharma", "2345")
     for secret in secrets:

@@ -44,7 +44,10 @@ async def owner(db: AsyncSession, order: uuid.UUID) -> uuid.UUID:
         select(LedgerAccount.owner_id)
         .join(Posting, Posting.account_id == LedgerAccount.id)
         .join(JournalEntry, JournalEntry.id == Posting.entry_id)
-        .where(JournalEntry.idempotency_key == f"box:{order}")
+        .where(
+            JournalEntry.idempotency_key == f"box:{order}",
+            LedgerAccount.owner_id.is_not(None),  # the wallet leg, not unearned_revenue's
+        )
     )
     assert found is not None
     return found
@@ -308,6 +311,10 @@ async def test_a_payload_without_an_order_is_skipped_not_raised(db_session: Asyn
     await jobs.on_order_delivered(db_session, event)
     event.payload = ["not", "a", "dict"]  # pyright: ignore[reportAttributeAccessIssue]
     await jobs.on_order_delivered(db_session, event)
+    closed = OutboxEvent(id=uuid.uuid4(), event_type=jobs.ORDER_CLOSED, payload={"hub_id": "x"})
+    await jobs.on_order_closed(db_session, closed)  # `orders.closed` without an order id
+    closed.payload = ["not", "a", "dict"]  # pyright: ignore[reportAttributeAccessIssue]
+    await jobs.on_order_closed(db_session, closed)
 
 
 async def test_the_backfill_recognises_relayed_deliveries_once(db_session: AsyncSession) -> None:

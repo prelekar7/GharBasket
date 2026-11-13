@@ -340,6 +340,8 @@ GET /v1/deliveries/{order_id}     the order's household (any member) or hub staf
   404 "logistics.delivery_not_found"   not an order of the caller's household
 ```
 
+**For M13** (the assistant's `track_order`, M13 §3.1, drafted 2026-11-12): `logistics.api.delivery_signals(session, orders) -> {order_id: DeliverySignal(status, window, eta, on_the_way)}` is read-only and gives the same `status`, `window` and `eta` as this card, and `on_the_way` is `tracking is not None`. It returns no captain, code, proof or route id.
+
 **For the mobile mocks** (`feat/mobile-orders`, `mocks/orders.js`; `feat/mobile-box-addons`, `lib/outbox.test.js`)
 
 | Mock today | Contract |
@@ -540,7 +542,7 @@ POST /v1/stops/{id}/collect       the route's rider; Idempotency-Key
 
   The job also sends to `triage` (`not_confirmed`) the tiffins still `with_captain` on routes the rider completed earlier. See question 1.
 - **The hub manager settles them** from the exceptions board (`GET /v1/hubs/{id}/deliveries?status=triage`):
-  - A `not_confirmed` tiffin (still `dispatched`): once the hub has checked with the captain or the family, `POST /v1/deliveries/{order_id}/proof` (photo) or `/undelivered` (actor `hub`, then refunded at once).
+  - A `not_confirmed` tiffin (still `dispatched`): once the hub has checked with the captain or the family, `POST /v1/deliveries/{order_id}/proof` (photo) or `/undelivered` (actor `hub`, then refunded at once), or `POST /v1/deliveries/{order_id}/resolve { "outcome": "refund", "note" }`: M7 makes the one move `dispatched → undelivered` as `hub` (reason `not_confirmed`; ADR-0026 §2 allows `hub` there) and then refunds it in full (`system`). `redeliver` is 409 `logistics.no_redelivery`; a tiffin already `delivered` (the captain proved the door after the sweep) is 409 `logistics.not_undelivered`, and nothing moves.
   - A `left_behind` tiffin (never collected): `POST /v1/deliveries/{order_id}/resolve { "outcome": "refund", "note" }`. M7 makes the hub's moves from wherever the order is to `undelivered` (`locked → picking → packed → dispatched → undelivered`; ADR-0026 §2 allows each one to `hub`; reason `left_behind`), then refunds it in full (`system`). See question 2.
 
 **The customer's view** (§3.5 for a tiffin)

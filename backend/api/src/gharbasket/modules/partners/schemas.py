@@ -382,6 +382,14 @@ class HygieneOut(BaseModel):
     inspected_on: date
 
 
+class PublicProfileOut(BaseModel):
+    handle: str = Field(examples=["k7m2qx4rta"])
+    url: str = Field(
+        description="For her to share", examples=["https://gharbasket.co.in/cook/k7m2qx4rta"]
+    )
+    since: datetime = Field(description="When she turned it on")
+
+
 class KitchenOut(BaseModel):
     """A kitchen as she and hub staff see it: `address` and `location` are private."""
 
@@ -396,6 +404,7 @@ class KitchenOut(BaseModel):
     skills: list[str] = Field(examples=[["veg", "jain"]])
     default_portions: WeekPortions
     hygiene: HygieneOut | None
+    public_profile: PublicProfileOut | None = Field(description="Null: no public page (§3.5)")
     version: int
 
 
@@ -413,6 +422,10 @@ class KitchenPatchIn(BaseModel):
         default=None,
         description="lunch and dinner, Monday … Sunday, 0 to 100 each "
         "(else 422 partners.capacity_invalid)",
+    )
+    public_profile: bool | None = Field(
+        default=None,
+        description="Her public cook page (§3.5): true mints a handle, false clears it for good",
     )
 
     @field_validator("area", "address")
@@ -697,6 +710,43 @@ class KitchenCardOut(BaseModel):
     rating: RatingOut | None = Field(description="From 5 ratings on; else null")
     skills: list[str]
     portions_served: int = Field(description="Delivered, all time")
+
+
+class PublicHubOut(BaseModel):
+    name: str = Field(examples=["Kharghar hub"])
+
+
+class FssaiOut(BaseModel):
+    reg_no: str = Field(examples=["11521999000123"])
+    valid_until: date | None
+
+
+class TrainingPassOut(BaseModel):
+    code: str = Field(examples=["hygiene"])
+    title: str = Field(examples=["Kitchen hygiene"])
+
+
+class PublicDishOut(BaseModel):
+    name: str = Field(examples=["Jain thali"])
+
+
+class PublicCookOut(BaseModel):
+    """A home kitchen's public page (§3.5), only with her consent: never her area, address,
+    location, phone, portions served, partner id or a rating comment."""
+
+    handle: str = Field(examples=["k7m2qx4rta"])
+    display_name: str = Field(examples=["Lata tai"])
+    photo_url: str | None = Field(description="Always null for now (M8 §11)")
+    hub: PublicHubOut = Field(description="Who checked the kitchen; the locality")
+    since: str = Field(description="IST month of verification", examples=["2026-12"])
+    fssai: FssaiOut | None = Field(description="Null without a registration number")
+    hygiene: HygieneOut | None
+    trainings: list[TrainingPassOut] = Field(description="Passed; titles in Accept-Language")
+    rating: RatingOut | None = Field(description="From 5 ratings on; else null")
+    skills: list[str] = Field(description="Codes; the page labels them", examples=[["veg"]])
+    dishes: list[PublicDishOut] = Field(
+        description="Delivered in the last 60 IST days, most portions first, at most 6"
+    )
 
 
 class TiffinRatingIn(BaseModel):

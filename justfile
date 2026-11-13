@@ -149,7 +149,7 @@ migrate-down steps="1":
 migration message:
     cd backend/api && uv run alembic revision --autogenerate -m "{{message}}"
 
-# Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://gharbasket-api.onrender.com`
+# Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://api.gharbasket.co.in`
 cloud url:
     scripts/smoke-staging.sh {{url}}
 
@@ -169,6 +169,14 @@ sim *args:
 # First `infisical run --env=staging -- just staging-demo` (shows the host and plan), then again with GB_ALLOW_REMOTE_SEED=<host>
 staging-demo *args:
     ./scripts/staging-demo.sh {{args}}
+
+# MS-A demo operator steps on staging (docs/demo/ms-a.md), e.g. `infisical run --env=staging -- just demo-ms-a check`
+demo-ms-a *args:
+    ./scripts/demo-ms-a.sh {{args}}
+
+# One customer's orders and ledger entries with every leg, read only (MS-A demo): `just demo-ledger +91…`
+demo-ledger *args:
+    cd backend/api && uv run --frozen python -m gharbasket.tools.demo_ledger {{args}}
 
 # Undo a demo load: restore staging from the restore point it printed, e.g. `GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-20261107T0758Z`
 staging-rollback point:
