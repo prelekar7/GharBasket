@@ -31,6 +31,12 @@ const KEY = ASSISTANT_STORAGE_KEY;
  * retry would spend a second turn.
  */
 const REPLY_TIMEOUT_MS = 40_000;
+/**
+ * Confirming or turning down a card calls no model (M4 books a tiffin, M3 edits the week), so it
+ * gets a shorter deadline. A confirm that timed out is safe to press again: it keeps its
+ * Idempotency-Key, so the API answers with the first result instead of making a second change.
+ */
+const DECIDE_TIMEOUT_MS = 20_000;
 
 /** The longest message the API takes (`MessageIn.text`, max_length 2000). */
 export const MAX_MESSAGE = 2000;
@@ -38,10 +44,10 @@ export const MAX_MESSAGE = 2000;
 /**
  * Run a request with a deadline: abort it and fail with `assistant.timeout` when it runs long.
  * @template T
- * @param {(signal: AbortSignal) => Promise<T>} run
+ * @param {(signal: AbortSignal) => Promise<T>} run @param {number} [ms]
  * @returns {Promise<T>}
  */
-function withTimeout(run) {
+export function withTimeout(run, ms = REPLY_TIMEOUT_MS) {
   const controller = new AbortController();
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
@@ -50,14 +56,17 @@ function withTimeout(run) {
       timer = setTimeout(() => {
         controller.abort();
         reject(Object.assign(new Error("Ghar Saathi timed out"), { code: "assistant.timeout" }));
-      }, REPLY_TIMEOUT_MS);
+      }, ms);
     })
   );
   return Promise.race([run(controller.signal), deadline]).finally(() => clearTimeout(timer));
 }
 
-/** Errors where asking again cannot help: the daily cap (only tomorrow fixes it), or a message the API refused (422). */
-const NO_RETRY = new Set(["assistant.daily_cap", "request.invalid"]);
+/**
+ * Errors where sending the same message again cannot help: the daily cap (only tomorrow fixes it), a
+ * message the API refused (422), or no household yet (onboarding fixes it).
+ */
+const NO_RETRY = new Set(["assistant.daily_cap", "request.invalid", "assistant.no_household"]);
 /** Confirm failures where the proposal is stale and the person should ask for a fresh one. */
 const STALE = new Set([
   "assistant.proposal_expired",
@@ -69,16 +78,21 @@ const STALE = new Set([
   // taken off sale. A fresh card shows today's price or another menu.
   "assistant.price_changed",
   "orders.menu_unknown",
+  // edit_box_line (422): the item left the catalogue, or the amount is outside what it allows. A
+  // fresh card suggests something that is on sale, in an amount it takes.
+  "subscriptions.product_unknown",
+  "subscriptions.qty_invalid",
 ]);
 /**
  * Confirm failures that asking again cannot fix, though most are a 409: the first confirm is still
  * running; the card was already decided (confirmOrRead resolves it to the card's real status, and
- * asking again could repeat a change); the meal is already booked (the problem names the order);
- * the kitchen's slot is full; this hub has no tiffin slot for the meal.
+ * asking again could repeat a change) or the API no longer has it (404); the meal is already booked
+ * (the problem names the order); the kitchen's slot is full; this hub has no tiffin slot for the meal.
  */
 const FINAL = new Set([
   "request.idempotency_in_progress",
   "assistant.proposal_decided",
+  "assistant.proposal_not_found",
   "orders.tiffin_already_booked",
   "orders.slot_full",
   "orders.slot_invalid",
@@ -113,6 +127,15 @@ export function tiffinBooked(p) {
   if (p.action !== "book_tiffin" || p.status !== "confirmed" || !p.result) return null;
   return typeof p.result.order_id === "string" ? /** @type {TiffinBooked} */ (p.result) : null;
 }
+/**
+ * Yes and No can only be refused again: the card was answered elsewhere and its real status could
+ * not be read, or the API has no such card. @param {unknown} e
+ */
+export const isClosed = (e) => {
+  const code = /** @type {{ code?: string }} */ (e)?.code;
+  return code === "assistant.proposal_decided" || code === "assistant.proposal_not_found";
+};
+
 /** @param {string | undefined} code */
 export const canRetry = (code) => !NO_RETRY.has(code ?? "");
 /**
@@ -131,35 +154,37 @@ export const postMessage = (sessionId, text, signal) =>
 /**
  * POST /v1/assistant/confirm/{id}: no body and no If-Match, the API applies the change at the week
  * version stored with the card (412 `subscriptions.version_conflict` if the week moved on).
- * @param {string} id @param {string} idempotencyKey
+ * @param {string} id @param {string} idempotencyKey @param {AbortSignal} [signal]
  * @returns {Promise<{ proposal: Proposal }>}
  */
-export const confirmProposal = (id, idempotencyKey) =>
+export const confirmProposal = (id, idempotencyKey, signal) =>
   request(`/v1/assistant/confirm/${id}`, {
     method: "POST",
     headers: { "idempotency-key": idempotencyKey },
+    signal,
   });
 
 /**
  * GET /v1/assistant/sessions/{id}: the conversation's messages and its cards with their real status.
- * @param {string} id @returns {Promise<{ id: string, proposals: Proposal[] }>}
+ * @param {string} id @param {AbortSignal} [signal] @returns {Promise<{ id: string, proposals: Proposal[] }>}
  */
-export const getSession = (id) => request(`/v1/assistant/sessions/${id}`);
+export const getSession = (id, signal) => request(`/v1/assistant/sessions/${id}`, { signal });
 
 /**
  * Confirm a card. If the API says it was already decided (409 `assistant.proposal_decided`: confirmed
  * in another tab or before a reload, or expired by the hourly job), read the session and answer with
  * the card as it really is, so the screen shows "done" or "expired" instead of an error.
  * @param {string | null} sessionId @param {Proposal} p @param {string} idempotencyKey
+ * @param {AbortSignal} [signal]
  * @returns {Promise<{ proposal: Proposal }>}
  */
-export async function confirmOrRead(sessionId, p, idempotencyKey) {
+export async function confirmOrRead(sessionId, p, idempotencyKey, signal) {
   try {
-    return await confirmProposal(p.id, idempotencyKey);
+    return await confirmProposal(p.id, idempotencyKey, signal);
   } catch (e) {
     if (/** @type {{ code?: string }} */ (e)?.code !== "assistant.proposal_decided" || !sessionId)
       throw e;
-    const real = (await getSession(sessionId).catch(() => null))?.proposals?.find(
+    const real = (await getSession(sessionId, signal).catch(() => null))?.proposals?.find(
       (x) => x.id === p.id,
     );
     if (!real) throw e;
@@ -167,9 +192,12 @@ export async function confirmOrRead(sessionId, p, idempotencyKey) {
   }
 }
 
-/** POST /v1/assistant/proposals/{id}/reject: nothing changes. @param {string} id @returns {Promise<Proposal>} */
-export const rejectProposal = (id) =>
-  request(`/v1/assistant/proposals/${id}/reject`, { method: "POST" });
+/**
+ * POST /v1/assistant/proposals/{id}/reject: nothing changes.
+ * @param {string} id @param {AbortSignal} [signal] @returns {Promise<Proposal>}
+ */
+export const rejectProposal = (id, signal) =>
+  request(`/v1/assistant/proposals/${id}/reject`, { method: "POST", signal });
 
 /** @returns {{ sessionId: string | null, messages: Message[] }} */
 const restore = () => {
@@ -209,8 +237,21 @@ export function useAssistant() {
     }));
 
   const send = useMutation({
-    mutationFn: (/** @type {{ text: string, retried?: boolean }} */ m) =>
-      withTimeout((signal) => postMessage(state.sessionId, m.text, signal)),
+    mutationFn: async (/** @type {{ text: string, retried?: boolean }} */ m) => {
+      const sessionId = state.sessionId;
+      try {
+        return await withTimeout((signal) => postMessage(sessionId, m.text, signal));
+      } catch (e) {
+        // Without a session, a 404 can only mean the person has no household yet (router.py
+        // _household): sending again would get the same 404, so say to finish setting up instead.
+        if (!sessionId && /** @type {{ code?: string }} */ (e)?.code === "assistant.not_found")
+          throw Object.assign(new Error("No household yet"), {
+            code: "assistant.no_household",
+            status: 404,
+          });
+        throw e;
+      }
+    },
     onMutate: ({ text, retried }) => {
       if (retried)
         setState((s) => ({
@@ -225,8 +266,10 @@ export function useAssistant() {
     },
     onError: (e) => {
       const code = /** @type {{ code?: string }} */ (e).code ?? "http.error";
-      // A session the API no longer knows (404): drop it, so the retry starts a fresh conversation.
-      if (code === "assistant.not_found") setState((s) => ({ ...s, sessionId: null }));
+      // A session the API no longer knows (404), or one it refuses (422, e.g. a session id spoiled in
+      // storage): drop it, so the next message starts a fresh conversation.
+      if (code === "assistant.not_found" || code === "request.invalid")
+        setState((s) => ({ ...s, sessionId: null }));
       add({ id: crypto.randomUUID(), from: "bot", text: "", error: code });
     },
   });
@@ -234,7 +277,9 @@ export function useAssistant() {
   const confirm = useMutation({
     mutationFn: (/** @type {Proposal} */ p) => {
       keys.current[p.id] ??= crypto.randomUUID();
-      return confirmOrRead(state.sessionId, p, keys.current[p.id]);
+      const key = keys.current[p.id];
+      const sessionId = state.sessionId;
+      return withTimeout((signal) => confirmOrRead(sessionId, p, key, signal), DECIDE_TIMEOUT_MS);
     },
     onSuccess: (r) => {
       setProposal(r.proposal);
@@ -245,7 +290,8 @@ export function useAssistant() {
   });
 
   const reject = useMutation({
-    mutationFn: (/** @type {Proposal} */ p) => rejectProposal(p.id),
+    mutationFn: (/** @type {Proposal} */ p) =>
+      withTimeout((signal) => rejectProposal(p.id, signal), DECIDE_TIMEOUT_MS),
     onSuccess: setProposal,
   });
 
@@ -260,6 +306,8 @@ export function useAssistant() {
   const askAgain = (p) => {
     if (send.isPending) return; // one question at a time, as the message box allows
     const i = state.messages.findIndex((m) => m.proposals?.some((x) => x.id === p.id));
+    // Not in this chat (cleared meanwhile): slice(0, -1) would re-ask some other question.
+    if (i < 0) return;
     const question = state.messages.slice(0, i).findLast((m) => m.from === "me");
     setProposal({ ...p, status: "expired" });
     confirm.reset();

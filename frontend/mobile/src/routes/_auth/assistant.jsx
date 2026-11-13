@@ -9,6 +9,7 @@ import {
   bookedOrderId,
   canRetry,
   cardDate,
+  isClosed,
   isStale,
   MAX_MESSAGE,
   tiffinBooked,
@@ -73,8 +74,8 @@ function Assistant() {
     }
     return t(p.status === "expired" ? "ghar.tiffin.expired" : `ghar.status.${p.status}`);
   };
-  /** Answered elsewhere, and its real status could not be read: Yes or No would only be refused again. */
-  const decided = (/** @type {string} */ id) => failed(id)?.code === "assistant.proposal_decided";
+  /** Answered elsewhere and its real status could not be read, or gone: Yes or No would only be refused again. */
+  const decided = (/** @type {string} */ id) => isClosed(failed(id));
   /** The meal is booked already (that order is linked): Yes would only be refused again; No still dismisses the card. */
   const taken = (/** @type {string} */ id) => !!bookedOrderId(failed(id));
 
@@ -253,14 +254,17 @@ function OrderLink({ orderId }) {
   );
 }
 
-/** One chat bubble: yours on the right in ink, Ghar Saathi's on the left on kraft. @param {{ from: "me" | "bot", children: import("react").ReactNode }} props */
+/**
+ * One chat bubble: yours on the right in ink, Ghar Saathi's on the left on kraft. Line breaks are
+ * kept: the API joins a reply and its follow-up questions with a blank line.
+ * @param {{ from: "me" | "bot", children: import("react").ReactNode }} props */
 function Bubble({ from, children }) {
   return from === "me" ? (
-    <p className="max-w-[82%] self-end rounded-[16px_16px_4px_16px] bg-fg px-3.5 py-2.5 text-bg">
+    <p className="max-w-[82%] self-end rounded-[16px_16px_4px_16px] bg-fg px-3.5 py-2.5 whitespace-pre-line text-bg">
       {children}
     </p>
   ) : (
-    <p className="max-w-[86%] self-start rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5">
+    <p className="max-w-[86%] self-start rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5 whitespace-pre-line">
       {children}
     </p>
   );

@@ -6,10 +6,12 @@ import {
   confirmOrRead,
   confirmProposal,
   getSession,
+  isClosed,
   isStale,
   postMessage,
   rejectProposal,
   tiffinBooked,
+  withTimeout,
 } from "@/features/assistant/chat.js";
 import { ApiError, request } from "@/lib/api.js";
 import { mockFetch } from "@/mocks/index.js";
@@ -243,5 +245,60 @@ describe("book_tiffin cards (assistant tiffin_cards.py, ConfirmOut)", () => {
     });
     expect(bookedOrderId(booked)).toBe("o9");
     expect(bookedOrderId(new ApiError({ status: 409, code: "orders.slot_full" }))).toBeNull();
+  });
+});
+
+describe("cards that cannot be fixed, and deadlines (review of #497)", () => {
+  it("offers Ask again for a box item gone or an amount refused", () => {
+    expect(isStale({ status: 422, code: "subscriptions.product_unknown" })).toBe(true);
+    expect(isStale({ status: 422, code: "subscriptions.qty_invalid" })).toBe(true);
+  });
+
+  it("closes a card the API no longer has: no Ask again, no Yes or No", async () => {
+    const err = await confirmProposal(crypto.randomUUID(), crypto.randomUUID()).catch((e) => e);
+    expect([err.status, err.code]).toEqual([404, "assistant.proposal_not_found"]);
+    expect(isStale(err)).toBe(false);
+    expect(isClosed(err)).toBe(true);
+    expect(isClosed({ status: 409, code: "assistant.proposal_decided" })).toBe(true);
+    expect(isClosed({ status: 409, code: "assistant.proposal_expired" })).toBe(false);
+  });
+
+  it("does not offer to resend a message when there is no household yet", () => {
+    expect(canRetry("assistant.no_household")).toBe(false);
+  });
+
+  it("gives up on a request that runs past its deadline, and aborts it", async () => {
+    vi.useFakeTimers();
+    try {
+      /** @type {AbortSignal | undefined} */
+      let seen;
+      const slow = withTimeout((signal) => {
+        seen = signal;
+        return new Promise(() => {});
+      }, 20_000);
+      const caught = slow.catch((e) => e);
+      await vi.advanceTimersByTimeAsync(19_999);
+      expect(seen?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await caught).code).toBe("assistant.timeout");
+      expect(seen?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("answers in time when the request does", async () => {
+    await expect(withTimeout(async () => "ok", 20_000)).resolves.toBe("ok");
+  });
+
+  it("hands the deadline's signal to the request, for confirm, turn-down and the session read", async () => {
+    // fetch aborts a request whose signal fires (the mock API ignores it, so look at what was sent).
+    const stopped = AbortSignal.abort();
+    const n = sent.length;
+    const id = crypto.randomUUID();
+    await confirmProposal(id, crypto.randomUUID(), stopped).catch(() => null);
+    await rejectProposal(id, stopped).catch(() => null);
+    await getSession(id, stopped).catch(() => null);
+    expect(sent.slice(n).map((r) => r.signal.aborted)).toEqual([true, true, true]);
   });
 });
