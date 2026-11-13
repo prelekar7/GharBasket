@@ -276,6 +276,7 @@ class KycDocument(Base):
             _one_of("review_status", ("pending", "accepted", "rejected")), name="review_status"
         ),
         CheckConstraint("(number_enc IS NULL) = (key_version IS NULL)", name="key_version"),
+        CheckConstraint("(number_hash IS NULL) = (hash_version IS NULL)", name="hash_version"),
         CheckConstraint("cardinality(file_keys) <= 4", name="file_keys"),
         Index("ix_kyc_documents_application_id_doc_type", "application_id", "doc_type"),
         {"schema": SCHEMA},
@@ -290,8 +291,7 @@ class KycDocument(Base):
     number_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
     key_version: Mapped[int | None] = mapped_column(SmallInteger)
     number_masked: Mapped[str | None] = mapped_column(String(24))
-    # HMAC-SHA256(the KYC pepper of `hash_version`, "<type>:<number>"); a NULL `hash_version` beside
-    # a hash is version 1 until the follow-up migration backfills it and adds the CHECK.
+    # HMAC-SHA256(the KYC pepper of `hash_version`, "<type>:<number>"); both or neither are set.
     number_hash: Mapped[bytes | None] = mapped_column(LargeBinary, index=True)
     hash_version: Mapped[int | None] = mapped_column(SmallInteger)
     fssai_reg_no: Mapped[str | None] = mapped_column(String(14))
