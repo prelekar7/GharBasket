@@ -3,10 +3,11 @@
 uvicorn runs with `--no-proxy-headers`, so `scope["client"]` is the socket peer (on Render, its
 proxy), never a value from a header. The address comes from one of two paths:
 
-- **Our own proxy** (the PWA's Vercel `/v1/*` route): it sets `x-origin-secret` to PROXY_SECRET,
-  replacing anything the visitor sent. With that exact secret, the address is the one header
-  PROXY_CLIENT_IP_HEADER (`x-real-ip`), which that proxy sets. A request without the secret, or
-  with a wrong one, never reads that header.
+- **Our own proxy** (the PWA's Vercel `/v1/*` route): it sets `x-origin-secret` to ORIGIN_SECRET,
+  replacing anything the visitor sent. With that exact secret (or ORIGIN_SECRET_PREVIOUS during a
+  rotation), the address is the one header PROXY_CLIENT_IP_HEADER (`x-real-ip`), which that proxy
+  sets. A request without the secret, or with a wrong one, never reads that header; a wrong one is
+  logged as `client_ip_proxy_secret_mismatch`.
 - **Everything else**, by CLIENT_IP_SOURCE:
   - `peer` (the default; local runs and tests): the socket peer.
   - `header:<name>`: that one header, from a proxy that replaces whatever the caller sent
@@ -18,7 +19,8 @@ proxy), never a value from a header. The address comes from one of two paths:
 A header that is missing, or is not one IPv4 or IPv6 address, gives the next source (the proxy
 path falls back to CLIENT_IP_SOURCE, which falls back to the socket peer). Behind a proxy all such
 requests share the proxy's counter, which limits more, never less, and `client_ip_fallback` is
-logged at most once a minute per source and reason. No header value or secret is ever logged.
+logged. Each warning is logged at most once a minute per source and reason, and no header value or
+secret is ever logged.
 """
 
 import hmac
@@ -33,9 +35,9 @@ from gharbasket.platform.settings import Settings, get_settings
 
 log = structlog.get_logger("gharbasket.client_ip")
 
-PROXY_SECRET_HEADER = b"x-origin-secret"
-FALLBACK_LOG_EVERY_S = 60.0
-_logged_at: dict[tuple[str, str], float] = {}
+SECRET_HEADER = b"x-origin-secret"
+LOG_EVERY_S = 60.0
+_logged_at: dict[tuple[str, str, str], float] = {}
 
 
 def _header(scope: Scope, name: bytes) -> bytes | None:
@@ -60,14 +62,18 @@ def _ip(value: bytes | str | None) -> str | None:
     return str(ip)
 
 
-def _fallback(source: str, raw: bytes | None) -> None:
-    """Log that `source` gave no address, at most once a minute per source and reason."""
-    reason = "missing" if raw is None else "malformed"
+def _warn(event: str, source: str, reason: str) -> None:
+    """Log `event`, at most once a minute per event, source and reason; never a value."""
     now = time.monotonic()
-    last = _logged_at.get((source, reason))
-    if last is None or now - last >= FALLBACK_LOG_EVERY_S:
-        _logged_at[(source, reason)] = now
-        log.warning("client_ip_fallback", source=source, reason=reason)
+    last = _logged_at.get((event, source, reason))
+    if last is None or now - last >= LOG_EVERY_S:
+        _logged_at[(event, source, reason)] = now
+        log.warning(event, source=source, reason=reason)
+
+
+def _fallback(source: str, raw: bytes | None) -> None:
+    """`source` gave no address."""
+    _warn("client_ip_fallback", source, "missing" if raw is None else "malformed")
 
 
 def _from_header(scope: Scope, source: str, name: bytes) -> str | None:
@@ -92,13 +98,25 @@ def _from_source(scope: Scope, source: str) -> str | None:
 
 
 def _from_our_proxy(scope: Scope, settings: Settings) -> bool:
-    """The request carries PROXY_SECRET in `x-origin-secret` (one value, compared in constant
-    time)."""
-    if settings.proxy_secret is None:
+    """The request carries ORIGIN_SECRET, or ORIGIN_SECRET_PREVIOUS during a rotation, in
+    `x-origin-secret`: one value, compared in constant time with each.
+
+    A header that is there but does not match is logged (`client_ip_proxy_secret_mismatch`): the
+    request then counts by CLIENT_IP_SOURCE, which for the PWA is Vercel's address, a valid IP, so
+    without this line a wrong or half-rotated secret would be silent until sign-ins are refused."""
+    accepted = [s for s in (settings.origin_secret, settings.origin_secret_previous) if s]
+    if not accepted:
         return False
-    values = [value for key, value in scope.get("headers") or () if key == PROXY_SECRET_HEADER]
-    expected = settings.proxy_secret.get_secret_value().encode()
-    return len(values) == 1 and hmac.compare_digest(values[0], expected)
+    values = [value for key, value in scope.get("headers") or () if key == SECRET_HEADER]
+    if not values:
+        return False
+    if len(values) > 1:
+        _warn("client_ip_proxy_secret_mismatch", SECRET_HEADER.decode(), "repeated")
+        return False
+    matches = [hmac.compare_digest(values[0], s.get_secret_value().encode()) for s in accepted]
+    if not any(matches):
+        _warn("client_ip_proxy_secret_mismatch", SECRET_HEADER.decode(), "mismatch")
+    return any(matches)
 
 
 def from_scope(scope: Scope, settings: Settings) -> str:

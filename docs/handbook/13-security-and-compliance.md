@@ -82,23 +82,35 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 5. **Instant sign-out:** logout, logout-all, device sign-out and refresh reuse put the session on a Valkey deny-list for the access token's remaining life. A refresh always checks the session in Postgres.
 6. `GET /v1/me/devices` lists sessions; any device can be revoked.
 7. **Rate limits:** fixed windows in Valkey (our own code). Exchange: 30 per 10 minutes per address and 10 per 10 minutes per phone (the key is a hash, never the number). Refresh: 300 per minute per address. If Valkey is down, requests are allowed (Firebase also limits OTPs).
-   - **The address** comes only from `platform/client_ip.py` (M0 §6.3), never from the leftmost `X-Forwarded-For` entry, which the caller writes; uvicorn runs with `--no-proxy-headers`. Direct callers of `api.gharbasket.co.in` are identified by `CLIENT_IP_SOURCE` (Render: `header:true-client-ip`, which Cloudflare sets). The PWA's requests come through Vercel's `/v1/*` route, which adds `x-origin-secret`: only with that secret (`PROXY_SECRET`) is the visitor read from `PROXY_CLIENT_IP_HEADER` (`x-real-ip`). An IPv6 address is counted by its /64.
-   - **Check both paths after each deploy that changes `CLIENT_IP_SOURCE`, `PROXY_CLIENT_IP_HEADER`, `PROXY_SECRET`, `ORIGIN_SECRET` or either proxy.** Each run sends 125 requests to a society that does not exist. A 404 counts against the limit, which allows 60 a minute. **Every run must show some 429s.** Wait a minute between runs, so each starts with an empty counter.
-     ```sh
-     run() { seq 1 125 | xargs -P 10 -I{} curl -s -o /dev/null -w '%{http_code}\n' "$@" "$URL" | sort | uniq -c; }
-     # Direct to the API
-     URL=https://api.gharbasket.co.in/v1/public/societies/client-ip-check
-     run                                                   # baseline
-     run -H 'X-Forwarded-For: 198.51.100.{}'               # spoofed X-Forwarded-For
-     run -H 'True-Client-IP: 198.51.100.{}'                # spoofed True-Client-IP
-     # Through the PWA's proxy
-     URL=https://app.gharbasket.co.in/v1/public/societies/client-ip-check
-     run                                                   # baseline
-     run -H 'X-Real-IP: 198.51.100.{}'                     # spoofed X-Real-IP
-     run -H 'X-Forwarded-For: 198.51.100.{}'               # spoofed X-Forwarded-For
-     run -H 'x-origin-secret: forged-{}' -H 'X-Real-IP: 198.51.100.{}'   # spoofed secret
-     ```
-     **Then a second network, for each path.** Right after a run that gave 429s, send one request to the same `URL` from another network, such as a phone hotspot: `curl -s -o /dev/null -w '%{http_code}\n' "$URL"`. It must give 404, not 429. A 429 means every caller on that path shares one counter, because the header did not arrive: `True-Client-IP` on the direct path, or the secret or `X-Real-IP` through the proxy.
+   - **The address** comes only from `platform/client_ip.py` (M0 §6.3), never from the leftmost `X-Forwarded-For` entry, which the caller writes; uvicorn runs with `--no-proxy-headers`. Direct callers of `api.gharbasket.co.in` are identified by `CLIENT_IP_SOURCE` (Render: `header:true-client-ip`, which Cloudflare sets). The PWA's requests come through Vercel's `/v1/*` route, which adds `x-origin-secret`. Only with that secret (`ORIGIN_SECRET`, or `ORIGIN_SECRET_PREVIOUS` during a rotation) is the visitor read from `PROXY_CLIENT_IP_HEADER` (`x-real-ip`). A wrong or repeated secret is logged as `client_ip_proxy_secret_mismatch`, and the request is counted by Vercel's address. An IPv6 address is counted by its /64.
+   - **Check after each deploy that changes `CLIENT_IP_SOURCE`, `PROXY_CLIENT_IP_HEADER`, `ORIGIN_SECRET`, `ORIGIN_SECRET_PREVIOUS` or either proxy.** The checks use a society that does not exist; a 404 counts against the limit, which allows 60 a minute.
+     1. **Both paths count your own address.** This check does not depend on Vercel's addresses. Start right after a minute boundary, fill your counter through the PWA's proxy, then call the API directly from the same machine. `-4` keeps both on IPv4, so they share one counter.
+        ```sh
+        APP=https://app.gharbasket.co.in/v1/public/societies/client-ip-check
+        API=https://api.gharbasket.co.in/v1/public/societies/client-ip-check
+        sleep $((60 - $(date +%s) % 60))
+        seq 1 70 | xargs -P 10 -I{} curl -4 -s -o /dev/null -w '%{http_code}\n' "$APP" | sort | uniq -c   # some 429
+        curl -4 -s -o /dev/null -w '%{http_code}\n' "$API"                                                  # must be 429
+        ```
+        The direct call must give **429**. A 404 means the proxy path is counting Vercel's address, not yours. The secret or `X-Real-IP` did not arrive: look for `client_ip_proxy_secret_mismatch` or `client_ip_fallback` in Render's logs.
+     2. **Spoofed headers are ignored.** Each run sends 125 requests and **must show some 429s**. Wait a minute between runs, so each starts with an empty counter.
+        ```sh
+        run() { seq 1 125 | xargs -P 10 -I{} curl -s -o /dev/null -w '%{http_code}\n' "$@" "$URL" | sort | uniq -c; }
+        # Direct, on the custom domain and on Render's own
+        for URL in https://api.gharbasket.co.in/v1/public/societies/client-ip-check \
+                   https://gharbasket-api.onrender.com/v1/public/societies/client-ip-check; do
+          run;                                         sleep 61   # baseline
+          run -H 'X-Forwarded-For: 198.51.100.{}';     sleep 61   # spoofed X-Forwarded-For
+          run -H 'True-Client-IP: 198.51.100.{}';      sleep 61   # spoofed True-Client-IP
+        done
+        # Through the PWA's proxy
+        URL=https://app.gharbasket.co.in/v1/public/societies/client-ip-check
+        run;                                           sleep 61   # baseline
+        run -H 'X-Real-IP: 198.51.100.{}';             sleep 61   # spoofed X-Real-IP
+        run -H 'X-Forwarded-For: 198.51.100.{}';       sleep 61   # spoofed X-Forwarded-For
+        run -H 'x-origin-secret: forged-{}' -H 'X-Real-IP: 198.51.100.{}'   # spoofed secret
+        ```
+     3. **Extra: a second network.** Right after a run that gave 429s, one request to the same `URL` from another network, such as a phone hotspot, should give 404: `curl -s -o /dev/null -w '%{http_code}\n' "$URL"`. A 429 means every caller on that path shares one counter. This check alone cannot tell Vercel's address from yours, so check 1 is the one that counts.
 8. Locally only (`APP_ENV=dev`), `dev_phone` signs in without an OTP.
 
 ## 13.4 Authorisation (roles with scopes)

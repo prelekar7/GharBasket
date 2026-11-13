@@ -134,7 +134,7 @@ def test_ipv6_is_bucketed_by_64_for_rate_limits_only() -> None:
     assert address(scope(("True-Client-IP", one)), "header:true-client-ip") == one
 
 
-# --- our proxy (PROXY_SECRET) --------------------------------------------------------------------
+# --- our proxy (ORIGIN_SECRET) --------------------------------------------------------------------
 
 
 def via_proxy(secret: str | None, real_ip: str = "203.0.113.7") -> dict[str, Any]:
@@ -144,12 +144,12 @@ def via_proxy(secret: str | None, real_ip: str = "203.0.113.7") -> dict[str, Any
     return scope(*headers, *([("x-origin-secret", secret)] if secret is not None else []))
 
 
-def test_with_the_proxy_secret_the_address_is_the_proxys_header() -> None:
-    proxied = address(via_proxy(SECRET), "header:true-client-ip", proxy_secret=SECRET)
+def test_with_the_origin_secret_the_address_is_the_proxys_header() -> None:
+    proxied = address(via_proxy(SECRET), "header:true-client-ip", origin_secret=SECRET)
     assert proxied == "203.0.113.7"
     vercel = scope(("X-Vercel-Forwarded-For", "203.0.113.9"), ("x-origin-secret", SECRET))
     assert address(
-        vercel, proxy_secret=SECRET, proxy_client_ip_header="x-vercel-forwarded-for"
+        vercel, origin_secret=SECRET, proxy_client_ip_header="x-vercel-forwarded-for"
     ) == ("203.0.113.9")
 
 
@@ -159,11 +159,11 @@ def test_with_the_proxy_secret_the_address_is_the_proxys_header() -> None:
 )
 def test_without_the_exact_secret_the_proxys_header_is_never_read(secret: str | None) -> None:
     # True-Client-IP (VERCEL here) is CLIENT_IP_SOURCE's answer; X-Real-IP is never read.
-    assert address(via_proxy(secret), "header:true-client-ip", proxy_secret=SECRET) == VERCEL
+    assert address(via_proxy(secret), "header:true-client-ip", origin_secret=SECRET) == VERCEL
     twice = scope(
         ("X-Real-IP", "203.0.113.7"), ("x-origin-secret", SECRET), ("x-origin-secret", SECRET)
     )
-    assert address(twice, "header:true-client-ip", proxy_secret=SECRET) == PEER
+    assert address(twice, "header:true-client-ip", origin_secret=SECRET) == PEER
 
 
 def test_without_a_configured_secret_no_request_is_our_proxy() -> None:
@@ -177,7 +177,7 @@ def test_a_proxy_header_that_is_missing_or_malformed_falls_back_to_client_ip_sou
 ) -> None:
     headers = [("True-Client-IP", VERCEL), ("x-origin-secret", SECRET)]
     request = scope(*headers, *([("X-Real-IP", value)] if value is not None else []))
-    assert address(request, "header:true-client-ip", proxy_secret=SECRET) == VERCEL
+    assert address(request, "header:true-client-ip", origin_secret=SECRET) == VERCEL
 
 
 def test_fallbacks_are_logged_once_a_minute_by_source_and_reason_without_values(
@@ -185,7 +185,7 @@ def test_fallbacks_are_logged_once_a_minute_by_source_and_reason_without_values(
 ) -> None:
     now = [1000.0]
     monkeypatch.setattr(client_ip.time, "monotonic", lambda: now[0])
-    settings = {"proxy_secret": SECRET}
+    settings = {"origin_secret": SECRET}
     with structlog.testing.capture_logs() as logs:
         for _ in range(3):
             address(scope(("x-origin-secret", SECRET), ("X-Real-IP", "6.6.6.6:1")), **settings)
@@ -206,6 +206,43 @@ def test_fallbacks_are_logged_once_a_minute_by_source_and_reason_without_values(
     assert all(line["log_level"] == "warning" for line in logs)
     for value in (SECRET, "6.6.6.6", "nonsense-7c2d"):
         assert value not in str(logs)
+
+
+def test_a_wrong_or_repeated_secret_is_logged_once_a_minute_without_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [1000.0]
+    monkeypatch.setattr(client_ip.time, "monotonic", lambda: now[0])
+    settings = {"origin_secret": SECRET}
+    with structlog.testing.capture_logs() as logs:
+        address(via_proxy(SECRET), "header:true-client-ip", **settings)  # right: nothing logged
+        address(via_proxy(None), "header:true-client-ip", **settings)  # absent: a direct caller
+        for wrong in ("wrong-5e6f", f"{SECRET} ", SECRET.upper()):
+            assert address(via_proxy(wrong), "header:true-client-ip", **settings) == VERCEL
+        twice = scope(("x-origin-secret", SECRET), ("x-origin-secret", "wrong-5e6f"))
+        address(twice, **settings)
+        now[0] += 61
+        address(via_proxy("wrong-5e6f"), "header:true-client-ip", **settings)
+
+    lines = [(line["event"], line["source"], line["reason"]) for line in logs]
+    assert lines == [
+        ("client_ip_proxy_secret_mismatch", "x-origin-secret", "mismatch"),
+        ("client_ip_proxy_secret_mismatch", "x-origin-secret", "repeated"),
+        ("client_ip_proxy_secret_mismatch", "x-origin-secret", "mismatch"),
+    ]
+    assert all(line["log_level"] == "warning" for line in logs)
+    for value in (SECRET, SECRET.upper(), "wrong-5e6f", "203.0.113.7", VERCEL):
+        assert value not in str(logs)
+
+
+def test_during_a_rotation_both_secrets_are_accepted() -> None:
+    old, new = SECRET, "new-proxy-secret-7a2b-0123456789abcdef0123"
+    rotating = {"origin_secret": new, "origin_secret_previous": old}
+    for secret in (old, new):
+        assert address(via_proxy(secret), "header:true-client-ip", **rotating) == "203.0.113.7"
+    assert address(via_proxy("neither"), "header:true-client-ip", **rotating) == VERCEL
+    # Once ORIGIN_SECRET_PREVIOUS is removed, the old secret is only a mismatch.
+    assert address(via_proxy(old), "header:true-client-ip", origin_secret=new) == VERCEL
 
 
 # --- startup validation ------------------------------------------------------------------------
@@ -248,6 +285,27 @@ def test_a_malformed_source_refuses_to_start_and_names_only_the_variable(
     assert "secret-7f3a" not in message
 
 
+@pytest.mark.parametrize("name", ["origin_secret", "origin_secret_previous"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        f" {SECRET}",
+        f"{SECRET} ",
+        f"{SECRET}\n",
+        f"\t{SECRET}",
+        f"{SECRET[:20]} {SECRET[20:]}",
+        f"{SECRET}é",
+        f"{SECRET}\x7f",
+    ],
+)
+def test_a_secret_that_could_never_match_a_header_refuses_to_start(name: str, bad: str) -> None:
+    with pytest.raises(ValidationError) as refused:
+        make_settings(**{name: bad})
+    message = str(refused.value)
+    assert f"{name.upper()} must be printable ASCII without spaces" in message
+    assert SECRET[:20] not in message and SECRET[20:] not in message
+
+
 def test_the_proxy_header_setting() -> None:
     assert make_settings().proxy_client_ip_header == "x-real-ip"
     assert make_settings(
@@ -261,17 +319,19 @@ def test_the_proxy_header_setting() -> None:
 
 
 @pytest.mark.parametrize("env", ["staging", "prod"])
-def test_deployed_environments_need_the_proxy_secret_and_an_explicit_source(
+def test_deployed_environments_need_the_origin_secret_and_an_explicit_source(
     env: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("CLIENT_IP_SOURCE", raising=False)
     without_source = {k: v for k, v in DEPLOYED_SECRETS.items() if k != "client_ip_source"}
     with pytest.raises(ValidationError, match="CLIENT_IP_SOURCE required"):
         make_settings(**without_source, app_env=env)
-    with pytest.raises(ValidationError, match="PROXY_SECRET required"):
-        make_settings(**{**DEPLOYED_SECRETS, "proxy_secret": None}, app_env=env)
-    with pytest.raises(ValidationError, match="PROXY_SECRET must be at least 32 bytes"):
-        make_settings(**{**DEPLOYED_SECRETS, "proxy_secret": "p" * 31}, app_env=env)
+    with pytest.raises(ValidationError, match="ORIGIN_SECRET required"):
+        make_settings(**{**DEPLOYED_SECRETS, "origin_secret": None}, app_env=env)
+    for name in ("origin_secret", "origin_secret_previous"):
+        with pytest.raises(ValidationError, match=f"{name.upper()} must be at least 32 bytes") as e:
+            make_settings(**{**DEPLOYED_SECRETS, name: "short-secret-9d4e"}, app_env=env)
+        assert "short-secret-9d4e" not in str(e.value)
     # An explicit `peer` is a choice, so it is accepted; so is the source from the environment.
     assert make_settings(**DEPLOYED_SECRETS, app_env=env).client_ip_source == "peer"
     monkeypatch.setenv("CLIENT_IP_SOURCE", "header:true-client-ip")
@@ -315,7 +375,7 @@ async def proxied(commit_guard: CommitGuard, valkey: Redis) -> AsyncIterator[Cli
         await each.aclose()
 
 
-DIRECT = {"client_ip_source": "header:true-client-ip", "proxy_secret": SECRET}
+DIRECT = {"client_ip_source": "header:true-client-ip", "origin_secret": SECRET}
 
 
 @pytest.mark.anyio
