@@ -25,7 +25,7 @@ The neighbourhood layer: societies (polygons, towers, captain), society onboardi
 ## 3. API endpoints
 | Method | Path | Permission / role | Idempotency | Notes |
 |---|---|---|---|---|
-| GET | `/v1/societies?q=&near=` | Authenticated | — | Search and nearby. List items carry no captain data (§3.1) |
+| GET | `/v1/societies?q=&near=&slug=` | Authenticated | — | Search, nearby, or one society by its exact slug. List items carry no captain data (§3.1) |
 | GET | `/v1/societies/{id}` | Authenticated | — | Towers, status; captain card only for residents |
 | GET | `/v1/societies/{id}/unlock` | Authenticated | — | Threshold, count |
 | POST | `/v1/society-requests` | customer | Required | Location optional (no pin placed) |
@@ -64,11 +64,14 @@ Onboarding (Hf04 society picker, Hf05 request, Hf06 flat) and the Society screen
 **Captain privacy.** Captains are women who live in the society. No endpoint ever returns a captain's flat number or phone. Their display name appears only to residents of that society.
 
 ```
-GET /v1/societies?q=<text>&near=<lat>,<lng>&cursor=&limit=     (authenticated; limit ≤ 50, default 20)
+GET /v1/societies?q=<text>&near=<lat>,<lng>&slug=<slug>&cursor=&limit=     (authenticated; limit ≤ 50, default 20)
   200 : { "items": [ SocietySummary ], "next_cursor": "<opaque> | null" }     (platform Page)
         q    : matches name and area (pg_trgm + unaccent); best match first
         near : with q, ties are broken by distance; without q, nearest first
         neither: alphabetical
+        slug : exact match, ignoring case (up to 80 characters); items has 0 or 1 entry and
+               next_cursor is null. near may be given and only fills distance_m. Not with q or
+               cursor (422 request.invalid). An unknown slug is an empty list, not a 404
 SocietySummary : { "id": "<uuid>", "slug": "sunrise-towers-kharghar", "name": "Sunrise Towers",
                    "area": "Sector 20, Kharghar",
                    "status": "prospect" | "unlocking" | "live" | "paused",
@@ -94,6 +97,8 @@ POST /v1/society-requests     (customer; Idempotency-Key required)
               "note": "<text> | null" }          up to 500 characters
   201 : { "id", "status": "received", "created_at" }
 ```
+
+**Exact slug (added 2026-11-13).** The PWA's `/join?s=<slug>` route (the Join button on the console's `/s/<slug>` page: M12 §3.7's `join_url`) has a slug, not an id, and a name search can rank a similar society first. `slug=` returns that one society in the list shape, so the society picker keeps a single code path, and then `GET /v1/societies/{id}` loads it as usual. It shows nothing new: every search result already carries its `slug`, and `SocietySummary` has no captain data. It returns a society in any status, as search does (a prospect society is where joining starts); the public `/v1/public/societies/{slug}` page (M12) stays limited to `unlocking` and `live`. Slugs are always lowercase, so the given slug is lowercased and compared exactly; the `slug` column is unique, so the lookup uses its index; no migration.
 
 **Error codes**
 
@@ -856,6 +861,7 @@ Captains have no M9 permission beyond a resident's: their society's unlock, driv
   - List responses never contain captain fields.
   - The captain card goes only to residents.
   - Search ranks by trigram and then distance.
+  - `slug=` finds exactly one society whatever its case, gives an empty list for an unknown slug, fills `distance_m` only with `near`, and refuses `q` or `cursor` alongside it.
   - A society request replays with the same key, and stores a null location when no pin was placed.
   - The rate limit applies.
 - Captains (§3.2):
