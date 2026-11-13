@@ -49,7 +49,7 @@ class RequestContextMiddleware:
             await send(message)
 
         try:
-            with tracing.request_span(scope["method"]) as span:
+            with tracing.request_span(scope["method"], scope["path"]) as span:
                 # An unhandled error is logged by Starlette's outermost middleware, outside this
                 # span: errors._handle_unexpected reads the ids from here.
                 scope["state"]["trace_ids"] = tracing.log_ids(span)

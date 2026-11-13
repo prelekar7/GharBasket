@@ -4,7 +4,7 @@ value, query string, raw path (OSRM's holds coordinates), id or exception messag
 
 - A request (`TracingMiddleware`): `<METHOD> <route template>`, the status and `gb.problem_code`
   (`record_problem`, from the exception handlers). The API's W3C `traceparent` is the parent, so
-  one trace covers both services.
+  one trace covers both services. None for `/health`, Render's health check.
 - Outgoing HTTP (`AsyncTracedTransport`, `TracedTransport`): OSRM, the R2 registry and Anthropic,
   as `<METHOD> <host>` with the method, host and status. No trace context is sent to them.
 - Logs: `TraceFormatter` adds `trace_id` and `span_id` to every line written inside a span.
@@ -43,6 +43,8 @@ SHUTDOWN_S = 5.0
 _HEADER_NAME = re.compile(r"[a-z0-9!#$%&'*+.^_`|~-]+")
 ERROR_LOG_EVERY_S = 60.0
 METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
+# Render's health check polls /health every few seconds: no span. /health/ai (on demand) keeps one.
+UNTRACED_PATHS = frozenset({"/health"})
 # FastAPI's own OpenTelemetry is off: it would export traces, metrics and logs (with exception
 # messages, raw paths and query strings) by itself once OTEL_EXPORTER_OTLP_ENDPOINT is set.
 FASTAPI_TELEMETRY_OFF: TelemetryConfig = {
@@ -215,7 +217,7 @@ class TracingMiddleware:
         return self._expected is None or hmac.compare_digest(authorization, self._expected)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
+        if scope["type"] != "http" or scope["path"] in UNTRACED_PATHS:
             await self.app(scope, receive, send)
             return
         headers = dict(scope.get("headers") or [])

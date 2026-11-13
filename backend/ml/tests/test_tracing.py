@@ -208,6 +208,20 @@ def test_fastapis_own_telemetry_stays_off_with_an_endpoint_in_the_environment(
     assert not isinstance(get_logger_provider(), LoggerProvider)
 
 
+def test_renders_health_check_has_no_span_and_nothing_else_is_skipped(
+    spans: InMemorySpanExporter,
+) -> None:
+    app = create_app(Settings(app_env="test"))
+    assert {getattr(route, "path", None) for route in app.routes} >= tracing.UNTRACED_PATHS
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+        client.get("/health/ai")
+        client.get("/healthz")
+
+    names = [span.name for span in spans.get_finished_spans() if span.kind is SpanKind.SERVER]
+    assert names == ["GET /health/ai", "GET"]
+
+
 @pytest.mark.parametrize(
     "headers", [f"Authorization: Basic {GRAFANA}", f'"Authorization=Basic%20{GRAFANA}"']
 )
