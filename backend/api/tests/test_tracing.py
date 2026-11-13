@@ -385,6 +385,42 @@ def test_fastapis_own_telemetry_stays_off_with_an_endpoint_in_the_environment(
     assert not isinstance(get_logger_provider(), LoggerProvider)
 
 
+def test_the_polled_liveness_check_has_no_span_and_nothing_else_is_skipped(
+    spans: InMemorySpanExporter,
+) -> None:
+    app = create_app(make_settings())
+    assert set(app.openapi()["paths"]) >= tracing.UNTRACED_PATHS
+    with TestClient(app, raise_server_exceptions=False) as client:
+        assert client.get("/v1/health").status_code == 200
+        client.get("/v1/ready")
+        client.get("/v1/healthz")
+        client.get("/v1/health/")
+
+    names = [span.name for span in spans.get_finished_spans()]
+    assert names == ["GET /v1/ready", "GET", "GET"]  # the two 404s are traced by method only
+
+
+def test_a_span_is_named_by_the_full_template_never_the_path(spans: InMemorySpanExporter) -> None:
+    # Three routers deep (v1, identity, households), with two ids in the path.
+    member = uuid.UUID("0199a1b2-3c4d-7e5f-8a9b-0c1d2e3f4a5c")
+    with TestClient(create_app(make_settings()), raise_server_exceptions=False) as client:
+        refused = client.delete(f"/v1/households/{ITEM}/members/{member}?phone={PHONE}")
+    assert refused.status_code == 401  # signed out: routed, refused before any database call
+
+    (server,) = spans.get_finished_spans()
+    template = "/v1/households/{household_id}/members/{member_id}"
+    assert server.name == f"DELETE {template}"
+    assert (server.attributes or {})["http.route"] == template
+    assert not [v for v in (str(ITEM), str(member), PHONE, "9876543210") if v in everything(server)]
+
+
+def test_the_template_of_a_route_on_the_app_itself_and_before_routing() -> None:
+    route = type("Route", (), {"path": "/v1/_test/trace/{item_id}"})()
+    assert tracing.route_template({"route": route}) == "/v1/_test/trace/{item_id}"
+    assert tracing.route_template({"fastapi": {}}) is None
+    assert tracing.route_template({}) is None
+
+
 def test_log_lines_carry_no_ids_from_a_span_that_is_not_sampled() -> None:
     provider = TracerProvider(sampler=ALWAYS_OFF)
     tracing.use_provider(provider)
