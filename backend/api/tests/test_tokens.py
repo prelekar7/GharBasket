@@ -132,7 +132,7 @@ def test_deployed_environments_need_signing_key_and_pepper() -> None:
     with pytest.raises(
         ValidationError,
         match="JWT_SIGNING_KEY, REFRESH_TOKEN_PEPPER, FIREBASE_PROJECT_ID, KYC_ENCRYPTION_KEY, "
-        "KYC_HASH_PEPPER required",
+        "KYC_HASH_PEPPER, PROXY_SECRET, CLIENT_IP_SOURCE required",
     ):
         make_settings(app_env="staging", jobs_token="t")
 

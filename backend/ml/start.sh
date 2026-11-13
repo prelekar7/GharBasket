@@ -10,6 +10,7 @@ echo "road network: OpenStreetMap data as of $(cat /data/mmr.osm-date 2>/dev/nul
 
 osrm-routed --algorithm mld --max-table-size 500 --port 5000 --ip 127.0.0.1 /data/mmr.osrm &
 osrm_pid=$!
+# --proxy-headers is harmless here: the ML service never uses the caller's address (M0 §6.3).
 uvicorn gharbasket_ml.main:create_app --factory --host 0.0.0.0 --port "$port" --proxy-headers &
 app_pid=$!
 

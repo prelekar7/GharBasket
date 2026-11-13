@@ -27,6 +27,28 @@ def _upper(value: Any) -> Any:
 
 
 CommaSeparated = Annotated[list[str], NoDecode, BeforeValidator(_split_comma)]
+_CLIENT_IP_SOURCE = re.compile(r"peer|header:[a-z0-9-]{1,64}|xff:[1-9]")
+_HEADER_NAME = re.compile(r"[a-z0-9-]{1,64}")
+# Never the one header naming the caller: X-Forwarded-For is a list the caller starts (only
+# `xff:<n>` reads it), and x-origin-secret holds PROXY_SECRET.
+_NOT_AN_ADDRESS = frozenset({"x-forwarded-for", "x-origin-secret"})
+
+
+def _client_ip_source(value: Any) -> str:
+    """CLIENT_IP_SOURCE, lower-cased; an error names the variable, never the value."""
+    source = value.lower() if isinstance(value, str) else ""
+    if not _CLIENT_IP_SOURCE.fullmatch(source) or source.removeprefix("header:") in _NOT_AN_ADDRESS:
+        raise ValueError("CLIENT_IP_SOURCE must be 'peer', 'header:<name>' or 'xff:<1-9>'")
+    return source
+
+
+def _proxy_client_ip_header(value: Any) -> str:
+    """PROXY_CLIENT_IP_HEADER, lower-cased; an error names the variable, never the value."""
+    name = value.lower() if isinstance(value, str) else ""
+    if not _HEADER_NAME.fullmatch(name) or name in _NOT_AN_ADDRESS:
+        raise ValueError("PROXY_CLIENT_IP_HEADER must be one header name, such as x-real-ip")
+    return name
+
 
 # Used only when APP_ENV is dev or test and no key is configured, so local runs and tests need no
 # secrets. Deployed environments refuse to start without their own keys.
@@ -97,6 +119,13 @@ class Settings(DatabaseSettings):
     # Browsers reach the API through same-origin proxies, so CORS is only needed for the
     # Capacitor app (https://localhost). Comma-separated, e.g. "https://localhost".
     cors_allow_origins: CommaSeparated = []
+    # The caller's address, for per-address rate limits (platform/client_ip.py, M0 §6.3): `peer`,
+    # `header:<name>` or `xff:<n>`; staging and prod must set it, even to `peer`. A request whose
+    # `x-origin-secret` is PROXY_SECRET (the PWA's Vercel proxy sets it) takes the address from
+    # PROXY_CLIENT_IP_HEADER instead; staging and prod must set PROXY_SECRET too.
+    client_ip_source: Annotated[str, BeforeValidator(_client_ip_source)] = "peer"
+    proxy_secret: SecretStr | None = None
+    proxy_client_ip_header: Annotated[str, BeforeValidator(_proxy_client_ip_header)] = "x-real-ip"
     # Traces (M0 §6.2) to Grafana Cloud over OTLP/HTTP, only when the endpoint is set (the base URL,
     # without /v1/traces). The headers ("Authorization=Basic%20<base64>") are a secret. Sampling is
     # parent-based with this ratio of new traces.
@@ -251,6 +280,11 @@ class Settings(DatabaseSettings):
                 "FIREBASE_PROJECT_ID": self.firebase_project_id,
                 "KYC_ENCRYPTION_KEY": self.kyc_encryption_key,
                 "KYC_HASH_PEPPER": self.kyc_hash_pepper,
+                "PROXY_SECRET": self.proxy_secret,
+                # Set explicitly, so a deployment never runs on the default by accident.
+                "CLIENT_IP_SOURCE": self.client_ip_source
+                if "client_ip_source" in self.model_fields_set
+                else None,
             }
             if self.ml_service_url:
                 required["ML_SERVICE_TOKEN"] = self.ml_service_token
@@ -271,6 +305,7 @@ class Settings(DatabaseSettings):
             ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
             ("KYC_ENCRYPTION_KEY", self.kyc_encryption_key),
             ("KYC_HASH_PEPPER", self.kyc_hash_pepper),
+            ("PROXY_SECRET", self.proxy_secret),
             *((f"JWT_RETIRED_KEYS ({kid})", key) for kid, key in self._retired_pairs()),
             *((f"KYC_RETIRED_KEYS ({v})", key) for v, key in self._kyc_retired_keys().items()),
             *((f"KYC_RETIRED_PEPPERS ({v})", p) for v, p in self._kyc_retired_peppers().items()),
