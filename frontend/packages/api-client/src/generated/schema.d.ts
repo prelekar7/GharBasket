@@ -36820,6 +36820,8 @@ export interface operations {
                 q?: string | null;
                 /** @description `lat,lng` */
                 near?: string | null;
+                /** @description One society by its exact slug (case is ignored): 0 or 1 items. Not with `q` or `cursor`; `near` only fills `distance_m` */
+                slug?: string | null;
                 /** @description `next_cursor` from the last page */
                 cursor?: string | null;
                 /** @description Items per page */
@@ -36849,7 +36851,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description community.near_invalid, request.invalid_cursor, request.invalid */
+            /** @description community.near_invalid, request.invalid_cursor, request.invalid (also `slug` with `q` or `cursor`) */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -186,6 +186,100 @@ async def test_a_cursor_from_another_kind_of_search_is_refused(
         assert refused.json()["code"] == "request.invalid_cursor"
 
 
+async def test_slug_finds_exactly_one_society_whatever_its_case(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+
+    response = await api.get(
+        "/v1/societies", params={"slug": "Sunrise-Towers-KHARGHAR"}, headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "items": [
+            {
+                "id": str(SEED_SOCIETY_ID),
+                "slug": "sunrise-towers-kharghar",
+                "name": "Sunrise Towers",
+                "area": "Sector 20, Kharghar",
+                "status": "live",
+                "distance_m": None,
+            }
+        ],
+        "next_cursor": None,
+    }
+
+
+async def test_slug_finds_a_prospect_society_too(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    await save_society(
+        db_session,
+        SocietyData(
+            id=uuid.uuid4(),
+            slug="panvel-heights-new-panvel",
+            name="Panvel Heights",
+            area="New Panvel",
+            boundary=None,
+            towers=[],
+            flats=None,
+            unlock_threshold=20,
+            status="prospect",
+            hub_id=None,
+        ),
+    )
+    api = clients()
+    headers = await customer(api, google)
+
+    items = await _search(api, headers, slug="panvel-heights-new-panvel")
+
+    assert _slugs(items) == ["panvel-heights-new-panvel"]
+    assert items[0]["status"] == "prospect"
+
+
+@pytest.mark.parametrize("slug", ["no-such-society", "sunrise-towers", "sunrise%"])
+async def test_an_unknown_or_partial_slug_is_an_empty_list(
+    clients: ClientFactory, google: FakeGoogle, slug: str
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+
+    assert await _search(api, headers, slug=slug) == []
+
+
+async def test_near_with_a_slug_only_fills_the_distance(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+
+    items = await _search(api, headers, slug="sunrise-towers-kharghar", near=NEAR_SHREE_GANESH)
+
+    assert _slugs(items) == ["sunrise-towers-kharghar"]
+    assert 300 < items[0]["distance_m"] < 900
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"q": "sunrise"}, {"cursor": "bm9wZQ"}, {"slug": ""}, {"slug": "x" * 81}],
+    ids=["with-q", "with-cursor", "empty", "too-long"],
+)
+async def test_slug_refuses_q_cursor_and_bad_lengths(
+    clients: ClientFactory, google: FakeGoogle, params: dict[str, str]
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+
+    response = await api.get(
+        "/v1/societies", params={"slug": "sunrise-towers-kharghar", **params}, headers=headers
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "request.invalid"
+
+
 @pytest.mark.parametrize("near", ["abc", "19.03", "0,0", "51.5,-0.12", "19.03,73.07,1", "nan,73"])
 async def test_near_must_be_a_point_in_india(
     clients: ClientFactory, google: FakeGoogle, near: str

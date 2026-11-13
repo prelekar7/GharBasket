@@ -66163,6 +66163,29 @@
             }
           },
           {
+            "description": "One society by its exact slug (case is ignored): 0 or 1 items. Not with `q` or `cursor`; `near` only fills `distance_m`",
+            "in": "query",
+            "name": "slug",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One society by its exact slug (case is ignored): 0 or 1 items. Not with `q` or `cursor`; `near` only fills `distance_m`",
+              "examples": [
+                "sunrise-towers-kharghar"
+              ],
+              "title": "Slug"
+            }
+          },
+          {
             "description": "`next_cursor` from the last page",
             "in": "query",
             "name": "cursor",
@@ -66225,7 +66248,7 @@
                 }
               }
             },
-            "description": "community.near_invalid, request.invalid_cursor, request.invalid"
+            "description": "community.near_invalid, request.invalid_cursor, request.invalid (also `slug` with `q` or `cursor`)"
           }
         },
         "security": [
