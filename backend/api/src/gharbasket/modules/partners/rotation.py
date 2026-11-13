@@ -15,7 +15,7 @@ per row and never a number, so no number is ever in Python's memory or a log lin
 
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, and_, case, func, literal_column, or_, select, text
+from sqlalchemy import ColumnElement, and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.partners.kyc import KycStatementError, execute_secret
@@ -23,11 +23,8 @@ from gharbasket.modules.partners.models import KycDocument
 from gharbasket.platform.settings import Settings
 
 BATCH = 100
-# The pepper version of a hashed row: NULL is 1 until the follow-up migration backfills it.
-row_pepper_version: ColumnElement[int] = case(
-    (KycDocument.number_hash.is_(None), None),
-    else_=func.coalesce(KycDocument.hash_version, literal_column("1")),
-)
+# The pepper version of a hashed row (NULL exactly when there is no hash, by the table's CHECK).
+row_pepper_version = KycDocument.hash_version
 
 _REKEY = text("""
 WITH batch AS MATERIALIZED (
@@ -35,7 +32,7 @@ WITH batch AS MATERIALIZED (
     FROM partners.kyc_documents AS d
     WHERE ((d.number_enc IS NOT NULL AND d.key_version <> CAST(:key_version AS smallint))
            OR (d.number_hash IS NOT NULL
-               AND COALESCE(d.hash_version, 1) <> CAST(:pepper_version AS smallint)))
+               AND d.hash_version <> CAST(:pepper_version AS smallint)))
       AND (d.number_enc IS NULL OR d.key_version = ANY(CAST(:versions AS smallint[])))
     ORDER BY d.id
     LIMIT :batch
@@ -47,8 +44,7 @@ keys AS (
 ),
 plain AS MATERIALIZED (
     SELECT d.id, d.key_version AS old_key_version,
-           CASE WHEN d.number_hash IS NULL THEN NULL ELSE COALESCE(d.hash_version, 1) END
-               AS old_hash_version,
+           d.hash_version AS old_hash_version,
            COALESCE(d.fssai_reg_no, pgp_sym_decrypt(d.number_enc, k.key)) AS number
     FROM batch AS b
     JOIN partners.kyc_documents AS d ON d.id = b.id
