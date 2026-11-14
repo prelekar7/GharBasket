@@ -130,7 +130,7 @@ if [ "$shared" = 1 ] && [ "${GB_ALLOW_REMOTE_SEED:-}" != "$host" ]; then
   exit 2
 fi
 if [ "$shared" = 1 ] && [ "$commit_check" = 1 ]; then
-  api="${STAGING_API_URL:-https://gharbasket-api.onrender.com}"
+  api="${STAGING_API_URL:-https://api.gharbasket.co.in}"
   deployed=$(curl --silent --max-time 90 "$api/v1/health" |
     python3 -c 'import json, sys; print(json.load(sys.stdin).get("commit") or "")' 2>/dev/null || true)
   if [ "$deployed" != "$code" ]; then

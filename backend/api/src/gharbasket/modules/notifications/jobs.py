@@ -38,6 +38,7 @@ from gharbasket.modules.notifications.kinds import KINDS
 from gharbasket.modules.notifications.models import Delivery, Message, Template, WebhookEvent
 from gharbasket.modules.notifications.render import ordered_values
 from gharbasket.modules.notifications.whatsapp import WhatsAppClient
+from gharbasket.platform import tracing
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.locale import Language
 from gharbasket.platform.models import OutboxEvent
@@ -87,7 +88,7 @@ async def _http(given: httpx2.AsyncClient | None) -> AsyncIterator[httpx2.AsyncC
     if given is not None:
         yield given
         return
-    async with httpx2.AsyncClient(timeout=httpx2.Timeout(5.0)) as client:
+    async with tracing.http_client(timeout=httpx2.Timeout(5.0)) as client:
         yield client
 
 

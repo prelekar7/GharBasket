@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from "./routes/__root"
 import { Route as IndexRouteImport } from "./routes/index"
 import { Route as AuthRouteImport } from "./routes/_auth"
 import { Route as HelpRouteImport } from "./routes/help"
+import { Route as JoinRouteImport } from "./routes/join"
 import { Route as LoginRouteImport } from "./routes/login"
 import { Route as OtpRouteImport } from "./routes/otp"
 import { Route as RoleRouteImport } from "./routes/role"
@@ -86,6 +87,11 @@ const AuthRoute = AuthRouteImport.update({
 const HelpRoute = HelpRouteImport.update({
   id: "/help",
   path: "/help",
+  getParentRoute: () => rootRouteImport,
+})
+const JoinRoute = JoinRouteImport.update({
+  id: "/join",
+  path: "/join",
   getParentRoute: () => rootRouteImport,
 })
 const LoginRoute = LoginRouteImport.update({
@@ -502,6 +508,7 @@ const rootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   HelpRoute: HelpRoute,
+  JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
   OtpRoute: OtpRoute,
   RoleRoute: RoleRoute,

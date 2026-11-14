@@ -19,7 +19,11 @@ export const persister = {
   removeClient: () => del(KEY),
 };
 
-/** A new build discards caches saved by an older one. */
+/**
+ * A new build discards caches saved by an older one: `VITE_BUILD_ID` is the deployed commit (or the
+ * build time), set by vite.config.js (lib/buildId.js). Without it, a deploy restored up to a day of
+ * data in the old build's shapes into the new code.
+ */
 export const persistOptions = {
   persister,
   maxAge: DAY,

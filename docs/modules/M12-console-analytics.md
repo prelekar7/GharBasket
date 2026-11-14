@@ -443,7 +443,7 @@ GET /v1/public/societies/{slug}          no auth; Cache-Control: public, max-age
         "live_since": "2027-02-27" | null,  IST date
         "delivery_days": [ "tue" ],         live societies only (M3 delivery days)
         "impact": { "items_donated": 18, "meals_donated": 7 } | null,   M9's k rule (5 contributors)
-        "join_url": "https://app.gharbasket.in/join?s=sunrise-towers-kharghar" }
+        "join_url": "https://app.gharbasket.co.in/join?s=sunrise-towers-kharghar" }
   404 "community.society_not_found"   unknown, prospect or paused (a prospect's page would announce a
                                       place that is not being opened)
   429 "request.rate_limited"
@@ -452,7 +452,7 @@ GET /v1/public/societies/{slug}          no auth; Cache-Control: public, max-age
 - **Never on this page:** a captain (her name and photo are for residents only, M9 §3.1), a flat or tower count of who joined, a household, a partner, or earnings.
 - **Referral codes.** The page passes `?ref=` from its own URL into `join_url`. The API never says whether a code exists, because a public validity check would let anyone enumerate codes. An unknown code simply fails at the claim (M9 §3.3).
 - **Sources.** M12 composes the page from `community.api.public_society` and `society_impact` (k already applied in M9) and `subscriptions.api.delivery_days`. Nothing is read from M12's views, so the page is current within the 5-minute cache.
-- **Not in v1:** a public list of societies (`GET /v1/public/societies`, proposed by the console mock) and public cook profiles (M8 owns "know your cook").
+- **Not in v1:** a public list of societies (`GET /v1/public/societies`, proposed by the console mock) and public cook profiles (M8 owns "know your cook"; since 2026-11-12 its public cook page is M8 §3.5, `GET /v1/public/cooks/{handle}`, with the same cache and per-IP limit as this page).
 
 | Mock today (console `mocks/public.js`) | Contract |
 |---|---|
@@ -460,8 +460,9 @@ GET /v1/public/societies/{slug}          no auth; Cache-Control: public, max-age
 | `GET /v1/public/societies` (list) | Not in v1 |
 
 **As built** (`feat/M12-impact-public`, 2026-10-25):
-- The endpoint is in M12's router (`analytics/public.py`). `join_url` is `APP_WEB_URL/join?s=<slug>` (new setting, default `https://app.gharbasket.in`). `?ref=` is ignored, so the answer is the same with or without a code, and the console adds the code to `join_url` itself. The per-IP limit is 60 a minute on the caller's address (`request.client`; uvicorn's `--proxy-headers` makes it the real one). The 200 carries `Cache-Control: public, max-age=300, stale-while-revalidate=600`; a 404 does not.
+- The endpoint is in M12's router (`analytics/public.py`). `join_url` is `APP_WEB_URL/join?s=<slug>` (new setting, default `https://app.gharbasket.co.in`). `?ref=` is ignored, so the answer is the same with or without a code, and the console adds the code to `join_url` itself. The per-IP limit is 60 a minute on the caller's address (`platform.client_ip`, M0 §6.3). The 200 carries `Cache-Control: public, max-age=300, stale-while-revalidate=600`; a 404 or 429 sends `Cache-Control: no-store` (since 2026-11-13, with M8's public cook page, which shares the per-IP counter and these headers through `platform.rate_limit`).
 - `delivery_days` are `mon`..`sun` from the new `subscriptions.api.delivery_days`, and `[]` for an `unlocking` society. `progress_bp` is `min(joined, target) / target` in basis points, half up. `impact` is `{items_donated, meals_donated}` from `community.api.society_impact(…, "all", with_hub=False)`, `null` until 5 households contributed.
+- **Where `join_url` lands** (`feat/M9-join-invite-route`, 2026-11-13): the PWA's `/join?s=<slug>` keeps the slug in the onboarding draft, so it survives sign-in and the role step. The society step searches with the slug's words and preselects only a result with exactly that slug, under the line "A neighbour invited you to …". The person still confirms. A signed-in customer who already has a household just lands on their home. `?ref=` is not read yet (M9 §3.3 claim, a later PR).
 
 ### 3.8 AI health (built on `feat/M10-forecast-v1`, F25)
 `GET /v1/analytics/ai-health` (admin only, `analytics:ai_health`; Cache-Control: no-store) returns:

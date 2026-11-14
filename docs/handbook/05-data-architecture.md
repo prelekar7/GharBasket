@@ -965,7 +965,7 @@ It writes **through the module services**, so ledger and state-machine rules hol
   - `just sim --write-db` sends the weeks through M3, M4 and M5, one week at a time: M3 drafts the cycle at T-3 18:00 (after the week before was replayed, so its carry-over counts what was delivered), the household's edits become line ops, it approves or skips, the cut-off debits the wallet and locks or cancels, and the outbox relay lets M3's own consumers mirror the order on the cycle. Each step runs at its simulated instant.
 - **Next:**
   - item 1 (real society polygons), mandi-replayed prices and item 6.
-- See M10 §3.2 and `data/simulator/README.md`.
+- See M10 §3.11 and `data/simulator/README.md`.
 
 *Figure 5.14 — Simulator data flow*
 

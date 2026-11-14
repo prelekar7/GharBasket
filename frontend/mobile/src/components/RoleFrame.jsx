@@ -18,7 +18,10 @@ const BAR = {
  */
 export function RoleFrame({ userRole, thick = false, children }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-bg pt-[env(safe-area-inset-top)] text-fg">
+    <div
+      data-role-frame
+      className="flex min-h-dvh flex-col bg-bg pt-[env(safe-area-inset-top)] text-fg"
+    >
       <div aria-hidden className={`${thick ? "h-1.5" : "h-[3px]"} shrink-0 ${BAR[userRole]}`} />
       <OutboxBanner />
       {children}
