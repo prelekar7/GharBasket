@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { bagQr } from "@/features/logistics/bagQr.js";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";
-import { db, enqueue, flush } from "@/lib/outbox.js";
+import { db, dropStaleFailures, enqueue, flush } from "@/lib/outbox.js";
 
 // Rider data (M7 §3.3 and §3.4, frozen). Reads are cached and persisted, so a route loaded at the
 // hub keeps working without signal. Writes go through the offline outbox (each tap has its own
@@ -122,17 +122,22 @@ async function send(client, action) {
  */
 async function sendNow(client, action) {
   const body = { ...action.body, client_at: new Date().toISOString() };
+  // One key for this write: if the send reached the server but its answer was lost, the queued
+  // replay is the same request (same body too), not a second one.
+  const key = crypto.randomUUID();
   try {
     const data = await request(action.path, {
       method: "POST",
       body,
-      headers: { "idempotency-key": crypto.randomUUID() },
+      headers: { "idempotency-key": key },
     });
+    // A queued wrong code for this door is out of date now.
+    dropStaleFailures(action).catch(() => {});
     client.invalidateQueries({ queryKey: ["routes"] });
     return { queued: false, data };
   } catch (e) {
     if (e instanceof ApiError && e.status < 500) throw e;
-    await enqueue({ path: action.path, body });
+    await enqueue({ path: action.path, body, key });
     return { queued: true, data: null };
   }
 }

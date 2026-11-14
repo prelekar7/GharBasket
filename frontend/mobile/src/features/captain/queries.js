@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useKindEarnings } from "@/features/partners/earnings.js";
 import { ApiError, request } from "@/lib/api.js";
-import { db, enqueue, flush } from "@/lib/outbox.js";
+import { db, dropStaleFailures, enqueue, flush } from "@/lib/outbox.js";
 import { applyAction } from "./day.js";
 
 const DAY = ["captain-day"];
@@ -83,12 +83,17 @@ async function sendNow(client, action) {
     client.setQueryData(DAY, (/** @type {import("./day.js").CaptainDay | undefined} */ d) =>
       d ? applyAction(d, a) : d,
     );
+  // One key for this write: if the send reached the server but its answer was lost, the queued
+  // replay is the same request, not a second handover or proof.
+  const key = crypto.randomUUID();
   try {
     answer = await request(action.path, {
       method: "POST",
       body: action.body,
-      headers: { "idempotency-key": crypto.randomUUID() },
+      headers: { "idempotency-key": key },
     });
+    // A queued wrong code for this door is out of date now.
+    dropStaleFailures(action).catch(() => {});
     // A tiffin drop moves only the tiffins the rider had collected (`with_captain`).
     show(
       answer?.with_captain
@@ -98,7 +103,7 @@ async function sendNow(client, action) {
   } catch (e) {
     if (e instanceof ApiError) throw e;
     show();
-    await enqueue({ method: "POST", ...action });
+    await enqueue({ method: "POST", ...action, key });
   }
 }
 
