@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.logistics import live, tracking
 from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop, StopOrder
 from gharbasket.modules.logistics.schemas import PingIn
-from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders.models import Order, OrderEvent
 from gharbasket.modules.partners.models import AssignmentOrder
 from gharbasket.platform.jobs import run_job
@@ -723,9 +722,6 @@ async def test_after_the_sweep_a_captain_settles_only_the_tiffins_she_took(
     # Acting again on a tiffin that is settled answers as a box does (409 closed), not 404: hers
     # that she delivered, and one the hub refunded; an unknown order stays 404.
     manager = await as_user(api, google, VIKRAM)
-    await orders_api.transition(db_session, lunch.orders[MEENA], "undelivered", actor="hub")
-    (await attempt_of(db_session, lunch.orders[MEENA])).status = "undelivered"
-    await db_session.commit()
     refunded = await api.post(
         f"/v1/deliveries/{lunch.orders[MEENA]}/resolve",
         json={"outcome": "refund", "note": "never reached the captain"},
@@ -746,6 +742,101 @@ async def test_after_the_sweep_a_captain_settles_only_the_tiffins_she_took(
         headers={**captain, **key()},
     )
     assert (unknown.status_code, unknown.json()["code"]) == (404, "logistics.delivery_not_found")
+
+
+@time_machine.travel(START_AT, tick=False)
+async def test_the_hub_refunds_a_tiffin_the_sweep_left_not_confirmed(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    lunch = await lunch_route(db_session)
+    api = clients()
+    rider, captain = await as_user(api, google, ARJUN), await as_user(api, google, MEENA)
+    manager = await as_user(api, google, VIKRAM)
+    await start(api, rider, lunch)
+    await ready(db_session, lunch.lata, LATA)
+    assert (await collect(api, rider, lunch.kitchens[lunch.lata], qr(lunch.lata))).is_success
+    drop = lunch.drops[SEED_SOCIETY_ID]
+    code = (await stop(db_session, drop)).handover_code or ""
+    assert (await hand_over(api, captain, drop, code, 1)).status_code == 200  # Priya's: captain
+    await close_day(db_session)  # 16:00: Priya's (with the captain) and Sunita's (rider) swept
+    priya, sunita = lunch.orders[PRIYA], lunch.orders[SUNITA]
+    for order in (priya, sunita):
+        swept = await attempt_of(db_session, order)
+        assert (swept.status, swept.reason) == ("triage", "not_confirmed")
+    assert await statuses(db_session, priya, sunita) == ["dispatched", "dispatched"]
+
+    redeliver = await api.post(
+        f"/v1/deliveries/{sunita}/resolve",
+        json={"outcome": "redeliver", "note": "again"},
+        headers={**manager, **key()},
+    )
+    assert (redeliver.status_code, redeliver.json()["code"]) == (409, "logistics.no_redelivery")
+    assert await statuses(db_session, sunita) == ["dispatched"]  # refused before any move
+
+    for order in (priya, sunita):  # the captain's and the rider's alike
+        done = await api.post(
+            f"/v1/deliveries/{order}/resolve",
+            json={"outcome": "refund", "note": "checked with the family"},
+            headers={**manager, **key()},
+        )
+        assert done.status_code == 200, done.text
+        assert await statuses(db_session, order) == ["refunded"]
+        settled = await attempt_of(db_session, order)
+        assert settled.status == "refunded"
+        assert settled.refund_paise is not None and settled.refund_paise > 0
+        moves = (
+            await db_session.execute(
+                select(
+                    OrderEvent.from_status,
+                    OrderEvent.to_status,
+                    OrderEvent.actor,
+                    OrderEvent.payload,
+                )
+                .where(
+                    OrderEvent.order_id == order,
+                    OrderEvent.to_status.in_(("undelivered", "refunded")),
+                )
+                .order_by(OrderEvent.id)
+            )
+        ).all()
+        assert [tuple(m[:3]) for m in moves] == [
+            ("dispatched", "undelivered", "hub"),
+            ("undelivered", "refunded", "system"),
+        ]
+        assert moves[0][3] == {"reason": "not_confirmed"}
+
+
+@time_machine.travel(START_AT, tick=False)
+async def test_a_swept_tiffin_the_captain_proved_delivered_is_not_refunded(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    lunch = await lunch_route(db_session)
+    api = clients()
+    rider, captain = await as_user(api, google, ARJUN), await as_user(api, google, MEENA)
+    manager = await as_user(api, google, VIKRAM)
+    await start(api, rider, lunch)
+    await ready(db_session, lunch.lata, LATA)
+    assert (await collect(api, rider, lunch.kitchens[lunch.lata], qr(lunch.lata))).is_success
+    drop = lunch.drops[SEED_SOCIETY_ID]
+    code = (await stop(db_session, drop)).handover_code or ""
+    assert (await hand_over(api, captain, drop, code, 1)).status_code == 200
+    await close_day(db_session)
+    priya = await attempt_of(db_session, lunch.orders[PRIYA])
+    proof = {"short_code": priya.short_code, "proof": "otp", "delivery_code": priya.delivery_code}
+    # a captain who received it still proves the door of a swept tiffin (kept_by_captain)
+    done = await api.post(
+        f"/v1/deliveries/{lunch.orders[PRIYA]}/proof", json=proof, headers={**captain, **key()}
+    )
+    assert done.status_code == 200, done.text
+
+    late = await api.post(
+        f"/v1/deliveries/{lunch.orders[PRIYA]}/resolve",
+        json={"outcome": "refund", "note": "too late"},
+        headers={**manager, **key()},
+    )
+
+    assert (late.status_code, late.json()["code"]) == (409, "logistics.not_undelivered")
+    assert await statuses(db_session, lunch.orders[PRIYA]) == ["delivered"]
 
 
 async def attempt_of(db: AsyncSession, order_id: uuid.UUID) -> Delivery:

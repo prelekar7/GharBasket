@@ -5,8 +5,9 @@ inside the grace period re-runs the debit (consumer of `billing.wallet_topped_up
 
 `scheduled_for` decides the delivery date, never the clock, so a late run does the same work.
 `expire_carry_overs` (02:40 IST) refunds carried items still waiting 14 days after the miss
-(§3.8). The ops probe `orders.revenue_unrecognised` asks M5 whether recently delivered orders
-still hold unearned money (M5 §3.9).
+(§3.8). The ops probe `orders.revenue_unrecognised` asks M5 whether recently delivered or closed
+refunded orders still hold unearned money (M5 §3.9); `republish_closed_orders` (manual) sends
+`orders.closed` again for refunded orders closed before the event existed (§3.8).
 """
 
 import uuid
@@ -150,25 +151,66 @@ subscribe(billing_api.WALLET_TOPPED_UP, on_wallet_topped_up)
 
 REVENUE_AFTER = timedelta(hours=1)  # M5's consumer of orders.delivered runs within seconds
 REVENUE_WINDOW = timedelta(days=7)
+CLOSED_AFTER = timedelta(days=1)  # a refunded order's `orders.closed` is consumed within seconds
 
 
 @ops.probe("orders.revenue_unrecognised")
 async def revenue_unrecognised(session: AsyncSession, now: datetime) -> list[str]:
-    """Orders delivered more than an hour ago (and within 7 days) that still hold money in M5's
-    unearned_revenue: M5 recognises it on `orders.delivered`, so with that working, none. A
-    carried item's missed order is left out: it keeps the second-miss fee (M5 §3.9)."""
-    delivered = await session.scalars(
-        select(OrderEvent.order_id)
-        .where(
-            OrderEvent.to_status == "delivered",
-            OrderEvent.at < now - REVENUE_AFTER,
-            OrderEvent.at >= now - REVENUE_WINDOW,
+    """Orders that still hold money in M5's unearned_revenue after M5 should have recognised it:
+    delivered more than an hour ago (and within 7 days), on `orders.delivered`; or `refunded` and
+    closed more than a day ago (within 7 days), on `orders.closed` (the second-miss fee, the rest of
+    a partial refund). With the consumers working, none. A missed order that still has carried
+    rows open is not closed, so it is left out (M5 §3.9)."""
+    delivered = list(
+        await session.scalars(
+            select(OrderEvent.order_id)
+            .where(
+                OrderEvent.to_status == "delivered",
+                OrderEvent.at < now - REVENUE_AFTER,
+                OrderEvent.at >= now - REVENUE_WINDOW,
+            )
+            .distinct()
         )
-        .distinct()
     )
-    held = await billing_api.held_paise(session, list(delivered))
-    left = sum(1 for paise in held.values() if paise > 0)
-    if not left:
-        return []
-    orders = "1 delivered order still holds" if left == 1 else f"{left} delivered orders still hold"
-    return [f"{orders} unearned revenue; run recognise_delivered_revenue"]
+    closed = await carry.closed_order_ids(session, now - REVENUE_WINDOW, now - CLOSED_AFTER)
+    out: list[str] = []
+    for ids, adjective, job_name in (
+        (delivered, "delivered", "recognise_delivered_revenue"),
+        (closed, "refunded", "republish_closed_orders"),
+    ):
+        held = await billing_api.held_paise(session, ids)
+        left = sum(1 for paise in held.values() if paise > 0)
+        if left:
+            orders = (
+                f"1 {adjective} order still holds"
+                if left == 1
+                else f"{left} {adjective} orders still hold"
+            )
+            out.append(f"{orders} unearned revenue; run {job_name}")
+    return out
+
+
+@job(
+    "republish_closed_orders",
+    "Backfill: orders.closed again for refunded orders still holding money",
+)
+async def republish_closed_orders(ctx: JobContext) -> dict[str, Any]:
+    """Publishes `orders.closed` for every closed `refunded` order that still holds money in M5
+    (asked of `billing.api.held_paise`), oldest id first, in batches; M5's consumer recognises it.
+    For orders refunded before the event existed; an order holding nothing or still open is
+    skipped, and a rerun posts nothing twice (M5's key). Manual (M4 §3.8)."""
+    seen = published = 0
+    last: uuid.UUID | None = None
+    while True:
+        batch = await carry.closed_orders(ctx.session, after=last, limit=BATCH)
+        if not batch:
+            break
+        held = await billing_api.held_paise(ctx.session, [order.id for order in batch])
+        for order in batch:
+            seen += 1
+            if held.get(order.id, 0) > 0:
+                await carry.publish_closed(ctx.session, order)
+                published += 1
+        last = batch[-1].id
+        await ctx.session.commit()
+    return {"closed": seen, "published": published}

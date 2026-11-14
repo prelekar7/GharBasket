@@ -71,7 +71,7 @@ REMOTE
     : "${JOBS_TOKEN:?run under: infisical run --env=staging -- $0 env <ip> <key>}"
     {
       printf 'JOBS_TOKEN=%s\n' "$JOBS_TOKEN"
-      printf 'API_URL=%s\n' "${STAGING_API_URL:-https://gharbasket-api.onrender.com}"
+      printf 'API_URL=%s\n' "${STAGING_API_URL:-https://api.gharbasket.co.in}"
       # The healthchecks.io ping URLs (ADR-0033), each only when Infisical has it.
       for name in HC_PING_URL HC_CUTOFF_URL HC_OPS_URL; do
         [ -z "${!name:-}" ] || printf '%s=%s\n' "$name" "${!name}"

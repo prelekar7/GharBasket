@@ -5,11 +5,16 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { bagQr, parseBagQr } from "@/features/logistics/bagQr.js";
 import { useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { clockTime } from "@/features/subscriptions/format.js";
-import { normalizeCode } from "@/lib/scan.js";
 
-/** Empty crates and donation bags collected on the way back to the hub (design RiderPickups; M7 §3.6, an outline). */
+/**
+ * Empty crates, donations and returned bags collected on the way back to the hub (design RiderPickups;
+ * M7 §3.6). Empties and donations are tapped; a donation has no label or code, so the rider tells
+ * it apart by its items (and the flat, in rider mode). A returned bag is scanned: its `GB1:` QR goes
+ * in `bags`.
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/rider/pickups")({ component: RiderPickups });
 
@@ -28,24 +33,24 @@ function RiderPickups() {
   const route = query.data.route;
   if (!route) return <EmptyState title={t("rider.none.title")} />;
 
-  const donations = route.stops.flatMap((stop) =>
-    (stop.pickups?.donations ?? []).map((donation) => ({ stop, donation })),
+  const bags = route.stops.flatMap((stop) =>
+    (stop.pickups?.bags ?? []).map((bag) => ({ stop, bag, qr: bagQr(bag.order_id) })),
   );
-  const pending = donations.filter((d) => d.donation.status === "expected");
-  /** Collects the donation a scanned or typed code belongs to; false when it is not on this route. @param {string} raw */
+  const pending = bags.filter((b) => b.bag.status === "expected");
+  /** Collects the returned bag a scanned or typed `GB1:` code belongs to; false when it is not on this route. @param {string} raw */
   const collectCode = (raw) => {
-    const typed = normalizeCode(raw);
-    const hit = pending.find((d) => d.donation.ref === typed);
-    if (hit)
-      actions.pickups(route, hit.stop, {
-        donations: [{ donation_id: hit.donation.donation_id, status: "collected" }],
-      });
+    const qr = parseBagQr(raw);
+    const hit = qr ? pending.find((b) => b.qr === qr) : undefined;
+    if (hit) actions.pickups(route, hit.stop, { bags: [hit.qr] });
     setScan(hit ? "success" : "error");
     setTimeout(() => setScan("idle"), 2500);
     return !!hit;
   };
   const places = route.stops.filter(
-    (s) => s.empties_expected > 0 || (s.pickups?.donations.length ?? 0) > 0,
+    (s) =>
+      s.empties_expected > 0 ||
+      (s.pickups?.donations.length ?? 0) > 0 ||
+      (s.pickups?.bags?.length ?? 0) > 0,
   );
 
   return (
@@ -73,8 +78,12 @@ function RiderPickups() {
           {stop.pickups?.donations.map((d) => (
             <Checkbox
               key={d.donation_id}
-              label={t("rider.pickups.donation", { ref: d.ref })}
-              description={d.note}
+              label={
+                d.items
+                  ? t("rider.pickups.donation", { items: d.items })
+                  : t("rider.pickups.donationBag")
+              }
+              description={d.flat_label ?? undefined}
               isSelected={d.status === "collected"}
               isReadOnly={d.status === "collected"}
               onChange={(on) =>
@@ -85,13 +94,22 @@ function RiderPickups() {
               }
             />
           ))}
+          {stop.pickups?.bags?.map((b) => (
+            <Checkbox
+              key={b.order_id}
+              label={t("rider.pickups.bag")}
+              description={b.flat_label ?? undefined}
+              isSelected={b.status === "collected"}
+              isReadOnly
+            />
+          ))}
         </section>
       ))}
       {pending.length > 0 && (
         <ScanField
           label={t("rider.pickups.scan")}
           manualLabel={t("rider.pickups.manual")}
-          expected={pending[0]?.donation.ref}
+          expected={pending[0]?.qr}
           state={scan}
           successLabel={t("rider.pickups.scanned")}
           errorLabel={t("rider.pickups.unknown")}

@@ -30,7 +30,7 @@ collect() {
   infisical run --env=staging --silent -- sh -c '
     exec env S3_ACCESS_KEY="${TRAINING_S3_ACCESS_KEY:-$S3_ACCESS_KEY}" \
       S3_SECRET_KEY="${TRAINING_S3_SECRET_KEY:-$S3_SECRET_KEY}" \
-      API_URL="${STAGING_API_URL:-https://gharbasket-api.onrender.com}" \
+      API_URL="${STAGING_API_URL:-https://api.gharbasket.co.in}" \
       S3_REGION=auto S3_BUCKET_LAKE=gb-staging-lake S3_BUCKET_MLFLOW=gb-staging-mlflow \
       uv run --directory backend/training python -m gharbasket_training.jobs.collect_mandi \
       --push-index'

@@ -2682,7 +2682,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit your kitchen: name, area, address, pin, skills, weekly portions (If-Match) */
+        /** Edit your kitchen: name, area, address, pin, skills, weekly portions, public page (If-Match) */
         patch: operations["edit_kitchen_v1_kitchens_me_patch"];
         trace?: never;
     };
@@ -3681,6 +3681,23 @@ export interface paths {
         };
         /** Ranked substitutes, with the price difference and why */
         get: operations["substitutes_v1_products__product_id__substitutes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/cooks/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A home kitchen's public page, only with her consent (no sign-in) */
+        get: operations["public_cook_v1_public_cooks__handle__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7784,6 +7801,16 @@ export interface components {
             /** Delivery Dates */
             delivery_dates: string[];
         };
+        /** FssaiOut */
+        FssaiOut: {
+            /**
+             * Reg No
+             * @example 11521999000123
+             */
+            reg_no: string;
+            /** Valid Until */
+            valid_until: string | null;
+        };
         /** GeneratedPurchaseOrders */
         GeneratedPurchaseOrders: {
             /** Purchase Orders */
@@ -9633,6 +9660,11 @@ export interface components {
             /** Display Name */
             display_name?: string | null;
             location?: components["schemas"]["LatLng"] | null;
+            /**
+             * Public Profile
+             * @description Her public cook page (§3.5): true mints a handle, false clears it for good
+             */
+            public_profile?: boolean | null;
             /**
              * Skills
              * @description From veg, jain, no_onion_garlic, diabetic, egg, nonveg (else 422 partners.skills_invalid)
@@ -13279,7 +13311,7 @@ export interface components {
              * Action
              * @enum {string}
              */
-            action: "edit_box_line" | "skip_week";
+            action: "edit_box_line" | "skip_week" | "book_tiffin";
             /**
              * Expires At
              * Format: date-time
@@ -13306,12 +13338,101 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /**
+         * PublicCookOut
+         * @description A home kitchen's public page (§3.5), only with her consent: never her area, address,
+         *     location, phone, portions served, partner id or a rating comment.
+         */
+        PublicCookOut: {
+            /**
+             * Dishes
+             * @description Delivered in the last 60 IST days, most portions first, at most 6
+             */
+            dishes: components["schemas"]["PublicDishOut"][];
+            /**
+             * Display Name
+             * @example Lata tai
+             */
+            display_name: string;
+            /** @description Null without a registration number */
+            fssai: components["schemas"]["FssaiOut"] | null;
+            /**
+             * Handle
+             * @example k7m2qx4rta
+             */
+            handle: string;
+            /** @description Who checked the kitchen; the locality */
+            hub: components["schemas"]["PublicHubOut"];
+            hygiene: components["schemas"]["HygieneOut"] | null;
+            /**
+             * Photo Url
+             * @description Always null for now (M8 §11)
+             */
+            photo_url: string | null;
+            /** @description From 5 ratings on; else null */
+            rating: components["schemas"]["RatingOut"] | null;
+            /**
+             * Since
+             * @description IST month of verification
+             * @example 2026-12
+             */
+            since: string;
+            /**
+             * Skills
+             * @description Codes; the page labels them
+             * @example [
+             *       "veg"
+             *     ]
+             */
+            skills: string[];
+            /**
+             * Trainings
+             * @description Passed; titles in Accept-Language
+             */
+            trainings: components["schemas"]["TrainingPassOut"][];
+        };
+        /** PublicDishOut */
+        PublicDishOut: {
+            /**
+             * Name
+             * @example Jain thali
+             */
+            name: string;
+        };
+        /** PublicHubOut */
+        PublicHubOut: {
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string;
+        };
         /** PublicImpactOut */
         PublicImpactOut: {
             /** Items Donated */
             items_donated: number;
             /** Meals Donated */
             meals_donated: number;
+        };
+        /** PublicProfileOut */
+        PublicProfileOut: {
+            /**
+             * Handle
+             * @example k7m2qx4rta
+             */
+            handle: string;
+            /**
+             * Since
+             * Format: date-time
+             * @description When she turned it on
+             */
+            since: string;
+            /**
+             * Url
+             * @description For her to share
+             * @example https://gharbasket.co.in/cook/k7m2qx4rta
+             */
+            url: string;
         };
         /** PublicSocietyOut */
         PublicSocietyOut: {
@@ -14203,7 +14324,7 @@ export interface components {
             /**
              * Link
              * @description null while the caller has no household
-             * @example https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD
+             * @example https://gharbasket.co.in/s/sunrise-towers-kharghar?ref=K7Q2XD
              */
             link: string | null;
             referred_by: components["schemas"]["ReferredBy"] | null;
@@ -17220,6 +17341,19 @@ export interface components {
             /** Items */
             items: components["schemas"]["TrainingModuleOut"][];
         };
+        /** TrainingPassOut */
+        TrainingPassOut: {
+            /**
+             * Code
+             * @example hygiene
+             */
+            code: string;
+            /**
+             * Title
+             * @example Kitchen hygiene
+             */
+            title: string;
+        };
         /** TrainingQuestion */
         TrainingQuestion: {
             /**
@@ -18557,6 +18691,8 @@ export interface components {
              * Format: uuid
              */
             partner_id: string;
+            /** @description Null: no public page (§3.5) */
+            public_profile: components["schemas"]["PublicProfileOut"] | null;
             /**
              * Skills
              * @example [
@@ -23456,7 +23592,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, subscriptions.cutoff_passed, subscriptions.not_editable */
+            /** @description assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, assistant.price_changed, subscriptions.cutoff_passed, subscriptions.not_editable, orders.tiffin_already_booked (order_id), orders.slot_full */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -23474,7 +23610,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description subscriptions.product_unknown, subscriptions.qty_invalid */
+            /** @description subscriptions.product_unknown, subscriptions.qty_invalid, orders.menu_unknown (closed or no longer offered), orders.slot_invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -35166,6 +35302,57 @@ export interface operations {
             };
         };
     };
+    public_cook_v1_public_cooks__handle__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCookOut"];
+                };
+            };
+            /** @description partners.cook_not_found (unknown handle, no consent, or not active or paused) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per IP on /v1/public/*; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     public_society_v1_public_societies__slug__get: {
         parameters: {
             query?: never;
@@ -36633,6 +36820,8 @@ export interface operations {
                 q?: string | null;
                 /** @description `lat,lng` */
                 near?: string | null;
+                /** @description One society by its exact slug (case is ignored): 0 or 1 items. Not with `q` or `cursor`; `near` only fills `distance_m` */
+                slug?: string | null;
                 /** @description `next_cursor` from the last page */
                 cursor?: string | null;
                 /** @description Items per page */
@@ -36662,7 +36851,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description community.near_invalid, request.invalid_cursor, request.invalid */
+            /** @description community.near_invalid, request.invalid_cursor, request.invalid (also `slug` with `q` or `cursor`) */
             422: {
                 headers: {
                     [name: string]: unknown;

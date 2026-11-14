@@ -46,6 +46,7 @@ from gharbasket.modules.partners.models import (
     Kitchen,
     Partner,
 )
+from gharbasket.platform import tracing
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import lock_key
 from gharbasket.platform.outbox import publish
@@ -277,7 +278,7 @@ async def _solve(
         return await intel_api.assign_kitchens(
             http, settings, request, session=session, hub_id=hub_id, for_date=day
         )
-    async with httpx2.AsyncClient(timeout=httpx2.Timeout(5.0)) as client:
+    async with tracing.http_client(timeout=httpx2.Timeout(5.0)) as client:
         return await intel_api.assign_kitchens(
             client, settings, request, session=session, hub_id=hub_id, for_date=day
         )

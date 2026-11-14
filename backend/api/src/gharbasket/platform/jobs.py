@@ -34,7 +34,7 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from gharbasket.platform import files, ops, outbox
+from gharbasket.platform import files, ops, outbox, tracing
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import KEY_TTL
@@ -113,11 +113,29 @@ async def run_job(
     valkey: Redis | None = None,
     storage: files.ObjectStore | None = None,
 ) -> JobRun:
-    """Run one job inside `session`'s transaction and commit; the run row is always kept."""
+    """Run one job inside `session`'s transaction and commit; the run row is always kept. The run
+    is the span `job <name>` (M0 §6.2) with its scheduled time, status and run id."""
     found = JOBS.get(name)
     if found is None:
         raise job_unknown(name)
     scheduled_for = scheduled_for or datetime.now(UTC)
+    with tracing.span(f"job {name}", {"gb.job.scheduled_for": scheduled_for.isoformat()}) as span:
+        run = await _run(session, found, scheduled_for, settings, http, valkey, storage)
+        span.set_attribute("gb.job.status", run.status)
+        span.set_attribute("gb.job.run_id", str(run.id))
+        return run
+
+
+async def _run(
+    session: AsyncSession,
+    found: Job,
+    scheduled_for: datetime,
+    settings: Settings,
+    http: httpx2.AsyncClient | None,
+    valkey: Redis | None,
+    storage: files.ObjectStore | None,
+) -> JobRun:
+    name = found.name
     request_id = structlog.contextvars.get_contextvars().get("request_id")
     run = JobRun(name=name, scheduled_for=scheduled_for, status="skipped", request_id=request_id)
 
@@ -138,6 +156,7 @@ async def run_job(
     try:
         summary = await found.run(context)
     except Exception as exc:
+        tracing.record_error(exc)  # its type only: the message is in the run row
         await session.rollback()  # the job's partial writes go; the run row stays
         run.status = "failed"
         run.error = f"{type(exc).__name__}: {exc}"[:ERROR_LENGTH]
@@ -232,12 +251,10 @@ async def failed_jobs(session: AsyncSession, now: datetime) -> list[str]:
     return [f"{name} failed: {(error or '')[:120]}" for name, error in rows.all()]
 
 
-@ops.probe("platform.jobs_with_failed_hubs")
-async def jobs_with_failed_hubs(session: AsyncSession, now: datetime) -> list[str]:
-    """A per-hub job that ended `ok` but listed `failed_hubs` in its summary (a hub that failed
-    in its own savepoint while the others stood), in the last 24 h, with no later clean run of the
-    same job. The run keeps its `ok` status; this is how the failed hubs reach the `ops` alert.
-    The latest such run of each job is named, with its hubs."""
+async def _ok_runs_listing(session: AsyncSession, now: datetime, key: str) -> list[tuple[str, str]]:
+    """The latest `ok` run of each job in the last 24 h whose summary lists a non-empty `key`, with
+    no later `ok` run of the same job that lacks `key`. Each is (job name, the run's problem text
+    "<ids> (run of <start>)")."""
     later = aliased(JobRun)
     healed = (
         select(later.id)
@@ -245,7 +262,7 @@ async def jobs_with_failed_hubs(session: AsyncSession, now: datetime) -> list[st
             later.name == JobRun.name,
             later.status == "ok",
             later.started_at > JobRun.started_at,
-            or_(later.summary.is_(None), ~later.summary.has_key("failed_hubs")),
+            or_(later.summary.is_(None), ~later.summary.has_key(key)),
         )
         .exists()
     )
@@ -254,22 +271,46 @@ async def jobs_with_failed_hubs(session: AsyncSession, now: datetime) -> list[st
         .where(
             JobRun.status == "ok",
             JobRun.started_at > now - FAILED_LOOKBACK,
-            JobRun.summary.has_key("failed_hubs"),
+            JobRun.summary.has_key(key),
             ~healed,
         )
         .order_by(JobRun.name, JobRun.started_at.desc())
         .ext(distinct_on(JobRun.name))
     )
-    problems: list[str] = []
+    found: list[tuple[str, str]] = []
     for name, summary, started_at in rows.all():
-        hubs = (summary or {}).get("failed_hubs")
-        if isinstance(hubs, list) and hubs:
-            listed = ", ".join(str(hub) for hub in hubs[:10]) + (
-                f" and {len(hubs) - 10} more" if len(hubs) > 10 else ""
+        ids = (summary or {}).get(key)
+        if isinstance(ids, list) and ids:
+            listed = ", ".join(str(i) for i in ids[:10]) + (
+                f" and {len(ids) - 10} more" if len(ids) > 10 else ""
             )
-            at = f"{started_at:%Y-%m-%d %H:%M} UTC"
-            problems.append(f"{name} ended ok but hubs failed: {listed} (run of {at})")
-    return problems
+            found.append((name, f"{listed} (run of {started_at:%Y-%m-%d %H:%M} UTC)"))
+    return found
+
+
+@ops.probe("platform.jobs_with_failed_hubs")
+async def jobs_with_failed_hubs(session: AsyncSession, now: datetime) -> list[str]:
+    """A per-hub job that ended `ok` but listed `failed_hubs` in its summary (a hub that failed
+    in its own savepoint while the others stood), in the last 24 h, with no later clean run of the
+    same job. The run keeps its `ok` status; this is how the failed hubs reach the `ops` alert.
+    The latest such run of each job is named, with its hubs."""
+    return [
+        f"{name} ended ok but hubs failed: {text_}"
+        for name, text_ in await _ok_runs_listing(session, now, "failed_hubs")
+    ]
+
+
+@ops.probe("platform.jobs_with_failed_households")
+async def jobs_with_failed_households(session: AsyncSession, now: datetime) -> list[str]:
+    """A per-household job (`generate_weekly_plans`, which commits each household's draft as it is
+    made) that ended `ok` but listed `failed_households` in its summary (key omitted when none
+    failed), in the last 24 h, with no later run of the same job without that key. A sibling of
+    `jobs_with_failed_hubs`, not an extension, because a run can heal one list and not the other
+    (a rerun that fixes the hubs but still fails a household) and each names its own ids."""
+    return [
+        f"{name} ended ok but households failed: {text_}"
+        for name, text_ in await _ok_runs_listing(session, now, "failed_households")
+    ]
 
 
 @ops.probe("platform.outbox_stuck")
