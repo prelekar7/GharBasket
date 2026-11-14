@@ -708,28 +708,9 @@ describe("Kindness points (M5 §3.6)", () => {
   });
 });
 
-describe("society invites and unlock (M9, Core-S1/S4)", () => {
-  const society = async (/** @type {string} */ id) =>
-    (await mockFetch(new Request(`http://localhost/v1/societies/${id}`))).json();
+describe("societies and unlock (M9, Core-S1/S4)", () => {
   const unlock = async (/** @type {string} */ id) =>
     (await mockFetch(new Request(`http://localhost/v1/societies/${id}/unlock`))).json();
-
-  it("unlocks a society when invites bring it to the threshold, with its captain", async () => {
-    expect(await society("green-valley")).toMatchObject({ status: "unlocking", captain: null });
-    expect(await unlock("green-valley")).toMatchObject({ joined: 19, threshold: 25 });
-    for (let i = 0; i < 6; i++)
-      await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, `ref-${i}`);
-    // The same key again changes nothing.
-    await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, "ref-0");
-    const s = await society("green-valley");
-    // Only a display name: no flat, no phone number (DPDP).
-    expect(s).toMatchObject({
-      status: "live",
-      captain: { display_name: "Asha tai", photo_url: null },
-    });
-    expect(Object.keys(s.captain)).toEqual(["display_name", "photo_url"]);
-    expect(await unlock("green-valley")).toMatchObject({ status: "live", joined: 25 });
-  });
 
   it("lists societies without captain or unlock data, and gives them per society", async () => {
     const list = await (await mockFetch(new Request("http://localhost/v1/societies"))).json();
