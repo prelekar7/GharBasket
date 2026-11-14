@@ -153,6 +153,9 @@ class Settings(DatabaseSettings):
         SecretStr | None, AfterValidator(_header_secret("ORIGIN_SECRET_PREVIOUS"))
     ] = None
     proxy_client_ip_header: Annotated[str, BeforeValidator(_proxy_client_ip_header)] = "x-real-ip"
+    # CLIENT_IP_DEBUG=true logs, once a minute per shape, how the address headers relate (never a
+    # value; platform/client_ip.py `_debug`). Only while checking a proxy path (handbook 13 §13.3).
+    client_ip_debug: bool = False
     # Traces (M0 §6.2) to Grafana Cloud over OTLP/HTTP, only when the endpoint is set (the base URL,
     # without /v1/traces). The headers ("Authorization=Basic%20<base64>") are a secret. Sampling is
     # parent-based with this ratio of new traces.

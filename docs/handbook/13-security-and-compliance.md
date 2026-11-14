@@ -92,7 +92,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
         seq 1 70 | xargs -P 10 -I{} curl -4 -s -o /dev/null -w '%{http_code}\n' "$APP" | sort | uniq -c   # some 429
         curl -4 -s -o /dev/null -w '%{http_code}\n' "$API"                                                  # must be 429
         ```
-        The direct call must give **429**. A 404 means the proxy path is counting Vercel's address, not yours. The secret or `X-Real-IP` did not arrive: look for `client_ip_proxy_secret_mismatch` or `client_ip_fallback` in Render's logs.
+        The direct call must give **429**. A 404 means the proxy path is counting Vercel's address, not yours. The secret or `X-Real-IP` did not arrive: look for `client_ip_proxy_secret_mismatch` or `client_ip_fallback` in Render's logs. If neither appears, set `CLIENT_IP_DEBUG=true` on Render, repeat the check, and read the `client_ip_debug` lines: they show, without any value, whether the secret arrived and matched, whether `X-Real-IP` is an address, and whether it equals `True-Client-IP` or which `X-Forwarded-For` entry it is. Remove the variable afterwards.
      2. **Spoofed headers are ignored.** Each run sends 125 requests and **must show some 429s**. Wait a minute between runs, so each starts with an empty counter.
         ```sh
         run() { seq 1 125 | xargs -P 10 -I{} curl -s -o /dev/null -w '%{http_code}\n' "$@" "$URL" | sort | uniq -c; }
