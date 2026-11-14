@@ -12,7 +12,6 @@ from gharbasket.modules.analytics.schemas import KpiSource
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
-from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.permissions import Permit, require
 from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.valkey import Valkey
@@ -22,8 +21,6 @@ router = APIRouter(tags=["analytics"])
 CanSeeImpact = Annotated[Permit, require("analytics:impact")]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 REQUESTS_PER_MINUTE = 60  # per user on /v1/analytics/*, shared with the other endpoints (§3.9)
-PUBLIC_REQUESTS_PER_MINUTE = 60  # per IP on /v1/public/* (§3.9)
-PUBLIC_CACHE = "public, max-age=300, stale-while-revalidate=600"
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -103,11 +100,6 @@ async def impact_report(
     return await impact.report(session, target, data_source, first)
 
 
-def _client_ip(request: Request) -> str:
-    # On Render, uvicorn runs with --proxy-headers, so this is the real caller's address.
-    return request.client.host if request.client else "unknown"
-
-
 @router.get(
     "/public/societies/{slug}",
     response_model=PublicSocietyOut,
@@ -125,16 +117,9 @@ async def public_society(
     settings: AppSettings,
     slug: Annotated[str, Path(min_length=1, max_length=80, examples=["sunrise-towers-kharghar"])],
 ) -> PublicSocietyOut:
-    await rate_limit.enforce(
-        valkey,
-        f"public:ip:{_client_ip(request)}",
-        limit=PUBLIC_REQUESTS_PER_MINUTE,
-        window_s=60,
-        code="request.rate_limited",
-        detail="Too many requests. Wait a little and try again.",
-    )
+    await rate_limit.enforce_public(valkey, request)  # per IP, shared with /v1/public/* (§3.9)
     page = await public.page(session, settings, slug)
     if page is None:
-        raise ProblemError(404, "community.society_not_found", "No such society.")
-    response.headers["Cache-Control"] = PUBLIC_CACHE
+        raise rate_limit.public_not_found("community.society_not_found", "No such society.")
+    response.headers["Cache-Control"] = rate_limit.PUBLIC_CACHE
     return page

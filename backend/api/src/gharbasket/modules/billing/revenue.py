@@ -8,6 +8,7 @@ sales_revenue when it is delivered, and a refund after that comes out of sales_r
 - `refund_legs` takes a refund from unearned_revenue up to what the order holds, and from
   sales_revenue for the rest up to what was recognised for the order (less its earlier refunds
   from there); more is refused, so per order neither account ever goes below zero.
+- `recognise_closed` does the same for a refunded order's kept money, on M4's `orders.closed`.
 - Both take the order's transaction lock before reading what it holds, so a refund and the
   recognition at the same moment never both take the same money. Lock order: M4's order row,
   then this lock, then the wallet's row.
@@ -28,6 +29,8 @@ from gharbasket.modules.billing.service import Leg
 from gharbasket.platform.errors import ProblemError
 
 log = structlog.get_logger("gharbasket.billing.revenue")
+
+RETAINED = "retained"  # `details.reason` of a refunded order's kept money (§3.9)
 
 
 def _lock_key(order_id: uuid.UUID) -> int:
@@ -195,3 +198,15 @@ async def recognise_delivery(session: AsyncSession, body: object, event_id: uuid
             },
         )
     return paise
+
+
+async def recognise_closed(session: AsyncSession, body: object, event_id: uuid.UUID) -> int:
+    """`orders.closed`: what a `refunded` order still holds (the second-miss fee, the rest of a
+    partial refund) is recognised under `revenue:<order id>`, reason `retained`. A refunded order
+    is never delivered, so the key is free; an order that holds nothing, or a repeat, posts
+    nothing. Returns the paise newly recognised; a payload without an order id is logged."""
+    order_id = _uuid(_dict(body).get("order_id"))
+    if order_id is None:
+        log.warning("closed_unusable", event_id=str(event_id))
+        return 0
+    return await recognise(session, order_id, f"revenue:{order_id}", details={"reason": RETAINED})

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { clockTime, istClock, shortDate, weekdayName } from "@/features/subscriptions/format.js";
 import { ApiError } from "@/lib/api.js";
 import { uploadFile } from "@/lib/upload.js";
-import { bagQr } from "./day.js";
+import { bagQr, flatText } from "./day.js";
 import { useTiffinProof } from "./queries.js";
 
 /** "Tue 6 Oct" / "मंगल 6 अक्टू॰". @param {string} iso @param {string} lang */
@@ -92,7 +92,7 @@ export function TiffinDoor({ flat, onDone }) {
         isDisabled={!/^\d{4}$/.test(code.trim())}
         onPress={() => send({ proof: "otp", delivery_code: code.trim() })}
       >
-        {t("captain.tiffin.deliver", { flat: flat.flat_label })}
+        {t("captain.tiffin.deliver", { flat: flatText(flat) })}
       </Button>
       <PhotoButton
         added={false}

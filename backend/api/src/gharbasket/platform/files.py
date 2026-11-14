@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.platform import image_metadata, rate_limit
+from gharbasket.platform import image_metadata, rate_limit, tracing
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
@@ -225,6 +225,7 @@ def create_store(settings: Settings) -> ObjectStore | None:
         )
 
     internal = client(settings.s3_endpoint_url)
+    tracing.instrument_boto(internal)  # the public client only presigns, without HTTP calls
     public = client(settings.s3_public_endpoint_url) if settings.s3_public_endpoint_url else None
     return ObjectStore(internal, public or internal, settings.s3_bucket_private)
 

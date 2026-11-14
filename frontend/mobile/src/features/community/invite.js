@@ -17,7 +17,7 @@ export async function shareInvite({ societyId, slug, text, copied }) {
  * The public web address neighbours open. Inside Capacitor `location.origin` is the app's own
  * `https://localhost`, so the link must come from configuration (VITE_PUBLIC_WEB_URL).
  */
-const PUBLIC_WEB_URL = (import.meta.env.VITE_PUBLIC_WEB_URL || "https://gharbasket.in").replace(
+const PUBLIC_WEB_URL = (import.meta.env.VITE_PUBLIC_WEB_URL || "https://gharbasket.co.in").replace(
   /\/+$/,
   "",
 );

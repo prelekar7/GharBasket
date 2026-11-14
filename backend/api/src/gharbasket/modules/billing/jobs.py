@@ -26,8 +26,11 @@ Kindness points (§3.6):
 
 Revenue (§3.9): the consumer of M4's `orders.delivered` moves what the order still holds in
 unearned_revenue to sales_revenue (`revenue.py`), skipping a payload it cannot read as above;
-`recognise_delivered_revenue` (manual) runs it again over every relayed delivery. M4's probe
-`orders.revenue_unrecognised` reports a delivered order still holding unearned money.
+`recognise_delivered_revenue` (manual) runs it again over every relayed delivery. The consumer of
+`orders.closed` recognises what a refunded order still holds (reason `retained`); M4's manual job
+`republish_closed_orders` sends the event again for orders closed before it existed. M4's probe
+`orders.revenue_unrecognised` reports a delivered or closed refunded order still holding unearned
+money.
 """
 
 import uuid
@@ -290,6 +293,18 @@ async def on_order_delivered(session: AsyncSession, event: OutboxEvent) -> None:
 
 
 subscribe(ORDER_DELIVERED, on_order_delivered)
+
+# M4's event: { order_id, household_id, hub_id }, a `refunded` order with nothing left open.
+ORDER_CLOSED = "orders.closed"
+
+
+async def on_order_closed(session: AsyncSession, event: OutboxEvent) -> None:
+    """Recognise what a refunded order still holds (the ₹20 second-miss fee, the rest of a partial
+    refund) as `retained` revenue; once per order, so a redelivery posts nothing more."""
+    await revenue.recognise_closed(session, event.payload, event.id)
+
+
+subscribe(ORDER_CLOSED, on_order_closed)
 
 
 @job("recognise_delivered_revenue", "Backfill: recognise revenue for every relayed delivery")

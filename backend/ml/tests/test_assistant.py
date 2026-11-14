@@ -161,6 +161,9 @@ async def test_a_question_about_the_week_is_answered_from_the_trimmed_week() -> 
         "explain_item",
         "edit_box_line",
         "skip_week",
+        "track_order",
+        "get_tiffin_menus",
+        "book_tiffin",
     ]
     assert all(t["strict"] for t in first["tools"]) and first["system"][0]["cache_control"]
     assert first["tools"][-1]["cache_control"] == {"type": "ephemeral"}

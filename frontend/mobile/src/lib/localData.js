@@ -1,4 +1,4 @@
-import { ASSISTANT_STORAGE_KEY } from "@/features/assistant/storage.js";
+import { ASSISTANT_STORAGE_KEY, OLD_ASSISTANT_KEYS } from "@/features/assistant/storage.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { clearOutbox } from "@/lib/outbox.js";
 import { persister, queryClient } from "@/lib/queryClient.js";
@@ -14,7 +14,8 @@ export async function clearLocalData() {
   useOnboardingDraft.getState().reset();
   useOnboardingDraft.persist.clearStorage();
   try {
-    sessionStorage.removeItem(ASSISTANT_STORAGE_KEY);
+    for (const key of [ASSISTANT_STORAGE_KEY, ...OLD_ASSISTANT_KEYS])
+      sessionStorage.removeItem(key);
   } catch {
     // Storage blocked: nothing was kept.
   }
