@@ -425,7 +425,11 @@
         "payment_refunded": "Your wallet was full when the payment arrived, so it was sent back to your bank."
       },
       "confirming": "Confirming your payment…",
-      "stillConfirming": "Razorpay is still confirming your payment. Your wallet updates in a minute."
+      "stillConfirming": "Razorpay is still confirming your payment. Your wallet updates in a minute.",
+      "waitingTitle": "Still waiting for your bank",
+      "waitingBody": "Your bank hasn’t confirmed the payment yet. This can take a minute. If money was taken, it will show in your wallet. You don’t need to pay again.",
+      "waitingRetry": "Check again",
+      "waitingClose": "Close"
     },
     "done": {
       "title": "You’re all set. First box on {day}.",

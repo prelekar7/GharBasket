@@ -5,13 +5,15 @@ import { useTranslation } from "react-i18next";
 import { ApiError, request } from "@/lib/api.js";
 import { isTestOrder, PaymentError, payInMock, payWithRazorpay } from "@/lib/payments.js";
 import { useSession } from "@/lib/session.js";
-import { pollTopUp } from "./pollTopUp.js";
+import { fetchTopUp, pollTopUp } from "./pollTopUp.js";
 
 /**
  * A wallet top-up (M5, W3): POST /v1/wallet/topups with one Idempotency-Key per amount, then
  * Razorpay Checkout (or the clearly labelled test payment in mock mode and on the dev API), then
  * polling GET /v1/wallet/topups/{id} until it is paid: the webhook credits the wallet, never the
- * app. Closing Checkout is not an error. Render `dialog` somewhere on the screen.
+ * app. Closing Checkout is not an error. When the bank is slow to confirm (30 s without the
+ * webhook) that is not a failure either: `dialog` says "still waiting" and offers to check again.
+ * Render `dialog` somewhere on the screen.
  * @param {{ onPaid: () => void }} options
  */
 export function useTopUp({ onPaid }) {
@@ -23,6 +25,11 @@ export function useTopUp({ onPaid }) {
   const [testOrder, setTestOrder] = useState(
     /** @type {import("@/lib/payments.js").TopUpOrder | null} */ (null),
   );
+  // A payment the webhook has not confirmed yet: the "still waiting" dialog.
+  const [waiting, setWaiting] = useState(
+    /** @type {import("@/lib/payments.js").TopUpOrder | null} */ (null),
+  );
+  const retrying = useRef(false);
   const keys = useRef(/** @type {Record<number, string>} */ ({}));
   const alive = useRef(new AbortController());
   useEffect(() => {
@@ -70,7 +77,7 @@ export function useTopUp({ onPaid }) {
       delete keys.current[order.amount_paise];
       return onPaid();
     }
-    if (status === "timeout") return setError(errors("payment_pending"));
+    if (status === "timeout") return setWaiting(order);
     // failed, expired or refunded: a new attempt needs a new top-up
     delete keys.current[order.amount_paise];
     setError(errors(status === "refunded" ? "payment_refunded" : "generic"));
@@ -93,6 +100,8 @@ export function useTopUp({ onPaid }) {
       await payWithRazorpay(order, {
         description: t("onboarding.payment.description"),
         contact: phone,
+        // Back from a UPI app, Checkout's own callback can be lost: ask the API instead.
+        isPaid: async () => (await fetchTopUp(order.id)).status === "paid",
       });
       await settle(order);
     } catch (e) {
@@ -102,31 +111,57 @@ export function useTopUp({ onPaid }) {
 
   const amount = formatPaise(testOrder?.amount_paise ?? 0);
   const dialog = (
-    <Dialog
-      isOpen={!!testOrder}
-      onOpenChange={(open) => {
-        if (!open) {
+    <>
+      <Dialog
+        isOpen={!!waiting}
+        onOpenChange={(open) => {
+          if (open) return;
+          // "Check again" confirms and then closes; only a plain close gives up waiting.
+          if (retrying.current) return;
+          setWaiting(null);
+          setError(errors("payment_pending"));
+        }}
+        title={t("onboarding.payment.waitingTitle")}
+        confirmLabel={t("onboarding.payment.waitingRetry")}
+        cancelLabel={t("onboarding.payment.waitingClose")}
+        onConfirm={() => {
+          const order = waiting;
+          retrying.current = true;
+          setTimeout(() => {
+            retrying.current = false; // the dialog has finished closing
+          }, 0);
+          setWaiting(null);
+          if (order) settle(order).catch(fail);
+        }}
+      >
+        {t("onboarding.payment.waitingBody")}
+      </Dialog>
+      <Dialog
+        isOpen={!!testOrder}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTestOrder(null);
+            setBusy(false);
+          }
+        }}
+        title={t("onboarding.payment.testTitle", { amount })}
+        confirmLabel={t("onboarding.payment.testPay", { amount })}
+        cancelLabel={t("onboarding.payment.testCancel")}
+        onConfirm={async () => {
+          const order = testOrder;
           setTestOrder(null);
-          setBusy(false);
-        }
-      }}
-      title={t("onboarding.payment.testTitle", { amount })}
-      confirmLabel={t("onboarding.payment.testPay", { amount })}
-      cancelLabel={t("onboarding.payment.testCancel")}
-      onConfirm={async () => {
-        const order = testOrder;
-        setTestOrder(null);
-        if (!order) return;
-        try {
-          await payInMock(order);
-          await settle(order);
-        } catch (e) {
-          fail(e);
-        }
-      }}
-    >
-      {t("onboarding.payment.testBody")}
-    </Dialog>
+          if (!order) return;
+          try {
+            await payInMock(order);
+            await settle(order);
+          } catch (e) {
+            fail(e);
+          }
+        }}
+      >
+        {t("onboarding.payment.testBody")}
+      </Dialog>
+    </>
   );
 
   return { start, busy, error, setError, fail, dialog };
