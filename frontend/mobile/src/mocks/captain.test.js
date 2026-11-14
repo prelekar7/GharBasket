@@ -4,10 +4,13 @@ import {
   bagQr,
   currentStop,
   findFlat,
+  flatOf,
+  flatText,
   isHandedOver,
   nextFlat,
   tally,
   tiffinStop,
+  towerOf,
 } from "@/features/captain/day.js";
 import { tiffinsRiding } from "./captain.js";
 import { mockFetch } from "./index.js";
@@ -59,7 +62,7 @@ describe("captain day (M7 §3.4 mocks)", () => {
     });
     expect(d.flats[0]).toEqual({
       order_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
-      flat_label: "A-104",
+      flat_label: "A wing, A-104",
       kind: "box",
       bags: 1,
       redelivery: false,
@@ -234,7 +237,7 @@ describe("captain day helpers", () => {
   it("finds a flat by its bag QR or by what the captain types", async () => {
     const { flats } = await day();
     expect(findFlat(flats, bagQr(flats[3].order_id))?.order_id).toBe(flats[3].order_id);
-    expect(findFlat(flats, "b402")?.flat_label).toBe("B-402");
+    expect(findFlat(flats, "b402")?.flat_label).toBe("B wing, B-402");
     expect(findFlat(flats, "Z-1")).toBeUndefined();
   });
 
@@ -275,9 +278,9 @@ describe("her tiffins (M7 §3.7 mocks)", () => {
     expect(tiffinStop(d)?.stop_id).toBe(TIFFIN_STOP);
     expect(currentStop(d)?.stop_id).toBe(STOP); // the box stop, not the tiffin drop
     expect((await tiffins()).map((/** @type {any} */ f) => [f.flat_label, f.short_code])).toEqual([
-      ["A-802", "T-07"],
-      ["B-1002", "T-08"],
-      ["C-1003", "T-12"],
+      ["A wing, A-802", "T-07"],
+      ["B wing, B-1002", "T-08"],
+      ["C wing, C-1003", "T-12"],
     ]);
     expect(d.counts.on_the_way).toBe(49);
   });
@@ -407,5 +410,102 @@ describe("her tiffins (M7 §3.7 mocks)", () => {
       { path: `/v1/deliveries/${a.order_id}/undelivered`, body: { reason: "not_home" } },
     );
     expect(shown.flats.find((f) => f.order_id === a.order_id)?.status).toBe("undelivered");
+  });
+});
+
+describe("a flat with no label (CaptainFlat.flat_label may be null)", () => {
+  const flat = (/** @type {object} */ over) => ({
+    order_id: "0199a000-0000-7000-8000-00000000f001",
+    flat_label: null,
+    kind: "box",
+    short_code: null,
+    bags: 1,
+    redelivery: false,
+    status: "with_you",
+    hold_until: null,
+    ...over,
+  });
+
+  it("groups under a placeholder tower instead of throwing", () => {
+    expect(towerOf(/** @type {any} */ (flat({})))).toBe("-");
+    expect(towerOf(/** @type {any} */ (flat({ flat_label: "B-402" })))).toBe("B");
+  });
+
+  it("is named by its label, else its tiffin code, else nothing", () => {
+    expect(flatText(/** @type {any} */ (flat({ flat_label: "B-402" })))).toBe("B-402");
+    expect(flatText(/** @type {any} */ (flat({ kind: "tiffin", short_code: "T-07" })))).toBe(
+      "T-07",
+    );
+    expect(flatText(/** @type {any} */ (flat({})))).toBe("");
+  });
+
+  it("is still found by its bag QR, and never by a typed label", () => {
+    const f = /** @type {any} */ (flat({}));
+    expect(findFlat([f], bagQr(f.order_id))).toBe(f);
+    expect(findFlat([f], "b402")).toBeUndefined();
+  });
+});
+
+describe('a flat\'s label as the server writes it, "{tower}, {flat}" (logistics handover.py)', () => {
+  const flat = (/** @type {string | null} */ flat_label, kind = "box") =>
+    /** @type {any} */ ({
+      order_id: `0199a000-0000-7000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`,
+      flat_label,
+      kind,
+      short_code: null,
+      bags: 1,
+      redelivery: false,
+      status: "with_you",
+      hold_until: null,
+    });
+
+  it('names the tower once: "A wing" of "A wing, A-101", not "A wing, A"', () => {
+    expect(towerOf(flat("A wing, A-101"))).toBe("A wing");
+    expect(flatOf(flat("A wing, A-101"))).toBe("A-101");
+    expect(towerOf(flat("Main building, 12"))).toBe("Main building");
+    expect(flatOf(flat("Main building, 12"))).toBe("12");
+    // An older label with no comma still reads.
+    expect(towerOf(flat("B-402"))).toBe("B");
+    expect(flatOf(flat("B-402"))).toBe("B-402");
+    expect(flatOf(flat(null))).toBe("");
+  });
+
+  it("finds a typed flat however she writes it, and never guesses between two towers", () => {
+    const a = flat("A wing, 402");
+    const b = flat("B wing, B-402");
+    const main = flat("Main building, 12");
+    const flats = [a, b, main];
+    expect(findFlat(flats, "b402")).toBe(b);
+    expect(findFlat(flats, "B-402")).toBe(b);
+    expect(findFlat(flats, "B wing 402")).toBe(b);
+    expect(findFlat(flats, "a402")).toBe(a);
+    expect(findFlat(flats, "12")).toBe(main);
+    // A bare number finds the one flat numbered so; when two towers share it, neither.
+    expect(findFlat(flats, "402")).toBe(a);
+    expect(findFlat([a, flat("B wing, 402")], "402")).toBeUndefined();
+    expect(findFlat(flats, "c402")).toBeUndefined();
+    // The label exactly as the app shows it, in the sheet title, toasts and the placeholder.
+    expect(findFlat(flats, "B wing, B-402")).toBe(b);
+    expect(findFlat(flats, "Main building, 12")).toBe(main);
+  });
+
+  it("finds the bag still to deliver when one flat has a box and an add-on", () => {
+    const box = { ...flat("A wing, A-101"), status: "delivered" };
+    const addon = { ...flat("A wing, A-101", "addon"), status: "with_you" };
+    expect(findFlat([box, addon], "a101")).toBe(addon);
+  });
+
+  it("counts a wing as delivered only for bags at the door, not held or undelivered ones", () => {
+    const n = tally(
+      /** @type {any} */ ({
+        flats: [
+          { ...flat("A wing, A-1"), status: "delivered" },
+          { ...flat("A wing, A-2"), status: "held" },
+          { ...flat("A wing, A-3"), status: "undelivered" },
+          { ...flat("A wing, A-4"), status: "with_you" },
+        ],
+      }),
+    );
+    expect(n).toMatchObject({ total: 4, door: 1, handled: 3, held: 1 });
   });
 });

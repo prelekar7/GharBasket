@@ -79,7 +79,10 @@ def _summary(society: Society, distance_m: int | None) -> SocietySummary:
     summary="Find societies by name or area, or the nearest ones",
     responses={
         401: _problem("auth.invalid_token"),
-        422: _problem("community.near_invalid, request.invalid_cursor, request.invalid"),
+        422: _problem(
+            "community.near_invalid, request.invalid_cursor, request.invalid (also `slug` with"
+            " `q` or `cursor`)"
+        ),
     },
 )
 async def search_societies(
@@ -92,15 +95,32 @@ async def search_societies(
     near: Annotated[
         str | None, Query(max_length=40, description="`lat,lng`", examples=["19.0390,73.0690"])
     ] = None,
+    slug: Annotated[
+        str | None,
+        Query(
+            min_length=1,
+            max_length=80,
+            description="One society by its exact slug (case is ignored): 0 or 1 items. "
+            "Not with `q` or `cursor`; `near` only fills `distance_m`",
+            examples=["sunrise-towers-kharghar"],
+        ),
+    ] = None,
     cursor: Cursor = None,
     limit: Annotated[int, Query(ge=1, le=SEARCH_LIMIT, description="Items per page")] = 20,
 ) -> Page[SocietySummary]:
+    words = " ".join(q.split()) if q else None
+    point = service.parse_near(near) if near else None
+    if slug is not None:
+        if words or cursor is not None:
+            raise ProblemError(
+                422, "request.invalid", "`slug` cannot be combined with `q` or `cursor`."
+            )
+        found = await service.by_slug(session, slug, near=point)
+        return Page(
+            items=[_summary(hit.society, hit.distance_m) for hit in found], next_cursor=None
+        )
     found, next_cursor = await service.search(
-        session,
-        q=" ".join(q.split()) if q else None,
-        near=service.parse_near(near) if near else None,
-        cursor=cursor,
-        limit=limit,
+        session, q=words, near=point, cursor=cursor, limit=limit
     )
     return Page(
         items=[_summary(hit.society, hit.distance_m) for hit in found], next_cursor=next_cursor

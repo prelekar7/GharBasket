@@ -30,7 +30,7 @@ from gharbasket.platform.db import Base
 
 SCHEMA = "assistant"
 ROLES = ("user", "assistant")
-ACTIONS = ("edit_box_line", "skip_week")
+ACTIONS = ("edit_box_line", "skip_week", "book_tiffin")
 PROPOSAL_STATUSES = ("pending", "confirmed", "rejected", "expired")
 
 

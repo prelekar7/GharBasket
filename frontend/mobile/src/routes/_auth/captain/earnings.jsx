@@ -59,7 +59,7 @@ function Earnings() {
             <span className="flex flex-col">
               <strong>{dayLabel(d.date, lang)}</strong>
               <span className="text-[15px] leading-[22px] text-fg-secondary">
-                {t("captain.earnings.bags", { count: d.bags })}
+                {t("captain.earnings.bags", { count: d.units })}
               </span>
             </span>
             <MoneyText paise={d.amount_paise} />

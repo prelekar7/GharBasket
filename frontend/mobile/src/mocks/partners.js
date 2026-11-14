@@ -535,10 +535,13 @@ function earningsWeek(/** @type {Request} */ request) {
 }
 
 export const partnerHandlers = [
-  // GET /v1/earnings?week= (M8 §3.6). The role mocks (captain, kitchen, rider) still answer the
-  // plain GET /v1/earnings their screens use until those screens move to this shape.
+  // GET /v1/earnings?week= (M8 §3.6). The plain GET /v1/earnings (this week) is answered here for a
+  // rider; the captain and kitchen mocks still answer their own until those screens share this one.
   http.get("*/v1/earnings", ({ request }) =>
-    new URL(request.url).searchParams.has("week") ? earningsWeek(request) : undefined,
+    new URL(request.url).searchParams.has("week") ||
+    request.headers.get("x-active-role")?.startsWith("rider")
+      ? earningsWeek(request)
+      : undefined,
   ),
 
   // GET /v1/earnings/certificate (M8 §3.7): one mock for the captain, kitchen, rider and packer.

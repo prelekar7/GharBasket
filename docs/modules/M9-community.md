@@ -25,7 +25,7 @@ The neighbourhood layer: societies (polygons, towers, captain), society onboardi
 ## 3. API endpoints
 | Method | Path | Permission / role | Idempotency | Notes |
 |---|---|---|---|---|
-| GET | `/v1/societies?q=&near=` | Authenticated | — | Search and nearby. List items carry no captain data (§3.1) |
+| GET | `/v1/societies?q=&near=&slug=` | Authenticated | — | Search, nearby, or one society by its exact slug. List items carry no captain data (§3.1) |
 | GET | `/v1/societies/{id}` | Authenticated | — | Towers, status; captain card only for residents |
 | GET | `/v1/societies/{id}/unlock` | Authenticated | — | Threshold, count |
 | POST | `/v1/society-requests` | customer | Required | Location optional (no pin placed) |
@@ -64,11 +64,14 @@ Onboarding (Hf04 society picker, Hf05 request, Hf06 flat) and the Society screen
 **Captain privacy.** Captains are women who live in the society. No endpoint ever returns a captain's flat number or phone. Their display name appears only to residents of that society.
 
 ```
-GET /v1/societies?q=<text>&near=<lat>,<lng>&cursor=&limit=     (authenticated; limit ≤ 50, default 20)
+GET /v1/societies?q=<text>&near=<lat>,<lng>&slug=<slug>&cursor=&limit=     (authenticated; limit ≤ 50, default 20)
   200 : { "items": [ SocietySummary ], "next_cursor": "<opaque> | null" }     (platform Page)
         q    : matches name and area (pg_trgm + unaccent); best match first
         near : with q, ties are broken by distance; without q, nearest first
         neither: alphabetical
+        slug : exact match, ignoring case (up to 80 characters); items has 0 or 1 entry and
+               next_cursor is null. near may be given and only fills distance_m. Not with q or
+               cursor (422 request.invalid). An unknown slug is an empty list, not a 404
 SocietySummary : { "id": "<uuid>", "slug": "sunrise-towers-kharghar", "name": "Sunrise Towers",
                    "area": "Sector 20, Kharghar",
                    "status": "prospect" | "unlocking" | "live" | "paused",
@@ -94,6 +97,8 @@ POST /v1/society-requests     (customer; Idempotency-Key required)
               "note": "<text> | null" }          up to 500 characters
   201 : { "id", "status": "received", "created_at" }
 ```
+
+**Exact slug (added 2026-11-13).** The PWA's `/join?s=<slug>` route (the Join button on the console's `/s/<slug>` page: M12 §3.7's `join_url`) has a slug, not an id, and a name search can rank a similar society first. `slug=` returns that one society in the list shape, so the society picker keeps a single code path, and then `GET /v1/societies/{id}` loads it as usual. It shows nothing new: every search result already carries its `slug`, and `SocietySummary` has no captain data. It returns a society in any status, as search does (a prospect society is where joining starts); the public `/v1/public/societies/{slug}` page (M12) stays limited to `unlocking` and `live`. Slugs are always lowercase, so the given slug is lowercased and compared exactly; the `slug` column is unique, so the lookup uses its index; no migration.
 
 **Error codes**
 
@@ -218,7 +223,7 @@ A customer shares a link for their society; a neighbour who joins with it and ge
 Referrals : { "code": "K7Q2XD",                     one per user, made on first GET; 6 characters of
                                                     Crockford base32 (no I, L, O, U), case-insensitive,
                                                     random: never derived from a name or phone
-              "link": "https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD",
+              "link": "https://gharbasket.co.in/s/sunrise-towers-kharghar?ref=K7Q2XD",
                                                     PUBLIC_WEB_URL + the caller's society slug; null
                                                     while the caller has no household
               "share_text": "…",                    rendered in the request language; carries the link
@@ -276,7 +281,7 @@ POST /v1/referrals              customer (the neighbour who was referred); Idemp
 - **Order of refusals** when claiming: 422 `community.household_required`, 404 `community.referral_code_unknown`, 422 `community.referral_self`, 409 `community.already_referred`, 409 `community.referral_window_closed`. Codes are matched in any case, spaces trimmed. The household rule compares the referrer's household with the caller's (only an owner has one today).
 - **Points are fixed at the claim**: the row keeps the `REFERRAL_POINTS_*` in force then, and the conversion pays them (the referrer's becomes 0 over the cap). `points` in `items` and `referred_by` is null until converted. `summary.joined` counts the referrals that are not void. `converted_on` is the IST date of the `orders.delivered` event.
 - **Kindness points** come from M5's `credit_points` (`referral_welcome` for the neighbour, `referral` for the referrer), built for this (M5 §3.6 as built). Concurrent conversions of one referrer are counted one at a time (an advisory lock), so the cap holds.
-- **`share_text`** is one sentence per language with the code, then the link (`PUBLIC_WEB_URL`, default `https://gharbasket.in`).
+- **`share_text`** is one sentence per language with the code, then the link (`PUBLIC_WEB_URL`, default `https://gharbasket.co.in`).
 - **Deletion.** M9 consumes `identity.deletion_requested`, which M1 publishes once M1 §3.5 is built. `community.api.anonymise_for_user(session, user_id, household_id)` deletes the code and the society requests and voids open referrals; it joins M1's erasers when M1 §3.5 ships.
 - **Facade.** `referral_facts(session, *, date_from, date_to, hub_ids=None)` returns `ReferralFact { referral_id, society_id, hub_id, status, joined_on, converted_on, referrer_points, referee_points, data_source }` (points null until converted), with no user id. The export section gains `referral_code`, `referrals_made` and `referred` (`{ status, joined_on, converted_on, points }`, never the neighbour).
 
@@ -856,6 +861,7 @@ Captains have no M9 permission beyond a resident's: their society's unlock, driv
   - List responses never contain captain fields.
   - The captain card goes only to residents.
   - Search ranks by trigram and then distance.
+  - `slug=` finds exactly one society whatever its case, gives an empty list for an unknown slug, fills `distance_m` only with `near`, and refuses `q` or `cursor` alongside it.
   - A society request replays with the same key, and stores a null location when no pin was placed.
   - The rate limit applies.
 - Captains (§3.2):

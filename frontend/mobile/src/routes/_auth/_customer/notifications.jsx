@@ -75,7 +75,8 @@ function Notifications() {
                   type="button"
                   onClick={() => {
                     if (!m.read_at) markRead.mutate(m.id);
-                    navigate({ to: m.link });
+                    // A message may carry no app route (link is null): it only gets marked read.
+                    if (m.link) navigate({ to: m.link });
                   }}
                   className="flex w-full gap-3 border-b border-line py-3 text-left outline-none focus-visible:shadow-focus"
                 >
