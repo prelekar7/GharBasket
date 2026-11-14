@@ -38,7 +38,7 @@ have it done by 22:00, well inside the 23:00 payment grace.
 2. **Is the VM scheduler alive?** `just jobs-vm status 130.210.8.35 <key>` shows the service and its last calls. If it is
    down, the other evening jobs are missing too: follow [`jobs-scheduler-down.md`](jobs-scheduler-down.md) after the
    cut-off is done.
-3. **Is the API or the database down?** `curl -sS -m 90 https://gharbasket-api.onrender.com/v1/health` (wakes a sleeping
+3. **Is the API or the database down?** `curl -sS -m 90 https://api.gharbasket.co.in/v1/health` (wakes a sleeping
    API in about a minute). An error mentioning the database or `asyncpg` points at Neon: check the Neon console for a
    suspended compute (the free tier's compute hours ran out) or an incident.
 

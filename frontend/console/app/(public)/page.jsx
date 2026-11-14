@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { linkButton, PublicFooter, PublicHeader } from "@/components/public/Chrome.jsx";
 import { APP_URL } from "@/lib/public-lang.js";
+import { isPublicMock } from "@/lib/public-source.js";
 
 /**
  * Landing page of Landing.dc.html, at "/" for signed-out visitors (proxy.js still sends a signed-in
@@ -108,6 +109,12 @@ function ExampleWeek() {
   );
 }
 
+/**
+ * The mock cook's page, linked only in mock mode: on the real API a cook page exists only once a
+ * kitchen turns hers on (M8 §3.5), so there is no fixed page to link to.
+ */
+const SAMPLE_COOK = isPublicMock(process.env) ? "/cook/k7m2qx4rta" : null;
+
 export default function LandingPage() {
   return (
     <>
@@ -120,9 +127,11 @@ export default function LandingPage() {
             <a href="#societies" className="font-medium text-fg no-underline">
               Societies
             </a>
-            <Link href="/cook/c7f3a91e" className="font-medium text-fg no-underline">
-              Home cooks
-            </Link>
+            {SAMPLE_COOK && (
+              <Link href={SAMPLE_COOK} className="font-medium text-fg no-underline">
+                Home cooks
+              </Link>
+            )}
             <Link href="/privacy" className="font-medium text-fg no-underline">
               Privacy
             </Link>

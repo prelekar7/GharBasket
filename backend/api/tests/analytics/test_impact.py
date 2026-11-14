@@ -28,6 +28,7 @@ from gharbasket.modules.analytics.models import (
 )
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.community.models import Ngo, Society
+from gharbasket.platform import rate_limit
 from gharbasket.tools.seed import (
     SEED_HUB_ID,
     SEED_NGO_ID,
@@ -744,7 +745,7 @@ async def test_a_live_society_page_needs_no_sign_in_and_is_cached(
         "live_since": sunrise.live_at.astimezone(IST).date().isoformat(),
         "delivery_days": ["tue"],
         "impact": None,
-        "join_url": "https://app.gharbasket.in/join?s=sunrise-towers-kharghar",
+        "join_url": "https://app.gharbasket.co.in/join?s=sunrise-towers-kharghar",
     }
 
 
@@ -855,7 +856,7 @@ def walk_set(value: Any) -> set[str]:
 async def test_the_per_ip_rate_limit_applies(
     clients: ClientFactory, valkey: Redis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(impact_router, "PUBLIC_REQUESTS_PER_MINUTE", 2)
+    monkeypatch.setattr(rate_limit, "PUBLIC_PER_MINUTE", 2)
     api: httpx2.AsyncClient = clients(valkey=valkey)
     path = "/v1/public/societies/sunrise-towers-kharghar"
 

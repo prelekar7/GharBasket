@@ -10,6 +10,7 @@ Capacity for a date and meal is her `set` override, else her weekday default. Ov
 offered: the assignment rounds read what is left (`capacity_left`, §3.4).
 """
 
+import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -41,6 +42,9 @@ MAX_PORTIONS = 100
 WINDOW_DAYS = 14  # capacity is read and set from today for at most 14 days
 DEFAULT_DAYS = 7
 DAYS_IN_WEEK = 7
+HANDLE_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567"  # base32 in lower case: 5 bits a character
+HANDLE_LENGTH = 10
+HANDLE_DRAWS = 8
 
 
 def now() -> datetime:
@@ -185,10 +189,72 @@ async def edit(
     if "location" in changes:
         pin = changes["location"]
         kitchen.location = None if pin is None else point(pin["lat"], pin["lng"])
+    if "public_profile" in changes:
+        await set_public(session, partner, kitchen, on=changes["public_profile"])
     kitchen.version += 1
     await session.flush()
     await session.refresh(kitchen)  # lat and lng follow the new location
     return kitchen
+
+
+def new_handle() -> str:
+    return "".join(secrets.choice(HANDLE_ALPHABET) for _ in range(HANDLE_LENGTH))
+
+
+class HandleUnavailable(RuntimeError):
+    """No free handle in `HANDLE_DRAWS` draws: never expected (50 bits each)."""
+
+
+async def set_public(
+    session: AsyncSession, partner: Partner, kitchen: Kitchen, *, on: bool
+) -> None:
+    """Her public cook page (§3.5), on or off, by her alone; each change is audit-logged. On mints
+    a fresh handle (drawn again on a clash); off clears it, so an old link stays dead."""
+    if on == (kitchen.public_handle is not None):
+        return
+    if not on:
+        await clear_public(session, kitchen, actor_user_id=partner.user_id)
+        return
+    for _ in range(HANDLE_DRAWS):
+        handle = new_handle()
+        taken = await session.scalar(
+            select(Kitchen.partner_id).where(Kitchen.public_handle == handle)
+        )
+        if taken is None:
+            break
+    else:
+        raise HandleUnavailable("could not draw a free public handle")
+    kitchen.public_handle, kitchen.public_since = handle, now()
+    await _audit_public(session, kitchen, partner.user_id, {"on": True})
+
+
+async def clear_public(
+    session: AsyncSession,
+    kitchen: Kitchen,
+    *,
+    actor_user_id: uuid.UUID | None,
+    reason: str | None = None,
+) -> None:
+    """No public page any more (§3.5): she turned it off (no reason), or it went with her
+    suspension, her leaving or her erasure (`reason`). Audit-logged when there was one."""
+    if kitchen.public_handle is None and kitchen.public_since is None:
+        return
+    kitchen.public_handle, kitchen.public_since = None, None
+    after: dict[str, Any] = {"on": False} if reason is None else {"on": False, "reason": reason}
+    await _audit_public(session, kitchen, actor_user_id, after)
+
+
+async def _audit_public(
+    session: AsyncSession, kitchen: Kitchen, actor_user_id: uuid.UUID | None, after: dict[str, Any]
+) -> None:
+    await audit.record(
+        session,
+        actor_user_id=actor_user_id,
+        action="kitchen.public_profile",
+        entity_type="kitchen",
+        entity_id=str(kitchen.partner_id),
+        after=after,
+    )
 
 
 async def inspect(

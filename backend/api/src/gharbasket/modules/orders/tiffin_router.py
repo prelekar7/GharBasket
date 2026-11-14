@@ -1,7 +1,7 @@
 """HTTP endpoints of M4 for tiffins (spec §3.5): the menus a household may book. The menus are M2's
 data (`catalog.tiffin_menus`); the contract is M4's because only this flow reads it."""
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response
@@ -16,6 +16,7 @@ from gharbasket.modules.orders.schemas import (
     TiffinMenuOut,
     TiffinMenusOut,
 )
+from gharbasket.modules.orders.tiffins import bookable_window
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
@@ -23,16 +24,10 @@ from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.locale import Lang, Language, localised
 
 router = APIRouter(tags=["orders"])
-MENU_DAYS = 7  # tomorrow … tomorrow + 6
 
 
 def _problem(description: str) -> dict[str, Any]:
     return {"description": description, "content": {"application/problem+json": {}}}
-
-
-def bookable_window() -> tuple[date, date]:
-    tomorrow = service.now().astimezone(service.IST).date() + timedelta(days=1)
-    return tomorrow, tomorrow + timedelta(days=MENU_DAYS - 1)
 
 
 async def menu_out(

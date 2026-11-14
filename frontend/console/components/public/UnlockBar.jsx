@@ -4,15 +4,23 @@ import { ShareButton } from "./ShareButton.jsx";
  * Server-rendered twin of SocietyUnlockBar from @gharbasket/ui (which is a client component on
  * React Aria): one square per home, filled for homes that joined, with the progress also as words.
  * Only the share button hydrates.
- * @param {{ society: string, joined: number, target: number, labels: { count: string, remaining: string, progress: string, invite: string, copied: string, unlocked: string, started: string } }} props
- * `count` takes {joined} and {target}; `remaining` takes {n}; `started` is the finished sentence for a live society.
+ * @param {{ society: string, joined: number | null, target: number, unlocked: boolean, labels: { count: string, early: string, remaining: string, remainingEarly: string, progress: string, invite: string, copied: string, unlocked: string, started: string } }} props
+ * `count` takes {joined} and {target}; `remaining` takes {n}; `remainingEarly` takes {target};
+ * `started` is the finished sentence for a live society. `joined` is null while the API hides the
+ * count (under 5 homes): no number is shown then. `unlocked` (a live society) fills the bar whatever
+ * the count.
  */
-export function UnlockBar({ society, joined, target, labels }) {
-  const done = joined >= target;
-  const count = labels.count
-    .replace("{joined}", String(joined))
-    .replace("{target}", String(target));
-  const filled = Math.min(joined, target);
+export function UnlockBar({ society, joined, target, unlocked, labels }) {
+  const done = unlocked || (joined !== null && joined >= target);
+  const count =
+    joined === null
+      ? labels.early
+      : labels.count.replace("{joined}", String(joined)).replace("{target}", String(target));
+  const filled = done ? target : Math.min(joined ?? 0, target);
+  const remaining =
+    joined === null
+      ? labels.remainingEarly.replace("{target}", String(target))
+      : labels.remaining.replace("{n}", String(target - joined));
   return (
     <section className="flex w-full flex-col items-start gap-3 rounded-md bg-surface p-4">
       <div className="flex w-full items-baseline justify-between gap-3">
@@ -32,7 +40,7 @@ export function UnlockBar({ society, joined, target, labels }) {
         aria-valuemin={0}
         aria-valuemax={target}
         aria-valuenow={filled}
-        aria-valuetext={count}
+        aria-valuetext={done ? labels.unlocked : count}
         className="grid w-full grid-cols-10 gap-1"
       >
         {Array.from({ length: target }, (_, i) => (
@@ -44,7 +52,7 @@ export function UnlockBar({ society, joined, target, labels }) {
         ))}
       </div>
       <p className="text-sm leading-[22px] text-fg-secondary">
-        {done ? labels.started : labels.remaining.replace("{n}", String(target - joined))}
+        {done ? labels.started : remaining}
       </p>
       {!done && (
         <ShareButton

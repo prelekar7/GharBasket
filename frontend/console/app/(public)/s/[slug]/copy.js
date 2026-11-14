@@ -5,11 +5,14 @@ export const COPY = {
     invited: "A neighbour invited you",
     unlockingTitle: "{name} is {n} homes away from free delivery",
     unlockingTitleOne: "{name} is 1 home away from free delivery",
+    unlockingTitleEarly: "Help {name} unlock free delivery", // (new) fewer than 5 homes: no count
     liveTitle: "{name} delivers to your door", // (new)
     join: "Join your neighbours",
     fine: "Joining is free. You pay only for the boxes you get.",
     count: "{joined} of {target} homes",
+    early: "Just getting started", // (new)
     remaining: "{n} more homes to unlock delivery. Invite a neighbour.",
+    remainingEarly: "Delivery unlocks when {target} homes join. Invite a neighbour.", // (new)
     progress: "Homes joined",
     invite: "Share this page",
     copied: "Link copied", // (new)
@@ -35,11 +38,14 @@ export const COPY = {
     invited: "एक पड़ोसी ने आपको बुलाया है",
     unlockingTitle: "{name} मुफ़्त डिलीवरी से {n} घर दूर है",
     unlockingTitleOne: "{name} मुफ़्त डिलीवरी से 1 घर दूर है",
+    unlockingTitleEarly: "{name} में मुफ़्त डिलीवरी शुरू करने में मदद करें", // (new)
     liveTitle: "{name} में घर तक डिलीवरी शुरू है", // (new)
     join: "पड़ोसियों के साथ जुड़ें",
     fine: "जुड़ना मुफ़्त है। आप सिर्फ़ उन्हीं बॉक्स का भुगतान करते हैं जो आपको मिलते हैं।",
     count: "{target} में से {joined} घर",
+    early: "अभी शुरुआत है", // (new)
     remaining: "डिलीवरी शुरू होने के लिए {n} और घर चाहिए। किसी पड़ोसी को बुलाएँ।",
+    remainingEarly: "{target} घर जुड़ने पर डिलीवरी शुरू होगी। किसी पड़ोसी को बुलाएँ।", // (new)
     progress: "जुड़े घर",
     invite: "यह पेज शेयर करें",
     copied: "लिंक कॉपी हो गया", // (new)

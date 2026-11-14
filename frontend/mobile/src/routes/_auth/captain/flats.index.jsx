@@ -14,7 +14,16 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { bagQr, findFlat, isHandedOver, nextFlat, towerOf } from "@/features/captain/day.js";
+import {
+  bagQr,
+  findFlat,
+  flatOf,
+  flatText,
+  isHandedOver,
+  nextFlat,
+  tally,
+  towerOf,
+} from "@/features/captain/day.js";
 import { dayLabel, isOpen, proof, TiffinDoor } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useCaptainWrite, useDrafts } from "@/features/captain/queries.js";
 import { clockTime } from "@/features/subscriptions/format.js";
@@ -62,7 +71,8 @@ function Flats() {
   const wings = [...new Set(d.flats.map(towerOf))];
   const shown = wing ?? (next && towerOf(next)) ?? wings[0];
   const flats = d.flats.filter((f) => towerOf(f) === shown);
-  const handled = flats.filter((f) => f.status !== "on_the_way" && f.status !== "with_you").length;
+  // The bar says "delivered": a held or undelivered bag is not counted as done.
+  const { door: delivered } = tally({ ...d, flats });
 
   const deliver = (/** @type {string} */ raw) => {
     const flat = findFlat(d.flats, raw);
@@ -70,7 +80,7 @@ function Flats() {
       setLast({
         state: "error",
         text: flat
-          ? t("captain.flats.alreadyDone", { flat: flat.flat_label })
+          ? t("captain.flats.alreadyDone", { flat: flatText(flat) })
           : t("captain.flats.notToday"),
       });
       return;
@@ -79,7 +89,7 @@ function Flats() {
     // The family turned up after all: the door scan settles a problem not yet sent.
     if (issues[flat.order_id]) setDrafts((x) => ({ ...x, issues: omit(x.issues, flat.order_id) }));
     setWing(towerOf(flat));
-    setLast({ state: "success", text: t("captain.flats.delivered", { flat: flat.flat_label }) });
+    setLast({ state: "success", text: t("captain.flats.delivered", { flat: flatText(flat) }) });
   };
 
   return (
@@ -102,9 +112,9 @@ function Flats() {
       <ProgressBar
         tone="accent"
         label={t("captain.flats.progress", { wing: shown })}
-        value={handled}
+        value={delivered}
         max={flats.length}
-        valueLabel={t("captain.ofTotal", { done: handled, total: flats.length })}
+        valueLabel={t("captain.ofTotal", { done: delivered, total: flats.length })}
       />
       {Object.keys(issues).length > 0 && (
         <Link
@@ -115,10 +125,8 @@ function Flats() {
         </Link>
       )}
       <FlatChecklist
-        label={t("captain.flats.progress", { wing: shown })}
-        onSelect={(item) =>
-          setPicked(flats.find((f) => rowLabel(f) === item.flat)?.order_id ?? null)
-        }
+        label={shown}
+        onSelect={(item) => setPicked(item.id ?? null)}
         items={flats.map((f) => {
           const issue = issues[f.order_id];
           const [status, word] = issue
@@ -129,6 +137,7 @@ function Flats() {
                 ? ["planned", "tiffinOnTheWay"]
                 : PILL[f.status];
           return {
+            id: f.order_id,
             flat: rowLabel(f),
             note: [
               t(`captain.flats.contents.${f.kind}`),
@@ -186,8 +195,12 @@ function Flats() {
   );
 }
 
-/** A tiffin's row leads with its label, "B-402 · T-07", the code printed on its box (M7 §3.7); the same flat may also have a box. @param {import("@/features/captain/day.js").Flat} f */
-const rowLabel = (f) => (f.short_code ? `${f.flat_label} · ${f.short_code}` : f.flat_label);
+/** A row names the flat alone, its tower is the tab: "A-802"; a tiffin's row adds the code printed on its box, "A-802 · T-07" (M7 §3.7); the same flat may also have a box. @param {import("@/features/captain/day.js").Flat} f */
+const rowLabel = (f) => {
+  const flat = flatOf(f);
+  if (!flat) return flatText(f);
+  return f.short_code ? `${flat} · ${f.short_code}` : flat;
+};
 
 const omit = (/** @type {Record<string, any>} */ o, /** @type {string} */ k) =>
   Object.fromEntries(Object.entries(o).filter(([key]) => key !== k));
@@ -213,7 +226,7 @@ function FlatSheet({ flat, society, onClose, onIssue }) {
     <Sheet
       open={!!flat}
       onOpenChange={(o) => !o && close()}
-      title={flat?.flat_label ?? ""}
+      title={flat ? flatText(flat) : ""}
       footer={
         open &&
         flat &&
@@ -266,7 +279,7 @@ function FlatSheet({ flat, society, onClose, onIssue }) {
               flat={flat}
               onDone={() => {
                 close();
-                toast(t("captain.flats.delivered", { flat: flat.flat_label }));
+                toast(t("captain.flats.delivered", { flat: flatText(flat) }));
               }}
             />
           )}

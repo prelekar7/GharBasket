@@ -86,7 +86,7 @@ ci-local target *args:
 
 # Run the API with auto-reload on http://localhost:8000 (readable logs; docs at /v1/docs)
 dev:
-    APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-access-log
+    APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-proxy-headers --no-access-log
 
 # Run the ML service (M10) on http://localhost:8100; point the API at it with ML_SERVICE_URL
 dev-ml:
@@ -103,6 +103,10 @@ test:
 # ML service down; `E2E_ML=1 just e2e-day` with `just dev-ml` running, `E2E_KEEP_DB=1` to keep the DB
 e2e-day *args:
     uv run --directory e2e/backend pytest {{args}}
+
+# A delivery day happening TODAY on a local backend (database gharbasket_device, API on :8000), for testing the app's field roles on a real phone: `just up up-storage` first, then `adb reverse tcp:8000 tcp:8000 && adb reverse tcp:8333 tcp:8333`; `just device-day pack --leave 3` packs the queue (see e2e/device/README.md)
+device-day *args:
+    uv run --directory e2e/backend python ../device/device_day.py {{args}}
 
 # Build the seeded template database for the browser suite (gharbasket_e2e_web_seed); it is rebuilt only when the migrations or seed files change
 e2e-web-prepare:
@@ -149,7 +153,7 @@ migrate-down steps="1":
 migration message:
     cd backend/api && uv run alembic revision --autogenerate -m "{{message}}"
 
-# Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://gharbasket-api.onrender.com`
+# Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://api.gharbasket.co.in`
 cloud url:
     scripts/smoke-staging.sh {{url}}
 
@@ -169,6 +173,14 @@ sim *args:
 # First `infisical run --env=staging -- just staging-demo` (shows the host and plan), then again with GB_ALLOW_REMOTE_SEED=<host>
 staging-demo *args:
     ./scripts/staging-demo.sh {{args}}
+
+# MS-A demo operator steps on staging (docs/demo/ms-a.md), e.g. `infisical run --env=staging -- just demo-ms-a check`
+demo-ms-a *args:
+    ./scripts/demo-ms-a.sh {{args}}
+
+# One customer's orders and ledger entries with every leg, read only (MS-A demo): `just demo-ledger +91…`
+demo-ledger *args:
+    cd backend/api && uv run --frozen python -m gharbasket.tools.demo_ledger {{args}}
 
 # Undo a demo load: restore staging from the restore point it printed, e.g. `GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-20261107T0758Z`
 staging-rollback point:

@@ -287,6 +287,11 @@ async def test_a_held_bag_is_redelivered_from_the_captain_and_a_second_miss_is_r
     ]
     assert {line["product_id"] for line in pending["lines"]} == kept
     assert sum(line["paid_paise"] for line in pending["lines"]) == paid[False]
+    # The rows follow, so the order is not closed at its move: no `orders.closed` until the last
+    # row is delivered or refunded (M4 §3.8).
+    assert [
+        e for e in await events(db_session, "orders.closed") if e["order_id"] == str(ramesh)
+    ] == []
     # M4 keeps them in the same transaction (M4 §3.8): a pending row per line, until the
     # household's next box (none here) or 14 days after the miss.
     carried = list(
@@ -306,6 +311,18 @@ async def test_a_held_bag_is_redelivered_from_the_captain_and_a_second_miss_is_r
     assert {c.product_id for c in await orders_api.carried_lines(db_session, ramesh)} == {
         row.product_id for row in carried
     }
+    # Through the real second miss to the rows settling: the order closes with the last row, not
+    # before (M4 §3.8).
+    *first, last = sorted(carried, key=lambda row: row.id)
+    for row in first:
+        await orders_api.refund_carry(db_session, row.id, None)
+        assert [
+            e for e in await events(db_session, "orders.closed") if e["order_id"] == str(ramesh)
+        ] == []
+    await orders_api.refund_carry(db_session, last.id, None)
+    assert [e["order_id"] for e in await events(db_session, "orders.closed")].count(
+        str(ramesh)
+    ) == 1
 
 
 async def test_hold_expiry_sends_unconfirmed_bags_to_triage(

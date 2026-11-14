@@ -155,6 +155,7 @@ def test_the_platform_probes_are_registered() -> None:
     assert {
         "platform.failed_jobs",
         "platform.jobs_with_failed_hubs",
+        "platform.jobs_with_failed_households",
         "platform.outbox_stuck",
         "platform.database_size",
     } <= set(ops.PROBES)
@@ -207,6 +208,42 @@ async def test_an_ok_run_with_failed_hubs_is_reported_until_a_later_run_is_clean
         "test_broken ended ok but hubs failed: hub-b, hub-c (run of 2026-11-10 16:00 UTC)",
         "test_skipped_after ended ok but hubs failed: hub-z (run of 2026-11-10 13:00 UTC)",
     ]
+
+
+async def test_an_ok_run_with_failed_households_is_reported_until_a_later_run_is_clean(
+    db_session: AsyncSession,
+) -> None:
+    db_session.add_all(
+        [
+            run_row("test_healed", "ok", 5, summary={"failed_households": ["hh-a"]}),
+            run_row("test_healed", "ok", 4, summary={"created": 2}),
+            # a later run that has no failed_households heals it, though it lists failed_hubs
+            run_row("test_other_key", "ok", 5, summary={"failed_households": ["hh-k"]}),
+            run_row("test_other_key", "ok", 4, summary={"failed_hubs": ["hub-a"]}),
+            run_row("test_skipped_after", "ok", 5, summary={"failed_households": ["hh-z"]}),
+            run_row("test_skipped_after", "skipped", 4, error="already running"),
+            run_row("test_old", "ok", 30, summary={"failed_households": ["hh-old"]}),
+            run_row(
+                "test_failed_run", "failed", 1, "RuntimeError: x", {"failed_households": ["f"]}
+            ),
+            run_row("test_empty", "ok", 3, summary={"failed_households": []}),
+            run_row("test_clean", "ok", 3, summary={"created": 1}),
+            run_row(
+                "test_many", "ok", 2, summary={"failed_households": [f"hh-{n}" for n in range(12)]}
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    found = await jobs.jobs_with_failed_households(db_session, NOW)
+    hubs = await jobs.jobs_with_failed_hubs(db_session, NOW)
+
+    ids = ", ".join(f"hh-{n}" for n in range(10))
+    assert found == [
+        f"test_many ended ok but households failed: {ids} and 2 more (run of 2026-11-10 16:00 UTC)",
+        "test_skipped_after ended ok but households failed: hh-z (run of 2026-11-10 13:00 UTC)",
+    ]
+    assert hubs == ["test_other_key ended ok but hubs failed: hub-a (run of 2026-11-10 14:00 UTC)"]
 
 
 async def test_stuck_outbox_events_are_counted_by_type(db_session: AsyncSession) -> None:

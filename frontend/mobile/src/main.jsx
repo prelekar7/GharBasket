@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./app.css";
 import "./i18n.js";
+import { RouteError, RouteNotFound } from "@/components/RouteFallback.jsx";
 import { onSessionExpired } from "@/lib/api.js";
 import { MOCK } from "@/lib/env.js";
 import { clearLocalData } from "@/lib/localData.js";
@@ -14,7 +15,15 @@ import { startNative } from "@/shared/native/platform.js";
 import { startPwa } from "./pwa.js";
 import { routeTree } from "./routeTree.gen.js";
 
-const router = createRouter({ routeTree, defaultPreload: "intent", defaultViewTransition: true });
+const router = createRouter({
+  routeTree,
+  defaultPreload: "intent",
+  defaultViewTransition: true,
+  // A route that throws, or a path that matches nothing: our own screen with Retry and help, clear
+  // of the status bar, instead of the router's plain "Something went wrong! Show Error".
+  defaultErrorComponent: RouteError,
+  defaultNotFoundComponent: RouteNotFound,
+});
 
 startPwa();
 startOutbox();

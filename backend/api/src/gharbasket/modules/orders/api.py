@@ -6,6 +6,7 @@
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
 - M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
+- M8's public cook page reads its dishes with `tiffin_products` (M8 §3.5).
 - M12 pulls `order_facts` and `issue_facts` for its analytics refresh, from
   `first_delivery_date` on for a rebuild (M12 §3.1); its today board reads `open_issue_summary`
   and `today_counts` (M12 §3.3).
@@ -21,7 +22,7 @@ from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import carry, issues, service
+from gharbasket.modules.orders import carry, issues, service, tiffins
 from gharbasket.modules.orders.carry import CarriedLine
 from gharbasket.modules.orders.cutoff import CutoffCounts, PaymentFailedOrder, hub_cutoff_counts
 from gharbasket.modules.orders.events import (
@@ -44,6 +45,7 @@ from gharbasket.modules.orders.facts import (
     order_facts,
 )
 from gharbasket.modules.orders.fees import box_fee
+from gharbasket.modules.orders.household import household_orders
 from gharbasket.modules.orders.models import (
     STATUSES,
     CarryOver,
@@ -65,6 +67,8 @@ from gharbasket.modules.orders.service import (
     orders_for_delivery,
 )
 from gharbasket.modules.orders.state import FINAL
+from gharbasket.modules.orders.tiffins import MENU_DAYS as TIFFIN_MENU_DAYS
+from gharbasket.modules.orders.tiffins import MenuChoice, TiffinChoice
 from gharbasket.modules.orders.today import (
     OpenIssueSummary,
     TodayCounts,
@@ -72,6 +76,7 @@ from gharbasket.modules.orders.today import (
     today_counts,
 )
 from gharbasket.platform import files
+from gharbasket.platform.locale import Language
 
 __all__ = [
     "CANCELLED",
@@ -88,6 +93,7 @@ __all__ = [
     "PAYMENT_FAILED",
     "SOLD",
     "TIFFIN_BOOKED",
+    "TIFFIN_MENU_DAYS",
     "UNCOMMITTED_KINDS",
     "ApprovedCycle",
     "CarriedLine",
@@ -95,6 +101,7 @@ __all__ = [
     "CutoffCounts",
     "CycleLine",
     "IssueFact",
+    "MenuChoice",
     "Move",
     "OpenIssueSummary",
     "Order",
@@ -107,8 +114,10 @@ __all__ = [
     "SlotAvailability",
     "SlotRef",
     "SoldLine",
+    "TiffinChoice",
     "TodayCounts",
     "anonymise_for_user",
+    "book_tiffin",
     "box_fee",
     "box_slots",
     "cancel_from_cycle",
@@ -117,6 +126,7 @@ __all__ = [
     "carry_target",
     "create_from_cycle",
     "cutoff_for",
+    "default_tiffin_portions",
     "demand_kind",
     "export_for_user",
     "fees_of",
@@ -127,6 +137,7 @@ __all__ = [
     "has_delivered_box",
     "has_open_issues",
     "has_open_orders",
+    "household_orders",
     "hub_cutoff_counts",
     "issue_facts",
     "last_move",
@@ -142,6 +153,8 @@ __all__ = [
     "slot_ref",
     "sold_lines",
     "summaries",
+    "tiffin_choices",
+    "tiffin_products",
     "today_counts",
     "transition",
 ]
@@ -149,6 +162,28 @@ __all__ = [
 
 async def get(session: AsyncSession, order_id: uuid.UUID, *, for_update: bool = False) -> Order:
     return await service.get(session, order_id, for_update=for_update)
+
+
+async def tiffin_choices(
+    session: AsyncSession, household_id: uuid.UUID, hub_id: uuid.UUID, lang: Language
+) -> list[TiffinChoice]:
+    """The tiffin menus a household may still book, by date and meal (M13 §3.1, M4 §3.5)."""
+    return await tiffins.choices(session, household_id, hub_id, lang)
+
+
+async def default_tiffin_portions(session: AsyncSession, household_id: uuid.UUID) -> int:
+    """The portions `book_tiffin` books when none are given (M4 §3.5): the household size, at
+    most 12."""
+    return await tiffins.default_portions(session, household_id)
+
+
+async def book_tiffin(
+    session: AsyncSession, user_id: uuid.UUID, menu_id: uuid.UUID, portions: int | None = None
+) -> Order:
+    """Book a menu for the user's household: `POST /v1/orders` with `kind: tiffin`, with the same
+    rules and errors (M4 §3.5): one per date and meal, closed after the menu's `order_by`."""
+    order, _ = await tiffins.book(session, user_id, menu_id, portions)
+    return order
 
 
 async def has_delivered_box(session: AsyncSession, household_id: uuid.UUID) -> bool:
@@ -178,6 +213,7 @@ async def transition(
     actor: str,
     actor_user_id: uuid.UUID | None = None,
     payload: dict[str, object] | None = None,
+    closes: bool = True,
 ) -> Order:
     """Move an order along its kind's state machine (ADR-0026 §2, §3): `actor` is the kind of
     actor (`system`, `hub`, `packer`, `rider`, `captain`, `kitchen`, `customer`) and
@@ -189,10 +225,18 @@ async def transition(
     A move to `refunded` returns money to the owner's wallet through `billing.api`:
     `payload.refund_paise` (0 up to `refundable_paise`, the paid total less everything already
     paid back; default all of it), keyed by order and `payload.reason` (default `undelivered`;
-    `no_kitchen` for a locked tiffin no kitchen took, ADR-0027), so a replay never pays twice."""
+    `no_kitchen` for a locked tiffin no kitchen took, ADR-0027), so a replay never pays twice.
+    It then publishes `orders.closed` (M4 §3.8), unless `closes` is False: M7's second miss
+    carries rows right after, and the order closes when the last of them settles."""
     order = await service.get(session, order_id, for_update=True)
     return await service.transition(
-        session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
+        session,
+        order,
+        to_status,
+        actor=actor,
+        actor_user_id=actor_user_id,
+        payload=payload,
+        closes=closes,
     )
 
 
@@ -277,6 +321,25 @@ async def get_order_ref(session: AsyncSession, order_id: uuid.UUID) -> OrderRef 
         status=order.status,
         delivered_at=delivered_at,
     )
+
+
+async def tiffin_products(
+    session: AsyncSession, order_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, uuid.UUID]:
+    """The dish of each tiffin order (its box line), by order id, in one read (M8 §3.5's public
+    cook page); other kinds and unknown ids are left out."""
+    if not order_ids:
+        return {}
+    rows = await session.execute(
+        select(OrderLine.order_id, OrderLine.product_id)
+        .join(Order, Order.id == OrderLine.order_id)
+        .where(OrderLine.order_id.in_(order_ids), Order.kind == "tiffin", OrderLine.kind == "box")
+        .order_by(OrderLine.order_id, OrderLine.product_id)
+    )
+    found: dict[uuid.UUID, uuid.UUID] = {}
+    for order_id, product_id in rows.all():
+        found.setdefault(order_id, product_id)
+    return found
 
 
 @dataclass(frozen=True)
