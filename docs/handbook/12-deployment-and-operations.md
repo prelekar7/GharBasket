@@ -177,7 +177,7 @@ The root `prepare` script installs the git hooks (`lefthook install`), which exi
 
 Both web names are already authorised in Firebase (Authentication → Settings → Authorized domains). When a name goes live, set the values that point at it:
 - **Render:** `WEB_ORIGINS` (`https://gharbasket.co.in,https://app.gharbasket.co.in`), `PUBLIC_WEB_URL`, `APP_WEB_URL`, `CONSOLE_URL`.
-- **Vercel:** `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL` and `GB_API_URL` on the console; `VITE_PUBLIC_WEB_URL` on the PWA. Redeploy after a change: Vite and `NEXT_PUBLIC_*` values are baked into the build.
+- **Vercel:** `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL` and `GB_API_URL` on the console; `VITE_PUBLIC_WEB_URL` on the PWA. Redeploy after a change: Vite and `NEXT_PUBLIC_*` values are baked into the build. Vercel builds through Turborepo, which passes a build only the variables `turbo.json` declares (plus `NEXT_PUBLIC_*` and `VITE_*`); the console's `GB_*` switches are declared there, so a new build-time variable with another prefix must be added to its `build.env` too, or the prerendered pages (the landing page) never see it.
 - **Infisical `staging` and GitHub Actions:** `STAGING_API_URL` and `API_BASE_URL` (the Capacitor build) are `https://api.gharbasket.co.in`. After changing `STAGING_API_URL`, run `just jobs-vm env` and `scripts/mandi-on-vm.sh env` again so the Oracle VM uses it.
 - **Outside the repo:** the Razorpay test webhook and the UptimeRobot monitor use `https://api.gharbasket.co.in`.
 
