@@ -1,6 +1,6 @@
 # ADR-0036 — A production environment for the pilot, apart from staging
 
-- **Status:** Proposed (2026-11-14)
+- **Status:** Accepted (2026-11-14)
 - **Date:** 2026-11-14
 - **Decision ID:** D36
 - **Relates to:** [ADR-0020](0020-free-tier-hosting-render-vercel-neon-r2.md) (free-tier hosting), [ADR-0021](0021-jobs-without-a-broker.md) (jobs), [ADR-0030](0030-ml-service-on-render-free.md) (ML on Render free; the shared 750 hours), [ADR-0032](0032-scheduled-jobs-from-the-oracle-vm.md) (the VM scheduler), [ADR-0033](0033-ops-alerts-healthchecks-and-uptimerobot.md) (ops alerts), [ADR-0035](0035-custom-domain-gharbasket-co-in.md) (the domain; "a production environment takes the names over"). Handbook 12 §12.1, §12.4 and "Open" (Q3).
