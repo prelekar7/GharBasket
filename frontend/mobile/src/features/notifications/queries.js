@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { request } from "@/lib/api.js";
 
 /**
- * @typedef {{ id: string, event_type: string, title: string, body: string, link: string, created_at: string, read_at: string | null }} Message
+ * @typedef {{ id: string, event_type: string, title: string, body: string, link: string | null, created_at: string, read_at: string | null }} Message
  * @typedef {{ category: string, push: boolean, whatsapp: boolean }} CategoryPref
  * @typedef {{ categories: CategoryPref[], quiet_start: string, quiet_end: string }} Prefs
  */

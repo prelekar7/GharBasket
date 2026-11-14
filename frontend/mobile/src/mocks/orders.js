@@ -320,6 +320,30 @@ function tiffinOrderOut(b, lang) {
   return allOrders(lang).find((o) => o.id === b.id);
 }
 
+/**
+ * Book a tiffin as POST /v1/orders does (M4 §3.5): one per date and meal, the menu's meal and
+ * kitchen. The assistant mock's book_tiffin confirm books through here too, as the API books
+ * through M4. Answers the OrderOut, or the order already booked for that date and meal.
+ * @param {string} date @param {number} portions @param {string} key @param {"en" | "hi"} lang
+ * @returns {{ order: any, twin?: undefined } | { twin: { id: string }, order?: undefined }}
+ */
+export function bookTiffin(date, portions, key, lang) {
+  const list = bookedTiffins();
+  const meal = TIFFIN_OFFER.slot;
+  const twin = list.find((b) => b.delivery_date === date && b.slot === meal);
+  if (twin) return { twin };
+  const order = {
+    id: crypto.randomUUID(),
+    key,
+    delivery_date: date,
+    slot: meal,
+    kitchen_id: TIFFIN_OFFER.kitchen_id,
+    qty: portions,
+  };
+  localStorage.setItem(TIFFINS_KEY, JSON.stringify([...list, order]));
+  return { order: tiffinOrderOut(order, lang) };
+}
+
 const ISSUE_KINDS = ["missing", "damaged", "late", "other"];
 /** @type {Record<string, any>} */
 const issuesByKey = {};
@@ -375,8 +399,7 @@ export const orderHandlers = [
     const portions = body.portions ?? 2;
     if (!(Number.isInteger(portions) && portions >= 1 && portions <= 12))
       return problem(422, "request.invalid", "Book between 1 and 12 portions");
-    const meal = TIFFIN_OFFER.slot;
-    const twin = list.find((b) => b.delivery_date === date && b.slot === meal);
+    const { order, twin } = bookTiffin(date, portions, key, lang);
     if (twin)
       return HttpResponse.json(
         {
@@ -388,16 +411,7 @@ export const orderHandlers = [
         },
         { status: 409, headers: { "content-type": "application/problem+json" } },
       );
-    const order = {
-      id: crypto.randomUUID(),
-      key,
-      delivery_date: date,
-      slot: meal,
-      kitchen_id: TIFFIN_OFFER.kitchen_id,
-      qty: portions,
-    };
-    localStorage.setItem(TIFFINS_KEY, JSON.stringify([...list, order]));
-    return HttpResponse.json(tiffinOrderOut(order, lang), { status: 201 });
+    return HttpResponse.json(order, { status: 201 });
   }),
 
   http.get("*/v1/orders/:id", ({ request, params }) => {

@@ -1,0 +1,73 @@
+# Daily check of staging's Neon compute hours (handbook 12 §12.5, scripts/neon_usage_check.py).
+#
+# Neon's free plan suspends a project's compute for the rest of the month once its compute-unit
+# hours run out, which takes staging down. This job asks Neon's console API (not the database) how
+# many CU-hours the project has used since the monthly reset, so it does not wake the compute or
+# spend the hours it counts. It fails at NEON_CU_HOURS_WARN_PCT of the limit, or when the pace so
+# far would cross the limit before the reset, and a failure tells the healthchecks `ops` alert
+# (HC_OPS_URL, ADR-0033) with the script's lines as the body.
+#
+# Needs the repository secrets NEON_API_KEY and DATABASE_URL_DIRECT (both exist for
+# deploy-staging.yml); NEON_PROJECT_ID is optional. Until they exist the job skips with a notice.
+name: Neon usage
+
+on:
+  schedule:
+    - cron: "20 1 * * *" # 06:50 IST daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-usage
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Compute hours against the free limit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEON_CU_HOURS_LIMIT: "100" # Neon Free, per project (infra/jobs/schedule.yaml)
+      NEON_CU_HOURS_WARN_PCT: "80"
+      HC_OPS_URL: ${{ secrets.HC_OPS_URL }}
+    steps:
+      - name: Check that the secrets exist
+        id: configured
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+        run: |
+          if [ -z "$NEON_API_KEY" ] || [ -z "$DATABASE_URL_DIRECT" ]; then
+            echo "::notice::NEON_API_KEY or DATABASE_URL_DIRECT is not set. Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.ready == 'true'
+        with:
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Read the project's usage
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+        run: |
+          set -o pipefail
+          # The script needs only the standard library; the runner's python3 is enough.
+          python3 scripts/neon_usage_check.py 2>&1 | tee "$RUNNER_TEMP/usage.txt"
+
+      - name: Tell the ops alert
+        # healthchecks.io `ops` check (ADR-0033); skipped while the secret is unset.
+        if: failure() && env.HC_OPS_URL != ''
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          body=$(cat "$RUNNER_TEMP/usage.txt" 2>/dev/null || echo "the check did not run")
+          curl --silent --show-error --max-time 10 --retry 3 \
+            --data-raw "$GITHUB_WORKFLOW: $body ($run_url)" "$HC_OPS_URL/fail" || true

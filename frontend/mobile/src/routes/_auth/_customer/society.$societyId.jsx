@@ -19,7 +19,6 @@ import {
   sawUnlocking,
   useDeliveryDays,
   useImpact,
-  useRecordInvite,
   useSociety,
   useSocietyUnlock,
 } from "@/features/community/queries.js";
@@ -47,7 +46,6 @@ function Society() {
   const unlockQuery = useSocietyUnlock(s?.id);
   const deliveryQuery = useDeliveryDays(s?.id);
   const impact = useImpact(s?.status === "live" ? s.id : undefined);
-  const record = useRecordInvite();
   const [sharing, setSharing] = useState(false);
   const [seen, setSeen] = useState(() => {
     try {
@@ -75,7 +73,6 @@ function Society() {
     } catch {
       toast(t("society.share.copyFailed"));
     }
-    record.mutate({ societyId: s.id, channel: "copy" });
   };
 
   if (justUnlocked)
@@ -181,7 +178,6 @@ function Society() {
         <>
           <section className="flex flex-col gap-2">
             <strong>{t("onboarding.unlock.invite")}</strong>
-            <p className="text-sm leading-5 text-fg-secondary">{t("society.share.reward")}</p>
             <div className="flex items-center justify-between gap-2 rounded-sm border border-line-strong bg-surface py-1 pr-1 pl-3">
               <span className="min-w-0 truncate text-sm">{link.replace(/^https?:\/\//, "")}</span>
               <Button variant="quiet" onPress={copyLink}>

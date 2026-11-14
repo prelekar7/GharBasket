@@ -1,4 +1,6 @@
+import { toast } from "@gharbasket/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { liveQuery } from "dexie";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { todayIst } from "@/features/subscriptions/format.js";
@@ -31,17 +33,111 @@ import { isDone } from "./lines.js";
  * @typedef {{ hub: { id: string, name: string }, date: string, van_departs_at: string, tasks: PackingTask[] }} PackingDay
  */
 /**
- * A bag that takes a shortage and what that family gets: a swap they allowed (`substitute`) or money back.
+ * A bag that takes a shortage and what that family gets: a substitute they allowed or money back
+ * (M1's preference words). For an open bag `substitute` is the first listed product in stock; for a
+ * reported one, the product that was packed.
  * @typedef {{ task_id: string, bag_qr: string, society: string, flat_label: string | null, qty: number,
- *   outcome: "swap" | "refund", substitute: PackProduct | null, refund_paise: number }} ShortBagOut
+ *   outcome: "substitute" | "refund", substitute: PackProduct | null, refund_paise: number }} ShortBagOut
  */
 /**
  * An item short today: the goods-receipt gap in steps and the bags it can fall on, then the bags it
- * has (GET /v1/hubs/{id}/shortages, a mock-only proposal to M6). `needed`/`received` are null for
- * one reported at a bag.
- * @typedef {PackProduct & { needed: number | null, received: number | null,
+ * has (GET /v1/hubs/{id}/shortages, M6 §3.6). `received` is null when the step does not convert to
+ * the operations unit; `short_by` is then 0.
+ * @typedef {PackProduct & { needed: number, received: number | null, short_by: number,
  *   bags: ShortBagOut[], reported: ShortBagOut[] }} ShortItem
  */
+
+/**
+ * The substitute to send for a bag, or null for money back: only when the family's rule allows one
+ * (`outcome: "substitute"`) and the list named a product. The server checks the rule again.
+ * @param {ShortBagOut} bag
+ */
+export const substituteFor = (bag) =>
+  bag.outcome === "substitute" ? (bag.substitute?.product_id ?? null) : null;
+
+/**
+ * @typedef {{ bag: ShortBagOut, whole: boolean,
+ *   body: { product_id: string, short_qty: number, substitute_product_id: string | null } }} ShortPlan
+ */
+
+/**
+ * What to send for each bag a shortage of `short` steps falls on, in the server's order (last bag in
+ * the queue first, M6 §3.6), each the POST /v1/packing-tasks/{id}/shortage body.
+ * - A swap replaces the whole line: the API refuses a partial one (`substitute_invalid`, "partial").
+ * - A refund covers only the steps still short, so the last bag is not refunded for more than is
+ *   missing; its other steps are picked as usual (`whole` false: the line stays open).
+ * `bag` carries the steps and money of the plan, for the screen.
+ * @param {ShortItem} item @param {ShortBagOut[]} bags @param {number} short
+ * @returns {ShortPlan[]}
+ */
+export function shortagePlan(item, bags, short) {
+  /** @type {ShortPlan[]} */
+  const plan = [];
+  let left = short;
+  for (const bag of bags) {
+    if (left <= 0) break;
+    const swap = substituteFor(bag);
+    const qty = swap ? bag.qty : Math.min(bag.qty, left);
+    const refund = swap ? bag.refund_paise : Math.round((bag.refund_paise * qty) / bag.qty);
+    plan.push({
+      bag: { ...bag, qty, refund_paise: refund },
+      whole: qty === bag.qty,
+      body: { product_id: item.product_id, short_qty: qty, substitute_product_id: swap },
+    });
+    left -= qty;
+  }
+  return plan;
+}
+
+/** The outbox's swaps the server refused (422 `hub_ops.substitute_invalid`). */
+const refusedSwaps = () =>
+  db
+    .table("outbox")
+    .where("status")
+    .equals("failed")
+    .filter(
+      (/** @type {import("@/lib/outbox.js").OutboxItem} */ i) =>
+        i.lastError === "hub_ops.substitute_invalid" && /\/shortage$/.test(i.path),
+    )
+    .toArray();
+
+/**
+ * Takes the refused swaps off the outbox, in one transaction (a second call finds none).
+ * @returns {Promise<number>} how many
+ */
+export const takeRefusedSwaps = () =>
+  db.transaction("rw", db.table("outbox"), async () => {
+    const items = await refusedSwaps();
+    await db.table("outbox").bulkDelete(items.map((i) => /** @type {number} */ (i.id)));
+    return items.length;
+  });
+
+/**
+ * A swap the server refused, because the family now prefers money back, the line was partly
+ * picked meanwhile, or the substitute is no longer allowed (`substitute_invalid`), would fail the
+ * same way on every retry while the bag waits with an open line. So it leaves the outbox, the
+ * shortages and the bag are fetched again, and the bag is back on Shortages with today's outcome
+ * for the packer to report once more. Mounted once in the packer's frame.
+ */
+export function useRefusedSwaps() {
+  const client = useQueryClient();
+  const hubId = useHubId();
+  const { t } = useTranslation();
+  useEffect(() => {
+    const sub = liveQuery(refusedSwaps).subscribe({
+      next: async (items) => {
+        if (!items.length) return;
+        const n = await takeRefusedSwaps();
+        if (!n) return;
+        client.invalidateQueries({ queryKey: ["shortages", hubId] });
+        client.invalidateQueries({ queryKey: ["packing", hubId] });
+        toast(t("packer.short.swapRefused", { n }));
+      },
+      error: () => {},
+    });
+    return () => sub.unsubscribe();
+  }, [client, hubId, t]);
+}
 
 /** The packer's hub, from her role grant. */
 export const useHubId = () =>
@@ -118,7 +214,7 @@ export function usePrefetchNext(tasks) {
   }, [client, hubId, lang, wanted]);
 }
 
-/** Items short today and the bags they fall on (mock-only proposal, see ShortItem). */
+/** Items short today and the bags they fall on (GET /v1/hubs/{id}/shortages, M6 §3.6). */
 export function useShortages() {
   const hubId = useHubId();
   const { i18n } = useTranslation();
@@ -224,9 +320,10 @@ export function usePackingActions() {
     },
     /**
      * A short item falls on these bags; each family's own choice decides a swap or money back.
-     * @param {ShortItem} item @param {ShortBagOut[]} bags
+     * @param {ShortItem} item @param {ShortPlan[]} plan from `shortagePlan`
      */
-    reportShortage(item, bags) {
+    reportShortage(item, plan) {
+      const bags = plan.map((p) => p.bag);
       const ids = new Set(bags.map((b) => b.task_id));
       client.cancelQueries({ queryKey: ["shortages", hubId] });
       client.setQueriesData(
@@ -244,18 +341,15 @@ export function usePackingActions() {
       );
       const day = client.getQueryData(dayKey);
       return Promise.all(
-        bags.map((b) => {
+        plan.map(({ bag: b, whole, body }) => {
           const row = /** @type {PackingDay | undefined} */ (day)?.tasks.find(
             (t) => t.id === b.task_id,
           );
           if (row) actions.started(row);
-          patchRow(b.task_id, (t) => ({ ...t, lines_done: t.lines_done + 1 }));
+          // A partial refund leaves the line's other steps to pick: not done yet.
+          if (whole) patchRow(b.task_id, (t) => ({ ...t, lines_done: t.lines_done + 1 }));
           client.invalidateQueries({ queryKey: taskKey(b.task_id), refetchType: "none" });
-          return send(/** @type {PackingTask} */ ({ id: b.task_id }), "shortage", {
-            product_id: item.product_id,
-            short_qty: b.qty,
-            substitute_product_id: b.outcome === "swap" ? (b.substitute?.product_id ?? null) : null,
-          });
+          return send(/** @type {PackingTask} */ ({ id: b.task_id }), "shortage", body);
         }),
       );
     },

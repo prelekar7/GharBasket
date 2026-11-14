@@ -654,10 +654,15 @@ async def transition(
     actor: str,
     actor_user_id: uuid.UUID | None = None,
     payload: dict[str, Any] | None = None,
+    closes: bool = True,
 ) -> Order:
     """Move an order along its kind's state machine, write the timeline row (with the actor kind
     and, for a person, their user id) and publish the event, which carries `kind` and `actor`.
-    Only the state machine is checked: the caller has checked that this person may act."""
+    Only the state machine is checked: the caller has checked that this person may act.
+
+    `closes` (only for a move to `refunded`): publish `orders.closed` at once (§3.8). M7's second
+    miss passes False when carried rows follow in its transaction; the order then closes when the
+    last row settles."""
     state.check(order.kind, order.status, to_status, actor)
     from_status = order.status
     if to_status == "refunded":
@@ -707,6 +712,8 @@ async def transition(
             body["carried"] = await carry.delivering(session, order.id)  # M5 §3.9
         await publish(session, event_type, body)
     await carry.follow(session, order, to_status)  # carried items follow their order (§3.8)
+    if to_status == "refunded" and closes:
+        await carry.publish_closed(session, order)  # nothing carried: closed at once (§3.8)
     return order
 
 

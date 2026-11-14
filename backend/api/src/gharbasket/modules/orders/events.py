@@ -32,3 +32,8 @@ CARRY_OVER_ATTACHED = "orders.carry_over_attached"
 # steps, paid_paise}], reason "carry_over_expired"; once per missed order and run. M6 releases the
 # kept items, M11 may tell the household.
 CARRY_OVER_EXPIRED = "orders.carry_over_expired"
+# Own payload (§3.8): order_id, household_id, hub_id. A `refunded` order with nothing left open (no
+# carried row pending, attached or packed): at its move to `refunded` when nothing is carried,
+# else when its last carried row is delivered or refunded; once per order. M5 recognises what the
+# order still holds (M5 §3.9). Not a status change, so no `kind`, `actor` or `order_event_id`.
+CLOSED = "orders.closed"
