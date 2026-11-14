@@ -1,6 +1,7 @@
 import { toast } from "@gharbasket/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { bagQr } from "@/features/logistics/bagQr.js";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";
 import { db, enqueue, flush } from "@/lib/outbox.js";
@@ -11,8 +12,10 @@ import { db, enqueue, flush } from "@/lib/outbox.js";
 
 /**
  * @typedef {{ id: string, name: string, location: { lat: number, lng: number } }} StopSociety
- * @typedef {{ empties_collected: number | null, donations: Donation[] }} StopPickups
- * @typedef {{ donation_id: string, ref: string, qty: number, note: string, status: "expected" | "collected" | "not_ready" }} Donation
+ * @typedef {"expected" | "collected" | "not_ready"} PickupStatus
+ * @typedef {{ empties_collected: number | null, donations: Donation[], bags: BagPickup[] }} StopPickups
+ * @typedef {{ donation_id: string, items: string | null, flat_label: string | null, status: PickupStatus }} Donation
+ * @typedef {{ order_id: string, flat_label: string | null, status: PickupStatus }} BagPickup
  * @typedef {{ order_id: string, short_code: string, portions: number, flat_label: string | null,
  *   status: "to_collect" | "on_route" | "with_captain" | "delivered" | "undelivered" | "left_behind" }} TiffinItem
  * @typedef {{ partner_id: string, display_name: string, area: string | null, ready_by: string,
@@ -224,10 +227,10 @@ export function useRiderActions() {
         },
       ),
     /**
-     * POST /v1/stops/{id}/pickups on the way back (M7 §3.6, an outline): empties counted and
-     * donations collected or not ready.
+     * POST /v1/stops/{id}/pickups on the way back (M7 §3.6): empties counted, donations collected
+     * or not ready (tapped) and bags (the scanned `GB1:` codes, which mean collected).
      * @param {Route} route @param {Stop} stop
-     * @param {{ empties?: number, donations?: { donation_id: string, status: "collected" | "not_ready" }[] }} picked
+     * @param {{ empties?: number, donations?: { donation_id: string, status: "collected" | "not_ready" }[], bags?: string[] }} picked
      */
     pickups: (route, stop, picked) =>
       act(
@@ -240,6 +243,9 @@ export function useRiderActions() {
               const got = picked.donations?.find((p) => p.donation_id === d.donation_id);
               return got ? { ...d, status: got.status } : d;
             }),
+            bags: (x.pickups?.bags ?? []).map((b) =>
+              picked.bags?.includes(bagQr(b.order_id)) ? { ...b, status: "collected" } : b,
+            ),
           },
         })),
         { path: `/v1/stops/${stop.id}/pickups`, body: picked },
