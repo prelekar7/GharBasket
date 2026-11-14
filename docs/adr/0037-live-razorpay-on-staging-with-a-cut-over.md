@@ -1,6 +1,6 @@
 # ADR-0037 — Live Razorpay payments on staging, behind a switch, with a one-time cut-over
 
-- **Status:** Proposed (2026-11-14)
+- **Status:** Accepted (2026-11-14)
 - **Date:** 2026-11-14
 - **Decision ID:** D37
 - **Supersedes in part:** [ADR-0036](0036-production-environment-for-the-pilot.md): its rule that live Razorpay keys exist only with `APP_ENV=prod`, and its order of work. The rest of ADR-0036 (a separate production environment, the domain plan, an own ML service) stays the target for the launch after this test.
@@ -95,7 +95,7 @@ That choice is made at the end of the test. It is not part of this ADR.
 ## Consequences
 - (+) Real top-ups, box debits, refunds to source and reconciliation are tested end to end against Razorpay before customers arrive.
 - (+) The books stay honest. Test money is closed in one visible entry, and every live payment is marked `live`.
-- (−) **Real money moves.** Every refund is a real refund, and a bug costs real rupees. The team tests with small amounts (₹1 to ₹100 top-ups) from its own accounts first.
+- (−) **Real money moves.** Every refund is a real refund, and a bug costs real rupees. The team tests with small amounts (₹100 top-ups, M5 §3.1's minimum; refunds can be as small as ₹1) from its own accounts first.
 - (−) **No demo reloads while live.** A demo for the guide uses the live data that exists, or a local stack (`just dev-real`). Switching back to `test` mode is possible (set the switch, restart), but test payments then mix with live data again. It is for an emergency only.
 - (−) **Staging is now holding real personal and payment data.** The DPDP duties of handbook 13 (consent, erasure, breach runbook) apply in full. The team's own phone numbers already do.
 - (−) The money code change is reviewed as a money PR (handbook 11 §11.3: an Opus review and the full local check) before it merges.
@@ -108,4 +108,4 @@ That choice is made at the end of the test. It is not part of this ADR.
    - live keys and the live webhook secret in Infisical `staging` and on Render;
    - the live webhook URL in Razorpay's dashboard;
    - `RAZORPAY_MODE=live`, then `just billing-cutover-live`.
-5. **The first real-money test, together.** A ₹1 top-up from the owner's phone, then a refund of it, then a reconciliation run. The ledger, Razorpay's dashboard and the ops probes are checked after each step.
+5. **The first real-money test, together.** A ₹100 top-up from the owner's phone (M5 §3.1's minimum), then a ₹1 refund of part of it and a refund of the rest, then a reconciliation run. The ledger, Razorpay's dashboard and the ops probes are checked after each step.

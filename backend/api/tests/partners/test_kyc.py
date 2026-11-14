@@ -350,7 +350,14 @@ async def test_file_links_are_for_that_hubs_staff_only_and_every_call_is_audited
     assert code(by_applicant) == (403, "auth.forbidden")
     assert code(unknown) == (404, "partners.document_not_found")
     reads = (
-        (await db_session.execute(select(AuditEntry).where(AuditEntry.action == "kyc.file_read")))
+        (
+            await db_session.execute(
+                # uuidv7 ids rise in insert order; without ORDER BY the rows come in any order.
+                select(AuditEntry)
+                .where(AuditEntry.action == "kyc.file_read")
+                .order_by(AuditEntry.id)
+            )
+        )
         .scalars()
         .all()
     )
