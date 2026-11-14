@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { publicApiOrigin } from "./public-source.js";
+import { isPublicMock, publicApiOrigin } from "./public-source.js";
 
 const API = "https://api.gharbasket.co.in";
 
@@ -28,4 +28,11 @@ test("real mode without GB_API_URL is a configuration error", () => {
     () => publicApiOrigin({ GB_API_MOCK: "false", GB_API_URL: "" }),
     /GB_API_URL is not set/,
   );
+});
+
+test("isPublicMock follows the same switch, and needs no GB_API_URL", () => {
+  assert.equal(isPublicMock({}), true);
+  assert.equal(isPublicMock({ GB_API_MOCK: "false" }), false);
+  assert.equal(isPublicMock({ GB_PUBLIC_API_MOCK: "false", GB_API_MOCK: "true" }), false);
+  assert.equal(isPublicMock({ GB_PUBLIC_API_MOCK: "true", GB_API_MOCK: "false" }), true);
 });

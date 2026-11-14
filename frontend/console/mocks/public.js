@@ -1,8 +1,7 @@
-// Public mocks (no sign-in): society invite pages and the know-your-cook profile.
-// GET /v1/public/societies/{slug} is in the M12 spec ("for the SEO landing page"); there is no public list of
-// societies in v1. The cook endpoint is our proposal: M8 puts the know-your-cook card at the
-// authenticated GET /v1/partners/{id}/public, but a public page needs an anonymous, consent-gated
-// variant, so we propose GET /v1/public/cooks/{id} (404 `partners.not_public` unless the cook opted in).
+// Public mocks (no sign-in): society invite pages and the public cook page.
+// GET /v1/public/societies/{slug} is M12's (PublicSocietyOut); there is no public list of societies
+// in v1. GET /v1/public/cooks/{handle} is M8 §3.5's (PublicCookOut): only with the cook's consent,
+// 404 `partners.cook_not_found` otherwise, and never her area, address, phone or pay.
 // Both read `Accept-Language` (en | hi) and return the localised display fields; the page never
 // translates data. Numbers match the designs (Society.dc.html, Landing.dc.html).
 import { HttpResponse, http } from "msw";
@@ -21,17 +20,19 @@ import { problem } from "./util.js";
  */
 
 /**
+ * PublicCookOut (M8 §3.5, partners/schemas.py).
  * @typedef {object} PublicCook
- * @property {string} id
- * @property {string} name
- * @property {"f" | "m" | null} gender picks "her" or "their" in the page copy
- * @property {string} kitchen_area
- * @property {string} specialty
- * @property {string} fssai_reg_no
- * @property {{ done: number, total: number }} hygiene_modules
- * @property {{ average: number, window_days: number } | null} rating
- * @property {string} checked_by the hub that checked this kitchen
- * @property {{ name: string, tag: string }[]} dishes
+ * @property {string} handle 10 characters of a-z2-7, never the partner id
+ * @property {string} display_name what she chose, maybe a first name ("Lata tai")
+ * @property {string | null} photo_url always null for now (M8 §11)
+ * @property {{ name: string }} hub who checked the kitchen; the locality (never her own area)
+ * @property {string} since IST month of verification, "2026-09"
+ * @property {{ reg_no: string, valid_until: string | null } | null} fssai null without a registration
+ * @property {{ grade: "A" | "B" | "C", inspected_on: string } | null} hygiene the hub's last inspection
+ * @property {{ code: string, title: string }[]} trainings passed kitchen modules, titles in Accept-Language
+ * @property {{ average: number, count: number } | null} rating null under 5 ratings
+ * @property {("veg" | "jain" | "no_onion_garlic" | "diabetic" | "egg" | "nonveg")[]} skills codes; the page labels them
+ * @property {{ name: string }[]} dishes delivered in the last 60 days, most portions first, at most 6
  */
 
 /** @type {{ en: PublicSociety, hi: { name: string, area?: string } }[]} */
@@ -99,55 +100,60 @@ const SOCIETIES = [
   },
 ];
 
-/** @type {{ consent_public: boolean, en: PublicCook, hi: Partial<PublicCook> }[]} */
+/**
+ * Cooks with a public page. A cook without her consent has no handle at all, so she is simply not
+ * here: the API answers the same 404 for her as for a handle that never existed.
+ * @type {{ en: PublicCook, hi: Partial<PublicCook> }[]}
+ */
 const COOKS = [
   {
-    consent_public: true,
     en: {
-      id: "c7f3a91e",
-      name: "Lata Shinde",
-      gender: "f",
-      kitchen_area: "Kharghar",
-      specialty: "Maharashtrian thali, Jain thali",
-      fssai_reg_no: "[FSSAI NUMBER]",
-      hygiene_modules: { done: 5, total: 5 },
-      rating: { average: 4.7, window_days: 30 },
-      checked_by: "Kharghar hub",
+      handle: "k7m2qx4rta",
+      display_name: "Lata tai",
+      photo_url: null,
+      hub: { name: "Kharghar hub" },
+      since: "2026-09",
+      fssai: { reg_no: "11521999000123", valid_until: "2028-03-31" },
+      hygiene: { grade: "A", inspected_on: "2026-10-20" },
+      trainings: [
+        { code: "app_basics", title: "Using the GharBasket app" },
+        { code: "hygiene", title: "Kitchen hygiene" },
+        { code: "kitchen_ops", title: "Running your tiffin kitchen" },
+      ],
+      rating: { average: 4.7, count: 23 },
+      skills: ["veg", "jain"],
       dishes: [
-        { name: "Varan-bhaat thali", tag: "Vegetarian" },
-        { name: "Chapati-bhaji thali", tag: "Vegetarian" },
-        { name: "Jain thali", tag: "No onion, garlic or roots" },
+        { name: "Varan-bhaat thali" },
+        { name: "Chapati-bhaji thali" },
+        { name: "Jain thali" },
       ],
     },
     hi: {
-      name: "लता शिंदे",
-      kitchen_area: "खारघर",
-      specialty: "महाराष्ट्रीयन थाली, जैन थाली",
-      fssai_reg_no: "[FSSAI नंबर]",
-      checked_by: "खारघर हब",
-      dishes: [
-        { name: "वरण-भात थाली", tag: "शाकाहारी" },
-        { name: "चपाती-भाजी थाली", tag: "शाकाहारी" },
-        { name: "जैन थाली", tag: "बिना प्याज़, लहसुन, कंद" },
+      trainings: [
+        { code: "app_basics", title: "GharBasket ऐप का उपयोग" },
+        { code: "hygiene", title: "रसोई की स्वच्छता" },
+        { code: "kitchen_ops", title: "टिफ़िन रसोई चलाना" },
       ],
+      dishes: [{ name: "वरण-भात थाली" }, { name: "चपाती-भाजी थाली" }, { name: "जैन थाली" }],
     },
   },
-  // A cook who has not agreed to a public profile: the page must show "not available", never data.
+  // New this month: no FSSAI number, no inspection, under 5 ratings and nothing cooked yet. The page
+  // must leave out what is missing rather than print null.
   {
-    consent_public: false,
     en: {
-      id: "d41b02aa",
-      name: "Sunita Pawar",
-      gender: "f",
-      kitchen_area: "Kamothe",
-      specialty: "Home-style dal thali",
-      fssai_reg_no: "[FSSAI NUMBER]",
-      hygiene_modules: { done: 3, total: 5 },
+      handle: "p3wz6nb2ka",
+      display_name: "Sunita",
+      photo_url: null,
+      hub: { name: "Kharghar hub" },
+      since: "2026-11",
+      fssai: null,
+      hygiene: null,
+      trainings: [{ code: "app_basics", title: "Using the GharBasket app" }],
       rating: null,
-      checked_by: "Kharghar hub",
+      skills: ["veg"],
       dishes: [],
     },
-    hi: {},
+    hi: { trainings: [{ code: "app_basics", title: "GharBasket ऐप का उपयोग" }] },
   },
 ];
 
@@ -164,13 +170,11 @@ export const publicHandlers = [
     return HttpResponse.json(langOf(request) === "hi" ? { ...found.en, ...found.hi } : found.en);
   }),
 
-  // GET /v1/public/cooks/{id} → the know-your-cook profile, only with the cook's consent. Never a
-  // phone number or address (proposal; see the header).
-  http.get("*/v1/public/cooks/:id", ({ request, params }) => {
-    const found = COOKS.find((c) => c.en.id === params.id);
-    if (!found?.consent_public) {
-      return problem(404, "partners.not_public", "This profile is not available");
-    }
+  // GET /v1/public/cooks/{handle} → the public cook page (M8 §3.5), only with her consent. One 404
+  // for an unknown handle, no consent or a kitchen that is not active or paused.
+  http.get("*/v1/public/cooks/:handle", ({ request, params }) => {
+    const found = COOKS.find((c) => c.en.handle === params.handle);
+    if (!found) return problem(404, "partners.cook_not_found", "No such cook.");
     return HttpResponse.json(langOf(request) === "hi" ? { ...found.en, ...found.hi } : found.en);
   }),
 ];

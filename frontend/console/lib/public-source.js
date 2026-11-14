@@ -8,10 +8,18 @@
  * @returns {string | null} the API origin to call, or null to answer from the mocks
  */
 export function publicApiOrigin(env) {
-  const flag = env.GB_PUBLIC_API_MOCK ?? env.GB_API_MOCK;
-  if (flag !== "false") return null;
+  if (isPublicMock(env)) return null;
   const origin = (env.GB_API_URL ?? "").replace(/\/$/, "");
   if (!origin)
     throw new Error("GB_API_URL is not set (needed when the public pages use the real API)");
   return origin;
+}
+
+/**
+ * Whether the public pages answer from the mocks. The landing page uses it to link to the mock
+ * cook only in mock mode: a real cook page exists only once a kitchen turns hers on (M8 §3.5).
+ * @param {Record<string, string | undefined>} env usually `process.env`
+ */
+export function isPublicMock(env) {
+  return (env.GB_PUBLIC_API_MOCK ?? env.GB_API_MOCK) !== "false";
 }

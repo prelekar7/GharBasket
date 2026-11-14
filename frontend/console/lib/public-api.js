@@ -8,7 +8,8 @@ import { publicApiOrigin } from "./public-source.js";
  * is passed in explicitly (it becomes `Accept-Language`, which the API answers with localised text).
  * Mock mode answers from mocks/public.js; real mode calls `GB_API_URL`. The public pages have their
  * own switch, `GB_PUBLIC_API_MOCK` (defaults to `GB_API_MOCK`; see lib/public-source.js). There is no
- * public list of societies in v1: a visitor reaches a society page from its invite link.
+ * public list of societies or cooks in v1: a visitor reaches a society page from its invite link, and a
+ * cook's page from the link she shares.
  *
  * @typedef {import("../mocks/public.js").PublicSociety} PublicSociety
  * @typedef {import("../mocks/public.js").PublicCook} PublicCook
@@ -59,15 +60,19 @@ export async function getSociety(slug, lang) {
 }
 
 /**
- * The know-your-cook profile; null when unknown or when the cook has not agreed to a public one.
- * Always the mocks for now: the API has no GET /v1/public/cooks/{id} yet (it is our proposal in
- * mocks/public.js), so the real API would turn every cook page, and the landing page's link, into a 404.
- * @param {string} id
+ * The public cook page (M8 §3.5 GET /v1/public/cooks/{handle}); null when the handle is unknown, she
+ * has not agreed to a public page, or her kitchen is not active or paused (one 404 for all three).
+ * Follows the same switch as the society page.
+ * @param {string} handle
  * @param {Lang} lang
  * @returns {Promise<PublicCook | null>}
  */
-export async function getCook(id, lang) {
+export async function getCook(handle, lang) {
   "use cache";
   cacheLife("minutes");
-  return publicGet(`/v1/public/cooks/${encodeURIComponent(id)}`, lang, null);
+  return publicGet(
+    `/v1/public/cooks/${encodeURIComponent(handle)}`,
+    lang,
+    publicApiOrigin(process.env),
+  );
 }
