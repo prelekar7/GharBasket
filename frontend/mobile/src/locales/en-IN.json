@@ -157,6 +157,11 @@
     "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}",
     "dismiss": "Dismiss",
     "dismissAll": "Dismiss all",
+    "lost": {
+      "title": "{count, plural, one {You were signed out before # action was sent} other {You were signed out before # actions were sent}}",
+      "times": "{name} ×{count}",
+      "redo": "{count, plural, one {It was cleared from this phone. Sign in and do it again.} other {They were cleared from this phone. Sign in and do them again.}}"
+    },
     "action": {
       "start": "Start",
       "complete": "Finish",
