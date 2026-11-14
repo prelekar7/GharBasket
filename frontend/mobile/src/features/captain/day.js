@@ -9,7 +9,7 @@
  * over to the captain; held = nobody home, kept for the family until `hold_until` (never a tiffin).
  * @typedef {object} Flat CaptainFlat
  * @property {string} order_id
- * @property {string} flat_label Tower label and flat: "B-402".
+ * @property {string | null} flat_label Tower label and flat: "B-402"; the contract allows null.
  * @property {"box" | "addon" | "tiffin"} kind
  * @property {string | null} short_code "T-07", the label on a tiffin's box (M7 §3.7); null otherwise.
  * @property {number} bags
@@ -44,8 +44,29 @@ export const bagQr = (orderId) => `GB1:${orderId.replaceAll("-", "")}`;
 /** A society's tiffin drop (M7 §3.7): the answer has no `kind`, but only a tiffin drop expects tiffins without crates. @param {DayStop} stop */
 export const isTiffinStop = (stop) => stop.expected.crates === 0 && stop.expected.bags > 0;
 
-/** The tower label of "B-402". @param {Flat} flat */
-export const towerOf = (flat) => flat.flat_label.split("-")[0];
+/** The tower a flat with no label (the contract allows null) is listed under. */
+export const NO_TOWER = "-";
+
+/**
+ * The contract's label is "{tower}, {flat}": "A wing, A-101", "Main building, 12" (logistics
+ * handover.py). An older "B-402" (no comma) reads as tower "B", flat "B-402".
+ * @param {string | null} label @returns {[tower: string, flat: string]}
+ */
+function splitLabel(label) {
+  if (!label) return [NO_TOWER, ""];
+  const comma = label.indexOf(", ");
+  if (comma > 0) return [label.slice(0, comma), label.slice(comma + 2)];
+  return [label.split("-")[0] || NO_TOWER, label];
+}
+
+/** The tower a flat is listed under: "A wing" of "A wing, A-101"; flats with no label share `NO_TOWER`. @param {Pick<Flat, "flat_label">} flat */
+export const towerOf = (flat) => splitLabel(flat.flat_label)[0];
+
+/** The flat alone, for a row under its tower's tab: "A-101" of "A wing, A-101". @param {Pick<Flat, "flat_label">} flat */
+export const flatOf = (flat) => splitLabel(flat.flat_label)[1];
+
+/** What to call a flat on screen: its label, else its tiffin code, else nothing. @param {Pick<Flat, "flat_label" | "short_code">} flat */
+export const flatText = (flat) => flat.flat_label ?? flat.short_code ?? "";
 
 /** Counts of flats by status. @param {Flat[]} flats @returns {Counts} */
 export function countFlats(flats) {
@@ -138,9 +159,33 @@ export const nextFlat = (flats) =>
 /** A bag's flat from what the camera read ("GB1:…") or what was typed ("b402"); a tiffin has no bag QR. @param {Flat[]} flats @param {string} raw */
 export function findFlat(flats, raw) {
   const text = raw.trim().toUpperCase().replace(/\s+/g, "");
-  const typed = text.replace(/^([A-Z]+)(\d)/, "$1-$2");
-  return flats.find(
-    (f) =>
-      f.kind !== "tiffin" && (bagQr(f.order_id).toUpperCase() === text || f.flat_label === typed),
-  );
+  const bags = flats.filter((f) => f.kind !== "tiffin");
+  const scanned = bags.find((f) => bagQr(f.order_id).toUpperCase() === text);
+  if (scanned) return scanned;
+  // Typed: "b402", "B-402" or "B wing 402" all name "B wing, B-402" (or "B wing, 402").
+  const typed = typedKey(raw);
+  if (!typed) return undefined;
+  const found = bags.filter((f) => flatKeys(f).includes(typed));
+  // Two towers can share a number ("402"): a bare number then finds neither, never the wrong one.
+  if (new Set(found.map((f) => f.flat_label)).size !== 1) return undefined;
+  // One flat with a box and an add-on: the bag still to deliver, not the one already done.
+  return found.find((f) => f.status === "with_you" || f.status === "held") ?? found[0];
+}
+
+/** Letters and digits only, upper case: "b-402" → "B402". @param {string} s */
+const typedKey = (s) => s.toUpperCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+/**
+ * What a captain may type for "B wing, B-402": the flat ("B402"), its number after the tower
+ * ("B wing 402"), or the whole label as the app shows it ("B wing, B-402"). For "B wing, 402": "402", "B402", "B wing 402". A bare number is only the flat
+ * itself, so "402" never finds B-402.
+ * @param {Flat} f
+ */
+function flatKeys(f) {
+  const [tower, flat] = splitLabel(f.flat_label);
+  if (!flat) return [];
+  const short = tower === NO_TOWER ? "" : (tower.split(/\s+/)[0] ?? "");
+  const number = flat.replace(/^\p{L}+-/u, "");
+  // The last is the label as the app shows it, "A wing, A-1203".
+  return [flat, `${short}${number}`, `${tower}${number}`, `${tower}${flat}`].map(typedKey);
 }

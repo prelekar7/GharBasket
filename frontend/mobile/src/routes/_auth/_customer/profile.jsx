@@ -17,12 +17,16 @@ import { useMandate, useWallet } from "@/features/billing/queries.js";
 import { useSociety } from "@/features/community/queries.js";
 import { flatNumber } from "@/features/identity/address.js";
 import {
+  exportStage,
+  fileSize,
+  freshExportUrl,
   istDate,
   useChangeAddress,
-  useDataExport,
+  useDataExportStatus,
   useDeleteAccount,
   useDevices,
   useMyHousehold,
+  useRequestDataExport,
   useRevokeDevice,
   useUpdateMe,
 } from "@/features/identity/profile.js";
@@ -31,6 +35,7 @@ import { shortDate } from "@/features/subscriptions/format.js";
 import { LOCALES, setLocale } from "@/i18n.js";
 import { ApiError } from "@/lib/api.js";
 import { AUTOPAY } from "@/lib/features.js";
+import { openLink } from "@/lib/openLink.js";
 import { useSession } from "@/lib/session.js";
 
 /** Profile: who you are, senior mode, and the way to everything about your account (design HcProfile, M1). */
@@ -59,7 +64,9 @@ function Profile() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const devices = useDevices();
   const revoke = useRevokeDevice();
-  const exportData = useDataExport();
+  const exportData = useRequestDataExport();
+  const exportStatus = useDataExportStatus(sheet === "privacy");
+  const stage = exportStage(exportStatus.data);
   const deleteAccount = useDeleteAccount();
 
   const senior = !!user?.senior_mode;
@@ -362,22 +369,64 @@ function Profile() {
         description={t("profile.privacyLead")}
       >
         <div className="flex flex-col gap-3">
-          <Button
-            variant="secondary"
-            block
-            isPending={exportData.isPending}
-            onPress={() =>
-              exportData.mutate(undefined, {
-                onSuccess: (r) => {
-                  setSheet(null);
-                  toast(t("profile.exportQueued", { hours: r.ready_within_hours }));
-                },
-                onError: () => toast(t("profile.saveFailed")),
-              })
-            }
-          >
-            {t("profile.export")}
-          </Button>
+          {exportStatus.isError && (
+            <div className="flex flex-col items-start gap-2">
+              <p role="alert" className="m-0 text-[15px] leading-[22px] text-danger">
+                {t("profile.exportCheckFailed")}
+              </p>
+              <Button
+                variant="quiet"
+                isPending={exportStatus.isFetching}
+                onPress={() => exportStatus.refetch()}
+              >
+                {t("profile.exportCheckAgain")}
+              </Button>
+            </div>
+          )}
+          {stage === "ready" && exportStatus.data?.download ? (
+            <Button
+              variant="secondary"
+              block
+              onPress={() => openLink(freshExportUrl).catch(() => toast(t("profile.exportFailed")))}
+            >
+              {t("profile.exportDownload", {
+                size: fileSize(exportStatus.data.download.size_bytes),
+              })}
+            </Button>
+          ) : stage === "preparing" ? (
+            <p role="status" className="m-0 text-[15px] leading-[22px] text-fg-secondary">
+              {t("profile.exportQueued", { hours: exportStatus.data?.ready_within_hours ?? 24 })}
+            </p>
+          ) : (
+            <>
+              {stage === "failed" && (
+                <p role="status" className="m-0 text-[15px] leading-[22px] text-fg-secondary">
+                  {t("profile.exportFailed")}
+                </p>
+              )}
+              <Button
+                variant="secondary"
+                block
+                isPending={exportData.isPending}
+                onPress={() =>
+                  exportData.mutate(undefined, {
+                    onSuccess: (r) =>
+                      toast(t("profile.exportQueued", { hours: r.ready_within_hours })),
+                    onError: (e) =>
+                      toast(
+                        t(
+                          e instanceof ApiError && e.code === "identity.export_rate_limited"
+                            ? "profile.exportLimited"
+                            : "profile.saveFailed",
+                        ),
+                      ),
+                  })
+                }
+              >
+                {t("profile.export")}
+              </Button>
+            </>
+          )}
           <Button variant="danger" block onPress={() => setConfirmDelete(true)}>
             {t("profile.delete")}
           </Button>

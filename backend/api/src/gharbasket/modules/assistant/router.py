@@ -129,10 +129,14 @@ async def get_session(session_id: uuid.UUID, permit: CanUse, session: DbSession)
         404: _problem("assistant.proposal_not_found"),
         409: _problem(
             "assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, "
-            "subscriptions.cutoff_passed, subscriptions.not_editable"
+            "assistant.price_changed, subscriptions.cutoff_passed, subscriptions.not_editable, "
+            "orders.tiffin_already_booked (order_id), orders.slot_full"
         ),
         412: _problem("subscriptions.version_conflict (the week changed since the card)"),
-        422: _problem("subscriptions.product_unknown, subscriptions.qty_invalid"),
+        422: _problem(
+            "subscriptions.product_unknown, subscriptions.qty_invalid, "
+            "orders.menu_unknown (closed or no longer offered), orders.slot_invalid"
+        ),
     },
 )
 async def confirm_proposal(

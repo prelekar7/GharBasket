@@ -3,6 +3,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./app.css";
+import { RouteError, RouteNotFound } from "@/components/RouteFallback.jsx";
 import { onSessionExpired } from "@/lib/api.js";
 import { MOCK } from "@/lib/env.js";
 import { clearLocalData } from "@/lib/localData.js";
@@ -12,7 +13,15 @@ import { i18nReady } from "./i18n.js";
 import { startPwa } from "./pwa.js";
 import { routeTree } from "./routeTree.gen.js";
 
-const router = createRouter({ routeTree, defaultPreload: "intent", defaultViewTransition: true });
+const router = createRouter({
+  routeTree,
+  defaultPreload: "intent",
+  defaultViewTransition: true,
+  // A route that throws, or a path that matches nothing: our own screen with Retry and help, clear
+  // of the status bar, instead of the router's plain "Something went wrong! Show Error".
+  defaultErrorComponent: RouteError,
+  defaultNotFoundComponent: RouteNotFound,
+});
 
 startPwa();
 // The offline outbox (Dexie, about 30 KB gzipped) loads as its own chunk and never blocks the first paint.

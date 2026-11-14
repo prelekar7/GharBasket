@@ -16,6 +16,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from gharbasket.platform import tracing
+
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 
 log = structlog.get_logger("gharbasket.errors")
@@ -88,6 +90,7 @@ def problem_response(
     if errors:
         body["errors"] = errors
 
+    tracing.record_problem(code, status)  # the code only, never the detail (M0 §6.2)
     response_headers = dict(headers or {})
     request_id = getattr(request.state, "request_id", None)
     if request_id:
@@ -146,10 +149,14 @@ async def _handle_validation(request: Request, exc: Exception) -> JSONResponse:
 
 
 async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
+    # Inside the request span only for a database error handled below the middleware; an
+    # exception that escapes is recorded by the span itself (tracing.request_span).
+    tracing.record_error(exc)
     log.exception(
         "unhandled_error",
         request_id=getattr(request.state, "request_id", None),
         path=request.url.path,
+        **getattr(request.state, "trace_ids", {}),
     )
     return problem_response(
         request,

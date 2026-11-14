@@ -93,13 +93,19 @@ KUNJ_FLATS.push("B-104", "B-202", "B-301", "B-303", "B-402", "B-404");
 
 /** Tasks (queue position) that are short of methi today, and what each family chose (designs). */
 const METHI_SHORT = [
-  { seq: 3, outcome: "swap" },
+  { seq: 3, outcome: "substitute" },
   { seq: 4, outcome: "refund" },
-  { seq: 6, outcome: "swap" },
+  { seq: 6, outcome: "substitute" },
   { seq: 51, outcome: "refund" },
-  { seq: 40, outcome: "swap" },
+  { seq: 40, outcome: "substitute" },
   { seq: 56, outcome: "refund" },
 ];
+/** Methi steps on today's lines and what the hub received: 4 bunches short. */
+const METHI_NEEDED = 30;
+const METHI_RECEIVED = 26;
+/** Money back for a bunch of methi, in paise. */
+const REFUND_PER_STEP = 2000;
+
 const prefersRefund = (/** @type {number} */ seq) =>
   METHI_SHORT.find((m) => m.seq === seq)?.outcome === "refund";
 
@@ -481,28 +487,30 @@ export const packerHandlers = [
     }),
   ),
 
-  // MOCK-ONLY PROPOSAL (not in M6 §3.2): items that came in short today (the goods-receipt gap,
-  // M6 §3.4 once built), the bags that can still take the shortage and those that have, each with
-  // what the family gets: a swap they allowed (`substitute`, chosen by the server from
-  // catalog.api.substitute_ids) or money back. `needed` and `received` are in steps.
+  // M6 §3.6: items that came in short today (the goods-receipt gap), the bags that can still take
+  // the shortage and those that have, each with what the family gets: a substitute they allowed
+  // (chosen by the server from catalog.api.substitute_ids) or money back. `needed`, `received` and
+  // `short_by` are in steps.
   http.get("*/v1/hubs/:hubId/shortages", ({ request, params }) => {
     const denied = staff(request);
     if (denied) return denied;
     if (params.hubId !== HUB_ID) return problem(403, "auth.forbidden", "Not your hub");
     const lang = langOf(request);
     const s = load();
-    /** @param {Planned} t @param {string} code @param {boolean} swap */
-    const bagOut = (t, code, swap) => {
+    /** @param {Planned} t @param {string} code @param {boolean} swap @param {number} [steps] */
+    const bagOut = (t, code, swap, steps) => {
       const task = taskOut(t, s);
+      const qty = steps ?? t.lines.find((l) => l.code === code)?.qty ?? 1;
       return {
         task_id: t.id,
         bag_qr: task.bag_qr,
         society: t.society.name,
         flat_label: task.flat_label,
-        qty: t.lines.find((l) => l.code === code)?.qty ?? 1,
-        outcome: swap ? "swap" : "refund",
+        qty,
+        outcome: swap ? "substitute" : "refund",
         substitute: swap ? productOut(PALAK, lang) : null,
-        refund_paise: 2000,
+        // Palak costs what methi does, so a swap refunds nothing; money back is ₹20 a bunch.
+        refund_paise: swap ? 0 : REFUND_PER_STEP * qty,
       };
     };
     /** Lines short or substituted, per product code. @type {Record<string, ReturnType<typeof bagOut>[]>} */
@@ -511,29 +519,44 @@ export const packerHandlers = [
       t.lines.forEach((l, i) => {
         const line = s.tasks[t.id].lines[i];
         if (!line.short_qty && !line.substitute) return;
-        reported[l.code] = [...(reported[l.code] ?? []), bagOut(t, l.code, !!line.substitute)];
+        reported[l.code] = [
+          ...(reported[l.code] ?? []),
+          bagOut(t, l.code, !!line.substitute, line.substitute ? undefined : line.short_qty),
+        ];
       });
-    // Bags that can still take the methi shortage: not packed, methi not picked or reported.
+    // Bags the methi gap falls on, as the API lists them (hub_ops/shortages.py): not packed, methi
+    // not reported, last in the queue first, until their open steps cover what is still short.
+    const reportedSteps = (reported[METHI] ?? []).reduce((n, b) => n + b.qty, 0);
+    let gap = Math.max(0, METHI_NEEDED - METHI_RECEIVED - reportedSteps);
     const methiBags = METHI_SHORT.map((m) => PLAN[m.seq - 1])
-      .sort((a, b) => a.seq - b.seq)
+      .sort((a, b) => b.seq - a.seq)
       .filter((t) => {
         const st = s.tasks[t.id];
-        const line = st.lines[t.lines.findIndex((l) => l.code === METHI)];
-        return st.status !== "packed" && !line.picked_qty && !line.short_qty && !line.substitute;
+        const i = t.lines.findIndex((l) => l.code === METHI);
+        const line = st.lines[i];
+        const free = t.lines[i].qty - line.picked_qty - line.short_qty;
+        if (gap <= 0 || st.status === "packed" || line.short_qty || line.substitute || free <= 0)
+          return false;
+        gap -= free;
+        return true;
       });
     /** @param {string} code @param {{ needed: number, received: number, bags: ReturnType<typeof bagOut>[] }} [gap] */
     const item = (code, gap) => ({
       ...productOut(code, lang),
-      needed: gap?.needed ?? null,
+      needed: gap?.needed ?? 0,
       received: gap?.received ?? null,
+      short_by: gap ? Math.max(0, gap.needed - gap.received) : 0,
       bags: gap?.bags ?? [],
       reported: reported[code] ?? [],
     });
     return HttpResponse.json({
+      hub_id: HUB_ID,
+      date: DATE,
+      as_of: new Date().toISOString(),
       items: [
         item(METHI, {
-          needed: 30,
-          received: 26,
+          needed: METHI_NEEDED,
+          received: METHI_RECEIVED,
           bags: methiBags.map((t) => bagOut(t, METHI, !prefersRefund(t.seq))),
         }),
         ...Object.keys(reported)

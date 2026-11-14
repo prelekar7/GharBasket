@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { flatText } from "@/features/captain/day.js";
 import { issueAction, PhotoButton } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useCaptainWrite, useDrafts } from "@/features/captain/queries.js";
 
@@ -54,7 +55,7 @@ function Exceptions() {
             className="flex flex-col gap-2.5 rounded-md border border-line-strong p-3.5"
           >
             <h2 className="m-0 text-[19px] leading-[26px] font-bold">
-              {t("captain.exceptions.notHome", { flat: flat.flat_label })}
+              {t("captain.exceptions.notHome", { flat: flatText(flat) })}
             </h2>
             <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
               {t(
@@ -70,7 +71,7 @@ function Exceptions() {
             className="flex flex-col gap-2 rounded-md bg-danger-soft p-3.5"
           >
             <h2 className="m-0 text-[19px] leading-[26px] font-bold">
-              {t("captain.exceptions.damaged", { flat: flat.flat_label, note: issue.note })}
+              {t("captain.exceptions.damaged", { flat: flatText(flat), note: issue.note })}
             </h2>
             <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
               {t("captain.exceptions.damagedBody")}
