@@ -6,6 +6,7 @@
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
 - M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
+- M8's public cook page reads its dishes with `tiffin_products` (M8 §3.5).
 - M12 pulls `order_facts` and `issue_facts` for its analytics refresh, from
   `first_delivery_date` on for a rebuild (M12 §3.1); its today board reads `open_issue_summary`
   and `today_counts` (M12 §3.3).
@@ -153,6 +154,7 @@ __all__ = [
     "sold_lines",
     "summaries",
     "tiffin_choices",
+    "tiffin_products",
     "today_counts",
     "transition",
 ]
@@ -319,6 +321,25 @@ async def get_order_ref(session: AsyncSession, order_id: uuid.UUID) -> OrderRef 
         status=order.status,
         delivered_at=delivered_at,
     )
+
+
+async def tiffin_products(
+    session: AsyncSession, order_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, uuid.UUID]:
+    """The dish of each tiffin order (its box line), by order id, in one read (M8 §3.5's public
+    cook page); other kinds and unknown ids are left out."""
+    if not order_ids:
+        return {}
+    rows = await session.execute(
+        select(OrderLine.order_id, OrderLine.product_id)
+        .join(Order, Order.id == OrderLine.order_id)
+        .where(OrderLine.order_id.in_(order_ids), Order.kind == "tiffin", OrderLine.kind == "box")
+        .order_by(OrderLine.order_id, OrderLine.product_id)
+    )
+    found: dict[uuid.UUID, uuid.UUID] = {}
+    for order_id, product_id in rows.all():
+        found.setdefault(order_id, product_id)
+    return found
 
 
 @dataclass(frozen=True)

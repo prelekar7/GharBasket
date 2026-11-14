@@ -1,4 +1,4 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { request } from "@/lib/api.js";
 
@@ -133,19 +133,5 @@ export function useMyImpact() {
   return useQuery({
     queryKey: ["impact", "me"],
     queryFn: () => /** @type {Promise<MyImpact>} */ (request("/v1/impact?scope=me")),
-  });
-}
-
-/** Record an invite sent from the share sheet (POST /v1/referrals, M9); a new key per invite. */
-export function useRecordInvite() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (/** @type {{ societyId: string, channel: "whatsapp" | "copy" }} */ v) =>
-      request("/v1/referrals", {
-        method: "POST",
-        body: { society_id: v.societyId, channel: v.channel },
-        headers: { "idempotency-key": crypto.randomUUID() },
-      }),
-    onSuccess: (_r, v) => client.invalidateQueries({ queryKey: ["society", v.societyId] }),
   });
 }

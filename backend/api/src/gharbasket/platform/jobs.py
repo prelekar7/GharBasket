@@ -34,7 +34,7 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from gharbasket.platform import files, ops, outbox
+from gharbasket.platform import files, ops, outbox, tracing
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import KEY_TTL
@@ -113,11 +113,29 @@ async def run_job(
     valkey: Redis | None = None,
     storage: files.ObjectStore | None = None,
 ) -> JobRun:
-    """Run one job inside `session`'s transaction and commit; the run row is always kept."""
+    """Run one job inside `session`'s transaction and commit; the run row is always kept. The run
+    is the span `job <name>` (M0 §6.2) with its scheduled time, status and run id."""
     found = JOBS.get(name)
     if found is None:
         raise job_unknown(name)
     scheduled_for = scheduled_for or datetime.now(UTC)
+    with tracing.span(f"job {name}", {"gb.job.scheduled_for": scheduled_for.isoformat()}) as span:
+        run = await _run(session, found, scheduled_for, settings, http, valkey, storage)
+        span.set_attribute("gb.job.status", run.status)
+        span.set_attribute("gb.job.run_id", str(run.id))
+        return run
+
+
+async def _run(
+    session: AsyncSession,
+    found: Job,
+    scheduled_for: datetime,
+    settings: Settings,
+    http: httpx2.AsyncClient | None,
+    valkey: Redis | None,
+    storage: files.ObjectStore | None,
+) -> JobRun:
+    name = found.name
     request_id = structlog.contextvars.get_contextvars().get("request_id")
     run = JobRun(name=name, scheduled_for=scheduled_for, status="skipped", request_id=request_id)
 
@@ -138,6 +156,7 @@ async def run_job(
     try:
         summary = await found.run(context)
     except Exception as exc:
+        tracing.record_error(exc)  # its type only: the message is in the run row
         await session.rollback()  # the job's partial writes go; the run row stays
         run.status = "failed"
         run.error = f"{type(exc).__name__}: {exc}"[:ERROR_LENGTH]

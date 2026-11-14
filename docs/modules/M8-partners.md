@@ -1,6 +1,6 @@
 # M8 — Partner Network
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). When this spec is approved, §3.1 (applications, KYC and review), §3.2 (training), §3.3 (partners, roles, pause and suspend), §3.4 (kitchens, capacity and tiffin assignments) and §3.5 (know your cook and ratings) are frozen for S6. §3.6 (earnings) is frozen too; its rates, decided by the owner on 2026-10-09, are the seeded defaults of each hub's rate card. §3.7's payout facades are built (as built, below); its income certificate was drafted on 2026-10-28, frozen on approval, and is built (as built, below). §3.8 (the fairness read) was drafted on 2026-10-25, frozen on approval, and is built (as built, below).
+**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). When this spec is approved, §3.1 (applications, KYC and review), §3.2 (training), §3.3 (partners, roles, pause and suspend), §3.4 (kitchens, capacity and tiffin assignments) and §3.5 (know your cook and ratings) are frozen for S6. §3.6 (earnings) is frozen too; its rates, decided by the owner on 2026-10-09, are the seeded defaults of each hub's rate card. §3.7's payout facades are built (as built, below); its income certificate was drafted on 2026-10-28, frozen on approval, and is built (as built, below). §3.8 (the fairness read) was drafted on 2026-10-25, frozen on approval, and is built (as built, below). §3.5's public cook page was drafted on 2026-11-12, frozen on approval.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S6 (the partner core in S5, see the build order)
 **Postgres schema:** `partners` · **Python package:** `gharbasket.modules.partners`
@@ -68,6 +68,7 @@ What M8 does **not** do:
 | POST | `/v1/hubs/{id}/tiffin-assignments/manual` | hub_manager (hub), admin | Required | §3.4 |
 | GET | `/v1/hubs/{id}/fairness?runs=` | hub_manager, franchise_owner (hub), admin | — | §3.8; the λ in use and the latest assignment runs (read-only) |
 | GET | `/v1/partners/{id}/card` | Authenticated | — | §3.5 know your cook (kitchens) |
+| GET | `/v1/public/cooks/{handle}` | Public (no sign-in) | — | §3.5 the public cook page; only with the cook's consent |
 | POST | `/v1/ratings` · GET `/v1/ratings?order_id=` | customer (own order) | Required (POST) | §3.5 |
 | GET | `/v1/earnings?week=` | partner (own) | — | §3.6, from `billing.api` |
 | GET | `/v1/earnings/certificate?from=&to=` | partner (own; every kind the caller has) | — | §3.7; a 5-minute link to the PDF; rate-limited, audit-logged |
@@ -77,13 +78,13 @@ What M8 does **not** do:
 
 The old `/v1/partners/{id}/public` becomes `/v1/partners/{id}/card`. `GET /v1/trainings` with `POST …/complete` and the kitchen endpoints replace the draft's rows.
 
-**For every section.** Every endpoint needs sign-in (M1 §3.1).
+**For every section.** Every endpoint needs sign-in (M1 §3.1), except the public cook page (§3.5).
 - **Partner kinds.** They are `kitchen`, `captain`, `rider` and `packer`, as the app already uses them. They map to the M1 roles `kitchen_partner`, `captain`, `rider` and `packer`.
 - **Hub staff.** Hub staff act in one hub (`hub_manager:<hub_id>`, `X-Active-Role`); a request for another hub gets 403 `auth.forbidden`.
 - **"Own".** A kitchen partner's "own" rows are the rows of the partner record whose `user_id` is the caller.
 - **Times.** Dates are IST calendar dates, clock times IST `HH:MM`, and timestamps UTC.
 - **Money** is integer paise.
-- **Caching.** Reads send `Cache-Control: no-store`.
+- **Caching.** Reads send `Cache-Control: no-store`, except the public cook page (§3.5).
 - **No clear numbers.** No response ever carries a KYC number in clear, a document key, or an applicant's address to anyone but hub staff of that hub.
 
 ### 3.1 Applications, KYC documents and review (frozen for S6)
@@ -208,7 +209,7 @@ A document type that is not on the kind's list gets 422 `partners.doc_type_inval
   - **A column.** `kyc_documents.hash_version smallint`, set to 1 on existing rows by the migration, and null exactly when `number_hash` is null.
   - **Reading.** `payout_account` decrypts with the key of the row's `key_version`. A version with no configured key is 503 `partners.kyc_key_unavailable`, and the ops probe below reports it.
   - **Duplicate checks** compute the HMAC under the current pepper and every retired one, and match a row whose `(hash_version, number_hash)` equals any of them. A new document is always hashed with the current pepper.
-  - **The job `rekey_kyc_documents`** (nightly at 03:53 IST from GitHub Actions, and by hand) moves rows to the current key and pepper.
+  - **The job `rekey_kyc_documents`** (nightly at 03:33 IST from GitHub Actions, and by hand) moves rows to the current key and pepper.
     - It handles batches of 100 rows (`FOR UPDATE SKIP LOCKED`) whose `key_version` or `hash_version` is not current, committing each batch.
     - Each batch is one SQL statement: `number_enc = pgp_sym_encrypt(pgp_sym_decrypt(number_enc, :old_key), :new_key)` and `number_hash = hmac(<type> || ':' || pgp_sym_decrypt(number_enc, :old_key), :new_pepper, 'sha256')`. The number never leaves Postgres, so it is never in Python's memory or a log.
     - A row whose version has no configured key is left alone and counted.
@@ -295,6 +296,17 @@ ApplicationReview : Application & {
 - **Superseding.** One application row lock serialises uploads; the older document of the same type gets `superseded_by` and its files `delete_after` 30 days on. Withdrawal sets the same on the current documents' files.
 - **File links** answer `{ files: [{ url, content_type, expires_at }] }` and write `kyc.file_read` (actor, document, application id, file count) on every call; a document outside the caller's hubs is 404 `partners.document_not_found`. Permission `kyc_files:read` (hub_manager, admin).
 - **The data export** gains `kyc_documents` (masked references with check and review states; no files, hashes, encrypted numbers, key versions or reviewers).
+
+**As built (key and pepper rotation, §3.1, 2026-11-12).**
+- **Settings.** `KYC_RETIRED_KEYS`, `KYC_PEPPER_VERSION` (default 1) and `KYC_RETIRED_PEPPERS`. A retired value is checked like the current one (32 bytes at least), and spaces around a version or value are refused. A failing check names the variable and, where it helps, the version, never a value; the settings now set pydantic's `hide_input_in_errors`, because a validation error used to print its input, every secret with it, before this PR. An empty `KYC_RETIRED_*` means none.
+- **Column, expand only.** `kyc_documents.hash_version` (migration `20261112_1400_partners_kyc_hash_version`), 1 on existing hashed rows, **without** the check `(number_hash IS NULL) = (hash_version IS NULL)`: migrations run before Render switches over, and the API still on the old code would fail every numbered upload against that check. Until then a NULL `hash_version` beside a hash counts as pepper version 1 everywhere (duplicate matching, the re-key selection, the probe); new writes always set it. It is left out of the data export, like `key_version`.
+- **Contract step (built 2026-11-13, migration `20261113_1530_partners_kyc_hash_version_check`):** after one `rekey_kyc_documents` run on staging found nothing stale (`remaining: 0`), a migration sets `hash_version = 1` where `number_hash IS NOT NULL AND hash_version IS NULL`, then adds the check `ck_kyc_documents_hash_version`. The code's `COALESCE(hash_version, 1)` fallbacks are gone: a hash without its pepper version can no longer be stored. This is safe during the deploy because the API it replaces (#537) already writes `hash_version` with every hash.
+- **The re-key statement** (`rotation.py`) first selects and locks the batch's ids only (`ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED`), then decrypts just those rows, with the configured keys passed as two arrays (`unnest(:versions, :keys)`), so a row under any retired version moves in the same statement. An FSSAI row has no `number_enc` (its number is public, §3.4) but has a hash: it is re-hashed from `fssai_reg_no`. A row whose key is current and whose pepper is not is re-hashed only (`rehashed`, not `rekeyed`). A row whose key version is configured with the wrong key makes pgcrypto refuse the batch that reaches it (SQLSTATE 39000); the batches before it stay committed, and the run fails.
+- **Summary.** `{ rekeyed, rehashed, remaining, missing_key, key_version, pepper_version }`. `remaining` counts every row not yet current after the run, the `missing_key` ones included, so `remaining: 0` means done; the versions are the current ones, so a run that reached an instance still on the old settings shows itself (rotate-secrets.md waits for the new deploy and checks them). A pepper version with no configured pepper does not stop the job: the number is decrypted with its key and hashed again under the current pepper.
+- **No secret in an error.** Every statement that carries a key, a pepper or a number (`_encrypt`, the payout decrypt, the re-key, the probe's check) runs through `kyc.execute_secret`, without autoflush. On a database error it raises `KycStatementError`, which names only the SQLSTATE and does not chain the original, because SQLAlchemy prints a statement's parameters in its message (the run's `error`, a traceback). `payout_account` answers 503 `partners.kyc_key_unavailable` for a missing key and for a configured key that does not decrypt (39000).
+- **The probe** also tests the configured secrets on one stored row per version, in a savepoint: "KYC key version V does not decrypt", "KYC pepper version V does not match" (the HMAC under the row's pepper, computed in Postgres; an FSSAI row is preferred for the pepper, as it needs no key).
+- **The audit row** `kyc.rekeyed` (entity `kyc_documents`/`all`) holds the summary when a row moved. A run that fails midway keeps its committed batches and writes their counts with `failed: true`; the next run picks up where it stopped.
+- **Schedule.** `3 22 * * *` UTC (03:33 IST) on GitHub Actions, the minute `purge_deleted_users` and `monitor_drift` already wake Neon at, so it costs no wake of its own.
 
 **As built (the decision and verification, S6 build order (b), fourth PR).**
 - **Endpoint.** `POST /v1/partner-applications/{id}/decision` (`partner_applications:review`). Hub staff of another hub get 403 `auth.forbidden` (reading an application of another hub is 404). Checks: reason, documents and grade (422) before the status (409).
@@ -621,6 +633,83 @@ GET  /v1/ratings?order_id=      200 Rating | 404 "partners.rating_not_found"   o
 - **Facade.** `orders.api.get_order_ref(order_id)` gives M8 `{ household_id, owner_user_id, kind, status, delivered_at }`; `export_for_user` gains `ratings` (without `user_id`). **Erasure.** M1's purge calls `partners.api.anonymise_for_user` (listed after hub_ops in M1's erasers): her ratings lose `user_id` and `comment` and keep the score, so a kitchen's rating is unchanged; the count is `{ "ratings": n, … }`. Since 2026-11-11 the same eraser also handles her applications, KYC, training and partner records (below).
 - **Erasure at the purge** (M1 §3.5 matrix row 5; drafted 2026-11-11, frozen on approval). `anonymise_for_user` first runs `leave_for_user` (a no-op unless a hub manager reinstated her during the grace period). It then makes every KYC file of hers due at once (`platform.files.set_delete_after(key, now)`) and deletes her KYC documents, applications and training attempts. Her partner records stay for M5's payouts and ledger (`partner_id`), `left`, renamed "Former partner", without photo, suspension note or application id. A kitchen loses `area`, `address`, `location` and the FSSAI number and validity. Assignments and their events stay, with her `user_id` nulled on the events. Where she acted as staff, her id is nulled on applications (`created_by`, `decided_by`), KYC reviews (`reviewed_by`) and rate cards (`created_by`). Running it again changes nothing. M1 waits with the purge while she is still owed money (`billing.api.partner_payable_open`, M1 §3.5), because her last payout needs the bank document.
 
+#### The public cook page (drafted 2026-11-12, frozen on approval)
+The console's public `/cook/<handle>` page (handbook 09; built against a mock in `frontend/console/mocks/public.js`) lets anyone, signed in or not, see a home kitchen before ordering. It is the card's public sibling: **only with the cook's consent, and with less on it**, because the open internet is not the same audience as a signed-in customer whose tiffin she cooked.
+
+```
+PublicCook : { "handle": "k7m2qx4rta",
+               "display_name": "Lata tai", "photo_url": null,            as on the card
+               "hub": { "name": "Kharghar hub" },                         who checked the kitchen
+               "since": "2026-12",                                        IST month of verification
+               "fssai": { "reg_no": "11521999000123", "valid_until": "2028-03-31" },
+               "hygiene": { "grade": "A", "inspected_on": "2026-12-20" } | null,
+               "trainings": [ { "code": "hygiene", "title": "Kitchen hygiene" } ],   passed, in
+                                                                          Accept-Language
+               "rating": { "average": 4.6, "count": 23 } | null,          null under 5 ratings
+               "skills": [ "veg", "jain" ],                               codes; the page labels them
+               "dishes": [ { "name": "Jain thali" } ] }                   in Accept-Language
+GET /v1/public/cooks/{handle}   no auth; Cache-Control: public, max-age=300,
+                                stale-while-revalidate=600; Vary: Accept-Language;
+                                60 requests a minute per IP (shared with /v1/public/*)
+  200 PublicCook
+  404 "partners.cook_not_found"   unknown handle, no consent, or a kitchen that is not active or
+                                  paused (one code, so the answer never says which)
+  429 "request.rate_limited"
+
+Kitchen (§3.4) gains   "public_profile": { "handle", "url", "since" } | null    null = no public page
+PATCH /v1/kitchens/me  also takes "public_profile": true | false             (If-Match, as before)
+```
+
+- **Consent is hers alone.** The page exists only after the kitchen partner turns it on herself (`PATCH /v1/kitchens/me { "public_profile": true }`, `kitchens:write`). It is off by default and for every existing kitchen, hub staff cannot turn it on, and seeding it on is for synthetic kitchens only. Turning it on mints a handle and records `public_since`; the response's `url` is `PUBLIC_WEB_URL/cook/<handle>` (the existing setting, default `https://gharbasket.co.in`) for her to share. The app's switch shows exactly the fields above before she agrees. Each change is audit-logged (`kitchen.public_profile`, `{ on: true | false }`).
+- **Turning it off** clears the handle, so an old link stays dead even if she turns it on again later (that mints a new handle). The API stops answering at once. Copies that were already fetched can live up to 15 minutes (5-minute cache plus 10 minutes stale) and then the console's own cache of a few minutes, so the app says "Your page disappears within about 20 minutes".
+- **The handle** is 10 random characters from `a-z2-7` (50 bits, from `secrets`), unique, never the `partner_id`. The `partner_id` is a uuidv7 that encodes her sign-up time and is used on every staff endpoint. Ten characters at 60 guesses a minute per IP make guessing a live handle impractical.
+- **Not on the public page**, although the card has them:
+  - `area`: her sector plus her name is too close to a home address on the open internet. The hub's name gives the locality instead.
+  - `portions_served`: with the published rate card it gives her income, and no public or KPI view shows one partner's pay (M12 §3.3).
+  - `partner_id`.
+  - As on the card, never an address, location, phone, KYC detail other than the FSSAI number, or rating comments.
+- **Sources, all M8 except two names.**
+  - `hub.name`: `hub_ops.api.get_hub`.
+  - `trainings`: her passed modules (`training_attempts` joined to `training_modules`), required order first, titles in `Accept-Language` (`en` / `hi` / `mr`, falling back to `en`).
+  - `dishes`: the tiffin products of her assignments' delivered orders in the last 60 IST days, most portions first, at most 6, names from `catalog.api` in `Accept-Language`; `[]` until she has cooked.
+  - `rating`, `hygiene`, `since`, `skills`, `fssai`: as on the card.
+  The route is in M8's router, with the same per-IP limiter and cache headers as M12's society page.
+- **Lifecycle.**
+  - Paused: the page stays, like the card.
+  - Suspended: the handle and `public_since` are cleared in the suspension's transaction (audit `{ on: false, reason: "suspended" }`), and reinstatement does not bring the page back: she turns it on again herself and gets a new handle. A suspended kitchen cannot reach `PATCH /v1/kitchens/me` (403), so she could not withdraw her consent while suspended. (Changed on review, 2026-11-13; the draft kept the handle.)
+  - Left, `leave_for_user`, or erasure (`anonymise_for_user`): the handle and `public_since` are cleared.
+  - Export: `export_for_user` gains `public_profile: { since } | null`.
+
+| Mock today (console `mocks/public.js`) | Contract |
+|---|---|
+| `id: "c7f3a91e"` | `handle`, 10 characters |
+| `name` | `display_name` (what she chose, maybe a first name) |
+| `gender` | None: M8 records no gender. The page's copy uses her name or neutral wording |
+| `kitchen_area` | None (above); `hub.name` gives the locality |
+| `specialty` (free text) | `skills` codes, labelled by the page; `dishes` |
+| `fssai_reg_no` | `fssai.reg_no` and `fssai.valid_until` |
+| `hygiene_modules: { done, total }` | `trainings` (passed modules); `hygiene` is the hub's inspection grade |
+| `rating: { average, window_days: 30 }` | `rating: { average, count }`, the latest 50, from 5 ratings |
+| `checked_by` | `hub.name` |
+| `dishes: [{ name, tag }]` | `dishes: [{ name }]` |
+| 404 `partners.not_public` | 404 `partners.cook_not_found` |
+| — | `photo_url` (null for now), `since` |
+
+**Open questions for the owner (2026-11-12).** Each has the recommended answer that the draft already uses.
+1. **The FSSAI number in full on a public page.** It is public by law, and §11 already decides it is shown in clear. A registration number can be searched on FSSAI's FoSCoS, though, and for a home kitchen the registered premises is her home. Recommended: show it in full as drafted, but check before the pilot what FoSCoS shows for a basic registration; if it shows the address, show `…0123` and the validity on the public page only.
+2. **Locality.** Recommended: the hub's name, not her `area`, as above. The alternative is the `area` she typed, which she sees in the preview before agreeing.
+3. **Portions served.** Recommended: left off the public page, as above. It stays on the signed-in card.
+
+**As built (the public cook page, 2026-11-13).** The three questions are settled with the recommended answers: the FSSAI number in full, the hub's name, and no `portions_served`.
+- **Gate before the pilot (question 1).** The full FSSAI number stays only if FoSCoS does not show the premises address for a basic registration. Someone checks this before the pilot; if FoSCoS shows the address, the public page shows only the last 4 digits (`…0123`) with the validity, and the signed-in card keeps the full number.
+- **The switch.** `PATCH /v1/kitchens/me` takes `public_profile: true | false` with `If-Match`, as the other fields do; `null` changes nothing. Asking for the state the page is already in keeps the handle and writes no audit row. Each real change bumps the kitchen's `version` and writes `kitchen.public_profile` (`after: { on }`, actor her user id, entity the kitchen). A page cleared without her writes the same action with a reason: `{ on: false, reason: "suspended" }` (actor the hub manager), `"left"` and `"erased"` (no actor, as `partners.left` has none, so the audit log keeps no personal data; M1 §3.5 row 10). `public_profile.since` is the UTC time she turned it on, and `url` is `PUBLIC_WEB_URL` without a trailing slash, then `/cook/<handle>`. The inspection's answer (the same `Kitchen`) shows hub staff the same `public_profile`.
+- **The handle** is drawn with `secrets.choice` and drawn again on a clash with a live handle (up to 8 times, then `kitchens.HandleUnavailable`, a 500 that is not expected with 50 bits a draw); the column is unique. A path that is not 10 characters of `a-z2-7` gets the same 404 without a lookup, so a malformed handle is never a 422.
+- **`fssai`** is null when the kitchen has no registration number (a seeded kitchen); `valid_until` may be null, as on the card.
+- **`trainings`** lists only the kitchen track: the modules she has a passed attempt for whose current active version has `kitchen` in `for_kinds`, the required ones in their order (`app_basics`, `hygiene`, `kitchen_ops`) first, then any other kitchen module by code. A captain's, rider's or packer's own module (`captain_handover`, `rider_safety`, `packing`) is never shown, because it would tell the open internet more about her (a captain is the captain of her own society). Titles come from the current active version, so a retired module is not shown.
+- **`dishes`** counts assignment rows that are `delivered` on assignment dates from today − 59 to today (60 IST dates). Portions are summed per product through a new M4 facade, `orders.api.tiffin_products(order_ids)` (the order's box line, in one read). Names come from `catalog.api.line_products`, so an inactive product is left out; equal portions are ordered by name.
+- **Limiter and cache.** The per-IP counter (`public:ip:<ip>`, 60 a minute) and the cache header moved from M12's router into `platform.rate_limit` (`enforce_public`, `PUBLIC_CACHE`), because import-linter forbids M8 to import M12's router. Both public pages count against one counter. `Vary: Accept-Language` and `Content-Language` come from the shared `Lang` dependency. A 404 or a 429 of either public page sends `Cache-Control: no-store` (`rate_limit.NO_STORE`, `public_not_found`).
+- **Lifecycle.** Suspension and `leave_for_user` clear the handle and `public_since` of the kitchen; `anonymise_for_user` clears a page still on (audit-logged) and both columns again as personal kitchen fields. The export's `public_profile.since` is a UTC timestamp.
+
 ### 3.6 Earnings (frozen for S6)
 Money stays in M5's ledger. M8 only decides **who earns what for which event**, from its rate card, and asks M5 to post it.
 
@@ -844,7 +933,7 @@ GET /v1/hubs/{hub_id}/fairness?runs=28
 | `partners.training_modules` | code, version, for_kinds text[], required, minutes, texts jsonb (per locale: title, summary, questions, options), video_url jsonb, answers jsonb (never returned), pass_score, active; primary key (code, version) |
 | `partners.training_attempts` | id, user_id, module_code, module_version, score numeric(4,3), passed, answers jsonb, at; the pass of a user and module is the first passed attempt |
 | `partners.partners` | id (uuidv7), user_id, kind, hub_id, application_id null (null for seeded partners), display_name, photo_key null, status (active, paused, suspended, left), rating_avg numeric(3,2) null, rating_count, verified_at, suspended_at, suspend_reason_code, suspend_note, data_source, version, created_at; unique (user_id, kind). **No society_id** (ADR-0026 §4) |
-| `partners.kitchens` | partner_id (pk) → partners, area, address, location geography(Point, 4326), fssai_reg_no, fssai_valid_until, skills text[], default_portions jsonb, hygiene_grade null, inspected_on null, version |
+| `partners.kitchens` | partner_id (pk) → partners, area, address, location geography(Point, 4326), fssai_reg_no, fssai_valid_until, skills text[], default_portions jsonb, hygiene_grade null, inspected_on null, public_handle text null (unique), public_since null (§3.5, the public page), version |
 | `partners.kitchen_capacity` | partner_id, date, meal (lunch, dinner), max_portions smallint (0–100), updated_at; primary key (partner_id, date, meal); only `set` overrides are stored |
 | `partners.assignments` | id, partner_id, hub_id, date, meal, slot_id, round, run_id, source (ml, fallback, manual), status (offered, accepted, preparing, ready, completed, declined, expired, cancelled), portions, respond_by, responded_at, decline_reason, started_at, ready_at, checklist jsonb, late, version, created_at; index (hub_id, date, status) |
 | `partners.assignment_orders` | assignment_id → assignments, order_id, portions, short_code, status (assigned, ready, picked_up, delivered, failed, released), km; partial unique (order_id) where status ≠ released |
@@ -884,7 +973,7 @@ The draft's `intel.assignment_ready` is dropped: the assignment is a synchronous
 | `assignment_acceptance_timeout` | Every 15 min, T-1 21:45 → T 00:30 (VM scheduler) | Expires offers past `respond_by` (22:30 for round 1), then runs the next round for released and late-locked orders; no new round after T 00:00 |
 | `refund_unassigned_tiffins` | T 09:30 for the 12:30 lunch slot (`ready_by` 11:30 − 2 h = slot start − 3 h), 11:00 and 12:30 for later lunch slots (a slot closes 3 h before it starts, so 13:00 closes at 10:00 and is refunded at 11:00, 14:00 at 11:00, 15:30 at 12:30; 11:00 is a wake of its own, 12:30 shares `surplus_cascade`'s), and 18:00 for dinner slots up to 21:00 (VM scheduler) | Locked tiffins of the meal with no live assignment → `refunded` in full (actor `system`, reason `no_kitchen`; §3.4) |
 | `prompt_tiffin_ratings` | T 14:30 (VM scheduler) | `partners.rating_requested` for lunch tiffins delivered today and not yet rated |
-| `rekey_kyc_documents` | Daily 03:53 (GitHub Actions), and by hand after a rotation | Moves KYC rows to the current key and pepper in batches of 100; a no-op when all are current (§3.1, key and pepper rotation) |
+| `rekey_kyc_documents` | Daily 03:33 (GitHub Actions), and by hand after a rotation | Moves KYC rows to the current key and pepper in batches of 100; a no-op when all are current (§3.1, key and pepper rotation) |
 
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day T follows from it), not the run time (ADR-0021, ADR-0025). The weekly statement and payouts are M5's jobs (§3.7).
 
@@ -985,6 +1074,13 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - the card never contains address, location or phone;
   - the rating window, one per order, only the owner;
   - the average is shown from 5 ratings.
+- **Public cook page (§3.5):**
+  - 404 `partners.cook_not_found` with the same body for an unknown handle, a kitchen that never agreed, one that turned it off, and a suspended or departed kitchen; a paused one still answers; suspension clears the handle, and reinstatement does not bring the page back;
+  - only she can turn it on; turning it off and on again mints a new handle, and the old one is 404;
+  - the response has exactly the contract's keys, and never `area`, `address`, `location`, a phone, `portions_served`, `partner_id` or a rating comment;
+  - `trainings` and `dishes` follow `Accept-Language`, with `Vary: Accept-Language`; `dishes` covers 60 days, at most 6;
+  - the cache headers on 200 and none on 404; the shared per-IP limit gives 429;
+  - erasure and leaving clear the handle; each switch, and each clear by suspension, leaving or erasure, writes an audit row.
 - **Earnings (§3.6):**
   - each basis posts once per order, even when the event is delivered twice;
   - a captain earns on `delivered` with actor `captain`, not on `at_society`, and nothing for a rider-mode delivery or a tiffin she delivers;
@@ -1006,11 +1102,11 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 ## 10. Dependencies
 - **M1** (`identity.api`: household and society of a user, `household_location`, names and phones for hub staff, `user_names` for the income certificate; role grants on M8's and M9's events).
 - **M9** (`community.api`: society names and points, `captain_for_society` for the review queue; appoints captains on `partners.verified`).
-- **M4** (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with actor `kitchen` and `actor_user_id`, `set_kitchen`, `get_order_ref` for ratings; fulfilment events with `kind`, `actor` and `actor_user_id`).
+- **M4** (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with actor `kitchen` and `actor_user_id`, `set_kitchen`, `get_order_ref` for ratings, `tiffin_products` for the public cook page; fulfilment events with `kind`, `actor` and `actor_user_id`).
 - **M10** (`intel_gateway.api.assign_kitchens`, M10 §3.5 on `feat/M10-assign-kitchens`).
 - **M2** (`catalog.api`: tiffin products and their skill tags).
 - **M5** (`billing.api`: `accrue_earning`, `partner_week`, `partner_rolling_earnings`; M5 §3.5; `partner_months` for the income certificate, §3.7).
-- **M6** (`hub_ops.api.get_hub`: the hub's name on the income certificate).
+- **M6** (`hub_ops.api.get_hub`: the hub's name on the income certificate and the public cook page).
 - **M0** (`platform.files` for `kyc_document` and `income_certificate`, audit log, rate limits, jobs, and the PDF helper `platform.pdf`, §3.7).
 - **M7** (rider pickup through `partners.api.pickup`).
 - **M11** (notifications for the events above).

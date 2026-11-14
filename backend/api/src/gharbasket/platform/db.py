@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import create_async_engine as sa_create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
 
+from gharbasket.platform import tracing
 from gharbasket.platform.errors import ProblemError
 
 # Constraint names are predictable, so migrations can refer to them and autogenerate stays stable.
@@ -157,17 +158,20 @@ def create_engine(
         raise ValueError("only one-off tools (pooled=False) cache prepared statements")
     url, connect_args = asyncpg_url(raw_url, cache_statements=cache_statements)
     if not pooled:
-        return sa_create_async_engine(url, connect_args=connect_args, poolclass=NullPool)
-    return sa_create_async_engine(
-        url,
-        connect_args=connect_args,
-        # Small pool: one Render instance, and Neon's pooler multiplexes behind it.
-        pool_size=5,
-        max_overflow=5,
-        pool_pre_ping=True,
-        # Recycle before Neon's pooler closes idle client connections.
-        pool_recycle=240,
-    )
+        engine = sa_create_async_engine(url, connect_args=connect_args, poolclass=NullPool)
+    else:
+        engine = sa_create_async_engine(
+            url,
+            connect_args=connect_args,
+            # Small pool: one Render instance, and Neon's pooler multiplexes behind it.
+            pool_size=5,
+            max_overflow=5,
+            pool_pre_ping=True,
+            # Recycle before Neon's pooler closes idle client connections.
+            pool_recycle=240,
+        )
+    tracing.instrument_engine(engine.sync_engine)  # a span per statement, never its parameters
+    return engine
 
 
 def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

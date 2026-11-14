@@ -27,6 +27,7 @@ from gharbasket_ml import (
     registry,
     routing,
     slots,
+    tracing,
 )
 from gharbasket_ml.planner import plan_week
 from gharbasket_ml.schemas import (
@@ -126,17 +127,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             if not await asyncio.to_thread(sync.wait_idle, settings.models_sync_timeout_s + 5):
                 log.warning("model registry: a sync was still running at shutdown")
             sync.close()
+        await asyncio.to_thread(tracing.shutdown)  # at most 5 s with the collector down
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     # Deployed, the service is on the public internet but is only for the API: no interactive
     # docs and no schema listing. `settings` is None under `uvicorn --factory`, so it is read here.
-    deployed = (settings or get_settings()).is_deployed
+    resolved = settings or get_settings()
+    deployed = resolved.is_deployed
+    # Log lines with trace ids; spans exported only when OTEL_EXPORTER_OTLP_ENDPOINT is set.
+    tracing.configure_logging()
+    tracing.setup(resolved)
     app = FastAPI(
         title="GharBasket ML service",
         version=__version__,
         description="Internal: called only by the GharBasket API (intel_gateway).",
         lifespan=lifespan,
+        telemetry=tracing.FASTAPI_TELEMETRY_OFF,  # our own spans only (tracing.py)
         docs_url=None if deployed else "/docs",
         redoc_url=None if deployed else "/redoc",
         openapi_url=None if deployed else "/openapi.json",
@@ -147,6 +154,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(Unauthorized)
     async def _unauthorized(request: Request, _exc: Exception) -> JSONResponse:
+        tracing.record_problem("ml.unauthorized", 401)
         return JSONResponse(
             {
                 "type": "urn:gharbasket:problem:ml.unauthorized",
@@ -161,6 +169,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(AssistantUnavailable)
     async def assistant_unavailable(request: Request, _exc: AssistantUnavailable) -> JSONResponse:
+        tracing.record_problem("ml.assistant_unavailable", 503)
         return JSONResponse(
             {
                 "type": "about:blank",
@@ -176,6 +185,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(AssistantTimeout)
     async def assistant_timeout(request: Request, _exc: AssistantTimeout) -> JSONResponse:
+        tracing.record_problem("ml.assistant_timeout", 504)
         return JSONResponse(
             {
                 "type": "about:blank",
@@ -302,4 +312,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # The solver is CPU-bound: keep it off the event loop.
         return await run_in_threadpool(plan_week, body)
 
+    # Outermost: every request is a span; the API's trace is continued only with the token.
+    app.add_middleware(tracing.TracingMiddleware, token=resolved.ml_service_token)
     return app

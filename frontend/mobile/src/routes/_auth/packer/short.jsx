@@ -6,25 +6,17 @@ import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLine } from "@/features/packing/format.js";
 import { bagCode } from "@/features/packing/lines.js";
-import { usePackingActions, usePackingDay, useShortages } from "@/features/packing/queries.js";
-
-/** @typedef {import("@/features/packing/queries.js").ShortBagOut} ShortBagOut */
+import {
+  shortagePlan,
+  substituteFor,
+  usePackingActions,
+  usePackingDay,
+  useShortages,
+} from "@/features/packing/queries.js";
 
 /** Report an item that came in short; each family's own choice decides a swap or money back (design Packer · Shortages; M6 US-5). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/packer/short")({ component: Shortages });
-
-/** The bags a shortage of `short` units falls on, in the server's order. @param {ShortBagOut[]} bags @param {number} short */
-function fallsOn(bags, short) {
-  const out = [];
-  let left = short;
-  for (const b of bags) {
-    if (left <= 0) break;
-    out.push(b);
-    left -= b.qty;
-  }
-  return out;
-}
 
 function Shortages() {
   const { t, i18n } = useTranslation();
@@ -55,16 +47,17 @@ function Shortages() {
   }
   // The first goods-receipt gap not reported yet; one at a time.
   const item = shortages.data.find(
-    (i) => i.needed != null && i.received != null && i.reported.length === 0 && i.bags.length,
+    (i) => i.received != null && i.reported.length === 0 && i.bags.length,
   );
   const reported = shortages.data.filter((i) => i.reported.length > 0);
 
   let reporter = null;
-  if (item?.needed != null && item.received != null) {
+  if (item && item.received != null) {
     // Counted in steps: "bunch" for a step of one, else "× 250 g".
     const unit = item.step.qty === 1 ? t(`packer.unit.${item.step.unit}`) : `× ${item.step.label}`;
-    const short = value ?? Math.max(0, item.needed - item.received);
-    const bags = fallsOn(item.bags, short);
+    const short = value ?? item.short_by;
+    const plan = shortagePlan(item, item.bags, short);
+    const bags = plan.map((p) => p.bag);
     const v = { item: item.name, unit, needed: item.needed, received: item.received };
     reporter = (
       <ShortageReporter
@@ -77,15 +70,15 @@ function Shortages() {
         bags={bags.map((b) => ({
           bag: `${bagCode(b)} · ${b.society}`,
           flat: b.flat_label ?? "",
-          outcome: b.outcome ?? "refund",
-          detail:
-            b.outcome === "swap"
-              ? t("packer.short.swapDetail", { item: b.substitute?.name })
-              : t("packer.short.refundDetail", { amount: formatPaise(b.refund_paise ?? 0) }),
+          // The reporter's words are "swap" and "refund"; the contract's are "substitute" and "refund".
+          outcome: substituteFor(b) ? "swap" : "refund",
+          detail: substituteFor(b)
+            ? t("packer.short.swapDetail", { item: b.substitute?.name })
+            : t("packer.short.refundDetail", { amount: formatPaise(b.refund_paise ?? 0) }),
         }))}
         onApply={() => {
           if (!bags.length) return;
-          reportShortage(item, bags);
+          reportShortage(item, plan);
           setValue(null);
           toast(t("packer.short.applied", { item: v.item, n: bags.length }));
         }}
@@ -117,7 +110,7 @@ function Shortages() {
           </h2>
           <ul className="m-0 list-none p-0">
             {reported.map((i) => {
-              const swaps = i.reported.filter((b) => b.outcome === "swap").length;
+              const swaps = i.reported.filter((b) => b.outcome === "substitute").length;
               const refunds = i.reported.filter((b) => b.outcome === "refund").length;
               return (
                 <li

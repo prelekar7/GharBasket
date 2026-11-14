@@ -21,6 +21,7 @@ from gharbasket.modules.partners import (
     erasure,
     kyc,
     pickups,
+    public,
     ratings,
     service,
     training,
@@ -92,7 +93,15 @@ __all__ = [
 
 # Never in an export: the files, the encrypted number and its key, the hash, the reviewer.
 KYC_PRIVATE = frozenset(
-    {"file_keys", "number_enc", "key_version", "number_hash", "reviewed_by", "user_id"}
+    {
+        "file_keys",
+        "number_enc",
+        "key_version",
+        "number_hash",
+        "hash_version",
+        "reviewed_by",
+        "user_id",
+    }
 )
 
 
@@ -208,7 +217,9 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
     """M8's section of the user's data export (M1 §3.3), read-only: her applications, her KYC
     documents as masked references with their check and review states (no files, hashes or
     encrypted numbers), her training attempts, her partner records, without staff-only fields
-    (the suspension note, who decided or reviewed), and the ratings she gave."""
+    (the suspension note, who decided or reviewed), the ratings she gave, and since when her
+    kitchen's public page is on (§3.5)."""
+    since = await public.since_for_user(session, user_id)
     return {
         "applications": [
             application.as_dict(exclude={"created_by", "decided_by", "data_source"})
@@ -230,4 +241,5 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
             rating.as_dict(exclude={"user_id"})
             for rating in await ratings.given_by(session, user_id)
         ],
+        "public_profile": None if since is None else {"since": since},
     }

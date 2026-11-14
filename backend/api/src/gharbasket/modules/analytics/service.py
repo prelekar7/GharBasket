@@ -20,6 +20,7 @@ from gharbasket.modules.analytics.schemas import (
     ServedModelOut,
 )
 from gharbasket.modules.intel_gateway import api as intel_api
+from gharbasket.platform import tracing
 from gharbasket.platform.settings import Settings
 
 WINDOW_DAYS = 7
@@ -31,7 +32,7 @@ async def http_client(given: httpx2.AsyncClient | None) -> AsyncIterator[httpx2.
     if given is not None:
         yield given
         return
-    async with httpx2.AsyncClient() as client:
+    async with tracing.http_client() as client:
         yield client
 
 

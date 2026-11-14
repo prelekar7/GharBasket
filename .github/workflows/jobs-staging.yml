@@ -16,7 +16,7 @@ name: Scheduled jobs (staging)
 
 on:
   schedule:
-    - cron: "3 22 * * *" # 03:33 IST daily: purge_deleted_users, monitor_drift
+    - cron: "3 22 * * *" # 03:33 IST daily: purge_deleted_users, monitor_drift, rekey_kyc_documents
     - cron: "33 22 * * *" # 04:03 IST daily: cleanup_idempotency_keys
     - cron: "43 22 * * *" # 04:13 IST daily: sweep_uploads
     - cron: "53 22 * * *" # 04:23 IST daily: expire_data_exports

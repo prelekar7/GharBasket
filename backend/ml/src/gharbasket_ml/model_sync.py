@@ -49,7 +49,7 @@ from urllib.parse import quote, urlsplit
 
 import httpx2
 
-from gharbasket_ml import ranker
+from gharbasket_ml import ranker, tracing
 from gharbasket_ml.settings import Settings
 
 log = logging.getLogger(__name__)
@@ -197,7 +197,7 @@ class R2Reader:
         self._now = now
         self._client = httpx2.Client(
             timeout=httpx2.Timeout(timeout_s, connect=min(timeout_s, 5.0)),
-            transport=transport,
+            transport=tracing.TracedTransport(transport or httpx2.HTTPTransport(trust_env=False)),
             follow_redirects=False,
             trust_env=False,
         )
