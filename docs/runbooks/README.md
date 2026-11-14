@@ -60,6 +60,13 @@ carries `problems`, one per line, each `<probe>: <what>`:
 | `orders.revenue_unrecognised` | `N delivered orders still hold unearned revenue; run recognise_delivered_revenue` | Run `recognise_delivered_revenue` by hand (idempotent, M5 §3.9), see [Run a job by hand](#run-a-job-by-hand) |
 | `partners.kyc_key_missing` | `N KYC documents under key version V, which is not configured` (or `pepper version`); `KYC key version V does not decrypt`; `KYC pepper version V does not match` | `rotate-secrets.md` § KYC: put the retired key or pepper back, then run `rekey_kyc_documents` |
 
+**`Neon usage: …`** (from `neon-usage.yml`, not a probe) says `N of 100 CU-hours used (P %)` or `on pace for N of 100
+by <date>`. When the free hours run out Neon suspends the compute until the monthly reset, and staging is down. Find
+what keeps Neon awake: a minute-level job outside its window in `infra/jobs/schedule.yaml`
+(`just jobs-vm status <ip> <key>`), a long demo load, or a dev branch someone left running (Neon console → Branches,
+computes). Check the hours again with `infisical run --env=staging -- uv run --directory backend/api python
+../../scripts/neon_usage_check.py`. If the pilot needs more, it is the paid-database decision (Q3).
+
 The `ops` check comes back up by itself at the next clean `ops_check` (06:30, 12:30, 21:15 and 23:45 IST). To bring it
 back sooner after a fix, run `ops_check` by hand (below).
 
