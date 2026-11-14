@@ -315,6 +315,7 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 | UptimeRobot | `GET /v1/health` every 5 minutes | The API does not answer | [`deploy-rollback.md`](../runbooks/deploy-rollback.md) |
 | Admin message "Payment check: N to look at" | Reconciliation (M5), routed by M11 | A run opened items | [`razorpay-down.md`](../runbooks/razorpay-down.md) |
 | Hub manager and admin message "Routes for <hub> need a look" | Route planning (M7), routed by M11 | A plan has problems and was not published | [`route-solve-failed.md`](../runbooks/route-solve-failed.md) |
+| healthchecks `ops`, from `neon-usage.yml` (daily 06:50 IST) | `scripts/neon_usage_check.py` reads the project's CU-hours from Neon's console API (it never wakes the database) | The hours used since the monthly reset reach 80 % of the free 100 (`NEON_CU_HOURS_LIMIT`, `NEON_CU_HOURS_WARN_PCT`), or, from the fourth day of the period, the pace so far would cross 100 before the reset | README "Reading an `ops` alert": find the job running outside its window (`infra/jobs/schedule.yaml`), stop demo loads, or plan the paid database (Q3) |
 | `smoke-ml.yml` red; AI health page `down` | GitHub Actions (daily 06:40 IST); the console | The ML service is asleep, failing or gone | [`ml-service-down.md`](../runbooks/ml-service-down.md) |
 
 **Probes registered, as built (`@platform.ops.probe`, M0 §6.1).** Each returns one line per problem, naming what is wrong; a probe reads only its own module's schema. A probe that raises counts as a problem and the others still run. A problem goes away when its cause does (the next clean `ops_check` brings the `ops` check back up).
@@ -334,7 +335,7 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 | `orders.revenue_unrecognised` | M4 (reads `orders.*`; money through `billing.api`) | An order delivered more than an hour ago, within 7 days, that still holds money in `unearned_revenue` (M5 recognises it on `orders.delivered`) | Run `recognise_delivered_revenue` by hand (`just job recognise_delivered_revenue`, M5 §3.9; idempotent), then README "Run a job by hand" |
 | `partners.kyc_key_missing` | M8 | A stored KYC row whose `key_version` or `hash_version` has no configured key or pepper (its number cannot be read, or matched as a duplicate), or a configured key or pepper that fails on a sample row of its version (does not decrypt, does not reproduce the hash); names the versions and row counts, never a number | [`rotate-secrets.md`](../runbooks/rotate-secrets.md) "KYC_ENCRYPTION_KEY and KYC_HASH_PEPPER" |
 
-**Not built yet:** the error-rate alert. The traces it needs are built (M0 §6.2); the owner makes the rule in Grafana Cloud (the share of request spans with a 5xx status over 15 minutes, to the same Telegram group and email), and it is written down here when it exists. Also not watched: Neon compute hours near the free limit (only storage is watched, by the `database_size` probe; watch the hours in the Neon console, see the budget in `infra/jobs/schedule.yaml`).
+**Not built yet:** the error-rate alert. The traces it needs are built (M0 §6.2); the owner makes the rule in Grafana Cloud (the share of request spans with a 5xx status over 15 minutes, to the same Telegram group and email), and it is written down here when it exists.
 
 ## 12.6 Service-level objectives (pilot)
 
