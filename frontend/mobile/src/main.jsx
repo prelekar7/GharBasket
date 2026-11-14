@@ -12,6 +12,7 @@ import { startOutbox } from "@/lib/outbox.js";
 import { persistOptions, queryClient } from "@/lib/queryClient.js";
 import { useSession } from "@/lib/session.js";
 import { startNative } from "@/shared/native/platform.js";
+import { startPush } from "@/shared/native/push.js";
 import { startPwa } from "./pwa.js";
 import { routeTree } from "./routeTree.gen.js";
 
@@ -27,6 +28,7 @@ const router = createRouter({
 
 startPwa();
 startOutbox();
+startPush(router, queryClient); // listeners now: a tap that opens the app must not be lost
 
 // The session ended while signed in: wipe the person's data from this device, as a sign-out
 // does, and show login.
