@@ -69,7 +69,8 @@ export async function getSociety(slug, lang) {
  */
 export async function getCook(handle, lang) {
   "use cache";
-  cacheLife("minutes");
+  // A withdrawn page must go within about 20 minutes (M8 §3.5); the "minutes" profile can keep it for an hour.
+  cacheLife({ stale: 60, revalidate: 60, expire: 300 });
   return publicGet(
     `/v1/public/cooks/${encodeURIComponent(handle)}`,
     lang,
