@@ -712,6 +712,25 @@ describe("societies and unlock (M9, Core-S1/S4)", () => {
   const unlock = async (/** @type {string} */ id) =>
     (await mockFetch(new Request(`http://localhost/v1/societies/${id}/unlock`))).json();
 
+  it("looks a society up by its exact slug, in any status, for /join?s= (M9 §3.1)", async () => {
+    const bySlug = async (/** @type {string} */ query) => {
+      const res = await mockFetch(new Request(`http://localhost/v1/societies?${query}`));
+      return { status: res.status, body: await res.json() };
+    };
+    const one = await bySlug("slug=Green-Valley-Heights-Kharghar");
+    expect(one.body.items.map((/** @type {any} */ s) => s.slug)).toEqual([
+      "green-valley-heights-kharghar",
+    ]);
+    expect(one.body.next_cursor).toBeNull();
+    // A prospect society is found too (a search would still list it; the lookup never hides one).
+    expect((await bySlug("slug=panchavati-residency-kamothe")).body.items).toHaveLength(1);
+    // Unknown or partial: no item, never a near miss.
+    expect((await bySlug("slug=sunrise-towers")).body.items).toEqual([]);
+    // slug is used alone, 1 to 80 characters.
+    for (const query of ["slug=", `slug=${"a".repeat(81)}`, "slug=sunrise-towers-kharghar&q=sun"])
+      expect((await bySlug(query)).status).toBe(422);
+  });
+
   it("lists societies without captain or unlock data, and gives them per society", async () => {
     const list = await (await mockFetch(new Request("http://localhost/v1/societies"))).json();
     expect(Object.keys(list.items[0]).sort()).toEqual(

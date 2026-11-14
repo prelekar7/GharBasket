@@ -5,8 +5,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { invitedSociety, slugWords } from "@/features/community/join.js";
-import { useSocieties, useSocietyUnlocks } from "@/features/community/queries.js";
+import {
+  useInvitedSociety,
+  useSocieties,
+  useSocietyUnlocks,
+} from "@/features/community/queries.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
 /** Which society do you live in? (design Hf04) */
@@ -20,17 +23,20 @@ function SocietyPicker() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { societyId, inviteSlug, update } = useOnboardingDraft();
-  // A neighbour's invite (/join?s=) starts the search at that society, unless one is already chosen.
+  // A neighbour's invite (/join?s=) puts that society first and chooses it, unless one is already chosen.
   const invite = societyId ? null : inviteSlug;
-  const [typed, setTyped] = useState(invite ? slugWords(invite) : "");
-  const [q, setQ] = useState(typed);
+  const [typed, setTyped] = useState("");
+  const [q, setQ] = useState("");
   const [near, setNear] = useState(/** @type {{ lat: number, lng: number } | null} */ (null));
   const { data, isPending, isError, refetch } = useSocieties({ q, near });
 
-  const items = data?.items ?? [];
+  const invitation = useInvitedSociety(invite);
+  const invited = invitation.data ?? null;
+  const found = data?.items ?? [];
+  // The invited society leads the list, whatever the search: it may be a prospect society far away.
+  const items = invited ? [invited, ...found.filter((s) => s.id !== invited.id)] : found;
   // The list has no unlock counts (and never a captain), so ask for each society's own.
   const unlocks = useSocietyUnlocks(items.map((s) => s.id));
-  const invited = invitedSociety(items, invite);
   const selected =
     societyId && items.some((s) => s.id === societyId)
       ? societyId
@@ -101,7 +107,7 @@ function SocietyPicker() {
         </Chip>
       </div>
       <span className="text-sm leading-5 font-semibold">{t("onboarding.society.near")}</span>
-      {isPending ? (
+      {isPending || (!!invite && invitation.isPending) ? (
         <Skeleton lines={3} />
       ) : isError ? (
         <ScreenError onRetry={() => refetch()} />

@@ -5,8 +5,8 @@ import { z } from "zod";
  * API's `join_url`). The slug is kept in the onboarding draft until the society step, because the
  * person usually signs in first and the role step does not keep `?next`.
  *
- * The signed-in API has no lookup by slug, so the society step searches with the slug's words and
- * keeps only a result with exactly that slug. Referral codes (`?ref=`, M9 §3.3) are not read yet.
+ * The society step looks the slug up with GET /v1/societies?slug= (M9 §3.1) and keeps only a result
+ * with exactly that slug. Referral codes (`?ref=`, M9 §3.3) are not read yet.
  */
 
 /** A society slug as M9 makes them: lowercase words joined by single hyphens. */
@@ -17,11 +17,8 @@ export const joinSearch = z.object({
   s: z.string().trim().toLowerCase().max(80).regex(SLUG).optional().catch(undefined),
 });
 
-/** "sunrise-towers-kharghar" → "sunrise towers kharghar": the words a society search finds it by. @param {string} slug */
-export const slugWords = (slug) => slug.split("-").join(" ");
-
 /**
- * The invited society among search results: only an exact slug match counts, so a near miss never
+ * The invited society among the results: only an exact slug match counts, so a near miss never
  * signs someone up to the wrong society.
  * @template {{ slug: string }} T
  * @param {T[]} items @param {string | null} slug

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
-import { invitedSociety, joinSearch, slugWords } from "./join.js";
+import { invitedSociety, joinSearch } from "./join.js";
 
 describe("/join?s= (a neighbour's invite)", () => {
   it("keeps a valid slug, lowercased and trimmed", () => {
@@ -25,8 +25,7 @@ describe("/join?s= (a neighbour's invite)", () => {
     expect(joinSearch.parse({}).s).toBeUndefined();
   });
 
-  it("searches with the slug's words and accepts only an exact slug", () => {
-    expect(slugWords("sunrise-towers-kharghar")).toBe("sunrise towers kharghar");
+  it("accepts only an exact slug", () => {
     const items = [
       { id: "1", slug: "sunrise-towers-kharghar-2" },
       { id: "2", slug: "sunrise-towers-kharghar" },
