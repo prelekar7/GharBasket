@@ -1,0 +1,72 @@
+# Builds a debug APK of the Android app on every pull request that touches the app or its shared
+# packages (ADR-0012), so a reviewer can install it. Release builds are made by hand with the
+# release keystore (handbook 12, "Android build"); CI never sees that keystore.
+name: Android
+
+on:
+  pull_request:
+    paths:
+      - "frontend/mobile/**"
+      - "frontend/packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  debug-apk:
+    name: Debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs pnpm from package.json "packageManager", Node from .nvmrc, then runs pnpm install.
+      - uses: pnpm/setup@v3
+        with:
+          cache: true
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Mobile tests
+        run: pnpm --filter @gharbasket/mobile test
+
+      # Optional secret: the Firebase config (base64 of google-services.json). Without it the APK
+      # still builds, but Firebase sign-in and push notifications will not work in it.
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > frontend/mobile/android/app/google-services.json
+          else
+            echo "::notice::GOOGLE_SERVICES_JSON_B64 is not set: this APK builds, but Firebase sign-in and push will not work."
+          fi
+
+      - name: Build the web app for the phone
+        env:
+          VITE_API_BASE_URL: https://api.gharbasket.co.in
+        run: pnpm --filter @gharbasket/mobile build:native
+
+      - name: Copy it into the Android project
+        working-directory: frontend/mobile
+        run: npx cap sync android
+
+      - name: Build the debug APK
+        working-directory: frontend/mobile/android
+        run: ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gharbasket-debug-apk
+          path: frontend/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
