@@ -86,7 +86,7 @@ ci-local target *args:
 
 # Run the API with auto-reload on http://localhost:8000 (readable logs; docs at /v1/docs)
 dev:
-    APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-access-log
+    APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-proxy-headers --no-access-log
 
 # Run the ML service (M10) on http://localhost:8100; point the API at it with ML_SERVICE_URL
 dev-ml:

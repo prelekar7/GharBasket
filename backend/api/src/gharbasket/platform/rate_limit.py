@@ -13,6 +13,7 @@ import structlog
 from fastapi import Request
 from redis.asyncio import Redis
 
+from gharbasket.platform.client_ip import limit_key
 from gharbasket.platform.errors import ProblemError
 
 log = structlog.get_logger("gharbasket.rate_limit")
@@ -63,16 +64,11 @@ async def enforce(
         )
 
 
-def client_ip(request: Request) -> str:
-    # On Render, uvicorn runs with --proxy-headers, so this is the real caller's address.
-    return request.client.host if request.client else "unknown"
-
-
 async def enforce_public(valkey: Redis | None, request: Request) -> None:
     """Count one request to a `/v1/public/*` page against the caller's IP (60 a minute)."""
     await enforce(
         valkey,
-        f"public:ip:{client_ip(request)}",
+        f"public:ip:{limit_key(request)}",
         limit=PUBLIC_PER_MINUTE,
         window_s=60,
         code="request.rate_limited",
