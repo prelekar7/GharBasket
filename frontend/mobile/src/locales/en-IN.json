@@ -920,19 +920,6 @@
       "lighter": "Next Wednesday I want a light dinner. And take the paneer out.",
       "track": "Where is today’s box?"
     },
-    "confirmTitle": "Change next week’s box ({day})?",
-    "line": {
-      "remove": "Remove {item} · {qty}",
-      "add": "Add {item} · {qty}",
-      "qty": "{item} · {qty}"
-    },
-    "meal": "{day} {slot} → {dish}",
-    "slot": {
-      "lunch": "lunch",
-      "dinner": "dinner"
-    },
-    "noPrice": "no change",
-    "total": "New box total",
     "yes": "Yes, change it",
     "no": "No",
     "status": {
@@ -948,11 +935,36 @@
     "send": "Send",
     "errors": {
       "assistant_timeout": "That took too long. Check your internet and try again.",
-      "assistant_daily_limit": "That’s all I can do today. I’ll be back tomorrow morning.",
+      "request_invalid": "I couldn’t take that message. Please type it again as a new message.",
+      "request_idempotency_in_progress": "Still saving your answer. Wait a moment, then look again.",
       "assistant_proposal_expired": "This suggestion expired. Ask again and I’ll check the box.",
       "subscriptions_version_conflict": "Your box changed meanwhile. Ask again and I’ll suggest it fresh.",
-      "orders_cutoff_passed": "That box is already locked. I can change the one after it.",
+      "assistant_daily_cap": "That’s all I can do today. I’ll be back tomorrow morning. Your Week tab has everything meanwhile.",
+      "assistant_not_found": "I couldn’t find our chat. Try again to start a new one.",
+      "assistant_no_household": "Finish setting up your home first, then I can help with your box.",
+      "assistant_proposal_not_found": "I can’t find this suggestion any more. Tell me again what you’d like.",
+      "assistant_proposal_decided": "You already answered this suggestion.",
+      "assistant_no_cycle": "There is no box to change right now.",
+      "subscriptions_cutoff_passed": "That box is already locked. I can change the one after it.",
+      "subscriptions_not_editable": "That box can’t be changed any more.",
+      "subscriptions_product_unknown": "That item isn’t available any more. Ask again and I’ll suggest something else.",
+      "subscriptions_qty_invalid": "That amount isn’t allowed. Ask again with a smaller number.",
+      "assistant_price_changed": "The price changed since this suggestion. Ask again for today’s price.",
+      "orders_menu_unknown": "That menu has closed. Ask again and I’ll look for another.",
+      "orders_tiffin_already_booked": "You already have a tiffin booked for that meal.",
+      "orders_slot_full": "The kitchen is full for that meal. Try another day.",
+      "orders_slot_invalid": "Tiffins don’t come to your area for that meal yet.",
       "other": "I couldn’t reach the kitchen just now. Check your internet and try again."
+    },
+    "tiffin": {
+      "yes": "Yes, book it",
+      "booked": "Booked. Your {meal} tiffin comes on {day}.",
+      "expired": "This suggestion expired. Ask again and I’ll check the menu.",
+      "view": "See the order",
+      "meal": {
+        "lunch": "lunch",
+        "dinner": "dinner"
+      }
     }
   },
   "help": {
