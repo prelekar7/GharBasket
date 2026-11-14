@@ -245,6 +245,49 @@ def test_during_a_rotation_both_secrets_are_accepted() -> None:
     assert address(via_proxy(old), "header:true-client-ip", origin_secret=new) == VERCEL
 
 
+def test_client_ip_debug_logs_the_header_shape_once_a_minute_without_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [1000.0]
+    monkeypatch.setattr(client_ip.time, "monotonic", lambda: now[0])
+    client_ip._debug_logged_at.clear()  # pyright: ignore[reportPrivateUsage]
+    debug = {"origin_secret": SECRET, "client_ip_debug": True}
+    with structlog.testing.capture_logs() as logs:
+        address(via_proxy(SECRET), "header:true-client-ip", origin_secret=SECRET)  # off: silent
+        for _ in range(3):  # one shape, one line
+            address(via_proxy(SECRET), "header:true-client-ip", **debug)
+        # The proxy header overwritten with the proxy's own egress: the shape shows it.
+        overwritten = scope(
+            ("True-Client-IP", VERCEL),
+            ("X-Real-IP", VERCEL),
+            ("X-Forwarded-For", f"203.0.113.7, {VERCEL}"),
+            ("x-origin-secret", SECRET),
+        )
+        address(overwritten, "header:true-client-ip", **debug)
+        address(via_proxy(None), "header:true-client-ip", **debug)
+    client_ip._debug_logged_at.clear()  # pyright: ignore[reportPrivateUsage]
+
+    lines = [line for line in logs if line["event"] == "client_ip_debug"]
+    assert [
+        (
+            line["path"],
+            line["secret"],
+            line["proxy_header"],
+            line["proxy_header_is_true_client_ip"],
+            line["proxy_header_xff_from_right"],
+            line["xff_entries"],
+        )
+        for line in lines
+    ] == [
+        ("proxy", "match", "ip", False, None, 1),
+        ("proxy", "match", "ip", True, 1, 2),
+        ("source", "absent", "ip", False, None, 1),
+    ]
+    assert all(line["log_level"] == "info" for line in lines)
+    for value in (SECRET, "203.0.113.7", VERCEL, "6.6.6.6"):
+        assert value not in str(logs)
+
+
 # --- startup validation ------------------------------------------------------------------------
 
 

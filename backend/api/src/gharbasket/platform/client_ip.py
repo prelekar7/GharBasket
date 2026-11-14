@@ -121,17 +121,56 @@ def _from_our_proxy(scope: Scope, settings: Settings) -> bool:
 
 def from_scope(scope: Scope, settings: Settings) -> str:
     """The caller's address: from our proxy's header, else by CLIENT_IP_SOURCE, else the peer."""
-    found = None
+    found, path = None, "peer"
     if _from_our_proxy(scope, settings):
         header = settings.proxy_client_ip_header
-        found = _from_header(scope, f"proxy:{header}", header.encode())
+        found, path = _from_header(scope, f"proxy:{header}", header.encode()), "proxy"
     if found is None:
-        found = _from_source(scope, settings.client_ip_source)
-    if found is not None:
-        return found
-    peer = scope.get("client")
-    host = str(peer[0]) if peer else ""
-    return _ip(host) or host or "unknown"
+        found, path = _from_source(scope, settings.client_ip_source), "source"
+    if found is None:
+        peer = scope.get("client")
+        host = str(peer[0]) if peer else ""
+        found, path = _ip(host) or host or "unknown", "peer"
+    if settings.client_ip_debug:
+        _debug(scope, settings, path, found)
+    return found
+
+
+_debug_logged_at: dict[tuple[tuple[str, object], ...], float] = {}
+
+
+def _debug(scope: Scope, settings: Settings, path: str, found: str) -> None:
+    """CLIENT_IP_DEBUG: how the address headers relate, once a minute per shape, never a value.
+
+    For checking a proxy path (handbook 13 §13.3) when neither warning above fires: whether the
+    secret came and matched, whether the proxy header is an address, and whether it equals
+    True-Client-IP or which X-Forwarded-For entry (from the right, 1 = nearest proxy) it is."""
+    values = [value for key, value in scope.get("headers") or () if key == SECRET_HEADER]
+    accepted = [s for s in (settings.origin_secret, settings.origin_secret_previous) if s]
+    match = len(values) == 1 and any(
+        hmac.compare_digest(values[0], s.get_secret_value().encode()) for s in accepted
+    )
+    secret = "absent" if not values else ("match" if match else "mismatch")
+    raw = _header(scope, settings.proxy_client_ip_header.encode())
+    real = _ip(raw)
+    xff_raw = _header(scope, b"x-forwarded-for")
+    xff = [_ip(entry) for entry in xff_raw.split(b",")] if xff_raw is not None else []
+    shape: dict[str, object] = {
+        "path": path,
+        "secret": secret,
+        "proxy_header": "absent" if raw is None else ("ip" if real else "malformed"),
+        "proxy_header_is_true_client_ip": real is not None
+        and real == _ip(_header(scope, b"true-client-ip")),
+        "proxy_header_xff_from_right": len(xff) - xff.index(real) if real in xff else None,
+        "xff_entries": len(xff),
+        "address_is_proxy_header": real is not None and found == real,
+    }
+    key = tuple(sorted(shape.items()))
+    now = time.monotonic()
+    last = _debug_logged_at.get(key)
+    if last is None or now - last >= LOG_EVERY_S:
+        _debug_logged_at[key] = now
+        log.info("client_ip_debug", **shape)
 
 
 def client_address(conn: HTTPConnection) -> str:
