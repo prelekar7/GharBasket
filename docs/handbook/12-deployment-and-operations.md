@@ -289,7 +289,7 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 2. R2 → Manage API tokens → a token with Object Read & Write on `gb-staging-backups` only. Keep the three values (endpoint, access key, secret) in Infisical `staging` as `BACKUP_S3_ENDPOINT_URL`, `BACKUP_S3_ACCESS_KEY` and `BACKUP_S3_SECRET_KEY`.
 3. Copy them to the GitHub Actions secrets of the same names without printing them: `infisical run --env=staging -- sh -c 'printf %s "$BACKUP_S3_ACCESS_KEY" | gh secret set BACKUP_S3_ACCESS_KEY'`, and the same for the other two.
 4. Run the workflow once by hand (Actions → Backup staging → Run workflow). Check the key in the bucket and the byte count in the log.
-5. Do the restore drill below once, so the first real need is not the first try.
+5. Do the restore drill below once, so the first real need is not the first try. Done on 14 November 2026 with the manual dump of 11 November, into a local container: it restored without errors and its counts matched staging (the runbook's "Drill log").
 
 **Restoring a dump** (details and checks in `docs/runbooks/restore-from-backup.md` (written with the second part of the runbooks)): download the file, make a new empty database in a **new Neon branch** (never the live staging branch), and run `pg_restore --no-owner --no-acl --dbname "$RESTORE_URL" <file>` with a `pg_restore` of version 18 or newer (the `postgres:18` image has one). Check it, and only then decide whether it replaces anything. A restore goes into the live staging branch only through the rollback procedure of §12.3, which keeps the replaced state as a branch.
 
