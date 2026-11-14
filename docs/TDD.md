@@ -170,7 +170,7 @@ Staging runs on free tiers (ADR-0020): the API is a Render free web service (Sin
 | Motion | Motion ✓, NumberFlow ✓, Rive ✓ (three brand moments) | |
 | i18n | i18next + react-i18next + ICU; `en-IN`, `hi-IN`, `mr-IN` | |
 | Native shell | Capacitor 8 ✓ (Android) | No iOS build in v1 (D12) |
-| Native plugins | push-notifications ✓, camera, geolocation, network, preferences, app, haptics, splash-screen, status-bar, keyboard; Capawesome barcode-scanner ✓ and background-geolocation ✓; `@capacitor-firebase/authentication`; secure storage for the refresh token | Each wrapped in `src/shared/native/*` with a web fallback so the PWA works |
+| Native plugins | `@capacitor-firebase/messaging` (push) ✓, camera, network, app, app-launcher, browser, share, haptics, splash-screen, keyboard, `SystemBars` (core); `@capacitor-mlkit/barcode-scanning` (`scan()`) ✓ and `@capacitor-community/background-geolocation` ✓ (ADR-0034: the Capawesome ones are paid); `@capacitor-firebase/authentication`; `@aparajita/capacitor-secure-storage` for the refresh token | Each wrapped in `src/shared/native/*` with a web fallback so the PWA works |
 | Offline | Dexie (IndexedDB) outbox + cached route manifest | Not service-worker Background Sync (unreliable in Capacitor WebViews); flush on network-online and app-resume with idempotency keys |
 | PWA | vite-plugin-pwa ✓ (`injectManifest`) | Browser installs |
 | Maps | MapLibre GL JS + OpenFreeMap/MapTiler tiles | Google Maps JS rejected (cost, key exposure) |
