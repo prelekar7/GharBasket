@@ -1183,6 +1183,8 @@
       "allDone": "Every line is done. Close the bag.",
       "packed": "This bag is packed and in crate {crate}.",
       "wrong": "Wrong item: this is {item}",
+      "isBagLabel": "That’s a bag label. Scan an item.",
+      "isKitchenCode": "That’s a kitchen code. Scan an item.",
       "already": "{item} is already in the bag",
       "putBackTitle": "Put it back",
       "putBack": "This bag doesn’t need {item}. Return it to its shelf; nothing was added to the bag.",
@@ -1359,7 +1361,9 @@
       "scan": "Scan kitchen code",
       "scanned": "Collected",
       "queued": "Saved. It will be sent when you have signal.",
-      "noScanner": "This phone can’t scan yet. Try again after the next update.",
+      "noScanner": "Scan the kitchen code on the GharBasket phone app.",
+      "scannerUnavailable": "The scanner isn’t available on this phone. Update Google Play services and try again.",
+      "notKitchenCode": "That is not a kitchen pickup code. Scan the cook’s code.",
       "got": "Collected: {codes}",
       "already": "{n, plural, one {# tiffin was} other {# tiffins were}} collected earlier.",
       "notReady": "Not ready yet: {codes}. Scan again when the kitchen is done.",
@@ -1762,6 +1766,11 @@
     "goneBody": "It may be booked already, or this week’s orders have closed.",
     "backToWeek": "Back to the week",
     "since": "cooking with us since {since}"
+  },
+  "scan": {
+    "preparing": "Getting the scanner ready…",
+    "unavailable": "The scanner isn’t available on this phone. Type the code instead.",
+    "interrupted": "The scan was interrupted. Scan again."
   },
   "rate": {
     "when": "{day} · delivered",
