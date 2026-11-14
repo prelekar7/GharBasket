@@ -56,7 +56,8 @@ async def test_two_first_turns_of_the_day_at_once_are_both_counted(database_url:
         await engine.dispose()
 
 
-async def test_two_decisions_on_one_card_at_once_apply_once(database_url: str) -> None:
+@pytest.mark.parametrize("action", ["skip_week", "book_tiffin"])
+async def test_two_decisions_on_one_card_at_once_apply_once(database_url: str, action: str) -> None:
     """The card's row is locked while it is decided: the second waits, then finds it decided
     (confirm takes the same lock through `get_proposal(lock=True)`)."""
     engine = create_engine(database_url, pooled=False)
@@ -71,7 +72,7 @@ async def test_two_decisions_on_one_card_at_once_apply_once(database_url: str) -
                 session_id=chat.id,
                 user_id=user,
                 household_id=chat.household_id,
-                action="skip_week",
+                action=action,
                 payload={},
                 summary="Skip",
                 expires_at=service.now() + timedelta(minutes=15),
@@ -97,6 +98,69 @@ async def test_two_decisions_on_one_card_at_once_apply_once(database_url: str) -
         card_id = await a_card()
         results = await asyncio.gather(decide(card_id), decide(card_id))
         assert sorted(results) == ["assistant.proposal_decided", "decided"]
+    finally:
+        async with AsyncSession(engine) as session:
+            await session.execute(delete(Session).where(Session.user_id == user))
+            await session.commit()
+        await engine.dispose()
+
+
+async def test_the_expiry_job_leaves_a_card_confirmed_at_that_instant_alone(
+    database_url: str,
+) -> None:
+    """A confirm holds the card's row; the job's single UPDATE waits for it, re-tests `pending`
+    on the committed row and skips it (it used to read the rows first and overwrite them)."""
+    engine = create_engine(database_url, pooled=False)
+    user = uuid.uuid4()
+    due = service.now()
+    try:
+        async with AsyncSession(engine) as session:
+            chat = Session(user_id=user, household_id=uuid.uuid4(), locale="en")
+            session.add(chat)
+            await session.flush()
+            cards = [
+                Proposal(
+                    session_id=chat.id,
+                    user_id=user,
+                    household_id=chat.household_id,
+                    action="book_tiffin",
+                    payload={},
+                    summary=name,
+                    expires_at=due - timedelta(minutes=1)
+                    if name != "fresh"
+                    else due + timedelta(hours=1),
+                )
+                for name in ("confirming", "stale", "fresh")
+            ]
+            session.add_all(cards)
+            await session.flush()
+            ids = {c.summary: c.id for c in cards}
+            await session.commit()
+
+        confirming, jobbing = AsyncSession(engine), AsyncSession(engine)
+        try:
+            held = await service.get_proposal(confirming, user, ids["confirming"], lock=True)
+            job = asyncio.create_task(service.expire_pending(jobbing, due))
+            await asyncio.sleep(0.3)
+            assert not job.done()  # the job waits for the card being confirmed
+            held.status = "confirmed"
+            held.decided_at = due
+            await confirming.commit()
+            assert await asyncio.wait_for(job, timeout=10) == 1  # only the stale one
+            await jobbing.commit()
+        finally:
+            await confirming.close()
+            await jobbing.close()
+
+        async with AsyncSession(engine) as session:
+            rows = await session.execute(
+                select(Proposal.summary, Proposal.status).where(Proposal.user_id == user)
+            )
+            assert dict(rows.all()) == {
+                "confirming": "confirmed",
+                "stale": "expired",
+                "fresh": "pending",
+            }
     finally:
         async with AsyncSession(engine) as session:
             await session.execute(delete(Session).where(Session.user_id == user))

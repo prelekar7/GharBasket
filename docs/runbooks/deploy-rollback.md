@@ -21,7 +21,7 @@ on the newer schema.
 ## Checks
 
 1. **Is it only asleep?** The free API sleeps after 15 idle minutes and takes about a minute to wake. UptimeRobot's
-   5-minute ping normally keeps it awake. `curl -sS -m 90 https://gharbasket-api.onrender.com/v1/health` wakes it. If it
+   5-minute ping normally keeps it awake. `curl -sS -m 90 https://api.gharbasket.co.in/v1/health` wakes it. If it
    answers `{"status":"ok",...}` with the expected `commit`, there is nothing to roll back.
 2. **Which commit runs?** The same call shows `commit`. Compare it with `git log -1 origin/main`. If they differ, a deploy
    did not finish or failed.
@@ -58,7 +58,7 @@ on the newer schema.
 2. **Check it.** Wait for `/v1/health` to report the old commit, then run the smoke test:
 
    ```
-   infisical run --env=staging -- just cloud https://gharbasket-api.onrender.com
+   infisical run --env=staging -- just cloud https://api.gharbasket.co.in
    ```
 
    It exits 1 if a check fails. It needs `JOBS_TOKEN`, which `infisical run` supplies.

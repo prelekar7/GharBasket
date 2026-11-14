@@ -4,6 +4,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { buildId } from "./src/lib/buildId.js";
 
 // Two builds: `vite build` is the web PWA (API at relative /v1), `vite build --mode native` is the
 // bundle Capacitor ships in the Android app (no service worker, API at VITE_API_BASE_URL).
@@ -52,6 +53,12 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ],
+  define: {
+    // A new deploy discards the query cache saved by the old one (lib/buildId.js, lib/queryClient.js).
+    "import.meta.env.VITE_BUILD_ID": JSON.stringify(
+      buildId({ ...process.env, ...loadEnv(mode, process.cwd(), "VITE_") }),
+    ),
+  },
   resolve: {
     // Same alias as jsconfig.json "paths", so editors and Vite agree.
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },

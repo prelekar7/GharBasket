@@ -46,6 +46,7 @@ from gharbasket.modules.subscriptions.models import (
     WeeklyCycle,
 )
 from gharbasket.modules.subscriptions.rules import Member
+from gharbasket.platform import tracing
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.settings import Settings
@@ -59,7 +60,7 @@ async def http_client(given: httpx2.AsyncClient | None) -> AsyncIterator[httpx2.
     if given is not None:
         yield given
         return
-    async with httpx2.AsyncClient(timeout=httpx2.Timeout(5.0)) as client:
+    async with tracing.http_client(timeout=httpx2.Timeout(5.0)) as client:
         yield client
 
 

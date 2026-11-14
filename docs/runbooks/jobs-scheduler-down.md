@@ -36,7 +36,7 @@ be run by hand.
    started again from the console. Oracle says it does not charge for Always Free resources on a Pay As You Go account,
    and that upgrading avoids idle reclamation.
 4. **Is it the API instead?** If the journal shows calls ending `gave_up` (429, 502–504, timeouts), the scheduler is
-   fine and Render is the problem: wake it (`curl -sS -m 90 https://gharbasket-api.onrender.com/v1/health`) and see
+   fine and Render is the problem: wake it (`curl -sS -m 90 https://api.gharbasket.co.in/v1/health`) and see
    [`deploy-rollback.md`](deploy-rollback.md).
 
 ## Common causes and fixes

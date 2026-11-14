@@ -139,7 +139,7 @@ async def test_the_code_is_made_once_with_a_link_to_the_society(
     code = body["code"]
     assert CODE.match(code) and again.json()["code"] == code
     assert first.headers["Cache-Control"] == "no-store"
-    link = f"https://gharbasket.in/s/sunrise-towers-kharghar?ref={code}"
+    link = f"https://gharbasket.co.in/s/sunrise-towers-kharghar?ref={code}"
     assert body == {
         "code": code,
         "link": link,
