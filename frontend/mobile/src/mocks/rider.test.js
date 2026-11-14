@@ -683,3 +683,33 @@ describe("the lunch route: collect at the kitchens, then the doors (M7 §3.7)", 
     });
   });
 });
+
+describe("rider earnings (M8 §3.6)", () => {
+  it("answers GET /v1/earnings in the contract's shape, for a rider's own kind", async () => {
+    localStorage.setItem(
+      "gb-mock-web-session",
+      JSON.stringify({ phone: "+919800000003", exp: Date.now() + 60_000 }),
+    );
+    const res = await get("/v1/earnings");
+    expect(res.status).toBe(200);
+    const w = await res.json();
+    expect(Object.keys(w).sort()).toEqual(
+      [
+        "by_kind",
+        "days",
+        "entries",
+        "from",
+        "generated_at",
+        "payouts",
+        "to",
+        "total_paise",
+        "week",
+      ].sort(),
+    );
+    expect(w.days).toHaveLength(7);
+    expect(w).not.toHaveProperty("items");
+    for (const e of w.entries) {
+      expect(e).toMatchObject({ kind: "rider", basis: "dispatched_order", ref: { type: "order" } });
+    }
+  });
+});

@@ -315,16 +315,3 @@ export function useDoorActions(stopId) {
       door(d, "undelivered", `/v1/deliveries/${d.order_id}/undelivered`, { reason }),
   };
 }
-
-/**
- * @typedef {{ date: string, routes: number, societies: number, pickups: boolean, amount_paise: number }} EarningsItem
- * @typedef {{ total_paise: number, routes: number, pickup_runs: number, payout_weekday: number, items: EarningsItem[] }} Earnings
- */
-
-/** The rider's latest routes and what they earned, from the ledger (GET /v1/earnings, M8). */
-export function useEarnings() {
-  return useQuery({
-    queryKey: ["earnings"],
-    queryFn: () => /** @type {Promise<Earnings>} */ (request("/v1/earnings")),
-  });
-}

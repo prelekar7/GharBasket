@@ -1287,10 +1287,18 @@
     "earnings": {
       "who": "{name} · रायडर",
       "title": "कमाई",
-      "recent": "{count, plural, =0 {अजून रूट नाहीत} one {तुमचा मागचा रूट} other {मागचे {count} रूट}}",
-      "summary": "{routes} रूट · {runs, plural, one {{runs} पिकअप फेरी} other {{runs} पिकअप फेऱ्या}}",
-      "line": "{routes} रूट · {societies, plural, one {{societies} सोसायटी} other {{societies} सोसायट्या}}",
-      "lineWithPickups": "{routes} रूट · {societies, plural, one {{societies} सोसायटी} other {{societies} सोसायट्या}} · पिकअप",
+      "recent": "या आठवड्यात",
+      "recentRange": "या आठवड्यात · {from} ते {to}",
+      "summary": "{orders, plural, =0 {अजून एकही ऑर्डर पाठवलेली नाही} one {# ऑर्डर पाठवली} other {# ऑर्डर पाठवल्या}}",
+      "line": "{orders, plural, one {# ऑर्डर} other {# ऑर्डर}}",
+      "payoutWeek": "आठवडा {week}",
+      "payoutPeriod": "{from} ते {to} ची कमाई",
+      "holdReason": {
+        "kyc_incomplete": "हे मिळवण्यासाठी तुमची KYC कागदपत्रे पूर्ण करा.",
+        "no_payout_account": "हे मिळवण्यासाठी तुमचे बँक खाते जोडा.",
+        "suspended": "तुमचे पार्टनर खाते थांबवले आहे. तुमच्या हब मॅनेजरशी बोला."
+      },
+      "payoutStatus": "{status, select, processed {तुमच्या बँकेत जमा} pending {तुमच्या बँकेकडे निघाले} processing {तुमच्या बँकेकडे निघाले} held {थांबवलेले} other {झाले नाही; आम्ही पुन्हा प्रयत्न करू}}",
       "payout": "दर आठवड्याला {day} रोजी तुमच्या बँक खात्यात जमा, त्याच खातेवहीतून ज्यात GharBasket चा प्रत्येक रुपया नोंदलेला असतो.",
       "cert": "उत्पन्न प्रमाणपत्र डाउनलोड करा",
       "certFailed": "प्रमाणपत्र डाउनलोड झाले नाही. पुन्हा प्रयत्न करा.",
