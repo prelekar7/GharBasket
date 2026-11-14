@@ -14,7 +14,7 @@ const WEB_SESSION_KEY = "gb-mock-web-session"; // stands in for the httpOnly coo
 /** @param {number} status @param {string} code @param {string} title */
 const problem = (status, code, title) =>
   HttpResponse.json(
-    { type: `https://gharbasket.in/problems/${code}`, title, status, detail: title, code },
+    { type: `urn:gharbasket:problem:${code}`, title, status, detail: title, code },
     { status, headers: { "content-type": "application/problem+json" } },
   );
 

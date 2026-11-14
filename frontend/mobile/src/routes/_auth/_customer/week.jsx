@@ -214,8 +214,7 @@ function Week() {
             </div>
             <p className="text-sm leading-[22px] text-fg-secondary">
               {`${deliveryDay}, ${timeRange(c.slot, lang)}`}
-              {c.captain &&
-                ` · ${t("week.brings", { name: c.captain.name, flat: c.captain.flat })}`}
+              {c.captain && ` · ${t("week.brings", { name: c.captain.display_name })}`}
             </p>
             {GREEN_SLOTS && !!c.discount_paise && (
               <p className="text-sm leading-[22px] font-semibold text-primary">
@@ -251,7 +250,7 @@ function Week() {
                     { label: t("track.stage.packed"), state: "todo" },
                     {
                       label: c.captain
-                        ? t("orders.stage.AT_SOCIETY", { captain: c.captain.name })
+                        ? t("orders.stage.AT_SOCIETY", { captain: c.captain.display_name })
                         : t("week.atSociety"),
                       time: `${weekdayName(c.delivery_date, lang)} ${timeRange(c.slot, lang)}`,
                       state: "todo",
@@ -259,7 +258,7 @@ function Week() {
                     ...(c.captain
                       ? [
                           {
-                            label: t("track.stage.door", { flat: c.captain.flat }),
+                            label: t("track.stage.doorNone"),
                             state: /** @type {const} */ ("todo"),
                           },
                         ]

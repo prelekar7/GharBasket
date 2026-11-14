@@ -24,6 +24,7 @@ from typing import Self
 import httpx2
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
+from gharbasket_ml import tracing
 from gharbasket_ml.schemas import (
     RouteRequest,
     RouteResponse,
@@ -162,7 +163,11 @@ async def osrm_matrix(
     coords = ";".join(f"{lng:.6f},{lat:.6f}" for lat, lng in points)
     url = f"{osrm_url.rstrip('/')}/table/v1/driving/{coords}?annotations=distance,duration"
     try:
-        async with asyncio.timeout(timeout_s), httpx2.AsyncClient(timeout=timeout_s) as http:
+        traced = tracing.AsyncTracedTransport()
+        async with (
+            asyncio.timeout(timeout_s),
+            httpx2.AsyncClient(timeout=timeout_s, transport=traced) as http,
+        ):
             answer = await http.get(url)
         body = answer.json()
         if answer.status_code != 200 or body.get("code") != "Ok":

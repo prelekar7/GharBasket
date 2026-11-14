@@ -1,10 +1,10 @@
 # Runbook: rotating a secret
 
-Owner: Prathamesh Relekar. Last reviewed: 11 November 2026.
+Owner: Prathamesh Relekar. Last reviewed: 12 November 2026.
 
 Rotate when a secret may have leaked, when someone who knew it leaves the team, or on a plan. Every secret has a home in
 Infisical `staging` and one or more places it is copied to. A rotation changes all of them, in an order that keeps staging
-working. Two secrets must not be rotated yet, and one signs everyone out; those three are marked below.
+working. Two secrets are rotated with a re-keying job, and one signs everyone out; those three are marked below.
 
 **If a secret may have leaked, treat it as an incident first:** note who could see it and since when, rotate, and read
 [`dpdp-breach.md`](dpdp-breach.md) if personal data could have been read.
@@ -21,7 +21,8 @@ working. Two secrets must not be rotated yet, and one signs everyone out; those 
 
 1. **Which secret, exactly?** Find its row in the table. The "Home" column is where it is changed first; "Copies" are the
    other places that must follow.
-2. **Is it one of the three special ones?** `KYC_ENCRYPTION_KEY`, `KYC_HASH_PEPPER` (do not rotate) and
+2. **Is it one of the three special ones?** `KYC_ENCRYPTION_KEY`, `KYC_HASH_PEPPER` (old value kept as retired until a
+   job has moved every row) and
    `REFRESH_TOKEN_PEPPER` (signs everyone out). Read their rows first.
 3. **What breaks while the copies disagree?** Pick a quiet time. The evening windows (18:30 to 23:30 IST) are the worst:
    a `JOBS_TOKEN` mismatch makes every job call fail with 401, which the scheduler does not retry (ADR-0032).
@@ -37,8 +38,8 @@ All values start in Infisical `staging` (people use `infisical run --env=staging
 |---|---|---|---|
 | `JWT_SIGNING_KEY` (with `JWT_KEY_ID`, `JWT_RETIRED_KEYS`) | Infisical | Render `gharbasket-api` | No one is signed out: see "JWT signing key" |
 | `REFRESH_TOKEN_PEPPER` | Infisical | Render `gharbasket-api` | **Only on a leak.** Everyone signs in again: see below |
-| `KYC_ENCRYPTION_KEY`, `KYC_KEY_VERSION` | Infisical | Render `gharbasket-api` | **Never, until re-encryption exists.** See below |
-| `KYC_HASH_PEPPER` | Infisical | Render `gharbasket-api` | **Never, until re-hashing exists.** See below |
+| `KYC_ENCRYPTION_KEY`, `KYC_KEY_VERSION`, `KYC_RETIRED_KEYS` | Infisical | Render `gharbasket-api` | Old key retired, then `rekey_kyc_documents`: see below |
+| `KYC_HASH_PEPPER`, `KYC_PEPPER_VERSION`, `KYC_RETIRED_PEPPERS` | Infisical | Render `gharbasket-api` | The same steps: see below |
 | `JOBS_TOKEN` | Infisical | Render `gharbasket-api`; GitHub secret `JOBS_TOKEN`; VM `~/.config/gharbasket/jobs.env` and `mandi.env` | See "JOBS_TOKEN" |
 | `ML_SERVICE_TOKEN` | Infisical | Render `gharbasket-api` and `gharbasket-ml`; GitHub secret `ML_SERVICE_TOKEN` (used by `smoke-ml.yml`) | See "ML_SERVICE_TOKEN" |
 | `DATABASE_URL` (Neon, pooled) | Neon role password | Infisical; Render `gharbasket-api` | Reset the role's password in Neon; see "Neon" |
@@ -100,16 +101,40 @@ unmatchable, so every device is signed out at its next refresh and must sign in 
 second-pepper setting, so there is no gradual way. Do it only if the pepper leaked **and** the database leaked with it
 (the pepper alone cannot be used without the stored hashes). Tell the hub manager first; do not do it in an evening window.
 
-### `KYC_ENCRYPTION_KEY` and `KYC_HASH_PEPPER` (do not rotate)
+### `KYC_ENCRYPTION_KEY` and `KYC_HASH_PEPPER` (retire, then re-key)
 
-KYC numbers are stored as `pgp_sym_encrypt(number, key)` and as `HMAC-SHA256(pepper, number)`. There is **no previous-key
-setting and no re-encryption job** yet. A new key would make every stored number unreadable, and a new pepper would
-break duplicate checks. `KYC_KEY_VERSION` only names the key; raising it does not re-encrypt anything. Re-encryption
-(`KYC_RETIRED_KEYS` and a job) is on the pilot backlog. Until it exists:
+KYC numbers are stored as `pgp_sym_encrypt(number, key)` with the key's version, and as
+`HMAC-SHA256(pepper, "<type>:<number>")` with the pepper's version (M8 §3.1). The API reads a row with the key of its
+own version and matches duplicates under every configured pepper, so an old key or pepper keeps working while it is
+listed as retired. The job `rekey_kyc_documents` moves rows to the current pair inside Postgres; it runs daily at 03:33
+IST and is a no-op when every row is current. Rotating the key:
 
-- do not change either value in Infisical or on Render;
-- if one may have leaked, it is a data incident for [`dpdp-breach.md`](dpdp-breach.md). On staging the stored numbers are
-  synthetic; the decision for the pilot is to build re-encryption first.
+1. Generate the new key: `openssl rand -base64 48`.
+2. In Infisical `staging`, add the current key to `KYC_RETIRED_KEYS` under its version (`1:<old key>`; more than one is
+   comma-separated, `1:<key>,2:<key>`), then set `KYC_ENCRYPTION_KEY` to the new key and `KYC_KEY_VERSION` to the old
+   version + 1. Copy the three values to Render `gharbasket-api`, which redeploys. The API refuses to start on a retired
+   version equal to the current one, a version listed twice, a malformed pair, spaces around a version or value, or a
+   value under 32 bytes, naming the variable only.
+3. **Wait until the Render dashboard shows the new deploy live.** A job run that reaches the old instance still has the
+   old settings, sees every row as current and answers `remaining: 0`.
+4. Run the job: `gh workflow run jobs-staging.yml -f job=rekey_kyc_documents`, then
+   `just job-runs rekey_kyc_documents`. The summary is
+   `{ rekeyed, rehashed, remaining, missing_key, key_version, pepper_version }`. **Go on only when it names the new
+   `key_version` (and `pepper_version`) and says `remaining: 0`.** `missing_key` above 0 means rows under a version with
+   no key configured: put that key back in `KYC_RETIRED_KEYS` and run again. A run that fails with
+   `KycStatementError (SQLSTATE 39000)` reached a row whose configured key is wrong: the rows before it have moved (the
+   `kyc.rekeyed` audit row says how many, with `failed: true`); fix the key and run again.
+5. Remove the retired key from Render (`KYC_RETIRED_KEYS` unset or without it). Keep it in Infisical for as long as the
+   weekly backups hold rows encrypted with it (8 weeks, handbook 12), then delete it there too.
+
+The pepper follows the same steps with `KYC_HASH_PEPPER`, `KYC_PEPPER_VERSION` and `KYC_RETIRED_PEPPERS`; both may be
+rotated together and one run of the job does both. If a key or pepper leaked, the same steps apply, and the backups made
+before the rotation are treated as exposed: open [`dpdp-breach.md`](dpdp-breach.md).
+
+Checks: the `ops_check` probe `partners.kyc_key_missing` names any stored key or pepper version that is no longer
+configured (with its row count), and any configured key that does not decrypt a sample row or pepper that does not
+reproduce its hash ("KYC key version V does not decrypt", "KYC pepper version V does not match"); versions and counts
+only, never a number. A payout read of such a row answers 503 `partners.kyc_key_unavailable`.
 
 ### `JOBS_TOKEN`
 
@@ -163,7 +188,8 @@ backup run for the others. Keep the backup token on `gb-staging-backups` alone.
 
 ## What not to do
 
-- Do not rotate `KYC_ENCRYPTION_KEY` or `KYC_HASH_PEPPER`. Stored KYC numbers would be lost.
+- Do not replace `KYC_ENCRYPTION_KEY` or `KYC_HASH_PEPPER` without listing the old value as retired, and do not remove
+  a retired one before `rekey_kyc_documents` reports `remaining: 0`. Stored KYC numbers would be unreadable.
 - Do not rotate `REFRESH_TOKEN_PEPPER` on a hunch. It signs out every user.
 - Do not delete `JWT_RETIRED_KEYS` before 15 minutes have passed, unless the old key leaked.
 - Do not change a secret in Render alone. Infisical is the source; the next person who copies from it would put the old

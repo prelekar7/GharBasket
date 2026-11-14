@@ -13,7 +13,7 @@ from pathlib import Path
 
 import httpx2
 
-from gharbasket_ml import __version__
+from gharbasket_ml import __version__, tracing
 
 log = logging.getLogger(__name__)
 
@@ -78,7 +78,8 @@ async def osrm_status(
         f"{osrm_url.rstrip('/')}/route/v1/driving/73.0690,19.0300;73.1185,19.0005?overview=false"
     )
     try:
-        async with httpx2.AsyncClient(timeout=timeout_s, transport=transport) as http:
+        traced = tracing.AsyncTracedTransport(transport)
+        async with httpx2.AsyncClient(timeout=timeout_s, transport=traced) as http:
             answer = await http.get(probe)
         return "ok" if answer.status_code == 200 and answer.json().get("code") == "Ok" else "down"
     except (httpx2.HTTPError, ValueError):

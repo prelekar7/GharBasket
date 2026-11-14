@@ -3,7 +3,9 @@ service, the intents it returns resolved into proposal cards, confirmation throu
 the daily token cap, and the scrub of personal data before anything is stored or sent.
 
 What leaves the API for the ML service (hosted outside India, ADR-0025) is only the scrubbed
-conversation and a trimmed week (§3): no household or user id, name, address, captain or token.
+conversation, a trimmed week (§3) and, for `track_order` and `book_tiffin` (§3.1), the IST date,
+the household's current orders and the bookable tiffin menus: no household, user, order or menu id,
+name, address, captain or token.
 The ML service answers from that week and calls nothing back; what it wants changed comes back
 as intents, which are resolved here (the line, the catalog product, the default quantity, which
 week) into proposals the person confirms. Quantities and prices are the API's, never the model's.
@@ -28,12 +30,13 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.assistant import events
+from gharbasket.modules.assistant import events, tiffin_cards, tools
 from gharbasket.modules.assistant.models import Message, Proposal, Session, UsageDaily
 from gharbasket.modules.assistant.scrub import scrub
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.subscriptions import api as subscriptions_api
+from gharbasket.platform import tracing
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.locale import Language, localised
 from gharbasket.platform.outbox import publish
@@ -108,7 +111,7 @@ async def http_client(given: httpx2.AsyncClient | None) -> AsyncIterator[httpx2.
     if given is not None:
         yield given
         return
-    async with httpx2.AsyncClient() as client:
+    async with tracing.http_client() as client:
         yield client
 
 
@@ -272,6 +275,7 @@ class Prepared:
     view: subscriptions_api.WeekView | None
     handles: dict[str, subscriptions_api.WeekLineView]
     body: dict[str, Any]
+    tools: tools.ToolContext
 
 
 async def prepare_turn(
@@ -299,8 +303,14 @@ async def prepare_turn(
         None if cycle is None else await subscriptions_api.week_view(session, cycle, hub_id, lang)
     )
     handles = {f"L{i}": line for i, line in enumerate(view.lines if view else (), start=1)}
-    body = {"locale": chat.locale, "messages": history, "week": week_context(view, handles)}
-    return Prepared(chat, day, lang, hub_id, terms, view, handles, body)
+    extra = await tools.build(session, chat.household_id, hub_id, lang, day)
+    body = {
+        "locale": chat.locale,
+        "messages": history,
+        "week": week_context(view, handles),
+        **extra.fields,
+    }
+    return Prepared(chat, day, lang, hub_id, terms, view, handles, body, extra)
 
 
 async def ask(
@@ -313,13 +323,21 @@ async def ask(
     headers = {}
     if settings.ml_service_token is not None:
         headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
+    url = f"{settings.ml_service_url.rstrip('/')}/assistant/turn"
     try:
         response = await http.post(
-            f"{settings.ml_service_url.rstrip('/')}/assistant/turn",
-            json=body,
-            headers=headers,
-            timeout=settings.assistant_timeout_s,
+            url, json=body, headers=headers, timeout=settings.assistant_timeout_s
         )
+        if response.status_code == 422 and any(f in body for f in tools.NEW_FIELDS):
+            if tools.refused_only_new_fields(response):
+                # An ML service from before M13 §3.1 refuses the new fields: ask it the old way.
+                log.warning("assistant_old_ml_retry")
+                old = {k: v for k, v in body.items() if k not in tools.NEW_FIELDS}
+                response = await http.post(
+                    url, json=old, headers=headers, timeout=settings.assistant_timeout_s
+                )
+            else:  # some other 422: not an old service, so the tools stay
+                log.warning("assistant_ml_422", locations=tools.error_locations(response)[:10])
         response.raise_for_status()
         answer = response.json()
     except (httpx2.HTTPError, ValueError) as exc:
@@ -434,7 +452,15 @@ async def resolve(
     lang, view = prepared.lang, prepared.view
     if intent.get("action") == "skip_week":
         return await _resolve_skip(session, prepared, intent)
+    if intent.get("action") == "book_tiffin":
+        card = await tiffin_cards.resolve(
+            session, prepared.tools, prepared.chat.household_id, lang, prepared.day, intent
+        )
+        if isinstance(card, str):
+            return card
+        return _proposal(prepared, "book_tiffin", card.payload, card.summary)
     if intent.get("action") != "edit_box_line":
+        log.warning("assistant_intent_unknown", action=str(intent.get("action"))[:30])
         return None
     if view is None or not view.can_edit:
         return _say(lang, "not_editable")
@@ -598,6 +624,31 @@ async def confirm(
     was made from (M3's own 412 `subscriptions.version_conflict` if the week changed since)."""
     _decided(proposal)
     payload = proposal.payload
+    if proposal.action == "book_tiffin":  # M4 books it (§3.1): no cycle, no version to carry
+        result = await tiffin_cards.book(session, actor_user_id, payload)
+    else:
+        result = await _confirm_box(session, proposal)
+    proposal.status = "confirmed"
+    proposal.decided_at = now()
+    proposal.result = result
+    await session.flush()
+    await publish(
+        session,
+        events.PROPOSAL_CONFIRMED,
+        {
+            "proposal_id": str(proposal.id),
+            "household_id": str(proposal.household_id),
+            "user_id": str(actor_user_id),
+            "action": proposal.action,
+        },
+    )
+    return proposal
+
+
+async def _confirm_box(session: AsyncSession, proposal: Proposal) -> dict[str, Any]:
+    """The box change through M3's facade at the card's version; the other cards of the week
+    move to the new version."""
+    payload = proposal.payload
     if not payload.get("cycle_id"):
         raise ProblemError(409, "assistant.no_cycle", "There is no week to change right now.")
     cycle_id = uuid.UUID(str(payload["cycle_id"]))
@@ -615,22 +666,8 @@ async def confirm(
         result = await subscriptions_api.edit_cycle_lines(
             session, proposal.household_id, cycle_id, [edit], expected_version=version
         )
-    proposal.status = "confirmed"
-    proposal.decided_at = now()
-    proposal.result = result
     await _carry_version(session, proposal, version, int(result["version"]))
-    await session.flush()
-    await publish(
-        session,
-        events.PROPOSAL_CONFIRMED,
-        {
-            "proposal_id": str(proposal.id),
-            "household_id": str(proposal.household_id),
-            "user_id": str(actor_user_id),
-            "action": proposal.action,
-        },
-    )
-    return proposal
+    return result
 
 
 async def _carry_version(session: AsyncSession, confirmed: Proposal, old: int, new: int) -> None:
@@ -663,12 +700,13 @@ async def reject(session: AsyncSession, proposal: Proposal) -> Proposal:
 
 
 async def expire_pending(session: AsyncSession, at: datetime) -> int:
-    rows = await session.execute(
-        select(Proposal).where(Proposal.status == "pending", Proposal.expires_at <= at)
+    """Pending cards past their time become expired in one statement that tests `pending` itself:
+    a confirm in flight holds the row, so the update waits for it, then finds the card decided and
+    leaves it alone (reading the rows first and writing them by key would overwrite it)."""
+    expired = await session.execute(
+        update(Proposal)
+        .where(Proposal.status == "pending", Proposal.expires_at <= at)
+        .values(status="expired", decided_at=at)
+        .execution_options(synchronize_session=False)
     )
-    expired = list(rows.scalars())
-    for proposal in expired:
-        proposal.status = "expired"
-        proposal.decided_at = at
-    await session.flush()
-    return len(expired)
+    return int(expired.rowcount)  # pyright: ignore[reportAttributeAccessIssue]

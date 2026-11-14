@@ -35,4 +35,5 @@ WORKDIR /app
 EXPOSE 10000
 
 # Render sets $PORT (10000 by default). One worker: the free instance has 512 MB and 0.1 CPU.
+# --proxy-headers is harmless here: the ML service never uses the caller's address (M0 §6.3).
 CMD ["sh", "-c", "exec uvicorn gharbasket_ml.main:create_app --factory --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*' --no-access-log"]

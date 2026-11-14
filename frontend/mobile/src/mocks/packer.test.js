@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { shortagePlan } from "@/features/packing/queries.js";
 import { mockFetch } from "./index.js";
 import { HUB_ID, resetPacking, seedAllPacked } from "./packer.js";
 
@@ -205,7 +206,9 @@ describe("shortages", () => {
       "hub_ops.substitute_invalid",
       "not_a_substitute",
     ]);
-    const { substitute } = (await (await call("GET", SHORTAGES)).json()).items[0].bags[0];
+    const { substitute } = (await (await call("GET", SHORTAGES)).json()).items[0].bags.find(
+      (/** @type {any} */ b) => b.substitute,
+    );
     const swapped = await post(task, "shortage", {
       ...body,
       substitute_product_id: substitute.product_id,
@@ -218,11 +221,44 @@ describe("shortages", () => {
     expect(lineOf(await picked.json(), "methi").done).toBe(true);
   });
 
+  it("sends what the shortage list says: the listed substitute, or none for a family that chose money back", async () => {
+    const [methi] = (await (await call("GET", SHORTAGES)).json()).items;
+    const plan = shortagePlan(methi, methi.bags, methi.short_by);
+    const refund = plan.find((p) => !p.body.substitute_product_id);
+    const swap = plan.find((p) => p.body.substitute_product_id);
+    if (!refund || !swap) throw new Error("the list should have a refund and a swap");
+    // A substitute the family allowed: the whole line is swapped, nothing is refunded.
+    expect(swap.body).toEqual({
+      product_id: methi.product_id,
+      short_qty: swap.bag.qty,
+      substitute_product_id: methi.bags.find((/** @type {any} */ b) => b.substitute).substitute
+        .product_id,
+    });
+    for (const { bag, body } of [swap, refund]) {
+      await call("POST", `/v1/packing-tasks/${bag.task_id}/start`);
+      const res = await call("POST", `/v1/packing-tasks/${bag.task_id}/shortage`, body);
+      expect(res.status).toBe(200);
+    }
+    const [after] = (await (await call("GET", SHORTAGES)).json()).items;
+    expect(
+      after.reported
+        .map((/** @type {any} */ b) => [b.task_id, b.outcome])
+        .sort((/** @type {any} */ a, /** @type {any} */ b) => (a[0] < b[0] ? -1 : 1)),
+    ).toEqual(
+      [
+        [swap.bag.task_id, "substitute"],
+        [refund.bag.task_id, "refund"],
+      ].sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+    );
+  });
+
   it("refuses a swap for a family that chose money back, or for part of a line", async () => {
     const task = await bySeq(4);
     await post(task, "start");
     const methi = lineOf(await detail(4), "methi");
-    const { substitute } = (await (await call("GET", SHORTAGES)).json()).items[0].bags[0];
+    const { substitute } = (await (await call("GET", SHORTAGES)).json()).items[0].bags.find(
+      (/** @type {any} */ b) => b.substitute,
+    );
     const body = { product_id: methi.product_id, short_qty: 1 };
     const swap = await post(task, "shortage", {
       ...body,
@@ -236,15 +272,20 @@ describe("shortages", () => {
   it("proposal: lists methi short with each family's choice, then moves the reported bags", async () => {
     const list = async () => (await (await call("GET", SHORTAGES)).json()).items;
     const [methi] = await list();
-    expect([methi.slug, methi.needed, methi.received]).toEqual(["methi", 30, 26]);
-    expect(methi.bags.map((/** @type {any} */ b) => b.outcome)).toEqual([
-      "swap",
-      "refund",
-      "swap",
-      "swap",
-      "refund",
-      "refund",
+    expect([methi.slug, methi.needed, methi.received, methi.short_by]).toEqual([
+      "methi",
+      30,
+      26,
+      4,
     ]);
+    // As the API lists them: last in the queue first, only until the 4 bunches are covered.
+    expect(methi.bags.map((/** @type {any} */ b) => b.outcome)).toEqual([
+      "refund",
+      "refund",
+      "substitute",
+      "substitute",
+    ]);
+    expect(methi.bags.map((/** @type {any} */ b) => b.refund_paise)).toEqual([2000, 2000, 0, 0]);
     const bag = methi.bags[1];
     await call("POST", `/v1/packing-tasks/${bag.task_id}/start`);
     const res = await call("POST", `/v1/packing-tasks/${bag.task_id}/shortage`, {

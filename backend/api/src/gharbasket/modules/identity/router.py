@@ -43,6 +43,7 @@ from gharbasket.modules.identity.schemas import (
 from gharbasket.modules.identity.staff_router import router as staff_router
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
+from gharbasket.platform.client_ip import limit_key
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import Idempotent
@@ -81,11 +82,6 @@ FirebaseVerifier = Annotated[FirebaseTokenVerifier | None, Depends(get_firebase_
 EXCHANGE_PER_IP = (30, 600)
 EXCHANGE_PER_PHONE = (10, 600)
 REFRESH_PER_IP = (300, 60)
-
-
-def _client_ip(request: Request) -> str:
-    # On Render, uvicorn runs with --proxy-headers, so this is the real caller's address.
-    return request.client.host if request.client else "unknown"
 
 
 def _deliver(
@@ -135,7 +131,7 @@ async def exchange(
         check_web_request(request, settings)
     await rate_limit.enforce(
         valkey,
-        f"exchange:ip:{_client_ip(request)}",
+        f"exchange:ip:{limit_key(request)}",
         limit=EXCHANGE_PER_IP[0],
         window_s=EXCHANGE_PER_IP[1],
     )
@@ -224,7 +220,7 @@ async def refresh(
             raise invalid_token("Sign in first.")
     await rate_limit.enforce(
         valkey,
-        f"refresh:ip:{_client_ip(request)}",
+        f"refresh:ip:{limit_key(request)}",
         limit=REFRESH_PER_IP[0],
         window_s=REFRESH_PER_IP[1],
     )

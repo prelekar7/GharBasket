@@ -5,6 +5,7 @@ Search (spec §3.1) uses one keyset-paginated query with three orders:
   then distance when `near` is given, then id;
 - only `near`: nearest first;
 - neither: alphabetical.
+`slug` instead finds one society exactly (`by_slug`), for the PWA's `/join?s=<slug>`.
 """
 
 import re
@@ -53,6 +54,28 @@ class Found:
     distance_m: int | None
 
 
+def _distance(near: LatLng | None) -> ColumnElement[Any]:
+    """Metres from `near` to the boundary (0 inside it); NULL without `near` or a boundary."""
+    if near is None:
+        return cast(null(), Float)
+    return func.ST_Distance(Society.boundary, geography(near.lat, near.lng), type_=Float)
+
+
+def _found(society: Society, distance: float | None) -> Found:
+    return Found(society, None if distance is None else round(distance))
+
+
+async def by_slug(session: AsyncSession, slug: str, *, near: LatLng | None) -> list[Found]:
+    """The society with this slug, in any status, as a list of 0 or 1 (spec §3.1).
+
+    Slugs are always lowercase, so the given one is lowercased and compared exactly, which uses
+    the unique index on `slug`.
+    """
+    stmt = select(Society, _distance(near)).where(Society.slug == slug.lower())
+    row = (await session.execute(stmt)).first()
+    return [] if row is None else [_found(row[0], row[1])]
+
+
 async def search(
     session: AsyncSession,
     *,
@@ -61,11 +84,8 @@ async def search(
     cursor: str | None,
     limit: int,
 ) -> tuple[list[Found], str | None]:
-    distance: ColumnElement[Any] | None = None
-    if near is not None:
-        distance = func.ST_Distance(Society.boundary, geography(near.lat, near.lng), type_=Float)
-
-    stmt = select(Society, distance if distance is not None else cast(null(), Float))
+    distance = _distance(near)
+    stmt = select(Society, distance)
     # The sort keys, each with the type its cursor value must have; the order kind goes into the
     # cursor too, so a cursor from one kind of search is refused by another.
     keys: list[ColumnElement[Any] | InstrumentedAttribute[Any]] = []
@@ -75,7 +95,7 @@ async def search(
         stmt = stmt.where(term.op("<%")(Society.search_text))
         keys.append(-func.word_similarity(term, Society.search_text, type_=Float))
         kinds.append(float)
-    if distance is not None:
+    if near is not None:
         keys.append(func.coalesce(distance, NO_DISTANCE))
         kinds.append(float)
     if not keys:
@@ -89,7 +109,7 @@ async def search(
         stmt = stmt.where(tuple_(*keys) > tuple_(*after))
     rows = (await session.execute(stmt.add_columns(*keys).order_by(*keys).limit(limit + 1))).all()
 
-    found = [Found(row[0], None if row[1] is None else round(row[1])) for row in rows[:limit]]
+    found = [_found(row[0], row[1]) for row in rows[:limit]]
     next_cursor = None
     if len(rows) > limit:
         last = rows[limit - 1]

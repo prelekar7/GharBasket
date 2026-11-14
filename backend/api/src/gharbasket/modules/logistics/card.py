@@ -6,6 +6,7 @@ order rides the van, the captain's card (never her phone or flat), the hold, the
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy import select
@@ -64,6 +65,55 @@ async def _stop(
     return None if row is None else (row[0], row[1])
 
 
+async def _live(
+    session: AsyncSession,
+    order: orders_api.Order,
+    attempt: Delivery | None,
+    placed: tuple[RouteStop, Route] | None,
+) -> tuple[str | None, dict[str, uuid.UUID] | None]:
+    """The live estimate (`eta`) and, while the van is riding with the order, the route to track."""
+    if placed is None:
+        return None, None
+    stop, route = placed
+    live = eta_now(route, await stops_of(session, route.id))[stop.id]
+    eta = live or (hhmm(stop.eta) if stop.status in ("pending", "arrived") else None)
+    # A tiffin is tracked from collect while the rider still has it (§3.7).
+    tiffin = order.kind == "tiffin"
+    riding = attempt is not None and attempt.status == "on_route" if tiffin else True
+    if order.status == "dispatched" and route.status == "in_progress" and riding:
+        return eta, {"route_id": route.id}
+    return eta, None
+
+
+@dataclass(frozen=True)
+class DeliverySignal:
+    """What the assistant may say about where an order is (M13 §3.1): the card's status, window
+    and live estimate, and whether the van has it. No captain, code, proof or route id."""
+
+    status: str
+    window: tuple[str, str] | None
+    eta: str | None
+    on_the_way: bool
+
+
+async def delivery_signals(
+    session: AsyncSession, orders: list[orders_api.Order]
+) -> dict[uuid.UUID, DeliverySignal]:
+    """The card's status, window and estimate for each order, without the card's private parts."""
+    out: dict[uuid.UUID, DeliverySignal] = {}
+    for order in orders:
+        attempt = await latest(session, order.id)
+        slot = await orders_api.slot_ref(session, order.slot_id)
+        eta, tracking = await _live(session, order, attempt, await _stop(session, order, attempt))
+        out[order.id] = DeliverySignal(
+            "scheduled" if attempt is None else attempt.status,
+            None if slot is None else (hhmm(slot.start), hhmm(slot.end)),
+            eta,
+            tracking is not None,
+        )
+    return out
+
+
 async def delivery_card(
     session: AsyncSession,
     order: orders_api.Order,
@@ -74,17 +124,9 @@ async def delivery_card(
     attempt = await latest(session, order.id)
     slot = await orders_api.slot_ref(session, order.slot_id)
     window = None if slot is None else Window(start=hhmm(slot.start), end=hhmm(slot.end))
-    eta = tracking = None
     placed = await _stop(session, order, attempt)
+    eta, tracking = await _live(session, order, attempt, placed)
     tiffin = order.kind == "tiffin"
-    if placed is not None:
-        stop, route = placed
-        live = eta_now(route, await stops_of(session, route.id))[stop.id]
-        eta = live or (hhmm(stop.eta) if stop.status in ("pending", "arrived") else None)
-        # A tiffin is tracked from collect while the rider still has it (§3.7).
-        riding = attempt is not None and attempt.status == "on_route" if tiffin else True
-        if order.status == "dispatched" and route.status == "in_progress" and riding:
-            tracking = {"route_id": route.id}
     card = await community_api.captain_card(session, order.society_id)
     if tiffin and (placed is None or placed[0].rider_mode):  # the rider's door, not hers
         card = None

@@ -1,6 +1,6 @@
 # Runbook: staging's data is wrong or lost and must be restored
 
-Owner: Prathamesh Relekar. Last reviewed: 11 November 2026.
+Owner: Prathamesh Relekar. Last reviewed: 14 November 2026. Last drill: 14 November 2026 (see "Drill log").
 
 This is the honest version for staging. **Staging's database has no point-in-time restore.** It is a Neon child branch,
 and Neon offers point-in-time restore and snapshots only on a root branch (`scripts/neon_restore_point.py`, top
@@ -109,6 +109,26 @@ test users, so treat the file as personal data: download it to your own machine,
 6. **Clean up.** Delete the downloaded dump from your machine. Delete the `restore-check-<date>` branch when you no longer
    need it (it counts against the 10 branches).
 
+### Checking a dump without Neon
+
+To prove a dump restores, without using one of Neon's 10 branches or staging's compute hours, restore it into a
+throwaway container of the project's own database image (`gharbasket/postgres:18-local`, built by `just up`; it has
+PostGIS and pgvector). The image's start-up script needs `POSTGRES_DB=gharbasket`, so make the empty target next to it.
+If you have no AWS CLI, step 1 works with `docker run --rm -v "$PWD:/aws" -e AWS_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY"
+-e AWS_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_KEY" -e AWS_DEFAULT_REGION=auto amazon/aws-cli:2.22.35 s3 cp …` inside the
+same `infisical run … sh -c '…'`.
+
+```
+chmod 600 2026-11-11.dump
+docker run -d --name gb-restore-drill -e POSTGRES_PASSWORD=drill -e POSTGRES_DB=gharbasket \
+  -v "$PWD:/b:ro" gharbasket/postgres:18-local
+docker exec gb-restore-drill pg_isready -U postgres          # repeat until "accepting connections"
+docker exec gb-restore-drill psql -U postgres -c "create database restore_check"
+docker exec gb-restore-drill pg_restore --no-owner --no-acl -U postgres --dbname restore_check /b/2026-11-11.dump
+docker exec -it gb-restore-drill psql -U postgres -d restore_check   # the queries below
+docker rm -f gb-restore-drill && rm 2026-11-11.dump               # always, the dump holds personal data
+```
+
 ### Verification queries
 
 Run on the restored database (Neon SQL editor, or `psql "$RESTORE_URL"`):
@@ -119,6 +139,8 @@ SELECT max(started_at) FROM platform.job_runs;             -- when the data stop
 SELECT count(*) FROM identity.users;
 SELECT count(*) FROM billing.journal_entries;
 SELECT count(*) FROM identity.deletions WHERE purged_at IS NOT NULL;
+-- every ledger entry balances: must be 0
+SELECT count(*) FROM (SELECT entry_id FROM billing.postings GROUP BY entry_id HAVING sum(amount) <> 0) x;
 ```
 
 The ledger has a deferred check that every entry's postings sum to zero (handbook 13 §13.7), so a restore cannot bring
@@ -166,6 +188,14 @@ back half an entry. A count that is far below what you expect means you restored
   and `read -rs`.
 - Do not keep a downloaded dump after the restore. It holds personal data.
 - Do not tell anyone staging has point-in-time restore. It does not.
+
+## Drill log
+
+| Date | Who | Dump | Into | Result |
+|---|---|---|---|---|
+| 14 Nov 2026 | Prathamesh Relekar (with Claude Code) | `staging/2026-11-11.dump` (1.5 MB, the first, manual run of `backup-staging.yml`) | A local `gharbasket/postgres:18-local` container ("Checking a dump without Neon") | `pg_restore` exit 0, no errors, in seconds. Head `8b2e5d4c7a19` (#519), 14 schemas, extensions pg_trgm, pgcrypto, postgis, unaccent, vector. 30 users, 147 orders, 286 journal entries (572 postings, all balanced), last job run 11 Nov 16:47 UTC. Counts equal live staging's rows created before the dump. Container and file deleted after. Not yet drilled: Recovery A, and Recovery B into a Neon branch with the API pointed at it |
+
+Rhythm Thakur and Manish Raje run the next drill before the pilot (handbook 12 §12.8), from a scheduled Sunday dump.
 
 ## Related
 
