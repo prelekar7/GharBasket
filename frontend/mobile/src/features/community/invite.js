@@ -1,21 +1,16 @@
 import { toast } from "@gharbasket/ui";
+import { openExternal } from "@/shared/native/links.js";
+import { shareContent } from "@/shared/native/share.js";
 
 /**
- * Invite neighbours to a society: the phone's share sheet (Web Share), or the link copied with a
- * toast where sharing is not available. Closing the share sheet is not an error.
+ * Invite neighbours to a society: the phone's share sheet (the Android one in the app, Web Share
+ * in a browser), or the link copied with a toast where sharing is not available. Closing the
+ * share sheet is not an error.
  * @param {{ societyId: string, slug?: string, text: string, copied: string }} invite `slug` is the society's slug for a prettier link; the id works too
  */
 export async function shareInvite({ societyId, slug, text, copied }) {
   const url = inviteLink(slug ?? societyId);
-  try {
-    if (navigator.share) await navigator.share({ title: "GharBasket", text, url });
-    else {
-      await navigator.clipboard.writeText(`${text} ${url}`);
-      toast(copied);
-    }
-  } catch {
-    // The person closed the share sheet.
-  }
+  if ((await shareContent({ title: "GharBasket", text, url })) === "copied") toast(copied);
 }
 
 /**
@@ -30,10 +25,10 @@ const PUBLIC_WEB_URL = (import.meta.env.VITE_PUBLIC_WEB_URL || "https://gharbask
 /** The society's landing page that an invite points to (M9 `/s/<society>`, by slug). @param {string} societySlug */
 export const inviteLink = (societySlug) => `${PUBLIC_WEB_URL}/s/${encodeURIComponent(societySlug)}`;
 
-/** WhatsApp with the message ready to send (wa.me works in the app and on the web). @param {string} text */
+/** WhatsApp with the message ready to send (wa.me opens the WhatsApp app, or the web). @param {string} text */
 export const whatsappShare = (text) =>
-  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+  openExternal(`https://wa.me/?text=${encodeURIComponent(text)}`);
 
 /** A chat with one person on WhatsApp, e.g. the Society Captain. @param {string} phoneE164 */
 export const whatsappChat = (phoneE164) =>
-  window.open(`https://wa.me/${phoneE164.replace(/\D/g, "")}`, "_blank", "noopener");
+  openExternal(`https://wa.me/${phoneE164.replace(/\D/g, "")}`);
