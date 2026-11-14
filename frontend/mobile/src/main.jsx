@@ -32,8 +32,11 @@ startOutbox();
 // does, and show login.
 onSessionExpired(async () => {
   if (!useSession.getState().signedIn) return;
-  await clearLocalData();
+  // Signed out first, so the 401s of the other requests that are still in flight are no-ops, and
+  // their queries stop before the cache is wiped.
   useSession.getState().clear();
+  queryClient.cancelQueries();
+  await clearLocalData();
   router.navigate({ to: "/login" });
 });
 

@@ -10,7 +10,8 @@ import { tokens } from "@/lib/tokens.js";
 /** @typedef {"customer" | "captain" | "kitchen_partner" | "rider" | "packer"} FieldRole */
 /** @typedef {{ role: string, scope_type: "society" | "hub" | "ngo" | null, scope_id: string | null, status: "applied" | "kyc_pending" | "verified" | "suspended" }} RoleGrant */
 /** @typedef {{ id: string, phone_e164: string, name: string | null, locale: "en-IN" | "hi-IN" | "mr-IN", senior_mode: boolean }} UserOut */
-/** @typedef {{ access_token: string | null, access_expires_in: number, refresh_token: string | null, is_new_user: boolean, user: UserOut }} ExchangeOut */
+/** @typedef {{ access_token: string | null, access_expires_in: number, refresh_token: string | null, is_new_user: boolean, deletion_cancelled?: boolean, user: UserOut }} ExchangeOut */
+/** @typedef {{ firebaseIdToken?: string, devPhone?: string, keepAccount?: boolean }} ExchangeInput */
 /** @typedef {{ access_token: string | null, access_expires_in: number, refresh_token: string | null }} TokensOut */
 /** @typedef {{ loc: (string | number)[], message: string, type: string }} FieldProblem */
 
@@ -111,6 +112,12 @@ async function send(path, { method = "GET", body, headers: extra, signal } = {})
   return fetch(request);
 }
 
+/**
+ * Bumped by every sign-in. A request or refresh that started under an older number belongs to a
+ * session that is gone: its late 401 must not wipe the tokens just saved, nor show login.
+ */
+let epoch = 0;
+
 /** @type {Promise<boolean> | null} */
 let refreshing = null;
 /** Whether the last refresh failed because the session is over (401), not because the server was busy. */
@@ -124,6 +131,7 @@ let ended = false;
 export function refresh() {
   refreshing ??= (async () => {
     const run = async () => {
+      const started = epoch;
       const refreshToken = await tokens.refreshToken();
       ended = NATIVE && !refreshToken;
       if (ended) return false;
@@ -131,6 +139,12 @@ export function refresh() {
         method: "POST",
         body: NATIVE ? { refresh_token: refreshToken } : {},
       });
+      // Someone signed in while this was in flight: the answer is about the old refresh token.
+      // Saving or clearing now would overwrite the new session, so drop it; the tokens are fresh.
+      if (epoch !== started) {
+        ended = false;
+        return true;
+      }
       // Only a 401 means the refresh token is dead. A 429 or a cold-start 503 keeps the
       // session, so a busy server never signs anyone out.
       ended = res.status === 401;
@@ -150,6 +164,32 @@ export function refresh() {
   return refreshing;
 }
 
+/** True from the start of a sign-out until the next sign-in, see `setSigningOut`. */
+let signingOut = false;
+/** The only calls a sign-out makes, and the exchange that starts the next session. */
+const SIGN_OUT_PATHS = new Set([
+  "/v1/auth/logout",
+  "/v1/auth/logout-all",
+  "/v1/me/push-token",
+  "/v1/auth/exchange",
+]);
+
+/**
+ * From the start of a sign-out until the next sign-in, screens that are still mounted must not hit
+ * the API: their calls are refused here without a request, and a 401 that was already in flight is
+ * neither refreshed nor reported as an expired session. It has to last past the sign-out itself:
+ * clearing the query cache makes the screen that is still showing (Profile) refetch on its next
+ * render, after the sign-out has finished (four 401s on the vivo phone). A successful exchange
+ * turns it off.
+ * @param {boolean} on
+ */
+export function setSigningOut(on) {
+  signingOut = on;
+}
+
+/** @param {string} path */
+const isSilenced = (path) => signingOut && !SIGN_OUT_PATHS.has(path);
+
 /** Calls that must never trigger a refresh: they are how a session starts or renews. */
 const NO_RETRY = new Set(["/v1/auth/exchange", "/v1/auth/refresh"]);
 
@@ -161,9 +201,14 @@ const NO_RETRY = new Set(["/v1/auth/exchange", "/v1/auth/refresh"]);
  * @param {RequestOptions} [init]
  */
 export async function request(path, init) {
+  if (isSilenced(path)) throw new ApiError({ status: 0, code: "auth.signing_out" });
+  const started = epoch;
   let res = await send(path, init);
-  if (res.status === 401 && !NO_RETRY.has(path)) {
-    if (await refresh()) {
+  if (res.status === 401 && !NO_RETRY.has(path) && !isSilenced(path)) {
+    if (epoch !== started) {
+      // Sent under the old session, answered after a new sign-in: just send it again.
+      res = await send(path, init);
+    } else if (await refresh()) {
       res = await send(path, init);
       if (res.status === 401) onExpired();
     } else if (ended) onExpired();
@@ -180,9 +225,12 @@ export async function request(path, init) {
  */
 export async function openStream(path, signal) {
   const init = { headers: { accept: "text/event-stream" }, signal };
+  if (isSilenced(path)) throw new ApiError({ status: 0, code: "auth.signing_out" });
   let res = await send(path, init);
-  if (res.status === 401 && (await refresh())) res = await send(path, init);
-  if (res.status === 401) onExpired();
+  if (res.status === 401 && !isSilenced(path)) {
+    if (await refresh()) res = await send(path, init);
+    if (res.status === 401) onExpired();
+  }
   if (!res.ok) throw await ApiError.from(res);
   return res;
 }
@@ -190,15 +238,35 @@ export async function openStream(path, signal) {
 /**
  * POST /v1/auth/exchange with a Firebase ID token, or `dev_phone` against a local dev backend
  * only (never staging).
- * @param {{ firebaseIdToken?: string, devPhone?: string }} input
+ * Single-flight: a second call while one runs gets the same answer, so a double submit never
+ * creates two sessions.
+ * A 409 `identity.deletion_pending` (the account is in its deletion grace period; `purge_on` is in
+ * `error.extra`) is thrown as an ApiError and saves no tokens. The caller asks "Keep my account?"
+ * and only on a yes repeats the call with `keepAccount: true` (M1 §3.5).
+ * @param {ExchangeInput} input
  * @returns {Promise<ExchangeOut>}
  */
-export async function exchange({ firebaseIdToken, devPhone }) {
+export function exchange(input) {
+  exchanging ??= doExchange(input).finally(() => {
+    exchanging = null;
+  });
+  return exchanging;
+}
+
+/** @type {Promise<ExchangeOut> | null} */
+let exchanging = null;
+
+/** @param {ExchangeInput} input */
+async function doExchange({ firebaseIdToken, devPhone, keepAccount }) {
   const device = { platform: NATIVE ? "android" : "web", push_token: null };
-  const body = firebaseIdToken
-    ? { firebase_id_token: firebaseIdToken, device }
-    : { dev_phone: devPhone, device };
+  const body = {
+    ...(firebaseIdToken ? { firebase_id_token: firebaseIdToken } : { dev_phone: devPhone }),
+    device,
+    ...(keepAccount ? { keep_account: true } : {}),
+  };
   const out = await request("/v1/auth/exchange", { method: "POST", body });
+  epoch++;
+  signingOut = false; // a new session: its screens may call the API again
   await tokens.save(out);
   return out;
 }

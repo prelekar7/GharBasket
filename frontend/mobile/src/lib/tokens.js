@@ -2,7 +2,9 @@
 // Native: the access token in memory only, the refresh token in Keystore-backed secure storage.
 // The storage plugin is the provisional choice from spike S-2, still to confirm on a device.
 
-const NATIVE = import.meta.env.MODE === "native";
+import { NATIVE } from "@/lib/env.js";
+import { withPlugin } from "@/shared/native/platform.js";
+
 /** @type {string | null} */
 let access = null;
 
@@ -10,17 +12,22 @@ let access = null;
 let prefixed = null;
 
 /**
- * Runs `fn` with the secure-storage plugin. Capacitor plugin objects answer any property, `then`
- * included, so one must never be returned from an async function or awaited: it would hang.
+ * Runs `fn` with the secure-storage plugin (through `withPlugin`: the plugin is reached inside the
+ * callback and never awaited, because a Capacitor plugin object answers `then` and would hang).
  * @template T
  * @param {(storage: typeof import("@aparajita/capacitor-secure-storage").SecureStorage) => Promise<T>} fn
  * @returns {Promise<T>}
  */
 async function withSecureStorage(fn) {
-  const { SecureStorage } = await import("@aparajita/capacitor-secure-storage");
-  prefixed ??= SecureStorage.setKeyPrefix("gb_");
-  await prefixed;
-  return fn(SecureStorage);
+  const out = await withPlugin(
+    () => import("@aparajita/capacitor-secure-storage"),
+    async ({ SecureStorage }) => {
+      prefixed ??= SecureStorage.setKeyPrefix("gb_");
+      await prefixed;
+      return fn(SecureStorage);
+    },
+  );
+  return /** @type {T} */ (out);
 }
 
 export const tokens = {
