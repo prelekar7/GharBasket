@@ -9,7 +9,7 @@ import { onSessionExpired } from "@/lib/api.js";
 import { MOCK } from "@/lib/env.js";
 import { clearLocalData } from "@/lib/localData.js";
 import { useLostActions } from "@/lib/lostActions.js";
-import { startOutbox, summarizeOutbox } from "@/lib/outbox.js";
+import { startOutbox } from "@/lib/outbox.js";
 import { persistOptions, queryClient } from "@/lib/queryClient.js";
 import { useSession } from "@/lib/session.js";
 import { startPwa } from "./pwa.js";
@@ -30,10 +30,13 @@ startOutbox();
 
 // The session ended while signed in: wipe the person's data from this device, as a sign-out
 // does, and show login. Actions still in the outbox cannot be sent any more, so what they were is
-// read first and shown on login and in the role shell (LostActionsNotice) until dismissed.
+// read first and shown on login and in the role shell (LostActionsNotice) until dismissed. The
+// outbox module is imported here, not at the top, so it can stay out of the entry chunk (#451).
 onSessionExpired(async () => {
   if (!useSession.getState().signedIn) return;
-  const lost = await summarizeOutbox().catch(() => []);
+  const lost = await import("@/lib/outbox.js")
+    .then(({ summarizeOutbox }) => summarizeOutbox())
+    .catch(() => []);
   await clearLocalData();
   useSession.getState().clear();
   if (lost.length > 0) useLostActions.getState().show(lost);
