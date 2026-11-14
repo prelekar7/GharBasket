@@ -2,17 +2,16 @@ import { Button, Sheet, toast } from "@gharbasket/ui";
 import { CopyIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { inviteLink, whatsappShare } from "./invite.js";
-import { useRecordInvite } from "./queries.js";
 
 /**
- * Invite neighbours: the message they'll get, the reward rule, then WhatsApp or Copy link
- * (design Core-S3, M9 referrals). Every invite is recorded, so rewards can be matched later.
+ * Invite neighbours: the message they'll get, then WhatsApp or Copy link (design Core-S3). No reward
+ * line: this link (`/s/<slug>`) carries no referral code, so a neighbour who joins from it is not
+ * credited (M9 §3.3; the referral link from GET /v1/referrals can bring it back).
  * `message` replaces the invite text, e.g. with this month's impact (HcImpact); the link stays.
  * @param {{ open: boolean, onClose: () => void, society: Pick<import("./queries.js").Society, "id" | "slug" | "name" | "captain">, unlock?: import("./queries.js").Unlock | null, message?: (link: string) => string }} props
  */
 export function ShareSheet({ open, onClose, society: s, unlock, message: custom }) {
   const { t } = useTranslation();
-  const record = useRecordInvite();
   const link = inviteLink(s.slug);
   const message = custom
     ? custom(link)
@@ -39,7 +38,6 @@ export function ShareSheet({ open, onClose, society: s, unlock, message: custom 
             block
             onPress={() => {
               whatsappShare(message);
-              record.mutate({ societyId: s.id, channel: "whatsapp" });
               onClose();
             }}
           >
@@ -57,7 +55,6 @@ export function ShareSheet({ open, onClose, society: s, unlock, message: custom 
               } catch {
                 toast(t("society.share.copyFailed"));
               }
-              record.mutate({ societyId: s.id, channel: "copy" });
             }}
           >
             <CopyIcon aria-hidden size={20} />
@@ -73,7 +70,6 @@ export function ShareSheet({ open, onClose, society: s, unlock, message: custom 
         <p className="rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5 text-sm leading-5">
           {message}
         </p>
-        <p className="text-sm leading-5 text-fg-secondary">{t("society.share.reward")}</p>
       </div>
     </Sheet>
   );

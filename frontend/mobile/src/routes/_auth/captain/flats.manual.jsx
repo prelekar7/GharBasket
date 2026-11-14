@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { findFlat, isHandedOver } from "@/features/captain/day.js";
+import { findFlat, flatText, isHandedOver } from "@/features/captain/day.js";
 import { isOpen, proof } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useCaptainWrite } from "@/features/captain/queries.js";
 
@@ -31,7 +31,7 @@ function TypeBagCode() {
       : !flat
         ? t("captain.manual.notFound")
         : !isOpen(flat)
-          ? t("captain.flats.alreadyDone", { flat: flat.flat_label })
+          ? t("captain.flats.alreadyDone", { flat: flatText(flat) })
           : undefined;
 
   return (
@@ -55,7 +55,7 @@ function TypeBagCode() {
         <section className="flex flex-col gap-2 rounded-md bg-primary-soft p-3.5">
           <span className="text-[15px] leading-[22px]">{t("captain.manual.found")}</span>
           <h2 className="m-0 text-[19px] leading-[26px] font-bold">
-            {t("captain.manual.match", { flat: flat.flat_label })}
+            {t("captain.manual.match", { flat: flatText(flat) })}
           </h2>
           <span className="text-[15px] leading-[22px]">
             {t("captain.manual.matchDetail", {
@@ -77,12 +77,12 @@ function TypeBagCode() {
           onPress={() => {
             if (!flat) return;
             write(proof(flat));
-            toast(t("captain.manual.done", { flat: flat.flat_label }));
+            toast(t("captain.manual.done", { flat: flatText(flat) }));
             toFlats();
           }}
         >
           {flat
-            ? t("captain.manual.confirm", { flat: flat.flat_label })
+            ? t("captain.manual.confirm", { flat: flatText(flat) })
             : t("captain.manual.confirmAny")}
         </Button>
       </div>

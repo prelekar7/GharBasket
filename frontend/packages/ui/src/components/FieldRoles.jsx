@@ -243,6 +243,7 @@ export function RouteStopCard({
 
 /**
  * @typedef {object} FlatItem
+ * @property {string} [id] A stable key when two rows can show the same text (a flat with no label).
  * @property {string} flat
  * @property {string} [note]
  * @property {import("./Status.jsx").Status} status
@@ -268,7 +269,7 @@ export function FlatChecklist({ items, label = "Flats", onSelect }) {
         );
         return (
           <li
-            key={it.flat}
+            key={it.id ?? it.flat}
             className={`flex min-h-14 items-center justify-between gap-3 border-b border-line py-2 ${it.status === "out" ? "rounded-sm bg-info-soft px-2" : ""}`}
           >
             {onSelect ? (

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { householdBody } from "@/features/onboarding/submit.js";
 import { mockFetch } from "./index.js";
 
@@ -272,5 +272,51 @@ describe("me and devices (M1)", () => {
     const other = list.find((/** @type {any} */ d) => !d.current);
     expect((await call("DELETE", `/v1/me/devices/${other.id}`)).status).toBe(204);
     expect((await call("DELETE", `/v1/me/devices/${other.id}`)).status).toBe(404);
+  });
+});
+
+describe("data export (M1 §3.3)", () => {
+  const FIELDS = [
+    "id",
+    "status",
+    "requested_at",
+    "ready_at",
+    "expires_at",
+    "ready_within_hours",
+    "download",
+  ];
+
+  it("GET is 404 identity.export_not_found before any export was asked for", async () => {
+    await signIn("+919800000001");
+    const res = await call("GET", "/v1/me/data-export");
+    expect(res.status).toBe(404);
+    expect((await res.json()).code).toBe("identity.export_not_found");
+  });
+
+  it("POST asks (202, no Idempotency-Key needed), the same day answers the same export, GET polls it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await signIn("+919800000001");
+      const asked = await call("POST", "/v1/me/data-export");
+      expect(asked.status).toBe(202);
+      const first = await asked.json();
+      expect(Object.keys(first).sort()).toEqual([...FIELDS].sort());
+      expect(first).toMatchObject({ status: "queued", download: null, ready_within_hours: 24 });
+      const again = await (await call("POST", "/v1/me/data-export")).json();
+      expect(again.id).toBe(first.id);
+      expect((await (await call("GET", "/v1/me/data-export")).json()).id).toBe(first.id);
+      // Built: download only while ready, with its size and expiry.
+      vi.advanceTimersByTime(10_000);
+      const ready = await (await call("GET", "/v1/me/data-export")).json();
+      expect(ready.status).toBe("ready");
+      expect(ready.download).toEqual({
+        url: expect.stringMatching(/^https:/),
+        expires_at: expect.any(String),
+        size_bytes: expect.any(Number),
+      });
+      expect(ready.ready_at).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

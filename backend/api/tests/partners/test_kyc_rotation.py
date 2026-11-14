@@ -9,6 +9,7 @@ import pytest
 import structlog
 from pydantic import ValidationError
 from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.partners import api as partners_api
@@ -323,24 +324,15 @@ async def test_the_probe_notices_a_pepper_changed_without_a_new_version(
 
 @pytest.mark.anyio
 @pytest.mark.services
-async def test_a_hash_without_a_version_from_the_old_api_counts_as_pepper_1(
+async def test_a_hash_without_its_pepper_version_is_refused_by_the_table(
     db_session: AsyncSession,
 ) -> None:
-    # Written during a deploy by the API that does not know the column yet.
     document = await store(db_session, V1, "pan", None, "ABCDE1234F")
-    await db_session.execute(
-        update(KycDocument).where(KycDocument.id == document.id).values(hash_version=None)
-    )
-    use_settings(V2)
 
-    assert await is_duplicate(db_session, V2, "pan", None, "ABCDE1234F")
-    assert await partner_jobs.kyc_key_missing(db_session, datetime.now(UTC)) == []
-    run = await rekey(db_session, V2)
-
-    assert run.summary is not None and (run.summary["rehashed"], run.summary["remaining"]) == (1, 0)
-    await db_session.refresh(document)
-    assert document.hash_version == 2
-    assert document.number_hash == kyc.number_hash(V2, "pan", "ABCDE1234F")
+    with pytest.raises(IntegrityError, match="ck_kyc_documents_hash_version"):
+        await db_session.execute(
+            update(KycDocument).where(KycDocument.id == document.id).values(hash_version=None)
+        )
 
 
 def test_a_number_is_hashed_under_every_configured_pepper() -> None:

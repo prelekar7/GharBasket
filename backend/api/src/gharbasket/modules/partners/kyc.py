@@ -22,7 +22,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Executable, Result, and_, func, literal_column, or_, select
+from sqlalchemy import Executable, Result, and_, func, or_, select
 from sqlalchemy.exc import StatementError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -222,9 +222,8 @@ async def _encrypt(session: AsyncSession, settings: Settings, number: str) -> by
 
 async def _duplicate(session: AsyncSession, digests: dict[int, bytes], user_id: uuid.UUID) -> bool:
     """The same number on another person's open application or partner record, matched under
-    every configured pepper (`digests` by pepper version, §3.1 rotation). A hash without a
-    `hash_version` (written by the API before this column, during a deploy) is version 1."""
-    pepper_version = func.coalesce(KycDocument.hash_version, literal_column("1"))
+    every configured pepper (`digests` by pepper version, §3.1 rotation)."""
+    pepper_version = KycDocument.hash_version
     found = await session.execute(
         select(KycDocument.id)
         .join(Application, Application.id == KycDocument.application_id)

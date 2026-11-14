@@ -26,4 +26,15 @@ describe("locales", () => {
       .map(([k]) => k);
     expect(empty).toEqual([]);
   });
+
+  it.each(Object.keys(flat))(
+    "%s: the week's captain copy has no flat (the card has none)",
+    (lng) => {
+      for (const key of ["week.brings", "tiffin.note", "tiffin.noteNoCaptain"])
+        expect(String(flat[lng]?.[key])).not.toMatch(/\{flat\}/);
+      expect(String(flat[lng]?.["week.brings"])).toContain("{name}");
+      expect(String(flat[lng]?.["tiffin.note"])).toContain("{captain}");
+      expect(String(flat[lng]?.["tiffin.noteNoCaptain"])).not.toContain("{captain}");
+    },
+  );
 });

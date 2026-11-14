@@ -3,9 +3,9 @@
 Deleted: her applications, KYC documents (with the encrypted number, hash, mask and bank details)
 and training attempts; the KYC files are made due at once, so tonight's `sweep_uploads` deletes
 them. Kept without anything personal: her partner records, which M5's payouts and ledger accounts
-point at, the kitchen with its skills and grade, and the assignments that back earning entries.
-Where she acted as staff, her id is dropped. M1 runs this only once she is owed nothing
-(`billing.api.partner_payable_open`), because her last payout needs the bank document.
+point at, the kitchen with its skills and grade (no public page), and the assignments that back
+earning entries. Where she acted as staff, her id is dropped. M1 runs this only once she is owed
+nothing (`billing.api.partner_payable_open`), because her last payout needs the bank document.
 """
 
 import uuid
@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Executable, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import ratings, service
+from gharbasket.modules.partners import kitchens, ratings, service
 from gharbasket.modules.partners.models import (
     Application,
     AssignmentEvent,
@@ -59,7 +59,25 @@ async def erase_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str,
         counts[model.__tablename__] = await _run(
             session, delete(model).where(model.user_id == user_id)
         )
-    personal = (Kitchen.area, Kitchen.address, Kitchen.location, Kitchen.fssai_reg_no)
+    # A page still on (she left before leaving cleared it) goes now, audit-logged without an
+    # actor, as `partners.left` is: the audit row keeps no personal data (M1 §3.5 row 10).
+    on = await session.scalars(
+        select(Kitchen).where(
+            Kitchen.partner_id.in_(select(Partner.id).where(Partner.user_id == user_id)),
+            Kitchen.public_handle.is_not(None),
+        )
+    )
+    for kitchen in on.all():
+        await kitchens.clear_public(session, kitchen, actor_user_id=None, reason="erased")
+    await session.flush()
+    personal = (
+        Kitchen.area,
+        Kitchen.address,
+        Kitchen.location,
+        Kitchen.fssai_reg_no,
+        Kitchen.public_handle,
+    )
+    also = (Kitchen.fssai_valid_until, Kitchen.public_since)
     counts["kitchens"] = await _run(
         session,
         update(Kitchen)
@@ -67,7 +85,7 @@ async def erase_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str,
             Kitchen.partner_id.in_(select(Partner.id).where(Partner.user_id == user_id)),
             or_(*(column.is_not(None) for column in personal)),
         )
-        .values({column.key: None for column in (*personal, Kitchen.fssai_valid_until)}),
+        .values({column.key: None for column in (*personal, *also)}),
     )
     counts["assignment_events"] = await _run(
         session,

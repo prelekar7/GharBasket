@@ -8,7 +8,8 @@ be told apart is reduced to its keyword), no id or personal data, and an excepti
 type and the problem `code`, never its message.
 
 - A request (`request_span`, opened by `RequestContextMiddleware`): `<METHOD> <route template>`,
-  the status, `gb.request_id` and `gb.problem_code` (set by `errors.problem_response`).
+  the status, `gb.request_id` and `gb.problem_code` (set by `errors.problem_response`); none for
+  the polled liveness check, `/v1/health`.
 - A database call (`instrument_engine`, SQLAlchemy's cursor events): `db.query.text`.
 - Outgoing HTTP (`http_client()`): `<METHOD> <host>` with the method, host and status. The W3C
   `traceparent` goes to the ML service only, so one trace covers both services. The S3 store
@@ -56,6 +57,9 @@ SHUTDOWN_S = 5.0
 ERROR_LOG_EVERY_S = 60.0
 SQL_MAX = 2000
 METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
+# Render's health check and UptimeRobot poll the liveness check: a span each would be most of the
+# traces. Exact paths only; /v1/ready, called on demand, keeps its span.
+UNTRACED_PATHS = frozenset({"/v1/health"})
 # Quoted strings, then numbers (hex, exponent, leading dot); `$1` placeholders and names like `t1`
 # stay.
 _SQL_LITERALS = re.compile(
@@ -270,9 +274,12 @@ def log_ids(current: Span) -> dict[str, str]:
 
 
 @contextmanager
-def request_span(method: str) -> Iterator[Span]:
+def request_span(method: str, path: str) -> Iterator[Span]:
     """The server span of one request, named by its method until `finish_request` knows the
-    route template."""
+    route template. The liveness check gets none (`UNTRACED_PATHS`)."""
+    if path in UNTRACED_PATHS:
+        yield trace.INVALID_SPAN  # records nothing, carries no ids
+        return
     method = _method(method)
     with span(method, {"http.request.method": method}, SpanKind.SERVER) as current:
         try:
@@ -288,9 +295,27 @@ def _method(method: str) -> str:
     return method if method in METHODS else "_OTHER"
 
 
+def route_template(scope: Mapping[str, Any]) -> str | None:
+    """The matched route's full template (`/v1/orders/{order_id}`), None before routing or on a
+    404. FastAPI 0.142 includes routers lazily: `scope["route"]` is the route as its own router
+    declares it, without the include prefixes (`/health`, not `/v1/health`). The full template is
+    the path format of the effective route context it records in `scope["fastapi"]`, which its own
+    telemetry names spans with (`_IncludedRouter._handle_selected` in fastapi/routing.py). A route
+    on the app itself has no such context and its own path is already full."""
+    fastapi_scope = scope.get("fastapi")
+    context = (
+        fastapi_scope.get("effective_route_context") if isinstance(fastapi_scope, dict) else None
+    )
+    if context is not None:
+        template = getattr(context.starlette_route, "path_format", None) or context.path_format
+    else:
+        template = getattr(scope.get("route"), "path", None)
+    return template if isinstance(template, str) and template else None
+
+
 def finish_request(current: Span, scope: Mapping[str, Any], status: int, request_id: str) -> None:
-    template = getattr(scope.get("route"), "path", None)
-    if isinstance(template, str):
+    template = route_template(scope)
+    if template is not None:
         current.update_name(f"{_method(scope['method'])} {template}")
         current.set_attribute("http.route", template)
     current.set_attribute("http.response.status_code", status)
