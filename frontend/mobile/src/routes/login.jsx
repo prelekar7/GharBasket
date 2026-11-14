@@ -5,6 +5,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { LostActionsNotice } from "@/components/LostActionsNotice.jsx";
 import { MOCK } from "@/lib/env.js";
 import { sendCode } from "@/lib/otp.js";
 import { nextSearch } from "@/lib/search.js";
@@ -60,6 +61,7 @@ function Login() {
         </h1>
         <p className="text-fg-secondary">{t("login.sub")}</p>
       </div>
+      <LostActionsNotice />
       <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-5" noValidate>
         <Controller
           name="phone"
