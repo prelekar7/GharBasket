@@ -20,7 +20,7 @@ const MORNING = {
 const SOCIETIES = [
   {
     id: "0199a000-0000-7000-8000-00000000b001",
-    slug: "sunrise-towers",
+    slug: "sunrise-towers-kharghar",
     name: "Sunrise Towers",
     area: "Sector 20, Kharghar",
     status: "live",
@@ -37,7 +37,7 @@ const SOCIETIES = [
   },
   {
     id: "0199a000-0000-7000-8000-00000000b002",
-    slug: "green-valley",
+    slug: "green-valley-heights-kharghar",
     name: "Green Valley Heights",
     area: "Sector 35, Kharghar",
     status: "unlocking",
@@ -53,7 +53,7 @@ const SOCIETIES = [
   },
   {
     id: "0199a000-0000-7000-8000-00000000b003",
-    slug: "shree-ganesh",
+    slug: "shree-ganesh-chs-kharghar",
     name: "Shree Ganesh CHS",
     area: "Sector 12, Kharghar",
     status: "unlocking",
@@ -66,7 +66,7 @@ const SOCIETIES = [
   },
   {
     id: "0199a000-0000-7000-8000-00000000b004",
-    slug: "panchavati-residency",
+    slug: "panchavati-residency-kamothe",
     name: "Panchavati Residency",
     area: "Sector 7, Kamothe",
     status: "prospect",
@@ -169,8 +169,20 @@ export const communityHandlers = [
   }),
 
   // ?q= filters by name or area; ?near=lat,lng sorts by distance (the mock is already sorted).
+  // ?slug= is the exact lookup for /join?s= (M9 §3.1, #549): the society with that slug in any
+  // status, 0 or 1 items, compared lowercased; with ?q= or ?cursor=, empty or over 80 characters, 422.
   http.get("*/v1/societies", ({ request }) => {
-    const q = new URL(request.url).searchParams.get("q")?.trim().toLowerCase() ?? "";
+    const params = new URL(request.url).searchParams;
+    const slug = params.get("slug");
+    if (slug !== null) {
+      if (!slug || slug.length > 80 || params.has("q") || params.has("cursor"))
+        return problem(422, "request.invalid", "slug is used alone, 1 to 80 characters.");
+      const items = SOCIETIES.filter((s) => s.slug === slug.toLowerCase()).map((s) =>
+        summary(s, request),
+      );
+      return HttpResponse.json({ items, next_cursor: null });
+    }
+    const q = params.get("q")?.trim().toLowerCase() ?? "";
     const items = SOCIETIES.filter(
       (s) => !q || `${s.name} ${s.area}`.toLowerCase().includes(q),
     ).map((s) => summary(s, request));

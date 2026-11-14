@@ -211,7 +211,8 @@
       "joined": "{joined} of {target} homes joined",
       "delivering": "Delivering",
       "unlocking": "Unlocking",
-      "soon": "Coming soon"
+      "soon": "Coming soon",
+      "invited": "A neighbour invited you to {name}. Check it is your society, then continue."
     },
     "flat": {
       "eyebrow": "Your address",

@@ -1,5 +1,6 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { invitedSociety } from "@/features/community/join.js";
 import { request } from "@/lib/api.js";
 
 /**
@@ -32,6 +33,27 @@ export function useSocieties({ q = "", near = null }) {
       /** @type {Promise<{ items: SocietySummary[], next_cursor: string | null }>} */ (
         request(`/v1/societies?${search}`)
       ),
+  });
+}
+
+/**
+ * The society of a neighbour's invite (/join?s=<slug>), by its slug: GET /v1/societies?slug= answers
+ * it in any status, as 0 or 1 items (M9 §3.1). Only an exact slug is kept, so an API that does not
+ * know `slug` yet (it then answers its usual first page) can never preselect the wrong society.
+ * Null while there is no invite, or when no society has that slug.
+ * @param {string | null} slug
+ */
+export function useInvitedSociety(slug) {
+  const { i18n } = useTranslation();
+  return useQuery({
+    queryKey: ["society-by-slug", slug, i18n.resolvedLanguage],
+    enabled: !!slug,
+    queryFn: async () => {
+      const page = /** @type {{ items: SocietySummary[] }} */ (
+        await request(`/v1/societies?${new URLSearchParams({ slug: slug ?? "" })}`)
+      );
+      return invitedSociety(page.items, slug);
+    },
   });
 }
 
