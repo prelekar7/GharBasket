@@ -32,7 +32,7 @@ import {
 } from "@/features/identity/profile.js";
 import { useInbox } from "@/features/notifications/queries.js";
 import { shortDate } from "@/features/subscriptions/format.js";
-import { LOCALES } from "@/i18n.js";
+import { LOCALES, setLocale } from "@/i18n.js";
 import { ApiError } from "@/lib/api.js";
 import { AUTOPAY } from "@/lib/features.js";
 import { openLink } from "@/lib/openLink.js";
@@ -244,7 +244,7 @@ function Profile() {
               { locale: /** @type {typeof lang} */ (lng) },
               {
                 onSuccess: () => {
-                  i18n.changeLanguage(lng);
+                  setLocale(lng);
                   setSheet(null);
                 },
                 onError: () => toast(t("profile.saveFailed")),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clock, dayLabel } from "@/features/kitchen/format.js";
 import { shortDate, timeRange, weekRange } from "@/features/subscriptions/format.js";
-import i18n from "@/i18n.js";
+import i18n, { setLocale } from "@/i18n.js";
 import { intlLocale } from "./intlLocale.js";
 
 const DEVANAGARI_DIGIT = /[०-९]/;
@@ -17,7 +17,7 @@ describe("intlLocale", () => {
 
 describe("Marathi digits", () => {
   it("renders ICU `#` and {n, number} in plurals with Latin digits", async () => {
-    await i18n.changeLanguage("mr-IN");
+    await setLocale("mr-IN");
     const waiting = i18n.t("outbox.waiting", { count: 18 });
     expect(waiting).toContain("18");
     expect(waiting).not.toMatch(DEVANAGARI_DIGIT);

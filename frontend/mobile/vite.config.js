@@ -59,6 +59,20 @@ export default defineConfig(({ mode }) => ({
       buildId({ ...process.env, ...loadEnv(mode, process.cwd(), "VITE_") }),
     ),
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        // React rarely changes, the app's own code every release: a separate chunk keeps React in
+        // the browser cache (and the service worker's) across deploys instead of re-downloading it
+        // with every new entry chunk. Nothing else is grouped, so lazy routes still split naturally.
+        codeSplitting: {
+          groups: [
+            { name: "vendor-react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   resolve: {
     // Same alias as jsconfig.json "paths", so editors and Vite agree.
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },

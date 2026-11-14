@@ -1,4 +1,4 @@
-import { formatPaise } from "@gharbasket/ui";
+import { formatPaise } from "@gharbasket/ui/money";
 import { intlLocale } from "@/lib/intlLocale.js";
 
 // Turns M3 cycle data (ISO dates, reason codes) into words in the person's language.
