@@ -30,7 +30,7 @@ from sqlalchemy.orm import aliased
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.logistics import deliveries, execution, plans, tiffins, tracking
 from gharbasket.modules.logistics.models import Route, RoutePlan
-from gharbasket.platform import ops, outbox
+from gharbasket.platform import ops, outbox, tracing
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.settings import Settings
@@ -196,10 +196,17 @@ def solve_soon(
     plan_id: uuid.UUID,
 ) -> None:
     """Start the solve in the background (ADR-0021: no worker); without a database pool (tests)
-    the plan stays queued for `solve_routes`."""
+    the plan stays queued for `solve_routes`. The solve is a trace of its own, linked to the
+    request's span (M0 §6.2): it outlives the request."""
     if sessionmaker is None:
         return
-    task = asyncio.create_task(solve_queued(sessionmaker, http, settings, plan_id))
+    request = tracing.current_context()
+
+    async def run() -> None:
+        with tracing.root_span("solve routes", request):
+            await solve_queued(sessionmaker, http, settings, plan_id)
+
+    task = asyncio.create_task(run())
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
 

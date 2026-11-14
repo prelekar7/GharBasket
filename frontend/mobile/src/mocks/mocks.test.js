@@ -708,27 +708,27 @@ describe("Kindness points (M5 §3.6)", () => {
   });
 });
 
-describe("society invites and unlock (M9, Core-S1/S4)", () => {
-  const society = async (/** @type {string} */ id) =>
-    (await mockFetch(new Request(`http://localhost/v1/societies/${id}`))).json();
+describe("societies and unlock (M9, Core-S1/S4)", () => {
   const unlock = async (/** @type {string} */ id) =>
     (await mockFetch(new Request(`http://localhost/v1/societies/${id}/unlock`))).json();
 
-  it("unlocks a society when invites bring it to the threshold, with its captain", async () => {
-    expect(await society("green-valley")).toMatchObject({ status: "unlocking", captain: null });
-    expect(await unlock("green-valley")).toMatchObject({ joined: 19, threshold: 25 });
-    for (let i = 0; i < 6; i++)
-      await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, `ref-${i}`);
-    // The same key again changes nothing.
-    await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, "ref-0");
-    const s = await society("green-valley");
-    // Only a display name: no flat, no phone number (DPDP).
-    expect(s).toMatchObject({
-      status: "live",
-      captain: { display_name: "Asha tai", photo_url: null },
-    });
-    expect(Object.keys(s.captain)).toEqual(["display_name", "photo_url"]);
-    expect(await unlock("green-valley")).toMatchObject({ status: "live", joined: 25 });
+  it("looks a society up by its exact slug, in any status, for /join?s= (M9 §3.1)", async () => {
+    const bySlug = async (/** @type {string} */ query) => {
+      const res = await mockFetch(new Request(`http://localhost/v1/societies?${query}`));
+      return { status: res.status, body: await res.json() };
+    };
+    const one = await bySlug("slug=Green-Valley-Heights-Kharghar");
+    expect(one.body.items.map((/** @type {any} */ s) => s.slug)).toEqual([
+      "green-valley-heights-kharghar",
+    ]);
+    expect(one.body.next_cursor).toBeNull();
+    // A prospect society is found too (a search would still list it; the lookup never hides one).
+    expect((await bySlug("slug=panchavati-residency-kamothe")).body.items).toHaveLength(1);
+    // Unknown or partial: no item, never a near miss.
+    expect((await bySlug("slug=sunrise-towers")).body.items).toEqual([]);
+    // slug is used alone, 1 to 80 characters.
+    for (const query of ["slug=", `slug=${"a".repeat(81)}`, "slug=sunrise-towers-kharghar&q=sun"])
+      expect((await bySlug(query)).status).toBe(422);
   });
 
   it("lists societies without captain or unlock data, and gives them per society", async () => {
@@ -1227,5 +1227,17 @@ describe("product detail (HcProduct)", () => {
     const missing = await get("00000000-0000-0000-0000-000000000000");
     expect(missing.status).toBe(404);
     expect((await missing.json()).code).toBe("catalog.product_not_found");
+  });
+});
+
+describe("the week's captain (M3 §3.2: CycleOut.captain is a card, never a flat)", () => {
+  it("is {display_name, photo_url}, the society's captain, in a week and in the preview", async () => {
+    await signIn();
+    const cycle = await getJson("/v1/cycles/current");
+    expect(cycle.captain).toEqual({ display_name: expect.any(String), photo_url: null });
+    expect(cycle.captain).not.toHaveProperty("name");
+    expect(cycle.captain).not.toHaveProperty("flat");
+    // The preview is built like a week (subscriptions router `_captain`), captain included.
+    expect((await getJson("/v1/cycles/preview")).captain).toEqual(cycle.captain);
   });
 });

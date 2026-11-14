@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import Any
 
 import structlog
+from opentelemetry import trace
 from structlog.typing import EventDict, Processor, WrappedLogger
 
 
@@ -26,7 +27,9 @@ _SCRUBBERS: tuple[tuple[re.Pattern[str], str | Callable[[re.Match[str]], str]], 
     # JSON Web Tokens (our access tokens, Firebase ID tokens).
     (re.compile(r"eyJ[\w-]+\.[\w-]+\.[\w-]+"), "[jwt]"),
     # Authorization headers and other bearer secrets.
-    (re.compile(r"(?i)\bbearer\s+[\w.~+/=-]+"), "Bearer [redacted]"),
+    (re.compile(r"(?i)\bbearer(?:\s+|%20)[\w.~+/=%-]+"), "Bearer [redacted]"),
+    # Basic auth (OTEL_EXPORTER_OTLP_HEADERS carries one, percent-encoded or not).
+    (re.compile(r"(?i)\bbasic(?:\s+|%20)[\w.~+/=%-]+"), "Basic [redacted]"),
     # Passwords inside connection strings: scheme://user:password@host
     (re.compile(r"(\b[a-z][a-z0-9+.-]*://[^:/\s@]+:)[^@\s]+@"), r"\1[redacted]@"),
     # Indian mobile numbers: 10 digits from 6-9, optional +91/91, spaces or dashes anywhere.
@@ -55,9 +58,21 @@ def scrub_sensitive(_logger: WrappedLogger, _method: str, event_dict: EventDict)
     return {key: _scrub_value(value) for key, value in event_dict.items()}
 
 
+def add_trace_ids(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
+    """`trace_id` and `span_id` of the span the line is written in (M0 §6.2), so a Render log line
+    leads to its trace and back; nothing outside a span or in one that is not sampled (no trace
+    to lead to)."""
+    context = trace.get_current_span().get_span_context()
+    if context.is_valid and context.trace_flags.sampled:
+        event_dict["trace_id"] = f"{context.trace_id:032x}"
+        event_dict["span_id"] = f"{context.span_id:016x}"
+    return event_dict
+
+
 def configure_logging(level: str = "INFO", *, json: bool = True) -> None:
     shared: list[Processor] = [
         structlog.contextvars.merge_contextvars,
+        add_trace_ids,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso", utc=True),

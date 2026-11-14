@@ -24,6 +24,26 @@ services:
         value: "true"
       - key: LOG_LEVEL
         value: INFO
+      # The caller's address for the per-address rate limits (M0 §6.3, handbook 13 §13.3). The API
+      # refuses to start without CLIENT_IP_SOURCE and ORIGIN_SECRET. Set them and
+      # PROXY_CLIENT_IP_HEADER in the dashboard before the change is deployed (handbook 12, one-time
+      # setup step 8): a Blueprint may not apply a changed value to an existing service.
+      # - CLIENT_IP_SOURCE, for direct callers: Render's proxy appends to X-Forwarded-For, so its
+      #   leftmost entry is whatever the caller sent; Cloudflare, in front of Render, sets
+      #   True-Client-IP to the address that connected to it (not documented by Render).
+      # - ORIGIN_SECRET, the same value and name as on the PWA's Vercel project: with it in
+      #   x-origin-secret, the visitor's address is PROXY_CLIENT_IP_HEADER, which Vercel sets.
+      #   ORIGIN_SECRET_PREVIOUS only during a rotation (handbook 12, step 8).
+      # After any change here, at Render or at Vercel, run the checks of handbook 13 §13.3: both
+      # paths must count your own address, and spoofed headers must still get 429s.
+      - key: CLIENT_IP_SOURCE
+        value: header:true-client-ip
+      - key: PROXY_CLIENT_IP_HEADER
+        value: x-real-ip
+      - key: ORIGIN_SECRET
+        sync: false
+      - key: ORIGIN_SECRET_PREVIOUS
+        sync: false
       # Neon's pooled URL (the deploy workflow uses the direct one for migrations).
       - key: DATABASE_URL
         sync: false
@@ -40,10 +60,19 @@ services:
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
-      # KYC numbers (M8): the pgcrypto key and the duplicate-check pepper, from Infisical.
+      # KYC numbers (M8): the pgcrypto key and the duplicate-check pepper, from Infisical. The
+      # versions and the retired pairs ("1:<key>") only during a rotation (runbook rotate-secrets).
       - key: KYC_ENCRYPTION_KEY
         sync: false
+      - key: KYC_KEY_VERSION
+        sync: false
+      - key: KYC_RETIRED_KEYS
+        sync: false
       - key: KYC_HASH_PEPPER
+        sync: false
+      - key: KYC_PEPPER_VERSION
+        sync: false
+      - key: KYC_RETIRED_PEPPERS
         sync: false
       # Razorpay test mode (M5 top-ups): from Infisical `staging`. Without them, top-ups answer 503.
       - key: RAZORPAY_KEY_ID
@@ -92,7 +121,7 @@ services:
         sync: false
       - key: S3_BUCKET_PRIVATE # gitleaks:allow (a bucket name, not a secret)
         sync: false
-      # The Vercel URLs of the PWA and console, comma-separated (empty until they are deployed).
+      # The PWA and console origins, comma-separated: https://gharbasket.co.in,https://app.gharbasket.co.in (ADR-0035; empty until they are deployed).
       - key: WEB_ORIGINS
         sync: false
       # Only the Capacitor Android app calls the API cross-origin; browsers use the Vercel rewrite.
@@ -108,6 +137,18 @@ services:
       # to CONSOLE_URL/ai-health so the push opens in a browser; unset: the relative /ai-health.
       - key: CONSOLE_URL
         sync: false
+      # Traces (M0 §6.2) to Grafana Cloud's OTLP gateway, from Infisical: the base URL
+      # (https://otlp-gateway-<zone>.grafana.net/otlp, without /v1/traces) and the auth header,
+      # "Authorization=Basic%20<base64 of instance-id:token>" (a secret). Unset: nothing is exported.
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: OTEL_SERVICE_NAME
+        value: gharbasket-api
+      # Parent-based sampling; all of staging's traffic. The pilot sets it from the measured volume.
+      - key: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
 
   # The ML service (backend/ml, M10) on a second free web service, without OSRM: routing and slot
   # pricing use their haversine fallback (OSRM_URL is unset). The image is backend/ml/Dockerfile.render;
@@ -161,6 +202,15 @@ services:
         value: auto
       - key: S3_BUCKET_MLFLOW # gitleaks:allow (a bucket name, not a secret)
         value: gb-staging-mlflow
+      # Traces (M0 §6.2), the same Grafana Cloud stack and values as the API's; unset: none.
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: OTEL_SERVICE_NAME
+        value: gharbasket-ml
+      - key: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
 
   - type: keyvalue
     name: gharbasket-valkey

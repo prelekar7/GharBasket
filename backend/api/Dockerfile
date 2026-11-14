@@ -38,6 +38,9 @@ USER app
 WORKDIR /app
 EXPOSE 8000
 
-# Render sets $PORT. Behind its proxy, --proxy-headers makes request.client the real caller
-# (rate limits and logs depend on it). One worker fits the free 512 MB instance.
-CMD ["sh", "-c", "exec uvicorn gharbasket.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --no-access-log"]
+# Render sets $PORT. One worker fits the free 512 MB instance. --no-proxy-headers: uvicorn would
+# take the caller's address from the leftmost X-Forwarded-For entry, which the caller writes;
+# platform/client_ip.py reads it from our proxy's header or CLIENT_IP_SOURCE (M0 §6.3).
+# Nothing depends on the scheme X-Forwarded-Proto would set (cookies are always Secure, no
+# absolute URLs).
+CMD ["sh", "-c", "exec uvicorn gharbasket.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --no-proxy-headers --no-access-log"]

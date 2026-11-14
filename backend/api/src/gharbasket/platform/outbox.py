@@ -30,6 +30,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from gharbasket.platform import tracing
 from gharbasket.platform.models import OutboxEvent
 
 # "<module>.<event>", e.g. "orders.locked", "identity.household_created".
@@ -126,7 +127,12 @@ async def relay(session: AsyncSession, *, limit: int = 100) -> Relayed:
         try:
             async with session.begin_nested():
                 for handler in handlers:
-                    await handler(session, event)
+                    attributes = {
+                        "gb.consumer": f"{handler.__module__}.{handler.__qualname__}",
+                        "gb.attempt": event.attempts + 1,
+                    }
+                    with tracing.span(f"consume {event.event_type}", attributes):
+                        await handler(session, event)
         except Exception as exc:
             failed += 1
             event.attempts += 1
@@ -152,12 +158,16 @@ _tasks: set[asyncio.Task[None]] = set()
 
 
 def relay_soon(sessionmaker: async_sessionmaker[AsyncSession]) -> asyncio.Task[None]:
-    """Relay in the background, after the request that published has finished."""
+    """Relay in the background, after the request that published has finished. The relay is a
+    trace of its own (`outbox relay`), linked to the request's span: it outlives the request and
+    delivers other requests' events too. The task keeps the request's log context (request_id)."""
+    request = tracing.current_context()
 
     async def run() -> None:
         try:
-            async with sessionmaker() as session:
-                await relay(session)
+            with tracing.root_span("outbox relay", request):
+                async with sessionmaker() as session:
+                    await relay(session)
         except Exception as exc:  # the sweep job retries; a request must never fail for this
             log.warning("outbox_relay_failed", error=type(exc).__name__)
 

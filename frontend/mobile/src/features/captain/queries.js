@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { istDate } from "@/features/subscriptions/format.js";
+import { useKindEarnings } from "@/features/partners/earnings.js";
 import { ApiError, request } from "@/lib/api.js";
-import { db, enqueue, flush } from "@/lib/outbox.js";
+import { db, dropStaleFailures, enqueue, flush } from "@/lib/outbox.js";
 import { applyAction } from "./day.js";
 
 const DAY = ["captain-day"];
@@ -83,12 +83,17 @@ async function sendNow(client, action) {
     client.setQueryData(DAY, (/** @type {import("./day.js").CaptainDay | undefined} */ d) =>
       d ? applyAction(d, a) : d,
     );
+  // One key for this write: if the send reached the server but its answer was lost, the queued
+  // replay is the same request, not a second handover or proof.
+  const key = crypto.randomUUID();
   try {
     answer = await request(action.path, {
       method: "POST",
       body: action.body,
-      headers: { "idempotency-key": crypto.randomUUID() },
+      headers: { "idempotency-key": key },
     });
+    // A queued wrong code for this door is out of date now.
+    dropStaleFailures(action).catch(() => {});
     // A tiffin drop moves only the tiffins the rider had collected (`with_captain`).
     show(
       answer?.with_captain
@@ -98,7 +103,7 @@ async function sendNow(client, action) {
   } catch (e) {
     if (e instanceof ApiError) throw e;
     show();
-    await enqueue({ method: "POST", ...action });
+    await enqueue({ method: "POST", ...action, key });
   }
 }
 
@@ -153,38 +158,5 @@ export function useDrafts(date) {
   return /** @type {const} */ ([data, update]);
 }
 
-/**
- * @typedef {{ date: string, bags: number, amount_paise: number }} EarningDay
- * @typedef {{ total_paise: number, bags: number, items: EarningDay[] }} Earnings This week, from EarningsWeek
- */
-
-/**
- * This week's earnings (GET /v1/earnings, M8 §3.6; no `week` = this week): the days that paid, with
- * the bags of each day counted from the entries (`bag_delivered`, 1 unit per bag).
- */
-export function useEarnings() {
-  return useQuery({
-    queryKey: ["captain-earnings"],
-    queryFn: async () => {
-      const w = /** @type {{ total_paise: number, days: { date: string, amount_paise: number }[],
-       *   entries: { kind: string, units: number, at: string }[] }} */ (
-        await request("/v1/earnings")
-      );
-      /** @type {Earnings} */
-      const earnings = {
-        total_paise: w.total_paise,
-        bags: w.entries.filter((e) => e.kind === "captain").reduce((n, e) => n + e.units, 0),
-        items: w.days
-          .filter((d) => d.amount_paise > 0)
-          .map((d) => ({
-            ...d,
-            bags: w.entries
-              .filter((e) => e.kind === "captain" && istDate(new Date(e.at)) === d.date)
-              .reduce((n, e) => n + e.units, 0),
-          }))
-          .sort((a, b) => (a.date < b.date ? 1 : -1)),
-      };
-      return earnings;
-    },
-  });
-}
+/** This week's captain earnings (GET /v1/earnings, M8 §3.6): the days that paid, with each day's bags (`units`, 1 per `bag_delivered`). */
+export const useEarnings = () => useKindEarnings("captain");

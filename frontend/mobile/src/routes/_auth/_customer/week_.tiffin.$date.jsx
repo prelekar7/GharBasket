@@ -143,7 +143,13 @@ function Tiffin() {
         />
       </div>
       <p className="text-sm leading-5 text-fg-secondary">
-        {t("tiffin.note", { when: orderBy, cook: offer.cook.name, captain: c.captain?.name ?? "" })}
+        {c.captain
+          ? t("tiffin.note", {
+              when: orderBy,
+              cook: offer.cook.name,
+              captain: c.captain.display_name,
+            })
+          : t("tiffin.noteNoCaptain", { when: orderBy, cook: offer.cook.name })}
       </p>
       <div className="mt-auto">
         <Button
