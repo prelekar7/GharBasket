@@ -1841,6 +1841,12 @@
     "on": "On",
     "walletLink": "Pay per box with UPI Autopay"
   },
+  "photo": {
+    "take": "Take photo",
+    "gallery": "Choose from gallery",
+    "tooLarge": "That file is too big. The limit is {mb} MB.",
+    "failed": "Couldn’t get that photo. Try again."
+  },
   "partnerDocs": {
     "step": "{kind, select, kitchen {Become a kitchen partner} captain {Become a Society Captain} rider {Become a rider} other {Become a packer}} · step 2 of 4",
     "title": "Your documents",
