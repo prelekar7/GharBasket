@@ -8,10 +8,19 @@ and connection strings and tokens are SecretStr so they never show up in a repr 
 """
 
 import json
+import re
+from collections.abc import Callable
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import AliasChoices, BeforeValidator, Field, SecretStr, model_validator
+from pydantic import (
+    AfterValidator,
+    AliasChoices,
+    BeforeValidator,
+    Field,
+    SecretStr,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -26,6 +35,41 @@ def _upper(value: Any) -> Any:
 
 
 CommaSeparated = Annotated[list[str], NoDecode, BeforeValidator(_split_comma)]
+_CLIENT_IP_SOURCE = re.compile(r"peer|header:[a-z0-9-]{1,64}|xff:[1-9]")
+_HEADER_NAME = re.compile(r"[a-z0-9-]{1,64}")
+# Never the one header naming the caller: X-Forwarded-For is a list the caller starts (only
+# `xff:<n>` reads it), and x-origin-secret holds ORIGIN_SECRET.
+_NOT_AN_ADDRESS = frozenset({"x-forwarded-for", "x-origin-secret"})
+
+
+def _client_ip_source(value: Any) -> str:
+    """CLIENT_IP_SOURCE, lower-cased; an error names the variable, never the value."""
+    source = value.lower() if isinstance(value, str) else ""
+    if not _CLIENT_IP_SOURCE.fullmatch(source) or source.removeprefix("header:") in _NOT_AN_ADDRESS:
+        raise ValueError("CLIENT_IP_SOURCE must be 'peer', 'header:<name>' or 'xff:<1-9>'")
+    return source
+
+
+def _proxy_client_ip_header(value: Any) -> str:
+    """PROXY_CLIENT_IP_HEADER, lower-cased; an error names the variable, never the value."""
+    name = value.lower() if isinstance(value, str) else ""
+    if not _HEADER_NAME.fullmatch(name) or name in _NOT_AN_ADDRESS:
+        raise ValueError("PROXY_CLIENT_IP_HEADER must be one header name, such as x-real-ip")
+    return name
+
+
+def _header_secret(name: str) -> Callable[[SecretStr | None], SecretStr | None]:
+    """A secret compared with a request header's bytes: printable ASCII with nothing around it (a
+    pasted space or a non-ASCII character could never match). The error names `name` only."""
+
+    def check(secret: SecretStr | None) -> SecretStr | None:
+        value = secret.get_secret_value() if secret is not None else "x"
+        if not all(" " < char <= "~" for char in value):
+            raise ValueError(f"{name} must be printable ASCII without spaces")
+        return secret
+
+    return check
+
 
 # Used only when APP_ENV is dev or test and no key is configured, so local runs and tests need no
 # secrets. Deployed environments refuse to start without their own keys.
@@ -34,13 +78,43 @@ _DEV_REFRESH_PEPPER = "gharbasket-dev-only-refresh-token-pepper-never-deployed"
 _DEV_KYC_KEY = "gharbasket-dev-only-kyc-encryption-key-never-deployed"
 _DEV_KYC_PEPPER = "gharbasket-dev-only-kyc-hash-pepper-never-deployed"
 MIN_SECRET_BYTES = 32
+SMALLINT_MAX = 32767
+VERSION = re.compile(r"[0-9]{1,5}")
 LogLevel = Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], BeforeValidator(_upper)]
+
+
+def _versioned(name: str, raw: SecretStr | None, current: int) -> dict[int, SecretStr]:
+    """`<version>:<value>` pairs separated by commas, by version. An error names `name`, never a
+    value: a malformed pair, whitespace around a version or value (a pasted key with a space
+    would otherwise be a different key), a version out of range, the current version, or one
+    listed twice."""
+    if raw is None or not raw.get_secret_value().strip():
+        return {}
+    found: dict[int, SecretStr] = {}
+    for item in raw.get_secret_value().split(","):
+        version, sep, value = item.partition(":")
+        if not sep or not value or not VERSION.fullmatch(version):
+            raise ValueError(f"{name} must look like '1:<key>,2:<key>', without spaces")
+        if value != value.strip():
+            raise ValueError(f"{name} must look like '1:<key>,2:<key>', without spaces")
+        number = int(version)
+        if not 1 <= number <= SMALLINT_MAX:
+            raise ValueError(f"{name}: a version is 1 to {SMALLINT_MAX}")
+        if number == current:
+            raise ValueError(f"{name} lists the current version {number}")
+        if number in found:
+            raise ValueError(f"{name} lists version {number} twice")
+        found[number] = SecretStr(value)
+    return found
 
 
 class DatabaseSettings(BaseSettings):
     """Just the database URLs: all that migrations and one-off scripts need."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # An error never echoes its input, which holds every secret; it names the variable only.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", hide_input_in_errors=True
+    )
 
     # Postgres. On Neon, DATABASE_URL is the pooled (PgBouncer) URL used by the app and
     # DATABASE_URL_DIRECT the direct one used by migrations. Locally both point at Docker.
@@ -66,6 +140,26 @@ class Settings(DatabaseSettings):
     # Browsers reach the API through same-origin proxies, so CORS is only needed for the
     # Capacitor app (https://localhost). Comma-separated, e.g. "https://localhost".
     cors_allow_origins: CommaSeparated = []
+    # The caller's address, for per-address rate limits (platform/client_ip.py, M0 §6.3): `peer`,
+    # `header:<name>` or `xff:<n>`; staging and prod must set it, even to `peer`. A request whose
+    # `x-origin-secret` is ORIGIN_SECRET (the PWA's Vercel proxy sends it; the same name there) or,
+    # during a rotation, ORIGIN_SECRET_PREVIOUS takes the address from PROXY_CLIENT_IP_HEADER
+    # instead; staging and prod must set ORIGIN_SECRET too.
+    client_ip_source: Annotated[str, BeforeValidator(_client_ip_source)] = "peer"
+    origin_secret: Annotated[SecretStr | None, AfterValidator(_header_secret("ORIGIN_SECRET"))] = (
+        None
+    )
+    origin_secret_previous: Annotated[
+        SecretStr | None, AfterValidator(_header_secret("ORIGIN_SECRET_PREVIOUS"))
+    ] = None
+    proxy_client_ip_header: Annotated[str, BeforeValidator(_proxy_client_ip_header)] = "x-real-ip"
+    # Traces (M0 §6.2) to Grafana Cloud over OTLP/HTTP, only when the endpoint is set (the base URL,
+    # without /v1/traces). The headers ("Authorization=Basic%20<base64>") are a secret. Sampling is
+    # parent-based with this ratio of new traces.
+    otel_exporter_otlp_endpoint: Annotated[str | None, BeforeValidator(lambda v: v or None)] = None
+    otel_exporter_otlp_headers: SecretStr | None = None
+    otel_service_name: str = "gharbasket-api"
+    otel_traces_sampler_arg: float = Field(default=1.0, ge=0, le=1)
 
     # Valkey (Redis protocol). Optional until something needs it; /v1/ready then reports "skipped".
     valkey_url: SecretStr | None = None
@@ -138,10 +232,10 @@ class Settings(DatabaseSettings):
         max_length=200,
     )
     # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
-    public_web_url: str = "https://gharbasket.in"
+    public_web_url: str = "https://gharbasket.co.in"
     # The customer app (PWA): a society page's join button opens APP_WEB_URL/join?s=<slug>
     # (M12 §3.7).
-    app_web_url: str = "https://app.gharbasket.in"
+    app_web_url: str = "https://app.gharbasket.co.in"
     # The staff console (Next.js on Vercel). A push to an admin's phone must open it in the browser,
     # so the drift message links to CONSOLE_URL/ai-health (M11 §3.1). Unset: the relative path
     # `/ai-health`; relative links work only inside the app.
@@ -155,7 +249,7 @@ class Settings(DatabaseSettings):
     real_data_source: Literal["pilot", "live"] = "pilot"
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
-    # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".
+    # Comma-separated, e.g. "https://gharbasket.co.in,https://app.gharbasket.co.in" (ADR-0035).
     web_origins: CommaSeparated = []
     # Razorpay (M5 top-ups), test mode only: live keys are refused, no real money moves in the
     # prototype. Unset locally: top-ups use dev orders, paid with POST /v1/dev/razorpay/pay.
@@ -192,11 +286,16 @@ class Settings(DatabaseSettings):
     whatsapp_app_secret: SecretStr | None = None
     whatsapp_verify_token: SecretStr | None = None
     # KYC numbers (M8 §3.1, handbook 13 §13.5) are stored as pgp_sym_encrypt(number, key), the key
-    # named by KYC_KEY_VERSION for rotation, and as HMAC-SHA256(pepper, number) for duplicate
-    # checks. Required on staging and prod; local runs use dev-only values.
+    # named by KYC_KEY_VERSION, and as HMAC-SHA256(pepper, "<type>:<number>") for duplicate checks,
+    # the pepper named by KYC_PEPPER_VERSION. Required on staging and prod; local runs use dev-only
+    # values. To rotate, the old ones move to KYC_RETIRED_KEYS / KYC_RETIRED_PEPPERS
+    # ("1:<key>,2:<key>") until `rekey_kyc_documents` has moved every row (rotate-secrets.md).
     kyc_encryption_key: SecretStr | None = None
-    kyc_key_version: int = Field(default=1, ge=1, le=32767)
+    kyc_key_version: int = Field(default=1, ge=1, le=SMALLINT_MAX)
+    kyc_retired_keys: SecretStr | None = None
     kyc_hash_pepper: SecretStr | None = None
+    kyc_pepper_version: int = Field(default=1, ge=1, le=SMALLINT_MAX)
+    kyc_retired_peppers: SecretStr | None = None
 
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
@@ -208,6 +307,11 @@ class Settings(DatabaseSettings):
                 "FIREBASE_PROJECT_ID": self.firebase_project_id,
                 "KYC_ENCRYPTION_KEY": self.kyc_encryption_key,
                 "KYC_HASH_PEPPER": self.kyc_hash_pepper,
+                "ORIGIN_SECRET": self.origin_secret,
+                # Set explicitly, so a deployment never runs on the default by accident.
+                "CLIENT_IP_SOURCE": self.client_ip_source
+                if "client_ip_source" in self.model_fields_set
+                else None,
             }
             if self.ml_service_url:
                 required["ML_SERVICE_TOKEN"] = self.ml_service_token
@@ -228,7 +332,11 @@ class Settings(DatabaseSettings):
             ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
             ("KYC_ENCRYPTION_KEY", self.kyc_encryption_key),
             ("KYC_HASH_PEPPER", self.kyc_hash_pepper),
+            ("ORIGIN_SECRET", self.origin_secret),
+            ("ORIGIN_SECRET_PREVIOUS", self.origin_secret_previous),
             *((f"JWT_RETIRED_KEYS ({kid})", key) for kid, key in self._retired_pairs()),
+            *((f"KYC_RETIRED_KEYS ({v})", key) for v, key in self._kyc_retired_keys().items()),
+            *((f"KYC_RETIRED_PEPPERS ({v})", p) for v, p in self._kyc_retired_peppers().items()),
         ):
             if secret is not None and len(secret.get_secret_value().encode()) < MIN_SECRET_BYTES:
                 raise ValueError(f"{name} must be at least {MIN_SECRET_BYTES} bytes")
@@ -244,6 +352,12 @@ class Settings(DatabaseSettings):
                 raise ValueError("JWT_RETIRED_KEYS must look like 'k0:<key>,k1:<key>'")
             pairs.append((kid, SecretStr(key)))
         return pairs
+
+    def _kyc_retired_keys(self) -> dict[int, SecretStr]:
+        return _versioned("KYC_RETIRED_KEYS", self.kyc_retired_keys, self.kyc_key_version)
+
+    def _kyc_retired_peppers(self) -> dict[int, SecretStr]:
+        return _versioned("KYC_RETIRED_PEPPERS", self.kyc_retired_peppers, self.kyc_pepper_version)
 
     @property
     def jwt_verification_keys(self) -> dict[str, bytes]:
@@ -272,6 +386,20 @@ class Settings(DatabaseSettings):
     def kyc_pepper(self) -> bytes:
         pepper = self.kyc_hash_pepper
         return (pepper.get_secret_value() if pepper else _DEV_KYC_PEPPER).encode()
+
+    @property
+    def kyc_keys(self) -> dict[int, str]:
+        """Every configured KYC key by version: the current one and the retired ones."""
+        keys = {v: key.get_secret_value() for v, key in self._kyc_retired_keys().items()}
+        keys[self.kyc_key_version] = self.kyc_key
+        return keys
+
+    @property
+    def kyc_peppers(self) -> dict[int, bytes]:
+        """Every configured KYC pepper by version: the current one and the retired ones."""
+        peppers = {v: p.get_secret_value().encode() for v, p in self._kyc_retired_peppers().items()}
+        peppers[self.kyc_pepper_version] = self.kyc_pepper
+        return peppers
 
     @property
     def is_local(self) -> bool:

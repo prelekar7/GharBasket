@@ -152,6 +152,10 @@ jobs:
     cron: "40 2 * * *"
     why: M4 §6 daily 02:40 IST (Neon is awake then anyway for refresh_analytics_nightly)
 
+  - name: republish_closed_orders
+    runner: manual
+    why: M4 §3.8 backfill by hand only (`just job republish_closed_orders`), once after its deploy; idempotent
+
   # --- M5 billing -------------------------------------------------------------------------
   - name: send_refunds
     runner: vm
@@ -282,6 +286,12 @@ jobs:
     runner: vm
     cron: "30 14 * * *"
     why: M8 §6 T 14:30
+
+  - name: rekey_kyc_documents
+    runner: actions
+    cron: "3 22 * * *"
+    ist: "03:33 daily"
+    why: M8 §6 and §3.1 key and pepper rotation; a no-op unless a key or pepper was rotated. Shares the 03:33 wake of purge_deleted_users and monitor_drift (no Neon wake of its own). Also run by hand after a rotation (rotate-secrets.md)
 
   # --- M9 community -----------------------------------------------------------------------
   - name: recompute_unlock_thresholds

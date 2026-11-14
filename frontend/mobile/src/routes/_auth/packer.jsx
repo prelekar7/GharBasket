@@ -2,6 +2,7 @@ import { ReceiptIcon, ScanIcon, WarningIcon } from "@phosphor-icons/react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { FieldFrame } from "@/components/FieldFrame.jsx";
+import { useRefusedSwaps } from "@/features/packing/queries.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
 /** Packer shell: Queue · Pick/Pack · Shortages, scanner first (Handbook 09 §9.7, M6). */
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/_auth/packer")({
 
 function PackerShell() {
   const { t } = useTranslation();
+  useRefusedSwaps();
   return (
     <FieldFrame
       userRole="packer"

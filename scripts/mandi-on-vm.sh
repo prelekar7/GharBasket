@@ -89,7 +89,7 @@ REMOTE
     {
       printf 'DATA_GOV_IN_API_KEY=%s\n' "$DATA_GOV_IN_API_KEY"
       printf 'JOBS_TOKEN=%s\n' "$JOBS_TOKEN"
-      printf 'API_URL=%s\n' "${STAGING_API_URL:-https://gharbasket-api.onrender.com}"
+      printf 'API_URL=%s\n' "${STAGING_API_URL:-https://api.gharbasket.co.in}"
       printf 'S3_ENDPOINT_URL=%s\n' "$S3_ENDPOINT_URL"
       printf 'S3_ACCESS_KEY=%s\n' "${TRAINING_S3_ACCESS_KEY:-$S3_ACCESS_KEY}"
       printf 'S3_SECRET_KEY=%s\n' "${TRAINING_S3_SECRET_KEY:-$S3_SECRET_KEY}"

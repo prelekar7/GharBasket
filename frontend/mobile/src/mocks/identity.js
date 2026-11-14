@@ -21,7 +21,7 @@ import {
 export const problem = (status, code, title, extra = {}) =>
   HttpResponse.json(
     {
-      type: `https://gharbasket.in/problems/${code}`,
+      type: `urn:gharbasket:problem:${code}`,
       title,
       status,
       detail: title,

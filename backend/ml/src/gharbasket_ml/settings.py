@@ -3,9 +3,16 @@
 import tempfile
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BeforeValidator,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_TOKEN_BYTES = 32  # the same floor as the API's secrets (platform/settings.py)
@@ -60,6 +67,15 @@ class Settings(BaseSettings):
     # The same for /slots/price, shorter because a customer is waiting (M10 §3.8); the API's
     # ML_SLOT_TIMEOUT_S (2 s) covers it.
     slot_osrm_timeout_s: float = Field(default=1.0, gt=0, le=2)
+    # Traces (M0 §6.2), as the API's: exported only when the endpoint is set (the base URL); the
+    # headers are a secret. The resource carries the deployed commit (Render's RENDER_GIT_COMMIT).
+    otel_exporter_otlp_endpoint: Annotated[str | None, BeforeValidator(lambda v: v or None)] = None
+    otel_exporter_otlp_headers: SecretStr | None = None
+    otel_service_name: str = "gharbasket-ml"
+    otel_traces_sampler_arg: float = Field(default=1.0, ge=0, le=1)
+    git_commit: Annotated[str | None, BeforeValidator(lambda v: v or None)] = Field(
+        default=None, validation_alias=AliasChoices("GIT_COMMIT", "RENDER_GIT_COMMIT")
+    )
 
     @property
     def registry_sync_enabled(self) -> bool:

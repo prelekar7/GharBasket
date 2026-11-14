@@ -69,6 +69,8 @@ DEPLOYED_SECRETS: dict[str, object] = {
     "firebase_project_id": "gharbasket-test",
     "kyc_encryption_key": "test-deployed-kyc-encryption-key-0123456789",
     "kyc_hash_pepper": "test-deployed-kyc-hash-pepper-0123456789",
+    "origin_secret": "test-deployed-origin-secret-0123456789",
+    "client_ip_source": "peer",
 }
 
 

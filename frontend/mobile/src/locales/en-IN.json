@@ -65,7 +65,12 @@
     "revoked": "{device} is signed out.",
     "privacyLead": "Take a copy of your data or delete your account at any time.",
     "export": "Download my data",
-    "exportQueued": "We’re preparing your file. You’ll get a notification with the link within {hours} hours.",
+    "exportQueued": "We’re preparing your file. It can take up to {hours} hours; the download button appears here when it’s ready.",
+    "exportDownload": "Download my file ({size})",
+    "exportFailed": "We couldn’t prepare your file. Please ask again.",
+    "exportLimited": "You’ve asked too many times today. Try again tomorrow.",
+    "exportCheckFailed": "We couldn’t check on your data file. Check your internet and try again.",
+    "exportCheckAgain": "Check again",
     "delete": "Delete my account",
     "deleteTitle": "Delete your account?",
     "deleteBody": "Your box stops and your wallet balance is refunded to your UPI. You have 30 days to change your mind by signing in again.",
@@ -149,7 +154,38 @@
   "outbox": {
     "waiting": "{count, plural, one {# action waiting to sync} other {# actions waiting to sync}}",
     "retry": "Try now",
-    "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}"
+    "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}",
+    "dismiss": "Dismiss",
+    "dismissAll": "Dismiss all",
+    "action": {
+      "start": "Start",
+      "complete": "Finish",
+      "arrive": "Arrival",
+      "skip": "Skip stop",
+      "handover": "Handover",
+      "proof": "Delivery proof",
+      "undelivered": "Not delivered",
+      "collect": "Kitchen pickup",
+      "pickups": "Pickups",
+      "pick": "Item picked",
+      "shortage": "Marked short",
+      "accept": "Order accepted",
+      "decline": "Order declined",
+      "ready": "Order ready",
+      "other": "Action"
+    },
+    "reason": {
+      "bags_not_packed": "The bags aren’t all packed yet.",
+      "route_not_started": "The route hadn’t started.",
+      "route_closed": "The route is already closed.",
+      "photo_already_used": "That photo was already used. Take a new one.",
+      "photo_key_invalid": "The photo didn’t upload properly.",
+      "pickup_already_reported": "This pickup was already reported another way.",
+      "not_your_route": "This route isn’t yours.",
+      "task_not_started": "The bag hadn’t been started.",
+      "task_taken": "Another packer holds this bag.",
+      "other": "The server refused this action."
+    }
   },
   "install": {
     "title": "Install GharBasket",
@@ -175,7 +211,8 @@
       "joined": "{joined} of {target} homes joined",
       "delivering": "Delivering",
       "unlocking": "Unlocking",
-      "soon": "Coming soon"
+      "soon": "Coming soon",
+      "invited": "A neighbour invited you to {name}. Check it is your society, then continue."
     },
     "flat": {
       "eyebrow": "Your address",
@@ -403,7 +440,7 @@
       "address": "Address",
       "wallet": "Wallet",
       "free": "Free delivery",
-      "invite": "Delivery is free in your society. Invite a neighbour: you get a reward when their first box is delivered.",
+      "invite": "Delivery is free in your society. Invite a neighbour to join you.",
       "inviteCta": "Invite neighbours",
       "cta": "Go to my week",
       "shareText": "Join me on GharBasket in {society}: the week’s food, planned and delivered.",
@@ -458,7 +495,7 @@
       "cancelled": "This week’s box was cancelled. Nothing was charged.",
       "payment_failed": "Your box wasn’t paid at the cut-off. Add money to your wallet to keep it."
     },
-    "brings": "{name} brings it to {flat}",
+    "brings": "{name} brings it",
     "open": "Open box",
     "lock": "Budget Lock · {month}",
     "lockValue": "{spent} of {budget}",
@@ -701,7 +738,6 @@
       "preview": "Message preview",
       "message": "Hum GharBasket use karte hain. Hafte ka khana aur sabzi pehle se plan ho jaata hai, aur {captain} ghar tak laati hain. Join karo: {link}",
       "messageUnlocking": "Hum GharBasket join kar rahe hain. Hafte ka khana aur sabzi pehle se plan, aur {society} mein {n} aur ghar jud gaye toh delivery free shuru. Join karo: {link}",
-      "reward": "You get a reward when their first box is delivered. One reward per neighbour.",
       "whatsapp": "Share on WhatsApp",
       "copy": "Copy link",
       "copyShort": "Copy",
@@ -920,19 +956,6 @@
       "lighter": "Next Wednesday I want a light dinner. And take the paneer out.",
       "track": "Where is today’s box?"
     },
-    "confirmTitle": "Change next week’s box ({day})?",
-    "line": {
-      "remove": "Remove {item} · {qty}",
-      "add": "Add {item} · {qty}",
-      "qty": "{item} · {qty}"
-    },
-    "meal": "{day} {slot} → {dish}",
-    "slot": {
-      "lunch": "lunch",
-      "dinner": "dinner"
-    },
-    "noPrice": "no change",
-    "total": "New box total",
     "yes": "Yes, change it",
     "no": "No",
     "status": {
@@ -948,11 +971,36 @@
     "send": "Send",
     "errors": {
       "assistant_timeout": "That took too long. Check your internet and try again.",
-      "assistant_daily_limit": "That’s all I can do today. I’ll be back tomorrow morning.",
+      "request_invalid": "I couldn’t take that message. Please type it again as a new message.",
+      "request_idempotency_in_progress": "Still saving your answer. Wait a moment, then look again.",
       "assistant_proposal_expired": "This suggestion expired. Ask again and I’ll check the box.",
       "subscriptions_version_conflict": "Your box changed meanwhile. Ask again and I’ll suggest it fresh.",
-      "orders_cutoff_passed": "That box is already locked. I can change the one after it.",
+      "assistant_daily_cap": "That’s all I can do today. I’ll be back tomorrow morning. Your Week tab has everything meanwhile.",
+      "assistant_not_found": "I couldn’t find our chat. Try again to start a new one.",
+      "assistant_no_household": "Finish setting up your home first, then I can help with your box.",
+      "assistant_proposal_not_found": "I can’t find this suggestion any more. Tell me again what you’d like.",
+      "assistant_proposal_decided": "You already answered this suggestion.",
+      "assistant_no_cycle": "There is no box to change right now.",
+      "subscriptions_cutoff_passed": "That box is already locked. I can change the one after it.",
+      "subscriptions_not_editable": "That box can’t be changed any more.",
+      "subscriptions_product_unknown": "That item isn’t available any more. Ask again and I’ll suggest something else.",
+      "subscriptions_qty_invalid": "That amount isn’t allowed. Ask again with a smaller number.",
+      "assistant_price_changed": "The price changed since this suggestion. Ask again for today’s price.",
+      "orders_menu_unknown": "That menu has closed. Ask again and I’ll look for another.",
+      "orders_tiffin_already_booked": "You already have a tiffin booked for that meal.",
+      "orders_slot_full": "The kitchen is full for that meal. Try another day.",
+      "orders_slot_invalid": "Tiffins don’t come to your area for that meal yet.",
       "other": "I couldn’t reach the kitchen just now. Check your internet and try again."
+    },
+    "tiffin": {
+      "yes": "Yes, book it",
+      "booked": "Booked. Your {meal} tiffin comes on {day}.",
+      "expired": "This suggestion expired. Ask again and I’ll check the menu.",
+      "view": "See the order",
+      "meal": {
+        "lunch": "lunch",
+        "dinner": "dinner"
+      }
     }
   },
   "help": {
@@ -1165,6 +1213,7 @@
       "swapDetail": "{item}, allowed by the family",
       "refundDetail": "{amount} to the wallet",
       "applied": "{item} short in {n, plural, one {# bag} other {# bags}}. Families will be told.",
+      "swapRefused": "{n, plural, one {A swap was refused} other {# swaps were refused}}: the family’s choice or the line changed. {n, plural, one {That bag is} other {Those bags are}} back on Shortages; report again.",
       "reported": "Reported today",
       "outcomes": "{swaps, plural, one {# swap} other {# swaps}} · {refunds} money back",
       "noneTitle": "No shortages to report",
@@ -1272,25 +1321,35 @@
       "when": "Return leg · back by {time}",
       "title": "Pickups",
       "crates": "{n, plural, one {# empty crate} other {# empty crates}}",
-      "donation": "Donation · {ref}",
-      "scan": "Scan a donation bag",
+      "donation": "Donation · {items}",
+      "donationBag": "Donation bag",
+      "bag": "Bag to take back",
+      "scan": "Scan a returned bag",
       "manual": "Type the code instead",
       "scanned": "Picked up",
       "unknown": "Not on today’s pickups. Check the code.",
-      "why": "Pickups ride on the way back, so there’s no extra trip. Donations go to the hub for checking; the family gets Kindness points after.",
+      "why": "Pickups ride on the way back, so there’s no extra trip. Tap a donation when you have it. Donations go to the hub for checking; the family gets Kindness points after.",
       "none": "No pickups on this route.",
       "typeTitle": "Type the code",
-      "codeLabel": "Donation bag code",
-      "codeHelp": "It’s printed on the bag, like B-402.",
+      "codeLabel": "Bag code",
+      "codeHelp": "It’s under the QR on the bag label and starts with GB1:.",
       "collect": "Mark as picked up"
     },
     "earnings": {
       "who": "{name} · Rider",
       "title": "Earnings",
-      "recent": "{count, plural, =0 {No routes yet} one {Your last route} other {Last # routes}}",
-      "summary": "{routes, plural, one {# route} other {# routes}} · {runs, plural, =0 {no pickup runs} one {# pickup run} other {# pickup runs}}",
-      "line": "{routes, plural, one {# route} other {# routes}} · {societies, plural, one {# society} other {# societies}}",
-      "lineWithPickups": "{routes, plural, one {# route} other {# routes}} · {societies, plural, one {# society} other {# societies}} · pickups",
+      "recent": "This week",
+      "recentRange": "This week · {from} to {to}",
+      "summary": "{orders, plural, =0 {No orders dispatched yet} one {# order dispatched} other {# orders dispatched}}",
+      "line": "{orders, plural, one {# order} other {# orders}}",
+      "payoutWeek": "Week {week}",
+      "payoutPeriod": "Pay for {from} to {to}",
+      "holdReason": {
+        "kyc_incomplete": "Finish your KYC documents to receive it.",
+        "no_payout_account": "Add your bank account to receive it.",
+        "suspended": "Your partner account is paused. Talk to your hub manager."
+      },
+      "payoutStatus": "{status, select, processed {Paid to your bank} pending {On its way to your bank} processing {On its way to your bank} held {On hold} other {Didn’t go through; we’ll try again}}",
       "payout": "Paid every {day} to your bank account, from the same ledger as every rupee in GharBasket.",
       "cert": "Download income certificate",
       "certFailed": "The certificate didn’t download. Try again.",
@@ -1419,7 +1478,7 @@
       "title": "Flats",
       "when": "{society} · {day}",
       "wing": "Wing",
-      "progress": "{wing} wing delivered",
+      "progress": "Delivered in {wing}",
       "scan": "Scan the bag at the door",
       "manual": "Type the flat instead",
       "contents": {
@@ -1700,6 +1759,7 @@
     "how": "How many tiffins",
     "unit": "{n, plural, one {tiffin} other {tiffins}}",
     "note": "Order by {when}. Paid with your box at the cut-off. {cook} cooks it fresh; {captain} brings it to your door.",
+    "noteNoCaptain": "Order by {when}. Paid with your box at the cut-off. {cook} cooks it fresh and it comes to your door.",
     "cta": "Book {n, plural, one {# tiffin} other {# tiffins}} · {total}",
     "already": "A tiffin is already booked for that meal.",
     "goneTitle": "This tiffin can’t be booked now",
@@ -1930,5 +1990,10 @@
     "shareMessage": "{society} has saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}",
     "allTime": "So far",
     "underFive": "Numbers show once 5 homes in the society have joined in."
+  },
+  "router": {
+    "notFound": "We can’t find that page",
+    "notFoundBody": "The link may be old or mistyped.",
+    "home": "Go to home"
   }
 }

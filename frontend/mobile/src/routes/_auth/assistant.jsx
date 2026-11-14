@@ -1,11 +1,20 @@
 import { Button, Chip, IconButton, MoneyText } from "@gharbasket/ui";
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "@/components/BrandMark.jsx";
 import { RoleFrame } from "@/components/RoleFrame.jsx";
-import { canRetry, isStale, useAssistant } from "@/features/assistant/chat.js";
+import {
+  bookedOrderId,
+  canRetry,
+  cardDate,
+  isClosed,
+  isStale,
+  MAX_MESSAGE,
+  tiffinBooked,
+  useAssistant,
+} from "@/features/assistant/chat.js";
 import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
@@ -36,7 +45,8 @@ function Assistant() {
     end.current?.scrollIntoView({ block: "end" });
   }, [messages.length, send.isPending]);
 
-  const day = (/** @type {string} */ iso) => `${weekdayName(iso, lang)} ${shortDate(iso, lang)}`;
+  const day = (/** @type {string | undefined} */ iso) =>
+    iso ? `${weekdayName(iso, lang)} ${shortDate(iso, lang)}` : "";
   const submit = (/** @type {string} */ value) => {
     const v = value.trim();
     if (!v || send.isPending) return;
@@ -52,6 +62,22 @@ function Assistant() {
       return /** @type {{ code?: string, status?: number }} */ (reject.error);
     return null;
   };
+  /** A decided card's line: a booked tiffin names its meal and day, a box card its week. @param {import("@/features/assistant/chat.js").Proposal} p */
+  const outcome = (p) => {
+    if (p.action !== "book_tiffin") return t(`ghar.status.${p.status}`, { day: day(cardDate(p)) });
+    if (p.status === "confirmed") {
+      const booked = tiffinBooked(p);
+      return t("ghar.tiffin.booked", {
+        meal: t(`ghar.tiffin.meal.${booked?.meal ?? p.payload.meal ?? "lunch"}`),
+        day: day(booked?.delivery_date ?? cardDate(p)),
+      });
+    }
+    return t(p.status === "expired" ? "ghar.tiffin.expired" : `ghar.status.${p.status}`);
+  };
+  /** Answered elsewhere and its real status could not be read, or gone: Yes or No would only be refused again. */
+  const decided = (/** @type {string} */ id) => isClosed(failed(id));
+  /** The meal is booked already (that order is linked): Yes would only be refused again; No still dismisses the card. */
+  const taken = (/** @type {string} */ id) => !!bookedOrderId(failed(id));
 
   return (
     <RoleFrame userRole={role}>
@@ -99,59 +125,39 @@ function Assistant() {
                 </Button>
               </div>
             )}
-            {m.proposal && (
+            {m.proposals?.map((p) => (
               <section
-                aria-label={t("ghar.confirmTitle", { day: day(m.proposal.box.delivery_date) })}
+                key={p.id}
+                aria-label={p.summary}
                 className="flex flex-col gap-1.5 rounded-md border-2 border-line-strong bg-bg px-4 py-3.5"
               >
-                <strong>
-                  {t("ghar.confirmTitle", { day: day(m.proposal.box.delivery_date) })}
-                </strong>
-                <ul>
-                  {m.proposal.lines.map((l) => (
-                    <li
-                      key={l.kind === "meal" ? `${l.date}-${l.slot}` : l.name}
-                      className="flex items-baseline justify-between gap-3 border-b border-line py-1.5 text-sm leading-5"
-                    >
-                      <span>
-                        {l.kind === "meal"
-                          ? t("ghar.meal", {
-                              day: weekdayName(l.date, lang),
-                              slot: t(`ghar.slot.${l.slot}`),
-                              dish: l.dish,
-                            })
-                          : t(`ghar.line.${l.kind}`, { item: l.name, qty: l.qty_label })}
-                      </span>
-                      {l.delta_paise ? (
-                        <MoneyText paise={l.delta_paise} delta />
-                      ) : (
-                        <span className="text-fg-secondary">{t("ghar.noPrice")}</span>
-                      )}
-                    </li>
-                  ))}
-                  <li className="flex items-baseline justify-between gap-3 py-1.5">
-                    <strong>{t("ghar.total")}</strong>
-                    <MoneyText paise={m.proposal.new_total_paise} />
-                  </li>
-                </ul>
-                {m.proposal.status === "pending" ? (
+                <strong>{p.summary}</strong>
+                {p.payload.price_change_paise ? (
+                  <MoneyText paise={p.payload.price_change_paise} delta />
+                ) : null}
+                {p.action === "book_tiffin" && p.payload.total_paise ? (
+                  <MoneyText paise={p.payload.total_paise} />
+                ) : null}
+                {p.status === "pending" ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="primary"
-                      isPending={confirm.isPending && confirm.variables?.id === m.proposal.id}
+                      isPending={confirm.isPending && confirm.variables?.id === p.id}
                       isDisabled={
                         reject.isPending ||
-                        (confirm.isPending && confirm.variables?.id !== m.proposal.id)
+                        (confirm.isPending && confirm.variables?.id !== p.id) ||
+                        decided(p.id) ||
+                        taken(p.id)
                       }
-                      onPress={() => m.proposal && confirm.mutate(m.proposal)}
+                      onPress={() => confirm.mutate(p)}
                     >
                       <CheckIcon aria-hidden size={20} weight="bold" />
-                      {t("ghar.yes")}
+                      {t(p.action === "book_tiffin" ? "ghar.tiffin.yes" : "ghar.yes")}
                     </Button>
                     <Button
                       variant="secondary"
-                      isDisabled={confirm.isPending}
-                      onPress={() => m.proposal && reject.mutate(m.proposal)}
+                      isDisabled={confirm.isPending || decided(p.id)}
+                      onPress={() => reject.mutate(p)}
                     >
                       {t("ghar.no")}
                     </Button>
@@ -159,39 +165,42 @@ function Assistant() {
                 ) : (
                   <p
                     role="status"
-                    className={`text-sm font-semibold ${m.proposal.status === "confirmed" ? "text-primary" : "text-fg-secondary"}`}
+                    className={`text-sm font-semibold ${p.status === "confirmed" ? "text-primary" : "text-fg-secondary"}`}
                   >
-                    {t(`ghar.status.${m.proposal.status}`, {
-                      day: day(m.proposal.box.delivery_date),
-                    })}
+                    {outcome(p)}
                   </p>
                 )}
-                {m.proposal.status === "pending" && failed(m.proposal.id) && (
+                <OrderLink orderId={tiffinBooked(p)?.order_id ?? null} />
+                {p.status === "expired" && (
+                  <Button
+                    variant="secondary"
+                    isDisabled={send.isPending}
+                    onPress={() => askAgain(p)}
+                  >
+                    {t("ghar.askAgain")}
+                  </Button>
+                )}
+                {p.status === "pending" && failed(p.id) && (
                   <div className="flex flex-col items-start gap-2">
                     <p role="alert" className="text-sm font-semibold text-danger">
-                      {t(
-                        `ghar.errors.${failed(m.proposal.id)?.code?.replace(/\./g, "_") ?? "other"}`,
-                        {
-                          defaultValue: t("ghar.errors.other"),
-                        },
-                      )}
+                      {t(`ghar.errors.${failed(p.id)?.code?.replace(/\./g, "_") ?? "other"}`, {
+                        defaultValue: t("ghar.errors.other"),
+                      })}
                     </p>
-                    {isStale(failed(m.proposal.id)) && (
-                      <Button
-                        variant="secondary"
-                        onPress={() => m.proposal && askAgain(m.proposal)}
-                      >
+                    <OrderLink orderId={bookedOrderId(failed(p.id))} />
+                    {isStale(failed(p.id)) && (
+                      <Button variant="secondary" onPress={() => askAgain(p)}>
                         {t("ghar.askAgain")}
                       </Button>
                     )}
                   </div>
                 )}
               </section>
-            )}
+            ))}
           </div>
         ))}
         {send.isPending && <Bubble from="bot">{t("ghar.thinking")}</Bubble>}
-        {messages.some((m) => m.proposal) && (
+        {messages.some((m) => m.proposals?.length) && (
           <p className="text-sm text-fg-secondary">{t("ghar.safe")}</p>
         )}
         <div ref={end} />
@@ -214,6 +223,7 @@ function Assistant() {
           placeholder={t("ghar.placeholder")}
           autoComplete="off"
           enterKeyHint="send"
+          maxLength={MAX_MESSAGE}
           className="min-h-12 min-w-0 flex-1 rounded-full border border-line-strong bg-surface px-4 text-fg outline-none placeholder:text-fg-muted focus-visible:shadow-focus"
         />
         <IconButton
@@ -229,14 +239,32 @@ function Assistant() {
   );
 }
 
-/** One chat bubble: yours on the right in ink, Ghar Saathi's on the left on kraft. @param {{ from: "me" | "bot", children: import("react").ReactNode }} props */
+/** The booked tiffin's order, where its steps show from kitchen to door (M7 §3.7). @param {{ orderId: string | null }} props */
+function OrderLink({ orderId }) {
+  const { t } = useTranslation();
+  if (!orderId) return null;
+  return (
+    <Link
+      to="/orders/$orderId/track"
+      params={{ orderId }}
+      className="flex min-h-12 items-center font-semibold text-link underline underline-offset-[3px]"
+    >
+      {t("ghar.tiffin.view")}
+    </Link>
+  );
+}
+
+/**
+ * One chat bubble: yours on the right in ink, Ghar Saathi's on the left on kraft. Line breaks are
+ * kept: the API joins a reply and its follow-up questions with a blank line.
+ * @param {{ from: "me" | "bot", children: import("react").ReactNode }} props */
 function Bubble({ from, children }) {
   return from === "me" ? (
-    <p className="max-w-[82%] self-end rounded-[16px_16px_4px_16px] bg-fg px-3.5 py-2.5 text-bg">
+    <p className="max-w-[82%] self-end rounded-[16px_16px_4px_16px] bg-fg px-3.5 py-2.5 whitespace-pre-line text-bg">
       {children}
     </p>
   ) : (
-    <p className="max-w-[86%] self-start rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5">
+    <p className="max-w-[86%] self-start rounded-[16px_16px_16px_4px] bg-surface px-3.5 py-2.5 whitespace-pre-line">
       {children}
     </p>
   );
