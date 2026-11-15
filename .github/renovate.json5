@@ -1,0 +1,112 @@
+// Renovate: dependency update pull requests (handbook 11 §11.1, 13 §13.10).
+// Does nothing until the Renovate GitHub App is installed on the repository
+// (https://github.com/apps/renovate). Check a change with:
+//   npx --yes --package renovate -- renovate-config-validator .github/renovate.json5
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+
+  // Weekly, early on Monday in India, so the week's pull requests are waiting at the start of it.
+  timezone: "Asia/Kolkata",
+  schedule: ["* 0-5 * * 1"],
+
+  // The issue that lists every pending, grouped and rate-limited update.
+  dependencyDashboard: true,
+
+  // The owner reviews and merges every update (CODEOWNERS); nothing merges itself.
+  automerge: false,
+
+  // The project adopts a release only once it is at least two weeks old. "strict": no branch or
+  // pull request at all until then (the dashboard lists the pending ones).
+  minimumReleaseAge: "14 days",
+  internalChecksFilter: "strict",
+
+  labels: ["dependencies"],
+
+  // Conventional Commits, as lefthook's commit-msg hook requires: "chore(deps): update ...".
+  semanticCommits: "enabled",
+  semanticCommitType: "chore",
+  semanticCommitScope: "deps",
+
+  // The config:recommended list (this setting replaces it, it does not add to it), plus the
+  // spikes, which are throwaway experiments outside the pnpm and uv workspaces.
+  ignorePaths: [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    "spikes/**",
+  ],
+
+  // Refresh uv.lock and pnpm-lock.yaml within the existing ranges once a week, which picks up
+  // fixed transitive dependencies that no manifest names.
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["* 0-5 * * 1"],
+  },
+
+  // Security fixes: a pull request as soon as a fixed version exists, outside the weekly schedule
+  // and without the two-week wait (Renovate's default for vulnerability alerts), so the owner can
+  // decide; GitHub's alerts plus osv.dev for direct Python and npm dependencies.
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: {
+    labels: ["dependencies", "security"],
+  },
+
+  packageRules: [
+    // Python: the uv workspace (pyproject.toml files, pep621 manager) and uv.lock.
+    {
+      matchManagers: ["pep621"],
+      addLabels: ["python"],
+    },
+    {
+      matchManagers: ["pep621"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "Python minor and patch",
+    },
+
+    // JS: the pnpm workspace and pnpm-lock.yaml. Renovate runs the pnpm version named in
+    // package.json "packageManager" and updates that field like any other dependency.
+    {
+      matchManagers: ["npm"],
+      addLabels: ["javascript"],
+    },
+    {
+      matchManagers: ["npm"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "JS minor and patch",
+    },
+
+    // GitHub Actions in .github/workflows.
+    {
+      matchManagers: ["github-actions"],
+      addLabels: ["ci"],
+    },
+    {
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "GitHub Actions minor and patch",
+    },
+
+    // Container images: the Dockerfiles and infra/compose.
+    {
+      matchManagers: ["dockerfile", "docker-compose"],
+      addLabels: ["docker"],
+    },
+    {
+      matchManagers: ["dockerfile", "docker-compose"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "Docker images minor and patch",
+    },
+
+    // Major updates stay one pull request per package, so each breaking change is read on its own.
+    {
+      matchUpdateTypes: ["major"],
+      addLabels: ["major"],
+    },
+  ],
+}

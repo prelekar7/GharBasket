@@ -1,0 +1,9 @@
+# Python advisories accepted by the project (read by scripts/dependency-audit.sh).
+#
+# One advisory ID per line (PYSEC-..., GHSA-... or CVE-..., as pip-audit prints them), then a
+# comment: the package, why it does not affect us or why it cannot be upgraded yet, and the date
+# by which it is reviewed again. Remove the line when the package is upgraded. The fix is always
+# to upgrade; a line here needs a reviewer's approval in its pull request.
+#
+# Example:
+# GHSA-xxxx-xxxx-xxxx  # somepkg 1.2.3: only the CLI is affected and we import the library; review 2027-01-15

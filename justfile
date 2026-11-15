@@ -84,6 +84,10 @@ infra-check:
 ci-local target *args:
     ./scripts/ci-local.sh {{target}} {{args}}
 
+# Check uv.lock and pnpm-lock.yaml for known vulnerabilities, as CI does (`just audit python` or `just audit js` for one)
+audit *args:
+    ./scripts/dependency-audit.sh {{args}}
+
 # Run the API with auto-reload on http://localhost:8000 (readable logs; docs at /v1/docs)
 dev:
     APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-proxy-headers --no-access-log
