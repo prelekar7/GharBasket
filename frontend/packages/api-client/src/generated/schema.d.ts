@@ -705,7 +705,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Admin: revoke a staff grant or cancel a pending one (audit-logged; reaches the person's token within 15 minutes) */
+        /**
+         * Admin: revoke a staff grant or cancel a pending one (audit-logged; the person's next request no longer has the role)
+         * @description Roles travel in the 15-minute access token. After the revoke commits, the grant goes on a Valkey list (platform/revocations.py) that refuses, with 401 auth.invalid_token, any token issued before the revoke that still carries it. The app then refreshes, and the new token is read from user_roles. If Valkey is unreachable the old token keeps the role until it expires (at most 15 minutes), as before.
+         */
         delete: operations["revoke_role_v1_admin_user_roles__grant_id__delete"];
         options?: never;
         head?: never;
@@ -14352,7 +14355,7 @@ export interface components {
         };
         /**
          * RefreshIn
-         * @description Apps send the refresh token; browsers send `{}` and the `gb_rt` cookie carries it.
+         * @description Apps send the refresh token; browsers send `{}`: the `__Secure-gb_rt` cookie carries it.
          */
         RefreshIn: {
             /** Refresh Token */

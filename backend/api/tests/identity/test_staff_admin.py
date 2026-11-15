@@ -6,14 +6,18 @@ from typing import Any
 
 import httpx2
 import pytest
+from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity.models import PendingRoleGrant, User, UserRole
+from gharbasket.platform import revocations
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry
-from gharbasket.platform.tokens import ACCESS_TOKEN_TTL, verify_access_token
+from gharbasket.platform.revocations import ROLES_CHANGED
+from gharbasket.platform.tokens import ACCESS_TOKEN_TTL, AccessClaims, verify_access_token
+from gharbasket.platform.valkey import create_valkey
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
 from .. import seed_cache as cached
@@ -25,6 +29,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.services]
 
 SETTINGS = make_settings()
 OTHER_HUB = uuid.UUID("0199a1b2-0000-7000-8000-0000000000bb")
+REVOKED_USER = uuid.UUID("0199a1b2-0000-7000-8000-0000000000cc")
 GRANT_KEYS = {"id", "role", "scope_type", "scope_id", "scope_label", "status", "verified_at"}
 USER_KEYS = {"id", "name", "phone_e164", "locale", "status", "last_seen_at", "roles"}
 PENDING_KEYS = {
@@ -789,7 +794,8 @@ async def test_a_revoked_admins_old_token_can_neither_grant_nor_revoke(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     """The token still says admin for up to 15 minutes, but role changes check the database
-    (owner's decision, 2026-10-26); reads keep the token's window."""
+    (owner's decision, 2026-10-26). Without Valkey, as here, reads keep the token's window; with
+    it the old token is refused outright (the F7 tests below)."""
     api = clients()
     first = await admin(api, google, db_session)
     second = await admin(api, google, db_session, 2)
@@ -880,6 +886,140 @@ async def test_revoking_one_of_two_roles_leaves_the_other(
         await identity_api.holds_role(db_session, target.id, "franchise_owner", SEED_HUB_ID)
         is False
     )
+
+
+# --- revoke reaches the next request (ASVS F7; platform/revocations.py) -----------------------
+
+
+async def test_with_valkey_a_revoked_role_stops_at_the_persons_next_request(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession, valkey: Redis
+) -> None:
+    api = clients(valkey=valkey)
+    boss = await admin(api, google, db_session)
+    manager = await person(
+        api, google, db_session, 2, roles=(hub_role("hub_manager"), hub_role("franchise_owner"))
+    )
+    hub_staff = f"/v1/hubs/{SEED_HUB_ID}/staff"
+    grant = await grant_of(db_session, manager.id, "franchise_owner")
+    assert (await api.get(hub_staff, headers=manager.headers)).status_code == 200
+
+    revoked = await api.delete(f"/v1/admin/user-roles/{grant.id}", headers=boss.headers)
+    stale = await api.get(hub_staff, headers=manager.headers)
+    stale_me = await api.get("/v1/me", headers=manager.headers)
+    refreshed = await api.post(
+        "/v1/auth/refresh", json={"refresh_token": manager.tokens["refresh_token"]}
+    )
+    fresh = bearer(refreshed.json()["access_token"])
+
+    assert revoked.status_code == 204
+    # The token from before the revoke still carries the role: refused, even for reading.
+    assert stale.status_code == stale_me.status_code == 401
+    assert stale.json()["code"] == "auth.invalid_token"
+    assert stale.json()["detail"] == ROLES_CHANGED
+    # The refresh reads user_roles: the other role remains and works at once.
+    assert verify_access_token(make_settings(), refreshed.json()["access_token"]).roles == (
+        "customer",
+        f"hub_manager:{SEED_HUB_ID}",
+    )
+    assert (await api.get(hub_staff, headers=fresh)).status_code == 200
+    # Other people's tokens are not touched: the admin who revoked keeps working.
+    assert (await api.get(hub_staff, headers=boss.headers)).status_code == 200
+
+
+async def test_with_valkey_a_revoked_admin_is_refused_at_the_next_request(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession, valkey: Redis
+) -> None:
+    api = clients(valkey=valkey)
+    boss = await admin(api, google, db_session)
+    other = await admin(api, google, db_session, 2)
+    grant = await grant_of(db_session, other.id, "admin")
+
+    await api.delete(f"/v1/admin/user-roles/{grant.id}", headers=boss.headers)
+    lookup = await api.get("/v1/admin/users", params={"staff": "true"}, headers=other.headers)
+    refreshed = await api.post(
+        "/v1/auth/refresh", json={"refresh_token": other.tokens["refresh_token"]}
+    )
+    as_customer = bearer(refreshed.json()["access_token"])
+
+    assert lookup.status_code == 401 and lookup.json()["detail"] == ROLES_CHANGED
+    assert (await api.get("/v1/me", headers=as_customer)).status_code == 200
+    again = await api.get("/v1/admin/users", params={"staff": "true"}, headers=as_customer)
+    assert again.status_code == 403
+
+
+async def test_with_valkey_a_role_given_back_works_at_once(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession, valkey: Redis
+) -> None:
+    """The admin's grant clears the revocation, so the new token carrying it is not refused."""
+    api = clients(valkey=valkey)
+    boss = await admin(api, google, db_session)
+    manager = await person(api, google, db_session, 2, roles=(hub_role("hub_manager"),))
+    grant = await grant_of(db_session, manager.id, "hub_manager")
+    hub_staff = f"/v1/hubs/{SEED_HUB_ID}/staff"
+
+    await api.delete(f"/v1/admin/user-roles/{grant.id}", headers=boss.headers)
+    assert await valkey.hexists(f"gb:revoked-grants:{manager.id}", f"hub_manager:{SEED_HUB_ID}")
+    given_back = await give(api, boss, grant_body(2))
+    refreshed = await api.post(
+        "/v1/auth/refresh", json={"refresh_token": manager.tokens["refresh_token"]}
+    )
+
+    assert given_back.status_code == 201, given_back.text
+    assert not await valkey.exists(f"gb:revoked-grants:{manager.id}")
+    response = await api.get(hub_staff, headers=bearer(refreshed.json()["access_token"]))
+    assert response.status_code == 200
+
+
+async def test_valkey_being_down_leaves_a_revoke_working_and_the_old_token_until_it_expires(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    down = create_valkey("redis://127.0.0.1:1/0")
+    api = clients(valkey=down)
+    boss = await admin(api, google, db_session)
+    manager = await person(api, google, db_session, 2, roles=(hub_role("hub_manager"),))
+    grant = await grant_of(db_session, manager.id, "hub_manager")
+
+    revoked = await api.delete(f"/v1/admin/user-roles/{grant.id}", headers=boss.headers)
+    stale = await api.get(f"/v1/hubs/{SEED_HUB_ID}/staff", headers=manager.headers)
+    await down.aclose()
+
+    assert revoked.status_code == 204
+    assert await db_session.get(UserRole, grant.id, populate_existing=True) is None
+    assert stale.status_code == 200  # the 15-minute bound of the access token, as before
+
+
+def _claims(roles: tuple[str, ...], issued_at: datetime) -> AccessClaims:
+    return AccessClaims(
+        user_id=REVOKED_USER,
+        session_id=uuid.uuid4(),
+        roles=roles,
+        token_id="t",
+        expires_at=issued_at + ACCESS_TOKEN_TTL,
+        issued_at=issued_at,
+    )
+
+
+async def test_only_tokens_issued_by_the_revocation_second_and_carrying_the_grant_are_refused(
+    valkey: Redis,
+) -> None:
+    revoked_at = datetime(2026, 11, 15, 10, 0, 0, tzinfo=UTC)
+    grant = f"hub_manager:{SEED_HUB_ID}"
+    await revocations.mark_grants_revoked(valkey, REVOKED_USER, [grant], now=revoked_at)
+    margin = timedelta(seconds=revocations.CLOCK_SKEW_S)
+
+    before = await revocations.refusal(valkey, _claims(("customer", grant), revoked_at))
+    in_margin = await revocations.refusal(valkey, _claims(("customer", grant), revoked_at + margin))
+    after = await revocations.refusal(
+        valkey, _claims(("customer", grant), revoked_at + margin + timedelta(seconds=1))
+    )
+    without = await revocations.refusal(valkey, _claims(("customer", "admin"), revoked_at))
+    customer = await revocations.refusal(valkey, _claims(("customer",), revoked_at))
+    ttl = await valkey.ttl(f"gb:revoked-grants:{REVOKED_USER}")
+
+    assert before == in_margin == ROLES_CHANGED
+    assert after is None and without is None and customer is None
+    # Kept as long as a token issued by then can live.
+    assert revocations.TTL_S < ttl <= revocations.TTL_S + revocations.CLOCK_SKEW_S
 
 
 # --- the hub's staff --------------------------------------------------------------------------

@@ -62,9 +62,9 @@ sequenceDiagram
 - **Firebase ID token check:** the API verifies it itself with PyJWT against Google's published keys (audience, issuer, expiry). It does not use `firebase-admin`.
 - **Our tokens:** an access JWT (HS256 with a `kid`), valid 15 minutes; an opaque refresh token stored only as HMAC-SHA256 with a server pepper, in a session of at most 30 days. Refresh tokens rotate on every use. A used token that comes back within 2 minutes while its child is unused (lost response, two tabs) gets a replacement; any other reuse revokes the session (`auth.refresh_reused`).
 - **Apps (Capacitor)** send `Authorization: Bearer` and keep the refresh token in secure storage.
-- **Browsers (PWA, console)** send `X-GB-Client: web` and never see a token. The API sets httpOnly cookies `__Host-gb_at` (Path=/, 15 minutes) and `gb_rt` (Path=/v1/auth). Vercel rewrites `/v1/*` to the API, so the cookies are same-origin.
+- **Browsers (PWA, console)** send `X-GB-Client: web` and never see a token. The API sets httpOnly cookies `__Host-gb_at` (Path=/, 15 minutes) and `__Secure-gb_rt` (Path=/v1/auth; called `gb_rt` until 2026-11, which is still read during the rename, handbook 13 §13.3). Vercel rewrites `/v1/*` to the API, so the cookies are same-origin.
 - **CSRF:** a cookie-authenticated POST, PATCH, PUT or DELETE without `X-GB-Client: web`, or from an Origin outside `WEB_ORIGINS`, gets 403 `auth.csrf_rejected`.
-- **Instant sign-out:** logout, logout-all, device sign-out and refresh reuse put the session on a Valkey deny-list for the access token's remaining life. A refresh always checks the session in Postgres.
+- **Instant sign-out:** logout, logout-all, device sign-out and refresh reuse put the session on a Valkey deny-list for the access token's remaining life. A refresh always checks the session in Postgres. A staff grant an admin revokes is refused at the person's next request in the same way (handbook 13 §13.3).
 - **Rate limits:** fixed windows in Valkey. Exchange: 30 per 10 minutes per address and 10 per 10 minutes per phone (keyed by a hash, never the number). Refresh: 300 per minute per address. If Valkey is down, requests are allowed.
 - **Dev login:** `dev_phone` signs in without OTP, only when `APP_ENV=dev`.
 - **Roles with scopes:** `identity.user_roles(user_id, role, scope_type, scope_id, status)`.

@@ -85,8 +85,14 @@ Browser (cookie) mode, implemented in `feat/M1-auth-web-cookies`:
   something. The API then sets httpOnly cookies instead of returning tokens: the JSON fields
   access_token and refresh_token are null.
     __Host-gb_at  access token   Secure; HttpOnly; SameSite=Lax; Path=/;          Max-Age=900
-    gb_rt         refresh token  Secure; HttpOnly; SameSite=Lax; Path=/v1/auth;   Max-Age=rest of the session
+    __Secure-gb_rt  refresh token  Secure; HttpOnly; SameSite=Lax; Path=/v1/auth; Max-Age=rest of the session
   Refresh: POST /v1/auth/refresh with {} (the cookie carries the token). Logout clears both cookies.
+  The refresh cookie was "gb_rt" until 2026-11 (ASVS F8; platform/web_session.py has the steps). The
+  API reads "__Secure-gb_rt" first, else "gb_rt". It sets "__Secure-gb_rt" on every exchange and
+  refresh, and clears a "gb_rt" sent with it. A client that sent no "__Secure-gb_rt" also gets
+  "gb_rt" with the same value, until the console reads the new name (target 2026-11-30); after that
+  "gb_rt" is only cleared. The old name stops being read 30 days later (target 2026-12-31), when no
+  session that started under it can still be alive. Logout clears both names.
   CSRF: a cookie-authenticated POST/PATCH/PUT/DELETE without X-GB-Client: web, or from an Origin not
   in WEB_ORIGINS, is 403 "auth.csrf_rejected". A Bearer header always wins over the cookie.
 Instant sign-out: logout, logout-all, device sign-out and refresh reuse take effect at once.
@@ -465,7 +471,7 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
 ```
 
 - **Pending grants.** For a person who has never signed in. At the exchange that creates the user (§3.1, `is_new_user`), every unexpired pending grant for that phone becomes a `verified` row of `user_roles` in the same transaction, audit-logged as `roles.granted` by the admin who gave it. Then the pending row is deleted. A pending grant expires after 30 days (`expire_pending_grants`, §6). A second grant of the same role and scope to the number is 409 `identity.role_exists`.
-- **Revoke takes effect at the next refresh.** Roles travel in the access token (§3.1). So a revoked role stops working within 15 minutes, at the next refresh, which reads `user_roles`. Signing the person out at once is the existing logout-all; the console offers no button for it in v1.
+- **Revoke takes effect at the person's next request** (ASVS F7, 2026-11). Roles travel in the access token (§3.1). After the revoke commits, the API writes the grant and the second it was revoked to Valkey (`gb:revoked-grants:<user id>`, kept for one token lifetime). Any token that still carries that grant and was issued by then is refused with 401 `auth.invalid_token`. The app refreshes; the refresh reads `user_roles`, so the new token has the person's other roles and is not refused. Only tokens with a role besides `customer` are checked, in the same Valkey round trip as the sign-out deny-list; customers' requests are unchanged. Giving the role back through `POST /v1/admin/user-roles` clears the entry. No migration and no database read per request. If Valkey is down the check is skipped (logged as `revocation_check_skipped`), and the role lasts until the token expires (at most 15 minutes), as before. Partner suspension (M8) and the end of a captain's appointment (M9) still take effect at the next refresh: their consumers run in the outbox relay, which has no Valkey client yet. Signing the person out at once is the existing logout-all; the console offers no button for it in v1.
 - **Never a phone in clear outside the admin lookup.** `HubStaff` masks it; hub managers who need to call a partner use M8's partner profile (`GET /v1/partners/{id}`), which already shows it to them.
 - **Facades.** The scope labels come from `community.api.society_labels` and `hub_ops.api.get_hub`, which both exist; an NGO's label is null until M9 §3.5 ships an NGO facade. New in `identity.api`: `households_per_society(session, society_ids) -> dict[UUID, int]`, for M9's staff society list (M9 §3.9).
 - **Permissions:** `users:read`, `roles:revoke` and `staff:read` are new (§7).
@@ -478,7 +484,7 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
   - A number's grant and its first sign-in take the same Postgres advisory lock, so a grant given at the moment of sign-up is either claimed or made directly, never stranded. The operator command and the seed still need the account (`grant_role`).
   - **Owner's decisions (2026-10-26).**
     - Admin is never a pending grant: `POST /v1/admin/user-roles` with `admin` for a number with no account is 404 `identity.user_not_found`, like the partner roles, so a mistyped or recycled number cannot become an admin. `pending_role_grants.role` allows only hub_manager, franchise_owner, ngo_coordinator and catalog_editor.
-    - Role changes check the database, not only the token. A grant, a revoke, and giving or cancelling a pending grant first confirm that the caller still holds a verified admin row (taken `FOR SHARE`, so a concurrent revoke of the caller waits or is seen); if not, 403 `identity.not_admin`. A revoked admin's token still reads (the lookup, the staff and pending lists, the hub's staff) for up to 15 minutes.
+    - Role changes check the database, not only the token. A grant, a revoke, and giving or cancelling a pending grant first confirm that the caller still holds a verified admin row (taken `FOR SHARE`, so a concurrent revoke of the caller waits or is seen); if not, 403 `identity.not_admin`. Since 2026-11 a revoked admin's token is also refused for reading at the next request (the revoke bullet above); only if Valkey is down does it still read (the lookup, the staff and pending lists, the hub's staff) for up to 15 minutes.
   - Revoking an admin grant takes every verified admin row `FOR UPDATE`, in id order and before the target row, so two admins removing each other wait for one another (no deadlock): the second finds its own admin row gone and gets 403 `identity.not_admin`. `last_admin` counts verified admin grants and stays as a backstop; with the database check a verified caller removing another verified admin always leaves at least one. A suspended admin grant can always be removed.
   - `GET /v1/hubs/{id}/staff`: an unknown hub gives an empty page for an admin. Pages by (role, name, grant id). `scope_label` for a hub is the hub's name ("Kharghar hub").
 
