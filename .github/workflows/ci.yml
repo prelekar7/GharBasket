@@ -274,6 +274,11 @@ jobs:
       - name: API client tests
         run: pnpm --filter @gharbasket/api-client test
 
+      # The mobile PWA, UI kit and console carry their own suites (vitest, node --test); until now
+      # only the API client's ran here, so a PR's frontend tests were never run by CI.
+      - name: Mobile PWA, UI kit and console tests
+        run: pnpm --filter @gharbasket/mobile --filter @gharbasket/ui --filter @gharbasket/console --workspace-concurrency=1 run test
+
       - name: Build every frontend package
         run: pnpm --filter "./frontend/**" --workspace-concurrency=1 run build
 
