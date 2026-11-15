@@ -128,7 +128,7 @@ Production for the pilot is not set up yet. Its plan is ADR-0036; the repository
 3. Copy the API's deploy hook (Settings → Deploy Hook).
 4. Add the GitHub Actions secrets `DATABASE_URL_DIRECT` (Neon, direct), `RENDER_DEPLOY_HOOK_URL`, `JOBS_TOKEN` and `STAGING_API_URL` (done; the deploy workflow needs exactly these four).
 5. Add an UptimeRobot monitor on `/v1/health` every 5 minutes (email alerts), and the three healthchecks.io checks of ADR-0033 (`scheduler`, `cutoff`, `ops`; §12.5) with a Telegram group and email as their notifications. Their ping URLs go into Infisical `staging` as `HC_PING_URL`, `HC_CUTOFF_URL` and `HC_OPS_URL`; `HC_OPS_URL` is also a GitHub Actions secret.
-6. Minute-level jobs (ADR-0032): every `runner: vm` entry of `infra/jobs/schedule.yaml`, the one schedule of every job, is called by `scripts/jobs_scheduler.py` on the Oracle VM (the minute-level ones run only in short windows around the events that need them, to let Neon sleep; set the Neon compute to a fixed 0.25 CU). It reads the crons in IST and calls `POST <STAGING_API_URL>/v1/internal/jobs/<name>` with `Authorization: Bearer <JOBS_TOKEN>` and the minute as `scheduled_for`; a call that does not reach the app (429, 502–504, connection error, timeout) is tried again three times. Once per VM: `just jobs-vm setup <ip> <key>`, then `infisical run --env=staging -- just jobs-vm env <ip> <key>` (writes `API_URL` and `JOBS_TOKEN` to a mode-600 file and starts the service; the optional `HC_PING_URL`, `HC_CUTOFF_URL` and `HC_OPS_URL` turn on the healthchecks.io alerts, ADR-0033). The service pulls `main` every 15 minutes, so a merged schedule needs nothing more; run `env` again after a new `JOBS_TOKEN`. `just jobs-vm status <ip> <key>` shows the last calls, `just jobs-vm due <ip> <key> 2026-11-05T21:00` the jobs of a minute. The `actions` entries run from `jobs-staging.yml`.
+6. Minute-level jobs (ADR-0032): every `runner: vm` entry of `infra/jobs/schedule.yaml`, the one schedule of every job, is called by `scripts/jobs_scheduler.py` on the Oracle VM (the minute-level ones run only in short windows around the events that need them, to let Neon sleep; set the Neon compute to a fixed 0.25 CU). It reads the crons in IST and calls `POST <STAGING_API_URL>/v1/internal/jobs/<name>` with `Authorization: Bearer <JOBS_TOKEN>` and the minute as `scheduled_for`; a call that does not reach the app (429, 502–504, connection error, timeout) is tried again three times. Once per VM: `just jobs-vm setup <ip> <key>`, then `infisical run --env=staging -- just jobs-vm env <ip> <key>` (writes `API_URL` and `JOBS_TOKEN` to a mode-600 file and starts the service; the optional `HC_PING_URL`, `HC_CUTOFF_URL` and `HC_OPS_URL` turn on the healthchecks.io alerts, ADR-0033). The service pulls `main` every 15 minutes, so a merged schedule needs nothing more; run `env` again after a new `JOBS_TOKEN`. `just jobs-vm status <ip> <key>` shows the last calls, `just jobs-vm due <ip> <key> 2026-11-05T21:00` the jobs of a minute. The `actions` entries run from `jobs-staging.yml`. Production has its own instance on the same VM and its own workflow (§12.9, "Production's scheduled jobs").
 7. Training jobs (`training-jobs.yml`, ADR-0025): add the GitHub Actions secrets `DATA_GOV_IN_API_KEY` (data.gov.in → My account → API key), `S3_ENDPOINT_URL`, `S3_ACCESS_KEY` and `S3_SECRET_KEY`: an R2 token that can read and write the staging buckets `gb-staging-lake` and `gb-staging-mlflow` (the `gb-lake` / `gb-mlflow` names are the local SeaweedFS defaults; staging's buckets are `gb-staging-*`, set in `training-jobs.yml`, `render.yaml` and `scripts/mandi-on-vm.sh` and `scripts/mandi-on-mac.sh`). Best its own token (Object Read & Write on those two buckets), kept in Infisical `staging` as `TRAINING_S3_ACCESS_KEY` / `TRAINING_S3_SECRET_KEY` and copied to the GitHub secrets without printing them; the VM and Mac collectors fall back to the API's `S3_*` keys when it is absent, and `DATABASE_URL_RO`: `infisical run --env=staging -- scripts/neon-ro-role.sh` creates the read-only role `gharbasket_ro` (SELECT on the catalog, subscriptions, orders and intel schemas and the two household tables only; every transaction read-only), checks it cannot write or read `identity.users`, and sets the secret without printing it. Running it again rotates the password. Until the secrets exist each job skips with a notice. `collect_mandi` cannot run on Actions (api.data.gov.in refuses connections from outside India): it runs on an Oracle Cloud Always Free VM in Mumbai (VM.Standard.E2.1.Micro, Ubuntu 24.04): `scripts/mandi-on-vm.sh setup <ip> <key>` installs it with a daily systemd timer at 18:45 IST (a run missed while the VM was down runs at boot; each run pulls `main` first), `infisical run --env=staging -- scripts/mandi-on-vm.sh env <ip> <key>` copies its secrets, and `run` and `status` show the log and the timer. A Mac in India with `scripts/mandi-on-mac.sh install` (launchd, daily 18:45; needs `infisical login`) is the fallback; it ran the job until the VM took over and is now uninstalled.
 
 8. The caller's address (M0 §6.3). One name, `ORIGIN_SECRET`, in Infisical, on Vercel and on Render. Do this **before** merging the API change that reads it, because staging refuses to start without `ORIGIN_SECRET` and `CLIENT_IP_SOURCE`.
@@ -378,7 +378,7 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 
 ## 12.9 Production for the pilot (ADR-0036)
 
-**State:** not set up. The repository side is built and inert until its secrets exist: `deploy-prod.yml`, `backup-prod.yml`, the `prod` job of `neon-usage.yml`. Everything that needs an account is an owner step below. [ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md) runs the real-money test on staging first; this section is for the launch after it, if the owner chooses a separate production then (ADR-0037 §6).
+**State:** not set up. The repository side is built and inert until its secrets exist: `deploy-prod.yml`, `backup-prod.yml`, `jobs-prod.yml`, the `prod` jobs of `neon-usage.yml` and `smoke-ml.yml`, and the `prod` target of the VM scheduler (`scripts/jobs-on-vm.sh`). Everything that needs an account is an owner step below. [ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md) runs the real-money test on staging first; this section is for the launch after it, if the owner chooses a separate production then (ADR-0037 §6).
 
 Production is a second copy of staging's deployment that shares nothing holding data or secrets: its own Infisical `prod` values (all generated fresh), Neon project, API, Valkey, ML service, R2 buckets, Firebase project, Razorpay live keys and alerts. **The hosts of the API, the ML service and the frontends are decided at pilot time** (owner; with Yash Salunkhe for the frontends). Render's free hours are used by staging, and Vercel Hobby is non-commercial. So nothing here assumes a plan. Values marked *TODO (owner)* are set once the hosts are chosen.
 
@@ -412,7 +412,7 @@ Production's secrets are never repository secrets, and they carry `PROD_` names.
 | Environment | Protection | Secrets (and variables) | Used by |
 |---|---|---|---|
 | `production` | Required reviewer: Prathamesh Relekar. Deployment branches: `main` only. Leave "prevent self-review" off while he is the only reviewer | `PROD_DATABASE_URL_DIRECT`, `PROD_DEPLOY_HOOK_URL`, `PROD_JOBS_TOKEN`, optional `PROD_ML_DEPLOY_HOOK_URL`; variable `PROD_API_URL` | `deploy-prod.yml` |
-| `production-ops` | No reviewers (the schedules run unattended). Deployment branches: `main` only | `PROD_DATABASE_URL_DIRECT`, `PROD_BACKUP_S3_ENDPOINT_URL`, `PROD_BACKUP_S3_ACCESS_KEY`, `PROD_BACKUP_S3_SECRET_KEY`, `PROD_NEON_API_KEY`, optional `PROD_NEON_PROJECT_ID`, `PROD_HC_OPS_URL`; optional variable `PROD_NEON_CU_HOURS_LIMIT` (default 100) | `backup-prod.yml`, `neon-usage.yml` (`prod` job) |
+| `production-ops` | No reviewers (the schedules run unattended). Deployment branches: `main` only | `PROD_DATABASE_URL_DIRECT`, `PROD_BACKUP_S3_ENDPOINT_URL`, `PROD_BACKUP_S3_ACCESS_KEY`, `PROD_BACKUP_S3_SECRET_KEY`, `PROD_NEON_API_KEY`, optional `PROD_NEON_PROJECT_ID`, `PROD_HC_OPS_URL`; `PROD_JOBS_TOKEN` and variable `PROD_API_URL` (set after the first deploy, checklist step 12); `PROD_ML_URL`, `PROD_ML_SERVICE_TOKEN`; optional variable `PROD_NEON_CU_HOURS_LIMIT` (default 100) | `backup-prod.yml`, `jobs-prod.yml`, `neon-usage.yml` and `smoke-ml.yml` (`prod` jobs) |
 
 Copy each value without printing it, for example `infisical run --env=prod -- sh -c 'printf %s "$DATABASE_URL_DIRECT" | gh secret set PROD_DATABASE_URL_DIRECT --env production'`. Variables are not secret: `gh variable set PROD_API_URL --env production --body https://api.gharbasket.co.in`.
 
@@ -429,6 +429,25 @@ Copy each value without printing it, for example `infisical run --env=prod -- sh
    - waits up to 20 minutes for `/v1/health` to report the commit;
    - runs `scripts/smoke-staging.sh` against production.
 
+### Production's scheduled jobs
+
+Production runs every job of `infra/jobs/schedule.yaml`, with the same entries and crons as staging, from the same two places (ADR-0032, ADR-0036):
+- **`vm` entries:** a second instance of the VM scheduler on the same Oracle VM, the systemd service `gharbasket-jobs-prod` (`scripts/jobs_scheduler.py --target prod`). It has its own env file `~/.config/gharbasket/jobs-prod.env` (`API_URL`, `JOBS_TOKEN`, `HC_PING_URL`, `HC_CUTOFF_URL`, `HC_OPS_URL`, all production's), its own state file and its own pull minute. It shares only the checkout and the schedule with staging's `gharbasket-jobs`.
+- **`actions` entries:** `jobs-prod.yml`, the twin of `jobs-staging.yml`, in the `production-ops` environment. Before it calls anything it checks that `PROD_API_URL` answers `/v1/health` as `prod`. `test_job_schedule.py` keeps the `on.schedule` lines of both workflows equal to the file.
+
+Staging's commands are unchanged; production's take `prod` after the command:
+
+| What | Staging (default) | Production |
+|---|---|---|
+| Install the service | `just jobs-vm setup <ip> <key>` | `just jobs-vm setup prod <ip> <key>`: installs and enables it, but systemd skips it until its env file exists |
+| Write the secrets and start | `infisical run --env=staging -- just jobs-vm env <ip> <key>` | `infisical run --env=prod -- just jobs-vm env prod <ip> <key>`: needs `PROD_API_URL` and `JOBS_TOKEN` in Infisical `prod`; it refuses when `APP_ENV` is not `prod`, the URL looks like staging's or is not https |
+| Its last calls | `just jobs-vm status <ip> <key>` | `just jobs-vm status prod <ip> <key>` |
+| Stop it | `sudo systemctl disable --now gharbasket-jobs` on the VM | `sudo systemctl disable --now gharbasket-jobs-prod` |
+
+In Infisical `prod` the healthchecks variables keep their staging names and hold production's checks: `HC_PING_URL` is `prod-scheduler`, `HC_CUTOFF_URL` is `prod-cutoff` and `HC_OPS_URL` is `prod-ops` (the same URL as `PROD_HC_OPS_URL` in GitHub). A new production `JOBS_TOKEN` goes to three places: Infisical `prod`, `PROD_JOBS_TOKEN` in both GitHub environments, and the VM (`env prod` again).
+
+The schedule is staging's, written around Neon's free compute hours (the windows in `infra/jobs/schedule.yaml`, and `reconcile_payments` every 2 to 3 hours instead of M5's hourly). Production follows it until the pilot's plan is chosen; a production-only schedule would be a change to the schedule's format and its tests.
+
 ### Bringing production up (checklist)
 
 Steps marked **[owner]** need an account and only Prathamesh Relekar does them. Do them in this order.
@@ -440,10 +459,12 @@ Steps marked **[owner]** need an account and only Prathamesh Relekar does them. 
 6. **[owner]** Firebase: a new project on the plan that sends real SMS, with phone sign-in on and **no test phone numbers**. Add `app.gharbasket.co.in` and `gharbasket.co.in` as authorised domains. Create the FCM service account.
 7. **[owner]** Razorpay: put the live keys in Infisical `prod`. Add a live webhook to `https://api.gharbasket.co.in/v1/payments/webhook/razorpay` and store its secret.
 8. **[owner]** Hosts: create the API service `gharbasket-api-prod` (`backend/api/Dockerfile`, health check `/v1/health`), its Valkey, and the ML service `gharbasket-ml-prod`. Turn auto-deploy off on both and enter the settings table. Copy the deploy hooks.
-9. **[owner]** GitHub → Settings → Environments: create `production` and `production-ops` with the protection, secrets and variables above.
-10. **[owner]** Alerts: the healthchecks.io checks `prod-cutoff`, `prod-scheduler` and `prod-ops` (`PROD_HC_OPS_URL`); an UptimeRobot monitor on production's `/v1/health`; the Grafana 5xx rule for `gharbasket-api-prod`.
-11. **[owner]** The VM scheduler's second target, with production's URL, `JOBS_TOKEN` and healthchecks URLs. This waits for the repository change listed below.
-12. The first deploy, as above, using a temporary `PROD_API_URL` (the host's own address) until the domain move.
+9. **[owner]** GitHub → Settings → Environments: create `production` and `production-ops` with the protection, secrets and variables above. Leave `PROD_JOBS_TOKEN` and `PROD_API_URL` out of `production-ops` until step 12, or `jobs-prod.yml` fails (and alerts) on an API that is not there yet.
+10. **[owner]** Alerts: the healthchecks.io checks `prod-cutoff` (cron `0 21 * * *`, Asia/Kolkata, 10 minutes of grace), `prod-scheduler` (period 1 hour, grace 15 minutes) and `prod-ops`, set up as staging's three (§12.5). Put their ping URLs in Infisical `prod` as `HC_CUTOFF_URL`, `HC_PING_URL` and `HC_OPS_URL`, and `prod-ops`'s also in `production-ops` as `PROD_HC_OPS_URL`. Then an UptimeRobot monitor on production's `/v1/health` and the Grafana 5xx rule for `gharbasket-api-prod`.
+11. The first deploy, as above, using a temporary `PROD_API_URL` (the host's own address) until the domain move. Put the same address in Infisical `prod` as `PROD_API_URL`.
+12. **[owner]** Scheduled jobs (above), once the first deploy is up:
+    - `just jobs-vm setup prod <ip> <key>`, then `infisical run --env=prod -- just jobs-vm env prod <ip> <key>`. Check `just jobs-vm status prod <ip> <key>` shows `started prod` and calls at the next window, and that `prod-scheduler` gets its first ping at the next full hour;
+    - in `production-ops`, the secret `PROD_JOBS_TOKEN` and the variable `PROD_API_URL`. Run **Scheduled jobs (production)** once by hand with `ops_check` (it clears `prod-ops`).
 13. Run **Backup production** once by hand. Then Rhythm Thakur and Manish Raje do a restore drill into a separate database before the first real order.
 14. The reviewed load of the real hub, societies, catalog and price list, festival calendar and staff grants. No synthetic people, orders or weeks.
 15. **Frontends** (Yash Salunkhe with the owner): the production PWA and console projects. The PWA gets production's `ORIGIN_SECRET` and `VITE_FIREBASE_*`, with `VITE_FIREBASE_TEST_MODE` unset. The console gets `GB_API_MOCK=false` and **no `GB_DEV_LOGIN`**.
@@ -467,7 +488,7 @@ Production takes `api.`, `app.` and the bare `gharbasket.co.in`. Staging moves t
    - on Render: `WEB_ORIGINS`, `PUBLIC_WEB_URL`, `APP_WEB_URL`, `CONSOLE_URL`;
    - on Vercel: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL`, `GB_API_URL`, `VITE_PUBLIC_WEB_URL`. Redeploy without the build cache.
 3. The staging PWA's `/v1/*` route is fixed to `https://api.gharbasket.co.in` in `frontend/mobile/vercel.json`. Before step 4, a frontend PR must make the staging project send it to `staging-api`, or staging's PWA would talk to production.
-4. **[owner]** Remove the main names from staging's services. Add them to production's hosts, and change their Cloudflare records to production's targets. Set `PROD_API_URL` to `https://api.gharbasket.co.in`.
+4. **[owner]** Remove the main names from staging's services. Add them to production's hosts, and change their Cloudflare records to production's targets. Set `PROD_API_URL` to `https://api.gharbasket.co.in` in both GitHub environments and in Infisical `prod`, then run `infisical run --env=prod -- just jobs-vm env prod <ip> <key>` again so the VM uses it.
 5. Smoke test both, then run handbook 13 §13.3's address checks on both:
    - `infisical run --env=staging -- just cloud https://staging-api.gharbasket.co.in`;
    - `infisical run --env=prod -- just cloud https://api.gharbasket.co.in`.
@@ -478,9 +499,7 @@ Production takes `api.`, `app.` and the bare `gharbasket.co.in`. Staging moves t
 Each is its own PR, before the checklist above can finish:
 - **Code guards** (ADR-0036 step 2). `just seed`, `just staging-demo`, the simulator's `--allow-remote` and `staging-rollback` must refuse production by Neon project id and `APP_ENV=prod`.
 - **The Razorpay mode** (ADR-0037, a money PR).
-- **Scheduled jobs for production.** A `jobs-prod.yml` for the `actions` entries of `infra/jobs/schedule.yaml` (the cron test, `backend/api/tests/test_job_schedule.py`, covers `jobs-staging.yml` only). A second VM scheduler instance, once `scripts/jobs-on-vm.sh` takes a target.
 - **Production rows in a Render blueprint**, if Render is chosen. They go in a separate file: rows in `render.yaml` could be created by staging's Blueprint sync on the next push.
-- **`smoke-ml.yml` for production's ML service.**
 - **Production sections in the runbooks** `restore-from-backup.md` (Neon instant restore, then the daily dump), `deploy-rollback.md` and `rotate-secrets.md`.
 - **The reviewed load tool** for the real hub, societies and catalog.
 

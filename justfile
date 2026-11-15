@@ -162,7 +162,8 @@ load script *args:
 cloud url:
     scripts/smoke-staging.sh {{url}}
 
-# The staging job scheduler on the Oracle VM (ADR-0032), e.g. `just jobs-vm status <ip> <key>`; secrets: `infisical run --env=staging -- just jobs-vm env <ip> <key>`
+# The job scheduler on the Oracle VM (ADR-0032), e.g. `just jobs-vm status <ip> <key>`; secrets: `infisical run --env=staging -- just jobs-vm env <ip> <key>`.
+# Production's instance (ADR-0036) takes `prod` after the command: `infisical run --env=prod -- just jobs-vm env prod <ip> <key>`
 jobs-vm *args:
     ./scripts/jobs-on-vm.sh {{args}}
 

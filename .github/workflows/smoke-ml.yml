@@ -11,6 +11,7 @@
 #
 # Needs the repository secrets STAGING_ML_URL (the service's https URL) and ML_SERVICE_TOKEN (the
 # same value the service and the API hold). Until they are set the workflow skips with a notice.
+# The `prod` job checks production's ML service the same way, with its own secrets (ADR-0036).
 name: Smoke ML
 
 on:
@@ -68,3 +69,60 @@ jobs:
       - name: Smoke test
         if: steps.configured.outputs.ready == 'true'
         run: uv run --directory backend/ml --no-dev python -m gharbasket_ml.smoke "$STAGING_ML_URL"
+
+  # Production's ML service (ADR-0036, handbook 12 §12.9): the same checks with its own URL and
+  # token. The secrets live in the GitHub environment `production-ops` under PROD_ names, so a
+  # missing one never falls back to staging's. Until PROD_ML_URL and PROD_ML_SERVICE_TOKEN exist
+  # there the job skips with a notice. On failure it tells the healthchecks `prod-ops` check.
+  prod:
+    name: Wake and smoke-test production's ML service
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production-ops
+    env:
+      PROD_ML_URL: ${{ secrets.PROD_ML_URL }}
+      ML_SERVICE_TOKEN: ${{ secrets.PROD_ML_SERVICE_TOKEN }}
+      HC_OPS_URL: ${{ secrets.PROD_HC_OPS_URL }}
+    steps:
+      - name: Check that the ML service is configured
+        id: configured
+        run: |
+          if [ -z "$PROD_ML_URL" ] || [ -z "$ML_SERVICE_TOKEN" ]; then
+            echo "::notice::Production's ML service is not configured yet (PROD_ML_URL, PROD_ML_SERVICE_TOKEN in 'production-ops'). Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.ready == 'true'
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        if: steps.configured.outputs.ready == 'true'
+
+      - name: Wake the service
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          for _ in $(seq 1 30); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 20 "${PROD_ML_URL%/}/health" || true)
+            if [ "$code" = "200" ]; then
+              echo "The ML service answers /health"
+              exit 0
+            fi
+            echo "Waiting (/health answered '${code:-nothing}')"
+            sleep 10
+          done
+          echo "::error::Production's ML service did not answer /health within 5 minutes; check its host's deploy log."
+          exit 1
+
+      - name: Smoke test
+        if: steps.configured.outputs.ready == 'true'
+        run: uv run --directory backend/ml --no-dev python -m gharbasket_ml.smoke "$PROD_ML_URL"
+
+      - name: Tell the ops alert
+        # healthchecks.io `prod-ops` check (ADR-0036); skipped while the secret is unset.
+        if: failure() && env.HC_OPS_URL != ''
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl --silent --show-error --max-time 10 --retry 3 \
+            --data-raw "$GITHUB_WORKFLOW (production): the ML smoke test failed, $run_url" "$HC_OPS_URL/fail" || true

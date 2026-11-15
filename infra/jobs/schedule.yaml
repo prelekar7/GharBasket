@@ -1,13 +1,15 @@
 # The schedule of every scheduled job: the single source of truth (ADR-0021, handbook 10 §10.4).
 # One entry per name in `gharbasket.platform.jobs.JOBS`; a test (`backend/api/tests/test_job_schedule.py`)
 # fails when a job has no entry, an entry has no job, a cron does not parse, or the `actions`
-# crons here and the `on.schedule` lines of `.github/workflows/jobs-staging.yml` differ.
+# crons here and the `on.schedule` lines of `.github/workflows/jobs-staging.yml` or
+# `jobs-prod.yml` differ.
 #
 # Read by `.github/workflows/jobs-staging.yml` (the `actions` entries, picked by their cron) and
 # by `scripts/jobs_scheduler.py` on the staging VM (the `vm` entries, ADR-0032), which re-reads
-# this file every minute and pulls main every 15 minutes. To add a job: register it, add an entry
-# here, and for `actions` add the literal cron to `on.schedule` of the workflow (GitHub accepts
-# nothing else); a `vm` entry needs nothing more than the merge.
+# this file every minute and pulls main every 15 minutes. Production runs the same entries with
+# the same crons (ADR-0036): `jobs-prod.yml` and the VM scheduler's `prod` instance. To add a job:
+# register it, add an entry here, and for `actions` add the literal cron to `on.schedule` of both
+# workflows (GitHub accepts nothing else); a `vm` entry needs nothing more than the merge.
 #
 # Fields:
 #   name    the job name (snake_case, as in `@job("name")`)
