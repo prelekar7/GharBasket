@@ -44,6 +44,8 @@ UNCLAIMED_GRACE = timedelta(hours=24)
 UPLOADED_SIZE = "uploaded-size"  # object metadata: the signed size, kept when `clean` rewrites it
 PRESIGN_LIMIT = (30, 600)  # per user: 30 per 10 minutes
 MB = 1024 * 1024
+PDF = "application/pdf"
+PDF_MAGIC = b"%PDF-"  # how every PDF starts (ISO 32000-2 §7.5.2)
 EXTENSIONS = {
     "image/jpeg": "jpg",
     "image/png": "png",
@@ -125,13 +127,19 @@ class ObjectStore:
     async def clean(self, key: str) -> ObjectInfo | None:
         """`head` for a module accepting an upload: a photo is first rewritten without its
         location and other metadata (`image_metadata.strip`). None when nothing was uploaded, or
-        the bytes are not the image type they were signed as. Cleaning again changes nothing, so a
-        retried request, or one whose transaction rolled back, finds the same object and size."""
+        the bytes are not the type they were signed as: an image that does not parse, a PDF that
+        does not start with `%PDF-` (a PDF is otherwise kept as uploaded). Cleaning again changes
+        nothing, so a retried request, or one whose transaction rolled back, finds the same object
+        and size."""
         from botocore.exceptions import BotoCoreError, ClientError
 
         info = await self.head(key)
-        if info is None or info.content_type not in image_metadata.TYPES:
-            return info  # a PDF is kept as uploaded
+        if info is None:
+            return None
+        if info.content_type == PDF:
+            return await self._pdf(key, info)
+        if info.content_type not in image_metadata.TYPES:
+            return info
 
         def rewrite() -> bool:
             body = self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
@@ -161,6 +169,31 @@ class ObjectStore:
             log.warning(
                 "upload_not_an_image", purpose=key.split("/")[0], content_type=info.content_type
             )
+            return None
+        return info
+
+    async def _pdf(self, key: str, info: ObjectInfo) -> ObjectInfo | None:
+        """`info` when the object's first bytes are `%PDF-`; reads only those bytes."""
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        def first_bytes() -> bytes:
+            found = self.client.get_object(
+                Bucket=self.bucket, Key=key, Range=f"bytes=0-{len(PDF_MAGIC) - 1}"
+            )
+            return found["Body"].read()
+
+        try:
+            first = await asyncio.to_thread(first_bytes)
+        except ClientError as exc:
+            # InvalidRange: an empty object, which is not a PDF either.
+            gone_or_empty = ("404", "NoSuchKey", "NotFound", "InvalidRange")
+            if exc.response.get("Error", {}).get("Code") in gone_or_empty:
+                return None
+            raise storage_unavailable() from exc
+        except BotoCoreError as exc:
+            raise storage_unavailable() from exc
+        if not first.startswith(PDF_MAGIC):
+            log.warning("upload_not_a_pdf", purpose=key.split("/")[0])
             return None
         return info
 

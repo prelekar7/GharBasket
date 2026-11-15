@@ -143,7 +143,7 @@ a 401.
 
 1. Pick a time outside the evening windows and the morning run (06:00 to 08:45 IST). Check `just jobs-vm due <ip> <key>
    <IST minute>` for what runs next.
-2. New value into Infisical `staging`.
+2. New value into Infisical `staging`: `openssl rand -base64 48`. The API does not start with one shorter than 32 bytes.
 3. Render `gharbasket-api`: set it, save and deploy. From here the VM's calls fail with 401.
 4. At once: `infisical run --env=staging -- just jobs-vm env <ip> <key>` (writes `jobs.env` and restarts the service),
    `infisical run --env=staging -- scripts/mandi-on-vm.sh env <ip> <key>`, and the GitHub secret `JOBS_TOKEN`.

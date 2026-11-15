@@ -3,8 +3,10 @@
 Both our own `structlog` loggers and standard-library loggers (uvicorn, libraries) go through the
 same pipeline, so every line has the same shape.
 
-Every line is scrubbed last: phone numbers, tokens and database passwords are masked even when they
-arrive inside an exception message or a library's log text (DPDP: logs are not a place for PII).
+Every line is scrubbed last: phone numbers, e-mail addresses, tokens and database passwords are
+masked even when they arrive inside an exception message or a library's log text (DPDP: logs are
+not a place for PII). Names and addresses have no pattern to find in free text, so they are masked
+by field name instead (`PERSONAL_FIELDS`), at any depth of the line.
 """
 
 import logging
@@ -32,10 +34,52 @@ _SCRUBBERS: tuple[tuple[re.Pattern[str], str | Callable[[re.Match[str]], str]], 
     (re.compile(r"(?i)\bbasic(?:\s+|%20)[\w.~+/=%-]+"), "Basic [redacted]"),
     # Passwords inside connection strings: scheme://user:password@host
     (re.compile(r"(\b[a-z][a-z0-9+.-]*://[^:/\s@]+:)[^@\s]+@"), r"\1[redacted]@"),
+    # E-mail addresses; not the user of a connection string (scheme://user@host).
+    (re.compile(r"(?<![\w.+/-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+"), "[email]"),
     # Indian mobile numbers: 10 digits from 6-9, optional +91/91, spaces or dashes anywhere.
     # Keeps the last two digits so support can still tell numbers apart.
     (re.compile(r"(?<![\w+])(?:\+?91[\s-]?)?[6-9](?:[\s-]?\d){9}(?![\w])"), _mask_phone),
 )
+
+
+_NAME, _ADDRESS = "[name]", "[address]"
+# Fields that hold a person's name or where they live (handbook 13 §13.5), as our models and
+# payloads call them: masked whatever their value, at any depth of a log line.
+PERSONAL_FIELDS: dict[str, str] = {
+    **dict.fromkeys(
+        (
+            "full_name",
+            "display_name",
+            "first_name",
+            "last_name",
+            "contact_name",
+            "customer_name",
+            "member_name",
+            "taken_by_name",
+        ),
+        _NAME,
+    ),
+    **dict.fromkeys(
+        (
+            "address",
+            "address_line",
+            "line1",
+            "line2",
+            "flat",
+            "flat_label",
+            "flat_no",
+            "landmark",
+            "street",
+        ),
+        _ADDRESS,
+    ),
+    "email": "[email]",
+}
+# A bare `name` is masked only inside logged data (a payload, `details`, a dict of headers), where
+# it may be a household member's. A top-level field of a log line is chosen at the call site,
+# where `name` names code (a job, a probe, a model); masking it would hide what ran, and reviewers
+# keep people's names out of call sites (handbook 11 §11.7).
+_NESTED_FIELDS = {**PERSONAL_FIELDS, "name": _NAME}
 
 
 def scrub(text: str) -> str:
@@ -44,18 +88,25 @@ def scrub(text: str) -> str:
     return text
 
 
+def _field(key: object, value: Any, fields: dict[str, str]) -> Any:
+    label = fields.get(key.lower()) if isinstance(key, str) else None
+    if label is not None and value is not None and value != "":
+        return label  # an empty value stays visible: "no name given" is not personal
+    return _scrub_value(value)
+
+
 def _scrub_value(value: Any) -> Any:
     if isinstance(value, str):
         return scrub(value)
     if isinstance(value, dict):
-        return {key: _scrub_value(item) for key, item in value.items()}  # pyright: ignore[reportUnknownVariableType]
+        return {key: _field(key, item, _NESTED_FIELDS) for key, item in value.items()}  # pyright: ignore[reportUnknownVariableType]
     if isinstance(value, list | tuple):
         return type(value)(_scrub_value(item) for item in value)  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
     return value
 
 
 def scrub_sensitive(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
-    return {key: _scrub_value(value) for key, value in event_dict.items()}
+    return {key: _field(key, value, PERSONAL_FIELDS) for key, value in event_dict.items()}
 
 
 def add_trace_ids(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
