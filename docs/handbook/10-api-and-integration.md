@@ -79,7 +79,7 @@ sequenceDiagram
 | admin | global | assigned |
 
 - **Permissions:** a code-level matrix `permission → roles`, enforced by a FastAPI dependency (`require("orders:read", scope=hub_id)`). The role switch in the app is only UX.
-- **Defence in depth:** Postgres Row-Level Security on hub-scoped tables. The API sets `SET LOCAL app.hub_ids = '…'` per transaction.
+- **Defence in depth:** Postgres Row-Level Security was planned for the hub-scoped tables but is **not built**: no table has a policy, and the API sets no `app.hub_ids`. [ADR-0038](../adr/0038-row-level-security-after-the-pilot.md) (Proposed) puts it off until after the pilot and puts tests on the checks in code instead: a route inventory and a cross-tenant matrix.
 
 ## 10.3 Events: transactional outbox
 
