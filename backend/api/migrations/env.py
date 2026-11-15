@@ -8,7 +8,11 @@ The team shares one Neon database, so it is protected:
 - any database other than this machine's is refused unless GB_ALLOW_REMOTE_MIGRATIONS=1, which only
   the deploy workflow sets, after the change is merged into main;
 - downgrades on such a database are always refused (Postgres runs the whole migration in one
-  transaction, so the refusal rolls everything back).
+  transaction, so the refusal rolls everything back);
+- each upgrade of such a database writes APP_ENV (unset is `prod`) into `platform.environment`, in
+  the same transaction, and never replaces a `prod` mark (ADR-0036,
+  `gharbasket.platform.environment`). The seed, the simulator, the demo loader and the rollback
+  refuse a database marked `prod`.
 """
 
 import asyncio
@@ -26,6 +30,7 @@ from sqlalchemy.engine import Connection
 
 from gharbasket.modules import MODULES
 from gharbasket.platform.db import LOCAL_HOSTS, SCHEMAS, Base, create_engine, is_local_database
+from gharbasket.platform.environment import PRODUCTION, environment_to_mark, mark_environment
 from gharbasket.platform.logging import configure_logging
 from gharbasket.platform.settings import DatabaseSettings
 
@@ -55,6 +60,19 @@ def _database_url() -> str:
             "the deploy workflow after merge; locally use `just up` and the Docker database."
         )
     return url
+
+
+def _mark(connection: Connection) -> None:
+    """Write which deployment a shared database belongs to (after an upgrade, never locally)."""
+    try:
+        name = environment_to_mark(connection.engine.url.render_as_string(), os.environ)
+    except ValueError as invalid:
+        raise SystemExit(f"Refusing to migrate: {invalid}") from None
+    if name is None:
+        return
+    marked = mark_environment(connection, name)
+    if marked == PRODUCTION and name != PRODUCTION:
+        print(f"this database is marked {PRODUCTION}; APP_ENV={name} leaves the mark as it is")
 
 
 def _refuse_remote_downgrade(
@@ -90,6 +108,7 @@ def _configure(connection: Connection) -> None:
     )
     with context.begin_transaction():
         context.run_migrations()
+        _mark(connection)
 
 
 async def _run_online() -> None:

@@ -26,8 +26,9 @@ Only for the local Docker database. A shared database (staging on Neon) is refus
 handbook 12); there the seed only adds what is missing and keeps every existing row as it is (no
 refresh of the hub, societies, people or their roles, categories, prices, festivals or trainings,
 and never `--refresh`), so nothing edited in the console is overwritten. It is refused there too
-while the database takes real money (RAZORPAY_MODE=live, or its `test_mode_closed` entry:
-`gharbasket.tools.live_guard`, ADR-0037 §4).
+on production (APP_ENV=prod, or the database's `prod` mark in `platform.environment`, ADR-0036)
+and while the database takes real money (RAZORPAY_MODE=live, or its `test_mode_closed` entry,
+ADR-0037 §4): `gharbasket.tools.live_guard`.
 """
 
 import argparse

@@ -90,6 +90,7 @@ Purposes, limits and retention below were confirmed by the owner on 2026-10-08.
 | `platform.outbox` | id, event_type, payload jsonb, created_at, sent_at, attempts | Relay reads unsent rows in order |
 | `platform.idempotency_keys` | key, user_id, request_hash, response jsonb, status_code, created_at | 24 h TTL cleanup job |
 | `platform.job_runs` | id, name, scheduled_for, started_at, finished_at, status (ok, failed, skipped), summary jsonb, error, request_id | One row per job run (never cleaned in v1) |
+| `platform.environment` | singleton (pk, always true), name (dev, test, staging, prod), marked_at | One row: which deployment the database belongs to. Written by every migration run on a shared database from `APP_ENV` (unset is `prod`); a `prod` mark is never replaced. The seed, simulator, demo loader and rollback refuse `prod` (ADR-0036) |
 | `platform.audit_log` | id, actor_user_id, action, entity_type, entity_id, before jsonb, after jsonb, at | Admin actions |
 | `platform.uploads` | key (pk), user_id, purpose, content_type, size_bytes, created_at, claimed_by (module), claimed_at, delete_after | One row per presign; the owning module claims the key when it saves it |
 | `platform.feature_flags` (optional; PostHog is primary) | key, enabled, rules jsonb | Server-side kill switches (e.g. ML fallback) |

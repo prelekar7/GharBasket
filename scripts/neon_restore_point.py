@@ -11,9 +11,11 @@ URL's endpoint, and `GET /projects` without `org_id` does not list an organisati
 branch is named `<prefix>-<UTC timestamp>`, e.g. `before-demo-20261102T0530Z`. It never prints the
 key or the database URL.
 
-A rollback is refused while the database takes real money: RAZORPAY_MODE=live in the environment,
-or its `test_mode_closed` journal entry (`gharbasket.tools.live_guard`, ADR-0037 §4). A restore
-then follows the "live money" section of docs/runbooks/restore-from-backup.md.
+A rollback is refused on production (APP_ENV=prod in the environment, or the database's `prod`
+mark in `platform.environment`, ADR-0036) and while the database takes real money
+(RAZORPAY_MODE=live, or its `test_mode_closed` journal entry, ADR-0037 §4):
+`gharbasket.tools.live_guard`. A restore then follows the "live money" section of
+docs/runbooks/restore-from-backup.md.
 
 Neon's free plan allows 10 branches, and a branch with children cannot be deleted. Staging is not
 a root branch, so it has no point-in-time restore or snapshots; a rollback restores it from the

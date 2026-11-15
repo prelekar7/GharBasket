@@ -18,6 +18,8 @@ from gharbasket.platform.db import REMOTE_SEED_CONFIRMATION, create_engine
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.platform.outbox import relay
 from gharbasket.platform.permissions import ROLE_SCOPE
+from gharbasket.tools import live_guard
+from gharbasket.tools.live_guard import DatabaseFacts
 from gharbasket.tools.seed import (
     CAPTAINS,
     HOUSEHOLDS,
@@ -200,6 +202,7 @@ def test_the_seed_command_refuses_a_shared_database(monkeypatch: pytest.MonkeyPa
 
 
 NEON_HOST = "ep-x.ap-southeast-1.aws.neon.tech"
+STAGING = DatabaseFacts(environment="staging", cutover=False)
 
 
 @pytest.fixture
@@ -210,8 +213,10 @@ def staging_seed(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, bool, bool]
     monkeypatch.setenv("DATABASE_URL_DIRECT", neon)
     monkeypatch.delenv(REMOTE_SEED_CONFIRMATION, raising=False)
     monkeypatch.delenv("RAZORPAY_MODE", raising=False)
-    # The live-mode guard's database lookup (ADR-0037 §4): no cut-over entry, and no connection.
-    monkeypatch.setattr("gharbasket.tools.live_guard.cutover_recorded", lambda url: False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    # The script guard's database lookup (ADR-0036, ADR-0037 §4): staging's mark, no cut-over
+    # entry, and no connection.
+    monkeypatch.setattr(live_guard, "inspect_database", lambda url: STAGING)
     calls: list[tuple[str, bool, bool]] = []
 
     async def fake_run(url: str, *, refresh: bool = False, keep_existing: bool = False) -> Report:
@@ -274,7 +279,9 @@ def test_the_seed_command_refuses_staging_while_it_takes_real_money(
     """RAZORPAY_MODE=live, or the cut-over's entry when the variable is missing (ADR-0037 §4)."""
     monkeypatch.setenv(REMOTE_SEED_CONFIRMATION, NEON_HOST)
     if cutover:
-        monkeypatch.setattr("gharbasket.tools.live_guard.cutover_recorded", lambda url: True)
+        monkeypatch.setattr(
+            live_guard, "inspect_database", lambda url: DatabaseFacts("staging", cutover=True)
+        )
     else:
         monkeypatch.setenv("RAZORPAY_MODE", "live")
 
@@ -285,6 +292,33 @@ def test_the_seed_command_refuses_staging_while_it_takes_real_money(
     assert staging_seed == []
     err = capsys.readouterr().err
     assert "takes real money" in err
+    assert "pw@" not in err
+
+
+@pytest.mark.parametrize("by", ["APP_ENV", "mark"])
+def test_the_seed_command_refuses_production(
+    staging_seed: list[tuple[str, bool, bool]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    by: str,
+) -> None:
+    """APP_ENV=prod, or the database's own `prod` mark when the variable says nothing (ADR-0036),
+    even with both confirmations."""
+    monkeypatch.setenv(REMOTE_SEED_CONFIRMATION, NEON_HOST)
+    if by == "APP_ENV":
+        monkeypatch.setenv("APP_ENV", "prod")
+    else:
+        monkeypatch.setattr(
+            live_guard, "inspect_database", lambda url: DatabaseFacts("prod", cutover=False)
+        )
+
+    with pytest.raises(SystemExit) as exited:
+        seed_command(["--allow-remote"])
+
+    assert exited.value.code == 2
+    assert staging_seed == []
+    err = capsys.readouterr().err
+    assert "is production" in err and "writes synthetic people into it" in err
     assert "pw@" not in err
 
 

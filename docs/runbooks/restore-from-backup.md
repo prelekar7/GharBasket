@@ -67,10 +67,13 @@ Until then this runbook is the drill, not the production procedure.
    restore point becomes staging's parent. **Both stay for good** (Neon cannot delete a branch with children), so a
    rollback uses up branches of the free 10. The script refuses before it starts when there is no room.
    It also refuses (exit 2, before Neon is called) while staging takes real money: `RAZORPAY_MODE=live` in the
-   environment, or a `test_mode_closed` entry in `billing.journal_entries`. Then go to "Live money".
+   environment, or a `test_mode_closed` entry in `billing.journal_entries`. Then go to "Live money". It refuses
+   production too (`APP_ENV=prod`, or the database's `prod` mark in `platform.environment`, ADR-0036).
 3. **Bring the code and schema in line.** If the restore point is older than the latest migration, run
    `alembic upgrade head` by redeploying: GitHub → Actions → Deploy staging → Run workflow on `main`. If it is not older,
-   still redeploy once, so the API reconnects cleanly.
+   still redeploy once, so the API reconnects cleanly. The redeploy also writes staging's `platform.environment` mark
+   again: a restore point older than the mark has none, and the demo loader, seed and simulator refuse an unmarked
+   database.
 4. Go to "After a restore" below.
 
 ### Recovery B: restore a dump into a new database
