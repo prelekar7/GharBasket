@@ -7,6 +7,8 @@
 - The M12 console resolves open issues with `resolve_issue`.
 - M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
 - M8's public cook page reads its dishes with `tiffin_products` (M8 §3.5).
+- M5's cut-over (M5 §3.10) counts what could still move test money with `open_paid_order_count`
+  and `open_carry_over_count`.
 - M12 pulls `order_facts` and `issue_facts` for its analytics refresh, from
   `first_delivery_date` on for a rebuild (M12 §3.1); its today board reads `open_issue_summary`
   and `today_counts` (M12 §3.3).
@@ -142,7 +144,9 @@ __all__ = [
     "issue_facts",
     "last_move",
     "mark_shortage",
+    "open_carry_over_count",
     "open_issue_summary",
+    "open_paid_order_count",
     "order_facts",
     "order_ids_of_household",
     "orders_for_delivery",
@@ -607,6 +611,51 @@ async def has_open_issues(session: AsyncSession, household_id: uuid.UUID) -> boo
         OrderIssue.household_id == household_id, OrderIssue.status == "open"
     )
     return bool(await session.scalar(select(open_issue)))
+
+
+# Paid and not delivered yet (state.PAID less `delivered`): a refund or a credit may still follow.
+IN_PROGRESS = (
+    "locked",
+    "picking",
+    "packed",
+    "dispatched",
+    "at_society",
+    "undelivered",
+    "redelivery",
+)
+
+
+async def open_paid_order_count(session: AsyncSession, now: datetime) -> int:
+    """Orders that could still move money (M5 §3.10's cut-over): paid and not delivered yet,
+    delivered within the 48-hour issue window (§3.2) before `now`, or with an `open` issue.
+    `approved` and `payment_failed` orders hold no money."""
+    recently = exists().where(
+        OrderEvent.order_id == Order.id,
+        OrderEvent.to_status == "delivered",
+        OrderEvent.at > now - issues.WINDOW,
+    )
+    open_issue = exists().where(OrderIssue.order_id == Order.id, OrderIssue.status == "open")
+    count = await session.scalar(
+        select(func.count())
+        .select_from(Order)
+        .where(
+            or_(
+                Order.status.in_(IN_PROGRESS),
+                (Order.status == "delivered") & recently,
+                open_issue,
+            )
+        )
+    )
+    return int(count or 0)
+
+
+async def open_carry_over_count(session: AsyncSession) -> int:
+    """Carried items not settled yet (§3.8: pending, attached or packed): each is paid for and
+    may still be delivered or refunded."""
+    count = await session.scalar(
+        select(func.count()).select_from(CarryOver).where(CarryOver.status.in_(carry.OPEN))
+    )
+    return int(count or 0)
 
 
 async def order_ids_of_household(session: AsyncSession, household_id: uuid.UUID) -> list[uuid.UUID]:

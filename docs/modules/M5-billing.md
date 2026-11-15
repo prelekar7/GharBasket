@@ -1,6 +1,6 @@
 # M5 — Billing & Ledger
 
-**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval, built (as built, below); §3.9 (revenue recognition on delivery) drafted 2026-11-11, frozen on approval. §3.10 (live mode and the cut-over, ADR-0037) drafted 2026-11-14, frozen on approval; its switch and the payment mode are built (as built, there), the cut-over jobs, the probe and the script guards not yet. §3.5's weekly payouts are built, and so is `partner_months`, the facade for M8's income certificate
+**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval, built (as built, below); §3.9 (revenue recognition on delivery) drafted 2026-11-11, frozen on approval. §3.10 (live mode and the cut-over, ADR-0037) drafted 2026-11-14, frozen on approval; its switch, the payment mode, the cut-over jobs, the statement line and the probe are built (as built, there), the script guards not yet. §3.5's weekly payouts are built, and so is `partner_months`, the facade for M8's income certificate
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (wallet); UPI Autopay in the pilot phase (P6)
 **Postgres schema:** `billing` · **Python package:** `gharbasket.modules.billing`
@@ -647,6 +647,18 @@ The owner chose to test the whole app with real payments on staging before the l
 - **Open items.** An open `captured_not_credited` item is looked up again only when its top-up is of the running mode.
 - **`send_refunds` is scoped too.** It sends only the running mode's parts. A part still `pending` from test mode is never sent to the live account: it stays `pending`, and the prepare job reports it as a blocker (`refund_parts_in_flight`). The cut-over PR decides how such a part is cleared (for example, flushed in test mode before the switch).
 
+*As built (2026-11-15): the cut-over.* `billing_cutover_prepare` and `billing_cutover_live` (`billing/cutover.py`), the M3 facade `pause_synthetic_households`, the M4 facades `open_paid_order_count` and `open_carry_over_count`, the `equity` kind with `test_funds`, the statement line and the probe. Readings of the contract:
+- **The 409 answers.** A job that raised a 4xx `ProblemError` used to answer `500 platform.job_failed`. The job endpoint now answers the job's own problem, with `run_id` (M0 §3). The run is still `failed`, so `platform.failed_jobs` names a refused run until a later run is `ok`.
+- **The balancing leg is zero.** Every entry sums to zero, so the INR accounts together sum to zero, and zeroing each of them needs no other side. The leg to `test_funds` is posted only if it is not zero, which a sound ledger never gives. `test_funds` and the `equity` kind exist, as the contract says, and stay at ₹0.
+- **Nothing to close.** An entry needs two postings. With no non-zero INR account the close posts nothing and answers `entry_id: null`.
+- **`total_paise`** is the sum of the entry's debit legs (equal to its credit legs). `details` is `{ accounts: [{ code, owner_type, owner_id, amount_paise }], total_paise }`, `amount_paise` as posted (debit +, credit −). The event's `accounts` is how many accounts it zeroed; the list is in `details`.
+- **A sixth blocker, `live_topups_open`.** A live top-up credited before the close, and not wholly refunded to its source (parts not `failed`), is real money the close would zero. It blocks the close until refunded.
+- **Concurrency.** The job's advisory lock runs one close at a time. While it reads the balances and posts, it holds `LOCK TABLE billing.postings IN EXCLUSIVE MODE` to its commit, so no other posting lands in between.
+- **The pause.** A subscription `paused` with no `paused_until` now counts as paused on every date (`is_paused_on`); before, only a date did. Prepare skips the synthetic weeks M3 lets a customer skip (`awaiting_approval` and `approved`, before the cut-off), not only `approved` ones. A `draft` cannot be skipped: once the test money is closed it would lock against an empty wallet (`payment_failed`). It publishes `subscriptions.subscription_paused` with `paused_until: null` and `reason: "live_cutover"`.
+- **The probe's 24 hours** run from the API's start in live mode (the process) or the first `live` payment, whichever was first: a restart resets the first, not the second. It reports only while test money is open, meaning an INR account left non-zero by the entries made before the first live payment, so a database live from its start never alerts.
+- **The statement line.** Wallet and earnings statements show the entry as kind `test_mode_closed` with no `ref`. The app's label ("Test balance closed") is the app's, not built here: until it is, the app shows its generic label.
+- Not built yet: the M12 money views that count only entries after the close, the M11 admin notice, and the script guards.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -672,7 +684,7 @@ The owner chose to test the whole app with real payments on staging before the l
 - **Tests:** Hypothesis property tests for these four invariants (§9), plus a test that a duplicate webhook delivery credits once.
 
 ## 5. Events
-**Published:** `billing.wallet_topped_up`, `billing.payment_captured`, `billing.payment_failed`, `billing.refund_issued`, `billing.points_credited`, `billing.payout_sent`; added by §3.3–§3.5: `billing.refund_to_source_settled`, `billing.reconciliation_mismatch`; added by §3.6: `billing.points_donated`. (`payment_captured` and `payment_failed` are Autopay events, §3.7.)
+**Published:** `billing.wallet_topped_up`, `billing.payment_captured`, `billing.payment_failed`, `billing.refund_issued`, `billing.points_credited`, `billing.payout_sent`; added by §3.3–§3.5: `billing.refund_to_source_settled`, `billing.reconciliation_mismatch`; added by §3.6: `billing.points_donated`; added by §3.10: `billing.cutover_completed { entry_id, accounts, total_paise }` (no consumer yet; M11 is to tell every admin). (`payment_captured` and `payment_failed` are Autopay events, §3.7.)
 **Consumed:** `orders.locked` (debit/capture request via api), `orders.delivered` and `orders.closed` (recognise revenue, §3.9), `orders.delivery_failed`, `orders.shortage_substituted`, `community.donation_verified` (points, §3.6). M1's `DELETE /v1/me` calls `billing.api.close_wallet` in its own transaction (M1 §3.5), so there is no consumer for the deletion. Earnings are not consumed from events: M8 calls `billing.api.accrue_earning` (§3.5).
 
 ## 6. Jobs
@@ -685,6 +697,7 @@ The owner chose to test the whole app with real payments on staging before the l
 | `expire_kindness_points` | Daily 00:30 IST | Oldest lot first (§3.6) |
 | `weekly_payouts` | Monday 10:00 IST | Partner payables up to Sunday 23:59 IST; eligible partners only; the simulated provider in the prototype (§3.5) |
 | `recognise_delivered_revenue` | Manual (`just job recognise_delivered_revenue`) | Backfill: the `orders.delivered` consumer again over every relayed event; idempotent by key (§3.9) |
+| `billing_cutover_prepare`, `billing_cutover_live` | Manual, once, live only (`docs/runbooks/live-cutover.md`) | The cut-over (§3.10); idempotent |
 
 Scheduled jobs run as internal job endpoints (`POST /v1/internal/jobs/<name>`) called by a GitHub Actions schedule (ADR-0021). Razorpay calls go through our own thin async client on httpx2, not the official SDK.
 

@@ -20,3 +20,8 @@ RECONCILIATION_MISMATCH = "billing.reconciliation_mismatch"
 # { payout_id, partner_id, amount_paise, status }: a partner's weekly payout ended `processed` or
 # `failed` at the provider (spec §3.5); M11 tells the partner.
 PAYOUT_SENT = "billing.payout_sent"
+
+# { entry_id, accounts, total_paise }: the cut-over closed the test money in one entry (spec
+# §3.10); `accounts` is how many it zeroed, `total_paise` the sum of its debit legs. M11 is to tell
+# every admin (no consumer yet).
+CUTOVER_COMPLETED = "billing.cutover_completed"

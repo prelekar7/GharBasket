@@ -9,7 +9,9 @@ Every run:
   second is recorded as "skipped");
 - gets the *scheduled* time (`scheduled_for`), which business rules use instead of the clock, so a
   trigger that fires a few minutes late changes nothing;
-- is recorded in `platform.job_runs` with its summary or error.
+- is recorded in `platform.job_runs` with its summary or error. A job that refuses with a 4xx
+  `ProblemError` (M5's cut-over: `409 billing.cutover_blocked`) is a `failed` run answered with
+  that problem and the run id, instead of `500 platform.job_failed`.
 
 `ops_check` runs the ops probes (platform/ops.py, M0 §6.1); the platform's own probes are here.
 
@@ -99,6 +101,10 @@ def lock_key(name: str) -> int:
     return int.from_bytes(digest[:8], "big") >> 1
 
 
+def _problem_of(exc: ProblemError) -> dict[str, Any]:
+    return {"status": exc.status, "code": exc.code, "detail": exc.detail, "extra": exc.extra or {}}
+
+
 def job_unknown(name: str) -> ProblemError:
     return ProblemError(404, "platform.job_unknown", f"No job is called {name!r}.")
 
@@ -162,6 +168,9 @@ async def _run(
         run.error = f"{type(exc).__name__}: {exc}"[:ERROR_LENGTH]
         if isinstance(exc, ProblemsFoundError):
             run.summary = {"problems": exc.problems}
+        elif isinstance(exc, ProblemError) and exc.status < 500:
+            # A refusal written for the caller (M5's cut-over): answered as itself, below.
+            run.summary = {"problem": _problem_of(exc)}
         run.finished_at = datetime.now(UTC)
         session.add(run)
         await session.commit()
@@ -409,6 +418,7 @@ async def list_runs(
     responses={
         401: {"description": "platform.operator_token_required (problem+json)"},
         404: {"description": "platform.job_unknown (problem+json)"},
+        409: {"description": "A job's own refusal, e.g. billing.cutover_blocked (problem+json)"},
         500: {
             "description": "platform.job_failed, with the run id, and `problems` for ops_check "
             "(problem+json)"
@@ -436,6 +446,9 @@ async def trigger_job(
         # A non-2xx answer, so a cron or a person sees it; the run row has the error. Only the
         # problems a job wrote for the operator (ops_check) are sent back.
         extra: dict[str, Any] = {"run_id": str(run.id)}
+        if run.summary and "problem" in run.summary:  # the job refused: its own 4xx problem
+            p = run.summary["problem"]
+            raise ProblemError(p["status"], p["code"], p["detail"], extra={**p["extra"], **extra})
         if run.summary and "problems" in run.summary:
             extra["problems"] = run.summary["problems"]
         raise ProblemError(500, "platform.job_failed", f"Job {name!r} failed.", extra=extra)

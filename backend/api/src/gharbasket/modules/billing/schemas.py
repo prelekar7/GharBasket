@@ -20,6 +20,7 @@ EntryKind = Literal[
     "refund_to_source",
     "refund_to_source_failed",
     "unclaimed",
+    "test_mode_closed",  # "Test balance closed": the cut-over (spec §3.10)
 ]
 
 
@@ -290,7 +291,7 @@ class AdminPayoutOut(PayoutOut):
     partner: PayoutPartner | None = Field(description="Null if the partner record is gone")
 
 
-EarningsEntryKind = Literal["earning", "payout", "payout_reversed"]
+EarningsEntryKind = Literal["earning", "payout", "payout_reversed", "test_mode_closed"]
 
 
 class EarningOrderRef(BaseModel):

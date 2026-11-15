@@ -12,5 +12,6 @@ BOX_APPROVED = "subscriptions.box_approved"
 BOX_SKIPPED = "subscriptions.box_skipped"
 # cycle_id, household_id, delivery_date (§3.3)
 BOX_UNSKIPPED = "subscriptions.box_unskipped"
-# subscription_id, household_id, paused_until
+# subscription_id, household_id, paused_until (null: until resumed); reason "live_cutover" when
+# M5's cut-over paused a synthetic household (M5 §3.10)
 SUBSCRIPTION_PAUSED = "subscriptions.subscription_paused"

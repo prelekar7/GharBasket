@@ -36,6 +36,7 @@ These are for a decision or a drill, not an alert:
 | A deploy broke staging, or code must go back | [`deploy-rollback.md`](deploy-rollback.md) |
 | Staging's data is wrong or lost (restore points, the weekly dump in R2) | [`restore-from-backup.md`](restore-from-backup.md) |
 | A secret leaked, someone left, or a planned rotation | [`rotate-secrets.md`](rotate-secrets.md) |
+| Switching staging from test money to live money, once (M5 §3.10) | [`live-cutover.md`](live-cutover.md) |
 | Personal data may have been seen by someone who should not have (DPDP Act 2023) | [`dpdp-breach.md`](dpdp-breach.md) |
 
 ### Reading an `ops` alert
@@ -55,6 +56,7 @@ carries `problems`, one per line, each `<probe>: <what>`:
 | `billing.webhook_backlog` | `N webhooks unprocessed for > 15 min` | `razorpay-down.md` |
 | `billing.reconciliation_open` | `N reconciliation items open for > 24 h (<kind> xN)` | `razorpay-down.md` § Reconciliation items |
 | `billing.refunds_stuck` | `N refund parts stuck after 3 tries (₹…)` | `razorpay-down.md` § Stuck refunds |
+| `billing.live_mode_mixed` | `the API runs live and the test money is not closed after 24 h; …` or `N test-mode top-ups credited after the test money was closed` | `live-cutover.md` |
 | `logistics.plans_failed` | `box plan for <date> at hub <id> failed: <error>` | `route-solve-failed.md` |
 | `logistics.plans_unreviewed` | `box plan for <date> at hub <id> is waiting for review; see /routes` | `route-solve-failed.md` |
 | `orders.revenue_unrecognised` | `N delivered orders still hold unearned revenue; run recognise_delivered_revenue` | Run `recognise_delivered_revenue` by hand (idempotent, M5 §3.9), see [Run a job by hand](#run-a-job-by-hand) |

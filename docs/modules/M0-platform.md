@@ -27,7 +27,7 @@ Shared foundations every module depends on: application factory, configuration, 
 | GET | `/v1/ready` | Public locally; `JOBS_TOKEN` on staging and prod | — | DB and Valkey checks |
 | GET | `/v1/internal/jobs` | `JOBS_TOKEN` (open locally) | — | The registered jobs |
 | GET | `/v1/internal/jobs/runs` | `JOBS_TOKEN` (open locally) | — | Recent runs, newest first: `?name=&status=ok\|failed\|skipped&since=<ISO>&limit=` (default 50, at most 200); each a `JobRunOut` (id, name, status, scheduled_for, started_at, finished_at, summary, error). Added by ADR-0033 |
-| POST | `/v1/internal/jobs/{name}` | `JOBS_TOKEN` (open locally) | — | Runs a job now; body `{ "scheduled_for": "<ISO>" }` (default now); 200 with the run, 404 `platform.job_unknown`, 500 `platform.job_failed` with `run_id` (and `problems` for `ops_check`); a second trigger while one runs answers `status: "skipped"` |
+| POST | `/v1/internal/jobs/{name}` | `JOBS_TOKEN` (open locally) | — | Runs a job now; body `{ "scheduled_for": "<ISO>" }` (default now); 200 with the run, 404 `platform.job_unknown`, 500 `platform.job_failed` with `run_id` (and `problems` for `ops_check`); a job that refuses with its own 4xx problem (M5's cut-over: 409 `billing.cutover_not_live`, `billing.cutover_blocked`) is a `failed` run answered with that problem and `run_id`; a second trigger while one runs answers `status: "skipped"` |
 | POST | `/v1/files/presign` | Authenticated | Not required | A presigned PUT URL for one private upload (S3 API; Cloudflare R2 on staging, SeaweedFS locally) and its key; purposes, limits and retention in §3.1 |
 
 ### 3.1 File upload contract (frozen on 2026-10-08)

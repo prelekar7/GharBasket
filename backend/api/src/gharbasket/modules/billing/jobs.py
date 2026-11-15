@@ -12,8 +12,12 @@
 Razorpay is unavailable its billing run is kept `failed` and the job run fails too, so the `ops`
 alert hears of it (ADR-0033).
 
-Ops probes (M0 §6.1): `billing.webhook_backlog`, `billing.reconciliation_open` and
-`billing.refunds_stuck`.
+Ops probes (M0 §6.1): `billing.webhook_backlog`, `billing.reconciliation_open`,
+`billing.refunds_stuck` and `billing.live_mode_mixed` (§3.10).
+
+The cut-over to live money (§3.10, cutover.py): `billing_cutover_prepare` and
+`billing_cutover_live`, by hand only, refused (409 `billing.cutover_not_live`) unless
+RAZORPAY_MODE=live.
 
 `weekly_payouts` (Monday 10:00 IST) pays partners what they were owed up to Sunday (spec §3.5,
 payouts.py).
@@ -42,6 +46,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import (
+    cutover,
     kindness,
     payouts,
     reconciliation,
@@ -61,6 +66,7 @@ from gharbasket.platform.jobs import JobContext, ProblemsFoundError, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
 from gharbasket.platform.pdf import rupees
+from gharbasket.platform.settings import get_settings
 
 REFUND_BATCH = 50
 RETRY_AFTER = (timedelta(minutes=5), timedelta(minutes=30))
@@ -215,6 +221,32 @@ async def refunds_stuck(session: AsyncSession, now: datetime) -> list[str]:
         return []
     total = rupees(int(paise))  # SUM of a bigint is numeric
     return [f"{parts} refund parts stuck after {MAX_TRIES} tries ({total})"]
+
+
+# --- the cut-over to live money (spec §3.10, ADR-0037; docs/runbooks/live-cutover.md) ------------
+
+
+@job("billing_cutover_prepare", "Cut-over: pause synthetic households, count what holds test money")
+async def billing_cutover_prepare(ctx: JobContext) -> dict[str, Any]:
+    """By hand, once live, as often as needed: `blockers` must all be 0 before the close."""
+    if ctx.settings.razorpay_mode != "live":
+        raise cutover.not_live()
+    return await cutover.prepare(ctx.session, ctx.scheduled_for)
+
+
+@job("billing_cutover_live", "Cut-over: close the test money in one test_mode_closed entry")
+async def billing_cutover_live(ctx: JobContext) -> dict[str, Any]:
+    """By hand, once: 409 `billing.cutover_blocked` while a blocker remains; again after the
+    close, the same entry with `already_done`."""
+    if ctx.settings.razorpay_mode != "live":
+        raise cutover.not_live()
+    return await cutover.close(ctx.session, ctx.scheduled_for)
+
+
+@ops.probe("billing.live_mode_mixed")
+async def live_mode_mixed(session: AsyncSession, now: datetime) -> list[str]:
+    mode = get_settings().razorpay_mode
+    return await cutover.mixed(session, now, mode=mode, started_at=cutover.STARTED_AT)
 
 
 @job("weekly_payouts", "Pay partners what they were owed up to last Sunday (IST), if eligible")

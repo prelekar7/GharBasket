@@ -38,7 +38,8 @@ from gharbasket.platform.db import Base
 SCHEMA = "billing"
 
 CURRENCIES = ("INR", "KINDNESS_PTS")
-ACCOUNT_KINDS = ("asset", "liability", "revenue", "expense")
+# `equity`: only `test_funds`, the other side of the cut-over's closing entry (spec §3.10).
+ACCOUNT_KINDS = ("asset", "liability", "revenue", "expense", "equity")
 OWNER_TYPES = ("platform", "user", "partner")
 ENTRY_KINDS = (
     "topup",
@@ -61,8 +62,10 @@ ENTRY_KINDS = (
     "payout_reversed",
     # An order's unearned money recognised as revenue when it is delivered (M5 §3.9).
     "revenue",
+    # The cut-over's one entry that brings every INR account to zero (M5 §3.10).
+    "test_mode_closed",
 )
-REF_TYPES = ("topup", "order", "donation", "referral", "refund", "payout")
+REF_TYPES = ("topup", "order", "donation", "referral", "refund", "payout", "cutover")
 PROVIDERS = ("razorpay", "dev")
 PAYMENT_PURPOSES = ("topup",)
 # Stored states; "expired" is shown for a "created" top-up past `expires_at` (spec §3.1).
