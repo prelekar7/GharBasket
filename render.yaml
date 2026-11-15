@@ -26,20 +26,24 @@ services:
         value: INFO
       # The caller's address for the per-address rate limits (M0 §6.3, handbook 13 §13.3). The API
       # refuses to start without CLIENT_IP_SOURCE and ORIGIN_SECRET. Set them and
-      # PROXY_CLIENT_IP_HEADER in the dashboard before the change is deployed (handbook 12, one-time
+      # PROXY_CLIENT_IP_SOURCE in the dashboard before the change is deployed (handbook 12, one-time
       # setup step 8): a Blueprint may not apply a changed value to an existing service.
       # - CLIENT_IP_SOURCE, for direct callers: Render's proxy appends to X-Forwarded-For, so its
       #   leftmost entry is whatever the caller sent; Cloudflare, in front of Render, sets
       #   True-Client-IP to the address that connected to it (not documented by Render).
       # - ORIGIN_SECRET, the same value and name as on the PWA's Vercel project: with it in
-      #   x-origin-secret, the visitor's address is PROXY_CLIENT_IP_HEADER, which Vercel sets.
+      #   x-origin-secret, the visitor's address is PROXY_CLIENT_IP_SOURCE. Measured on 14-15 Nov
+      #   (handbook 13 §13.3): x-real-ip never arrives, and Vercel passes a visitor's own
+      #   x-vercel-forwarded-for through, so neither is usable; Vercel adds the visitor to
+      #   X-Forwarded-For and three hops (Cloudflare, Cloudflare, Render) append after it, so the
+      #   visitor is `xff:4`. PROXY_CLIENT_IP_HEADER is unused while it is set.
       #   ORIGIN_SECRET_PREVIOUS only during a rotation (handbook 12, step 8).
       # After any change here, at Render or at Vercel, run the checks of handbook 13 §13.3: both
       # paths must count your own address, and spoofed headers must still get 429s.
       - key: CLIENT_IP_SOURCE
         value: header:true-client-ip
-      - key: PROXY_CLIENT_IP_HEADER
-        value: x-real-ip
+      - key: PROXY_CLIENT_IP_SOURCE
+        value: xff:4
       - key: ORIGIN_SECRET
         sync: false
       - key: ORIGIN_SECRET_PREVIOUS

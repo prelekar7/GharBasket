@@ -5,9 +5,10 @@ proxy), never a value from a header. The address comes from one of two paths:
 
 - **Our own proxy** (the PWA's Vercel `/v1/*` route): it sets `x-origin-secret` to ORIGIN_SECRET,
   replacing anything the visitor sent. With that exact secret (or ORIGIN_SECRET_PREVIOUS during a
-  rotation), the address is the one header PROXY_CLIENT_IP_HEADER (`x-real-ip`), which that proxy
-  sets. A request without the secret, or with a wrong one, never reads that header; a wrong one is
-  logged as `client_ip_proxy_secret_mismatch`.
+  rotation), the address comes from PROXY_CLIENT_IP_SOURCE (`header:<name>` or `xff:<n>`; on
+  Render `xff:4`, the X-Forwarded-For entry that proxy wrote), else the one header
+  PROXY_CLIENT_IP_HEADER. A request without the secret, or with a wrong one, never reads either;
+  a wrong one is logged as `client_ip_proxy_secret_mismatch`.
 - **Everything else**, by CLIENT_IP_SOURCE:
   - `peer` (the default; local runs and tests): the socket peer.
   - `header:<name>`: that one header, from a proxy that replaces whatever the caller sent
@@ -84,17 +85,32 @@ def _from_header(scope: Scope, source: str, name: bytes) -> str | None:
     return found
 
 
-def _from_source(scope: Scope, source: str) -> str | None:
+def _xff_entry(scope: Scope, hop: int) -> tuple[bytes | None, str | None]:
+    """The `hop`-th X-Forwarded-For entry from the right (None when there are fewer) and it as an
+    address."""
+    raw = _header(scope, b"x-forwarded-for")
+    entries = raw.split(b",") if raw is not None else []
+    entry = entries[-hop] if len(entries) >= hop else None
+    return entry, _ip(entry)
+
+
+def _from_source(scope: Scope, source: str, label: str | None = None) -> str | None:
+    """The address by `source`; a fallback is logged under `label` (default: the source)."""
+    label = label or source
     if source.startswith("header:"):
-        return _from_header(scope, source, source.removeprefix("header:").encode())
+        return _from_header(scope, label, source.removeprefix("header:").encode())
     if source.startswith("xff:"):
-        raw, hop = _header(scope, b"x-forwarded-for"), int(source.removeprefix("xff:"))
-        entries = raw.split(b",") if raw is not None else []
-        found = _ip(entries[-hop]) if len(entries) >= hop else None
+        entry, found = _xff_entry(scope, int(source.removeprefix("xff:")))
         if found is None:
-            _fallback(source, raw if len(entries) >= hop else None)
+            _fallback(label, entry)
         return found
     return None  # peer
+
+
+def proxy_source(settings: Settings) -> str:
+    """Where our proxy's requests name the visitor: PROXY_CLIENT_IP_SOURCE, else the header
+    PROXY_CLIENT_IP_HEADER."""
+    return settings.proxy_client_ip_source or f"header:{settings.proxy_client_ip_header}"
 
 
 def _from_our_proxy(scope: Scope, settings: Settings) -> bool:
@@ -123,8 +139,9 @@ def from_scope(scope: Scope, settings: Settings) -> str:
     """The caller's address: from our proxy's header, else by CLIENT_IP_SOURCE, else the peer."""
     found, path = None, "peer"
     if _from_our_proxy(scope, settings):
-        header = settings.proxy_client_ip_header
-        found, path = _from_header(scope, f"proxy:{header}", header.encode()), "proxy"
+        source = proxy_source(settings)
+        label = f"proxy:{source.removeprefix('header:')}"
+        found, path = _from_source(scope, source, label), "proxy"
     if found is None:
         found, path = _from_source(scope, settings.client_ip_source), "source"
     if found is None:
@@ -151,8 +168,12 @@ def _debug(scope: Scope, settings: Settings, path: str, found: str) -> None:
         hmac.compare_digest(values[0], s.get_secret_value().encode()) for s in accepted
     )
     secret = "absent" if not values else ("match" if match else "mismatch")
-    raw = _header(scope, settings.proxy_client_ip_header.encode())
-    real = _ip(raw)
+    source = proxy_source(settings)
+    if source.startswith("xff:"):
+        raw, real = _xff_entry(scope, int(source.removeprefix("xff:")))
+    else:
+        raw = _header(scope, source.removeprefix("header:").encode())
+        real = _ip(raw)
     xff_raw = _header(scope, b"x-forwarded-for")
     xff = [_ip(entry) for entry in xff_raw.split(b",")] if xff_raw is not None else []
     shape: dict[str, object] = {
