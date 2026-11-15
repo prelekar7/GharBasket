@@ -1,6 +1,6 @@
 # M5 — Billing & Ledger
 
-**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval, built (as built, below); §3.9 (revenue recognition on delivery) drafted 2026-11-11, frozen on approval. §3.5's weekly payouts are built, and so is `partner_months`, the facade for M8's income certificate
+**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval, built (as built, below); §3.9 (revenue recognition on delivery) drafted 2026-11-11, frozen on approval. §3.10 (live mode and the cut-over, ADR-0037) drafted 2026-11-14, frozen on approval. §3.5's weekly payouts are built, and so is `partner_months`, the facade for M8's income certificate
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (wallet); UPI Autopay in the pilot phase (P6)
 **Postgres schema:** `billing` · **Python package:** `gharbasket.modules.billing`
@@ -564,13 +564,88 @@ Both `revenue` entries have `ref: { type: "order", id }` (the missed order for a
 
 *As built (2026-11-11).* `billing/revenue.py` holds the rule (`recognise`, `refund_legs`, the order lock); `billing/jobs.py` subscribes the consumer by name (M5 does not import M4) and registers the backfill job; `billing.api.held_paise` is the facade, and `orders/jobs.py` has the probe. `refund_to_wallet` takes the order's lock before the wallet's row. Migration `20261111_1200_billing_revenue_entry_kind` (revision `5d1e9b3a7c42`) adds `revenue` to the entry kinds' check and an index on `journal_entries (ref_type, ref_id)`, which the per-order sums read; its downgrade refuses while any `revenue` entry or refund from `sales_revenue` exists (the ledger is append-only). M4's `orders.delivered` of a box or add-on order carries `carried` (rows locked as they are read, so they are the rows delivered).
 
+### 3.10 Live mode and the cut-over (drafted 2026-11-14, frozen on approval; ADR-0037)
+The owner chose to test the whole app with real payments on staging before the launch ([ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md)). This section is the contract for that switch. No customer endpoint or screen changes: the wallet, top-up, statement and refund shapes of §3.1–§3.3 stay as they are. Each point marked **(owner)** is a recommendation for the owner to confirm on the PR.
+
+**The switch.** `RAZORPAY_MODE` is `test` (the default) or `live`, read at start-up.
+
+| `RAZORPAY_MODE` | `APP_ENV` | `RAZORPAY_KEY_ID` must match | Otherwise |
+|---|---|---|---|
+| `test` | any | `^rzp_test_` (as today) | The API refuses to start |
+| `live` | `staging` or `prod` | `^rzp_live_`, with `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` set | The API refuses to start; `live` with `dev` or `test` is refused too |
+
+- The error names the variable, never the value (as for `CLIENT_IP_SOURCE`).
+- The start-up log line and `/v1/ready` (operator token) report `payments_mode: "test" | "live"`. `/v1/health` stays public and does not.
+- Razorpay keeps test and live webhooks apart, each with its own secret. In live mode only the live secret is configured, so an event from the test-mode webhook fails the signature check and is answered 401 (as any bad signature today, §3.1). Whether Razorpay's payload also names the mode is not relied on.
+
+**Every payment knows its mode.** `billing.payments.mode` (`test` | `live`, NOT NULL; CHECK) is added by a migration.
+- Existing rows are backfilled `test`, `dev` payments included. A new payment takes the running mode; a `dev` payment is always `test`.
+- **Top-ups (§3.1):** a webhook or a reconciliation heal settles only a payment of the running mode. A payment of the other mode that somehow reaches the settle path is not credited: it is stored, answered `200 { "outcome": "ignored" }`, and logged as `billing.payment_mode_mismatch`.
+- **Refund to source (§3.3):** the candidate top-ups are only the running mode's. A test-mode payment never gets a refund part in live mode; its share falls back exactly as §3.3's "no source can take it" rule does.
+- **Reconciliation (§3.4):** our side of every check (`credited_not_captured`, `refund_status_mismatch`, `refund_stuck`, the single-payment lookups) considers only payments and parts of the running mode. Razorpay's own lists already come from the running key's account.
+
+**The cut-over** runs once, by hand, as two internal jobs (M0 §3: `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN`; `just job <name>`). Both need `RAZORPAY_MODE=live` and refuse otherwise (`409 billing.cutover_not_live`). Both are idempotent.
+
+1. **`billing_cutover_prepare`.** It stops new test-funded orders and reports what still holds test money:
+   - It calls `subscriptions.api.pause_synthetic_households(reason="live_cutover")`, a new M3 facade. Every household with `data_source = synthetic` gets status `paused` with no end date, so no weekly plan, approval or cut-off debit runs for it. An admin can resume one by hand.
+   - It returns **blockers**: things paid or promised with test money that would still move money after the close. These are:
+     - M4 orders that could still move money, from the new facade `orders.api.open_paid_order_count()`:
+       - every order in `locked`, `picking`, `packed`, `dispatched`, `at_society`, `undelivered` or `redelivery`;
+       - every `delivered` order still inside its 48-hour issue window (M4 §3.2), because an issue credit would put money in a wallet;
+       - any order with an `open` issue.
+
+       `approved` and `payment_failed` orders hold no money and are not blockers. The prepare job also skips each synthetic household's approved cycles that have not reached their cut-off (M3 skip → `orders.api.cancel_from_cycle`; no money has moved), so none of them locks with test money after the pause.
+     - open carry-overs (M4 §3.8), from `orders.api.open_carry_over_count()`;
+     - refund parts `pending` or `sent`;
+     - test-mode top-ups still `created` and unexpired;
+     - open reconciliation items.
+   - Run it, let the day's deliveries and the 16:00 close finish, and run it again until it reports no blockers. Real households keep their subscriptions. **(owner)** Run the close on a day after the last test-paid delivery and before the next 21:00 cut-off.
+2. **`billing_cutover_live`.** It closes the test money in one journal entry:
+   - It refuses with `409 billing.cutover_blocked` and the same blocker list while any blocker remains. An open reconciliation item is resolved by an admin first, with a note.
+   - **Ledger:** one entry, kind `test_mode_closed`, `ref_type` `cutover`, key `test_mode_closed`.
+     - For every INR account with a non-zero balance (wallets, `razorpay_clearing`, `unearned_revenue`, `sales_revenue`, `unclaimed_balances`, `partner_payable:*`, `payout_clearing`, the expense accounts), it posts the opposite of its balance.
+     - It posts one balancing leg to the new platform account `test_funds`. Its kind is **`equity`**, new in the account-kind CHECK.
+     - `details` lists every account code, owner and amount.
+     - KINDNESS_PTS accounts are left alone: points are not money (§3.6).
+   - It writes `platform.audit_log` (`billing.cutover_live`, the counts and the INR total) and publishes `billing.cutover_completed { entry_id, accounts, total_paise }`. M11 tells every admin.
+   - A second call returns the same entry (`200`, `"already_done": true`).
+
+**After the cut-over.**
+- Every real-money account starts at ₹0, and real households top up with real money.
+- Statements (§3.2) show the closing as one line, "Test balance closed", kind `test_mode_closed`, with its amount.
+- The analytics money views (M12) count only entries after the `test_mode_closed` entry when it exists.
+- New ops probe **`billing.live_mode_mixed`** (M0 §6.1). It reports a problem when either holds:
+  - the API runs `live` and no `test_mode_closed` entry exists after 24 hours;
+  - any `topup` entry after the `test_mode_closed` entry belongs to a `test` payment.
+
+**Error codes added**
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `billing.cutover_not_live` | A cut-over job while `RAZORPAY_MODE` is `test` |
+| 409 | `billing.cutover_blocked` | `billing_cutover_live` with blockers; the problem carries `"blockers": { "open_paid_orders", "open_carry_overs", "refund_parts_in_flight", "unpaid_test_topups", "open_recon_items" }` |
+
+**Guards outside the API** (scripts, ADR-0037 §4): `just staging-demo`, `just staging-rollback`, the simulator's `--allow-remote` and a shared-database `just seed` refuse when `RAZORPAY_MODE=live` is in their environment (Infisical `staging`). They also refuse when the target database holds a `test_mode_closed` entry, so a forgotten variable cannot let them through.
+
+**Tests required** (§9 adds):
+- the start-up matrix above;
+- the mode backfill;
+- a webhook for a payment of the other mode is ignored, not credited;
+- refund to source skips other-mode payments;
+- reconciliation scopes by mode;
+- prepare pauses only synthetic households and reports each blocker;
+- live refuses with blockers;
+- the closing entry zeroes every INR account, sums to zero, leaves points untouched, and is idempotent;
+- the probe's two cases;
+- the script guards.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `billing.ledger_accounts` | id, owner_type, owner_id, currency (INR, KINDNESS_PTS), kind (asset, liability, revenue, expense) |
+| `billing.ledger_accounts` | id, owner_type, owner_id, currency (INR, KINDNESS_PTS), kind (asset, liability, revenue, expense; `equity` added by §3.10 for `test_funds`) |
 | `billing.journal_entries` | id, kind, ref_type, ref_id, details jsonb (e.g. delivery_date, reason), idempotency_key (unique), created_at; append-only |
 | `billing.postings` | entry_id, account_id, amount (signed minor units: debit +, credit −) — deferred trigger enforces Σ = 0 per currency; append-only |
-| `billing.payments` | id, user_id, provider, provider_ref, amount_paise, status, purpose |
+| `billing.payments` | id, user_id, provider, provider_ref, amount_paise, status, purpose, mode (`test`, `live`; §3.10) |
 | `billing.mandates` | id, user_id, provider_ref, max_paise, status, last_notice_at — **not created in this phase** (§3.7) |
 | `billing.payment_webhooks` | id, provider, event_id (unique), payload jsonb, processed_at |
 | `billing.payouts` | id, partner_id, week (ISO, e.g. 2027-W03), period_from, period_to, amount_paise, status (held, pending, processing, processed, failed), hold_reason, provider (simulated, razorpay_route), provider_ref, entry_id, attempts, created_at, processed_at; unique (partner_id, week) |
@@ -631,6 +706,7 @@ M0, M1 (users), M4 (orders via events/api), M8 (payee KYC status via `partners.a
 
 ## 11. Open questions
 - Monthly top-up limit (proposed ₹20,000 in §3.1) and the 30-minute top-up expiry: confirm with the guide before a real-money pilot.
+- **§3.10 (owner):** the ₹20,000 monthly cap and the 30-minute expiry above become real-money rules at the cut-over; confirm or change them before it.
 - Top-up bonus rules (e.g. ₹2,000 → ₹2,100) and their accounting as promo expense.
 - ~~Captain commission per order value for the pilot (proposed ₹5–8).~~ Decided by the owner (2026-10-09, M8 §3.6): ₹6 a bag, paid when the bag is delivered.
 - **Leftovers (§3.5):** TDS on partner payouts (and whether partners are paid real money at all in the pilot, handbook 13 §13.8) needs the guide's answer before real money.
