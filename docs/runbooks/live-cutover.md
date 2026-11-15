@@ -45,6 +45,8 @@ M5 §3.10). The two jobs are `billing_cutover_prepare` and `billing_cutover_live
    `409 billing.cutover_blocked` with the same `blockers`, and posts nothing. Otherwise its summary has the `entry_id`
    of the one `test_mode_closed` entry, how many `accounts` it zeroed and `total_paise`. Running it again answers the
    same entry with `"already_done": true`. Every wallet now reads ₹0, and its statement shows "Test balance closed".
+   Every admin gets one inbox message and push, "Test money closed", with the amount and the number of accounts
+   (M11; it waits for quiet hours like every staff message).
 5. **The first real-money test, together** (ADR-0037, order of work 5): a ₹100 top-up from the owner's phone, a ₹1
    refund to source of part of it, a refund of the rest, then `reconcile_payments` by hand. After each step check the
    wallet, the Razorpay dashboard, and `ops_check`.
@@ -54,6 +56,9 @@ M5 §3.10). The two jobs are `billing_cutover_prepare` and `billing_cutover_live
 - The probe `billing.live_mode_mixed` reports the API running live without the close for 24 hours (since the API
   started live, or since the first live payment), and any test-mode top-up credited after the close.
 - An admin resumes a synthetic household only on purpose: its wallet holds no money now.
+- The analytics partner earnings (console → KPIs, unit economics) count only the earnings after the close from the next
+  `refresh_analytics_nightly` (02:40 IST) on; the earlier weeks' test earnings drop out at that run (M12 §3.2). The order
+  money (GMV, revenue) is not cut (M12 §11).
 
 ## What not to do
 

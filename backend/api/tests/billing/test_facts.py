@@ -1,4 +1,5 @@
-"""billing.api.earning_facts and kindness_facts: the ledger read back for M12 (M12 §3.1)."""
+"""billing.api.earning_facts and kindness_facts: the ledger read back for M12 (M12 §3.1); after
+the cut-over (M5 §3.10), `cutover_at` and only the earnings after the closing entry."""
 
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -8,7 +9,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
-from gharbasket.modules.billing import kindness
+from gharbasket.modules.billing import cutover, kindness
+from gharbasket.modules.billing import facts as facts_module
+from gharbasket.modules.billing.models import JournalEntry
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
 
@@ -58,6 +61,43 @@ async def test_earning_facts_sum_each_partner_week_and_basis(db_session: AsyncSe
         (week(MONDAY), 3),
         (week(MONDAY + timedelta(days=7)), 2),
     ]
+
+
+async def test_after_the_cutover_only_later_earnings_count(db_session: AsyncSession) -> None:
+    cook = uuid.uuid4()
+    at = datetime(2026, 11, 4, 12, 0, tzinfo=IST)
+
+    async def earn(portions: int) -> None:
+        await billing_api.accrue_earning(
+            db_session,
+            partner_id=cook,
+            basis="tiffin_portion",
+            ref_type="order",
+            ref_id=uuid.uuid4(),
+            units=portions,
+            amount_paise=3_000 * portions,
+            earned_at=at,
+        )
+
+    async def facts(after_cutover: bool) -> list[tuple[int, int]]:
+        found = await billing_api.earning_facts(
+            db_session, week_from=week(MONDAY), week_to=week(MONDAY), after_cutover=after_cutover
+        )
+        return [(f.units, f.amount_paise) for f in found if f.partner_id == cook]
+
+    assert facts_module.CLOSED_KEY == cutover.KEY  # kept apart only to avoid an import cycle
+    await earn(3)  # test money
+    assert await billing_api.cutover_at(db_session) is None
+    assert await facts(True) == await facts(False) == [(3, 9_000)]  # no close: every entry
+
+    summary = await cutover.close(db_session, datetime.now(UTC))
+    await earn(2)  # live money, the same week
+
+    closing = await db_session.get(JournalEntry, uuid.UUID(summary["entry_id"]))
+    assert closing is not None
+    assert await billing_api.cutover_at(db_session) == closing.created_at
+    assert await facts(True) == [(2, 6_000)]
+    assert await facts(False) == [(5, 15_000)]
 
 
 async def test_kindness_facts_split_credited_donated_and_expired(db_session: AsyncSession) -> None:

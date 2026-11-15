@@ -23,7 +23,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ColumnElement, Table, and_, delete, func, select, text, tuple_
+from sqlalchemy import ColumnElement, Table, and_, delete, func, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -472,9 +472,14 @@ async def pull_partner_weeks(
 ) -> None:
     """Earnings per partner, ISO week and basis for the weeks whose Mondays are first to last,
     tagged with the partner's hub, kind and data source. An earning of a partner M8 does not know
-    is left out (counted as `unmatched`)."""
+    is left out (counted as `unmatched`).
+
+    After the cut-over (M5 §3.10) only the entries after the `test_mode_closed` entry count: the
+    earnings before it were test money. The weeks wholly before the close's ISO week then hold
+    none, so their rows go outside the window too, not only as the window passes over them."""
+    closed_at = await billing_api.cutover_at(session)
     earnings = await billing_api.earning_facts(
-        session, week_from=iso_week(first), week_to=iso_week(last)
+        session, week_from=iso_week(first), week_to=iso_week(last), after_cutover=True
     )
     partners = {
         p.partner_id: p
@@ -494,15 +499,10 @@ async def pull_partner_weeks(
         for e in earnings
         if e.partner_id in partners
     ]
-    await _write(
-        session,
-        counts,
-        "partner_weeks",
-        FactPartnerWeek,
-        rows,
-        now,
-        _between(FactPartnerWeek.iso_week, first, last),
-    )
+    scope = _between(FactPartnerWeek.iso_week, first, last)
+    if closed_at is not None:
+        scope = or_(scope, FactPartnerWeek.iso_week < monday(ist_today(closed_at)))
+    await _write(session, counts, "partner_weeks", FactPartnerWeek, rows, now, scope)
     counts.add("partner_weeks_unmatched", len(earnings) - len(rows), 0)
 
 

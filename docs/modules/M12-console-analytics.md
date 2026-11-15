@@ -1,6 +1,6 @@
 # M12 — Console & Analytics
 
-**Status:** Draft v2. §3.1–§3.9 were drafted on 2026-10-09 and are frozen for S9 on approval. They cover how M12 reads other modules, the fact tables and materialised views with their refresh jobs, the today board, KPIs, unit economics and P&L, cohorts and partner earnings, impact, the public society page, AI health and the common rules. §3.2–§3.8 are built (each "As built" below), and AI health (§3.8) is on `main`. No KPI shows one partner's pay (§3.3).
+**Status:** Draft v2. §3.1–§3.9 were drafted on 2026-10-09 and are frozen for S9 on approval. They cover how M12 reads other modules, the fact tables and materialised views with their refresh jobs, the today board, KPIs, unit economics and P&L, cohorts and partner earnings, impact, the public society page, AI health and the common rules. §3.2–§3.8 are built (each "As built" below), and AI health (§3.8) is on `main`. No KPI shows one partner's pay (§3.3). After M5's cut-over (M5 §3.10) the partner earnings count only ledger entries after the `test_mode_closed` entry (§3.2 "After the cut-over").
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** Shell in P1 / S0; screens grow with each phase (P2–P5). The analytics backend (§3.1–§3.7) is S9, for MS-D ("impact dashboard").
 **Deployables:** `frontend/console` (Next.js 16) + analytics endpoints in the API (`gharbasket.modules.analytics`, read-only towards every other module)
@@ -71,7 +71,7 @@ The analytics module serves read-only numbers: the hub's today board, KPIs, unit
 | M3 | `subscriptions.api.cycle_facts(session, *, date_from, date_to, hub_ids)` | cycle_id, household_id, hub_id, society_id, week_start, delivery_date, status, auto_approved, approved_before_cutoff, edits, plan_source, ran_out_taps, wasted_taps, data_source |
 | M4 | `orders.api.order_facts(…)` | order_id, household_id, hub_id, society_id, kind, delivery_date, slot_end, status, total_paise, fees_paise, refunded_paise, credited_paise, lines, short_lines, delivered_at, attempts, data_source |
 | M4 | `orders.api.issue_facts(…)`, `open_issue_summary(session, hub_id)`, `today_counts(session, hub_id, date)` | issue_id, order_id, hub_id, kind, status, amount_paise, credit_paise, by, created_at, resolved_at; the open count, oldest `created_at` and earliest `callback_due_at`; orders by status |
-| M5 | `billing.api.earning_facts(session, *, week_from, week_to)` | partner_id, iso_week, basis, units, amount_paise |
+| M5 | `billing.api.earning_facts(session, *, week_from, week_to, after_cutover=False)` | partner_id, iso_week, basis, units, amount_paise; with `after_cutover`, only entries after M5's `test_mode_closed` entry (M5 §3.10). `billing.api.cutover_at(session)` is when that entry was posted, or None |
 | M5 | `billing.api.kindness_facts(…)` | date, source_type, points credited, donated, expired |
 | M6 | `hub_ops.api.hub_day_facts(…)`, `packing_progress(session, hub_id, date)` | hub_id, date, packed_g, waste_g by `cascade_to`, cogs_paise or null (when the day's draw-down is not fully costed), surplus offered and taken; bags packed and total |
 | M7 | `logistics.api.route_facts(…)`, `today_routes(session, hub_id, date)` | route_id, hub_id, date, kind, km_m, cost_paise, orders, stops, on_time_stops, late_stops, source |
@@ -135,6 +135,11 @@ Each view has a unique index on its grain, so `REFRESH MATERIALIZED VIEW CONCURR
 - **Refresh.** Upserts touch a row only when a value changed; facts the source no longer returns for a pulled window are deleted (a purged cycle, a superseded route); issues are never pruned (M4 keeps them). "Since the last run" is the IST date of the last successful `refresh_analytics`'s `scheduled_for`, never further back than 35 days. The rebuild starts at the first order (`orders.api.first_delivery_date`) or the first signup, if earlier. The three jobs share one advisory lock, so they never interleave. A failed run commits its `failed` row, then raises, so the job run fails too. `as_of`/`stale` live in `analytics/freshness.py` for the endpoint PRs.
 - **Erasure.** The consumer of `identity.user_deleted` (§4) deletes the household's `fact_households` and `fact_cycles` rows under the refresh jobs' advisory lock. While a refresh holds the lock, it fails and the outbox retries it (with backoff), so a pull that read the household before the purge cannot write it back.
 - **Not built here:** Row-Level Security on the fact tables (§3.9; no table in the monolith has RLS yet). The today-board facades come with the endpoints (§3.3 "As built").
+
+**After the cut-over** (M5 §3.10, ADR-0037; `feat/M5-cutover-followups`, 2026-11-15). The contract: "The analytics money views (M12) count only entries after the `test_mode_closed` entry when it exists."
+- **Earnings.** The nightly run and the rebuild pull earnings with `after_cutover=True`, so M5 leaves out the entries posted before the closing entry (they were test money, which that entry closed). That covers `mv_partner_earnings_weekly` and the measured partner pay of `mv_weekly_unit_economics` (§3.4, §3.5).
+- **The weeks before.** Once `billing.api.cutover_at` gives a time, the partner-week pull also removes every row of an ISO week wholly before the close's week (IST), outside its six-week window too, so the first nightly run after the close clears the old test earnings without a rebuild. The close's own week is pulled again like any other while it is in the window.
+- **Not cut:** the order money (GMV, box and add-on revenue, refunds, credits). It comes from M4's `order_facts`, not from ledger entries, and no order holds money across the close (M5 §3.10's blockers). Whether the P&L should also drop the orders delivered before the close is an open question for the owner (§11). Kindness points are not money, and M12 does not store them.
 
 ### 3.3 Today board, KPIs and societies contract (drafted 2026-10-09, frozen on approval)
 The console's Ops board (`(hub)/today`), KPIs (`(analytics)/kpis`) and Customers (`(franchise)/customers`) pages build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
@@ -595,7 +600,9 @@ M1 for auth and household facts, and every module's facade listed in §3.1. The 
   - 12: add the two refresh jobs to the job table.
 
 ## 11. Open questions and decisions
-No open questions remain for §3.1–§3.9.
+No open questions remain for §3.1–§3.9. One is open from M5 §3.10:
+
+- **Order money before the cut-over (owner).** The earnings count only entries after M5's `test_mode_closed` entry (§3.2 "After the cut-over"). The order money (GMV, revenue, refunds, credits) is M4's order totals, not ledger entries, and is not cut. Recommendation: leave it. Every view keeps `synthetic` and `real` apart, so the synthetic weeks (most of staging's test period) never mix with real money; only the real households' test-paid orders remain. If the P&L must drop the real households' test-paid orders too, M12 would cut the order money at the close's IST date (every order delivered by then was paid with test money; M5's blockers guarantee none holds money across it), which redefines `mv_daily_hub_kpis` and `mv_weekly_unit_economics` in a migration.
 
 - **Decided by the owner (2026-10-09)** (every recommendation of this section accepted as written):
   - ~~`data_source` values? Transactional tables store `real | synthetic`; handbook 05 §5.10 says `synthetic | pilot | live`; M10's tables use `synthetic | pilot | live | mixed`; the console mocks use `simulator`/`sim` and `pilot`.~~ Decided: M12 takes the stored `real | synthetic`, and the console labels `real` as "Pilot" until launch (§3.3). Renaming `real` to `pilot` across the schemas before the pilot would be a later ADR, at one migration per module.
