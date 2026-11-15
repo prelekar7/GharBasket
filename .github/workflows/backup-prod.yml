@@ -1,0 +1,86 @@
+# Daily backup of production's database to Cloudflare R2 (ADR-0036, handbook 12 §12.9).
+#
+# Production's Neon project is a root branch, so it also has Neon's instant restore; this dump is
+# the copy outside Neon. scripts/neon-backup.sh (the same as backup-staging.yml) makes a
+# `pg_dump --format=custom`, checks it can be read, uploads it to the private bucket
+# `gb-prod-backups` as `prod/YYYY-MM-DD.dump` (IST date) and keeps the newest 30.
+#
+# 03:43 IST daily, the minute prod's daily `purge_gps_pings` wakes the database, as on staging.
+#
+# The dump holds the personal and payment data of real customers (handbook 13 §13.1): the bucket
+# is private (no public access, no custom domain, no r2.dev URL) and its token covers that bucket
+# alone. Read access: Prathamesh Relekar; others only for a restore drill, on his say.
+#
+# The secrets live in the GitHub environment `production-ops` (deployments from `main` only, no
+# reviewers, so the schedule runs unattended), never as repository secrets and never under
+# staging's names: a missing production secret must not fall back to a staging value. Until
+# PROD_DATABASE_URL_DIRECT and the three PROD_BACKUP_S3_* exist the job skips with a notice. On
+# failure it tells production's healthchecks `prod-ops` check (PROD_HC_OPS_URL), if set.
+name: Backup production
+
+on:
+  schedule:
+    - cron: "13 22 * * *" # 03:43 IST daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-prod
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Dump production to R2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production-ops
+    env:
+      BACKUP_BUCKET: gb-prod-backups
+      BACKUP_PREFIX: prod/
+      KEEP: "30" # one a day, thirty days (ADR-0036)
+      PG_IMAGE: postgres:18 # move with backup-staging.yml when Neon moves major version
+      HC_OPS_URL: ${{ secrets.PROD_HC_OPS_URL }}
+    steps:
+      - name: Check that the secrets exist
+        id: configured
+        env:
+          PROD_DATABASE_URL_DIRECT: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
+          PROD_BACKUP_S3_ENDPOINT_URL: ${{ secrets.PROD_BACKUP_S3_ENDPOINT_URL }}
+          PROD_BACKUP_S3_ACCESS_KEY: ${{ secrets.PROD_BACKUP_S3_ACCESS_KEY }}
+          PROD_BACKUP_S3_SECRET_KEY: ${{ secrets.PROD_BACKUP_S3_SECRET_KEY }}
+        run: |
+          missing=""
+          for name in PROD_DATABASE_URL_DIRECT PROD_BACKUP_S3_ENDPOINT_URL PROD_BACKUP_S3_ACCESS_KEY PROD_BACKUP_S3_SECRET_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice::The production backup is not configured yet (missing secrets:$missing). Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.ready == 'true'
+        with:
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Dump production, upload it to R2, keep the newest
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
+          BACKUP_S3_ENDPOINT_URL: ${{ secrets.PROD_BACKUP_S3_ENDPOINT_URL }}
+          BACKUP_S3_ACCESS_KEY: ${{ secrets.PROD_BACKUP_S3_ACCESS_KEY }}
+          BACKUP_S3_SECRET_KEY: ${{ secrets.PROD_BACKUP_S3_SECRET_KEY }}
+        run: scripts/neon-backup.sh
+
+      - name: Tell the ops alert
+        # healthchecks.io `prod-ops` check (ADR-0033, ADR-0036); skipped while the secret is unset.
+        if: failure() && env.HC_OPS_URL != ''
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          curl --silent --show-error --max-time 10 --retry 3 \
+            --data-raw "$GITHUB_WORKFLOW: the production backup failed, $run_url" "$HC_OPS_URL/fail" || true

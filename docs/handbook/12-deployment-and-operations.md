@@ -91,7 +91,7 @@ flowchart TB
 | MLflow | Local only (Docker Compose) | Experiment tracking | Never hosted (D25) |
 | worker | None until the pilot | — | No broker for now (D21): the outbox relay and the job endpoints do the work. Taskiq returns when a paid worker exists |
 
-Production for the pilot is not set up yet. Before P6 we decide on paid plans (Render Starter for the API, a worker, Firebase Blaze for real OTPs) and on where the pilot database lives.
+Production for the pilot is not set up yet. Its plan is ADR-0036; the repository side (deploy, backup and usage workflows) and the owner's setup checklist are §12.9. Before P6 we decide on paid plans (the API host, a worker, Firebase Blaze for real OTPs) and on where the pilot database lives.
 
 ## 12.2 Hosted services used
 
@@ -276,7 +276,7 @@ Delete old `before-demo-*` branches in the console; the free plan allows 10 bran
 
 ### Weekly staging dump (`backup-staging.yml`)
 
-Neon on the free plan keeps no history of a child branch, so the workflow `.github/workflows/backup-staging.yml` takes one:
+Neon on the free plan keeps no history of a child branch, so the workflow `.github/workflows/backup-staging.yml` takes one. Its steps are `scripts/neon-backup.sh`, which production's daily `backup-prod.yml` runs too (§12.9):
 - **When:** Sunday 03:43 IST (cron `13 22 * * 6`, UTC) and by hand (`workflow_dispatch`). That is a minute the daily `purge_gps_pings` job already wakes Neon, so it adds a few minutes to an existing wake and keeps the compute-hours budget of `infra/jobs/schedule.yaml`.
 - **What:** `pg_dump --format=custom --no-owner --no-acl` of the whole database through `DATABASE_URL_DIRECT` (the direct URL, as for migrations). The client is the official `postgres:18` image, so its major version matches Neon's Postgres 18; move the tag when Neon moves. The workflow checks that `pg_restore --list` reads the dump and finds `identity.users` before it uploads anything.
 - **Where:** the R2 bucket `gb-staging-backups`, key `staging/YYYY-MM-DD.dump` (the IST date), uploaded with the S3 API. It keeps the newest 8 and deletes older keys of that form. Nothing else in the bucket is touched.
@@ -372,6 +372,114 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 | Mobile release builds (APK, AAB) | Yash Salunkhe |
 | Backup restore tests, runbook drills, uptime checks, load tests | Rhythm Thakur, Manish Raje |
 
+## 12.9 Production for the pilot (ADR-0036)
+
+**State:** not set up. The repository side is built and inert until its secrets exist: `deploy-prod.yml`, `backup-prod.yml`, the `prod` job of `neon-usage.yml`. Everything that needs an account is an owner step below. [ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md) runs the real-money test on staging first; this section is for the launch after it, if the owner chooses a separate production then (ADR-0037 §6).
+
+Production is a second copy of staging's deployment that shares nothing holding data or secrets: its own Infisical `prod` values (all generated fresh), Neon project, API, Valkey, ML service, R2 buckets, Firebase project, Razorpay live keys and alerts. **The hosts of the API, the ML service and the frontends are decided at pilot time** (owner; with Yash Salunkhe for the frontends). Render's free hours are used by staging, and Vercel Hobby is non-commercial. So nothing here assumes a plan. Values marked *TODO (owner)* are set once the hosts are chosen.
+
+### Production's settings
+
+The API and the ML service take the same variables as `gharbasket-api` and `gharbasket-ml` in `render.yaml`, except:
+
+| Variable | Production |
+|---|---|
+| `APP_ENV` | `prod` on both: no `/v1/docs` or `/v1/openapi.json` (the smoke test expects a 404), dev login off |
+| `JWT_SIGNING_KEY`, `REFRESH_TOKEN_PEPPER`, `KYC_ENCRYPTION_KEY`, `KYC_HASH_PEPPER` | New values, `openssl rand -base64 48` each, in Infisical `prod`. Never copied from staging |
+| `JOBS_TOKEN`, `ML_SERVICE_TOKEN`, `ORIGIN_SECRET` | New values, `openssl rand -hex 32` each |
+| `DATABASE_URL` | The production Neon project's pooled URL. The direct one is `PROD_DATABASE_URL_DIRECT` for the workflows |
+| `VALKEY_URL` | Production's own instance |
+| `FIREBASE_PROJECT_ID`, `FCM_SERVICE_ACCOUNT` | The production Firebase project |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Live keys and the live webhook's secret. Today's API refuses a key that is not `rzp_test_`; `RAZORPAY_MODE=live` comes with ADR-0037's code PR |
+| `S3_*`, `S3_BUCKET_PRIVATE` | Production's private bucket (*TODO (owner)*: name, e.g. `gb-prod-private`) and its own R2 token |
+| `ML_SERVICE_URL` | Production's ML service. On that service: `S3_BUCKET_MLFLOW` = production's model bucket (*TODO (owner)*: name, e.g. `gb-prod-mlflow`) with a read-only token on it alone. Only models whose eval report allows it are copied there (ADR-0036) |
+| `WEB_ORIGINS` | `https://gharbasket.co.in,https://app.gharbasket.co.in` |
+| `PUBLIC_WEB_URL`, `CONSOLE_URL`, `APP_WEB_URL` | `https://gharbasket.co.in` for the first two, `https://app.gharbasket.co.in` for the last |
+| `CLIENT_IP_SOURCE`, `PROXY_CLIENT_IP_HEADER` | Staging's values on Render. *TODO (owner)* on another host: work out which header that host's proxy sets, then run handbook 13 §13.3's checks |
+| `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER_ARG` | `gharbasket-api-prod` and `gharbasket-ml-prod`; the sample rate from the measured volume |
+| `PANTRY_TWIN_ENABLED`, `GREEN_SLOTS_ENABLED` | The pantry twin stays off until the app says what "Wasted" means (`render.yaml`). Green slots: *TODO (owner)* |
+| `PAYOUTS_PROVIDER` | Unset (`simulated`) until M5 builds Razorpay Route |
+| Deploys | Auto-deploy **off** on both services: production only changes through `deploy-prod.yml`. The image must pass the commit in `GIT_COMMIT` (Render does this through `RENDER_GIT_COMMIT`), or the deploy waits for nothing |
+
+### GitHub environments and secrets
+
+Production's secrets are never repository secrets, and they carry `PROD_` names. If a production secret were missing, a staging secret of the same name would be used in its place.
+
+| Environment | Protection | Secrets (and variables) | Used by |
+|---|---|---|---|
+| `production` | Required reviewer: Prathamesh Relekar. Deployment branches: `main` only. Leave "prevent self-review" off while he is the only reviewer | `PROD_DATABASE_URL_DIRECT`, `PROD_DEPLOY_HOOK_URL`, `PROD_JOBS_TOKEN`, optional `PROD_ML_DEPLOY_HOOK_URL`; variable `PROD_API_URL` | `deploy-prod.yml` |
+| `production-ops` | No reviewers (the schedules run unattended). Deployment branches: `main` only | `PROD_DATABASE_URL_DIRECT`, `PROD_BACKUP_S3_ENDPOINT_URL`, `PROD_BACKUP_S3_ACCESS_KEY`, `PROD_BACKUP_S3_SECRET_KEY`, `PROD_NEON_API_KEY`, optional `PROD_NEON_PROJECT_ID`, `PROD_HC_OPS_URL`; optional variable `PROD_NEON_CU_HOURS_LIMIT` (default 100) | `backup-prod.yml`, `neon-usage.yml` (`prod` job) |
+
+Copy each value without printing it, for example `infisical run --env=prod -- sh -c 'printf %s "$DATABASE_URL_DIRECT" | gh secret set PROD_DATABASE_URL_DIRECT --env production'`. Variables are not secret: `gh variable set PROD_API_URL --env production --body https://api.gharbasket.co.in`.
+
+### Deploying to production (`deploy-prod.yml`)
+
+1. Pick a commit staging already runs (`curl <staging>/v1/health` shows it).
+2. Actions → **Deploy production** → Run workflow, from `main`, with the full commit id. Tick `ml` when `backend/ml` changed since the last production deploy.
+3. The `verify` job checks the commit before anyone approves. It refuses a commit that is not on `main` or has no successful `Deploy staging` run.
+4. The owner approves the `production` deployment. Then the job:
+   - refuses production secrets equal to staging's database host or deploy hook;
+   - refuses a commit older than the one production runs (roll back on the host instead, runbook `deploy-rollback.md`);
+   - runs `alembic upgrade head` with `GB_ALLOW_REMOTE_MIGRATIONS=1`;
+   - calls the deploy hook with `&ref=<commit>` (Render's form; *TODO (owner)*: change that one step for another host);
+   - waits up to 20 minutes for `/v1/health` to report the commit;
+   - runs `scripts/smoke-staging.sh` against production.
+
+### Bringing production up (checklist)
+
+Steps marked **[owner]** need an account and only Prathamesh Relekar does them. Do them in this order.
+1. **[owner]** Choose the hosts and plans for the API, Valkey, the ML service and the frontends (frontends with Yash Salunkhe), and settle Q3 (Neon Singapore or a paid Mumbai Postgres). Read the prices on the providers' own pages.
+2. Merge the repository prerequisites (listed under "Not built yet" below).
+3. **[owner]** Infisical: create the `prod` environment. Generate every secret fresh, as in the table above.
+4. **[owner]** Neon: a **new project**, not a branch of staging's. Put the pooled URL in Infisical `prod` as `DATABASE_URL` and the direct URL as `DATABASE_URL_DIRECT`. Note the project id as `NEON_PROJECT_ID`.
+5. **[owner]** R2: create the private buckets (uploads and KYC, models, `gb-prod-backups`) with public access off. Make three tokens, each on its own bucket: the API's (read and write), the ML service's (read only) and the backup's (read and write).
+6. **[owner]** Firebase: a new project on the plan that sends real SMS, with phone sign-in on and **no test phone numbers**. Add `app.gharbasket.co.in` and `gharbasket.co.in` as authorised domains. Create the FCM service account.
+7. **[owner]** Razorpay: put the live keys in Infisical `prod`. Add a live webhook to `https://api.gharbasket.co.in/v1/payments/webhook/razorpay` and store its secret.
+8. **[owner]** Hosts: create the API service `gharbasket-api-prod` (`backend/api/Dockerfile`, health check `/v1/health`), its Valkey, and the ML service `gharbasket-ml-prod`. Turn auto-deploy off on both and enter the settings table. Copy the deploy hooks.
+9. **[owner]** GitHub → Settings → Environments: create `production` and `production-ops` with the protection, secrets and variables above.
+10. **[owner]** Alerts: the healthchecks.io checks `prod-cutoff`, `prod-scheduler` and `prod-ops` (`PROD_HC_OPS_URL`); an UptimeRobot monitor on production's `/v1/health`; the Grafana 5xx rule for `gharbasket-api-prod`.
+11. **[owner]** The VM scheduler's second target, with production's URL, `JOBS_TOKEN` and healthchecks URLs. This waits for the repository change listed below.
+12. The first deploy, as above, using a temporary `PROD_API_URL` (the host's own address) until the domain move.
+13. Run **Backup production** once by hand. Then Rhythm Thakur and Manish Raje do a restore drill into a separate database before the first real order.
+14. The reviewed load of the real hub, societies, catalog and price list, festival calendar and staff grants. No synthetic people, orders or weeks.
+15. **Frontends** (Yash Salunkhe with the owner): the production PWA and console projects. The PWA gets production's `ORIGIN_SECRET` and `VITE_FIREBASE_*`, with `VITE_FIREBASE_TEST_MODE` unset. The console gets `GB_API_MOCK=false` and **no `GB_DEV_LOGIN`**.
+16. Before the first customer, check:
+    - `/v1/docs` answers 404;
+    - `/v1/ready` (operator token) is ok;
+    - Firebase `prod` has no test numbers;
+    - `GB_DEV_LOGIN` is absent on the production console;
+    - `PAYOUTS_PROVIDER` is unset.
+
+### The domain move (one sitting, just before the pilot)
+
+Production takes `api.`, `app.` and the bare `gharbasket.co.in`. Staging moves to `staging-api.`, `staging-app.` and `staging.gharbasket.co.in` (ADR-0036). Staging keeps working throughout, because its platform addresses (`*.onrender.com`, `*.vercel.app`) never change.
+1. **[owner]** Add the `staging-*` names as extra custom domains on staging's Render service and Vercel projects. Add their Cloudflare records (DNS only) and wait for the certificates. The old and new names now both work.
+2. **[owner]** Move every staging caller to the new names:
+   - Infisical `staging` and GitHub: `STAGING_API_URL` and `API_BASE_URL` (the Capacitor staging build);
+   - the VM: `just jobs-vm env` and `scripts/mandi-on-vm.sh env` again;
+   - UptimeRobot;
+   - the Razorpay webhooks on staging, test and (under ADR-0037) live;
+   - Firebase authorised domains of staging's project;
+   - on Render: `WEB_ORIGINS`, `PUBLIC_WEB_URL`, `APP_WEB_URL`, `CONSOLE_URL`;
+   - on Vercel: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL`, `GB_API_URL`, `VITE_PUBLIC_WEB_URL`. Redeploy without the build cache.
+3. The staging PWA's `/v1/*` route is fixed to `https://api.gharbasket.co.in` in `frontend/mobile/vercel.json`. Before step 4, a frontend PR must make the staging project send it to `staging-api`, or staging's PWA would talk to production.
+4. **[owner]** Remove the main names from staging's services. Add them to production's hosts, and change their Cloudflare records to production's targets. Set `PROD_API_URL` to `https://api.gharbasket.co.in`.
+5. Smoke test both, then run handbook 13 §13.3's address checks on both:
+   - `infisical run --env=staging -- just cloud https://staging-api.gharbasket.co.in`;
+   - `infisical run --env=prod -- just cloud https://api.gharbasket.co.in`.
+6. Update "Pointing the domain" (§12.2) to the new table.
+
+### Not built yet
+
+Each is its own PR, before the checklist above can finish:
+- **Code guards** (ADR-0036 step 2). `just seed`, `just staging-demo`, the simulator's `--allow-remote` and `staging-rollback` must refuse production by Neon project id and `APP_ENV=prod`.
+- **The Razorpay mode** (ADR-0037, a money PR).
+- **Scheduled jobs for production.** A `jobs-prod.yml` for the `actions` entries of `infra/jobs/schedule.yaml` (the cron test, `backend/api/tests/test_job_schedule.py`, covers `jobs-staging.yml` only). A second VM scheduler instance, once `scripts/jobs-on-vm.sh` takes a target.
+- **Production rows in a Render blueprint**, if Render is chosen. They go in a separate file: rows in `render.yaml` could be created by staging's Blueprint sync on the next push.
+- **`smoke-ml.yml` for production's ML service.**
+- **Production sections in the runbooks** `restore-from-backup.md` (Neon instant restore, then the daily dump), `deploy-rollback.md` and `rotate-secrets.md`.
+- **The reviewed load tool** for the real hub, societies and catalog.
+
 ## Decisions & open questions
 
 - **D6** — Postgres-centric data layer ([ADR-0006](../adr/0006-postgresql-centric-data-platform.md) in [`docs/adr/`](../adr/)).
@@ -381,6 +489,7 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 - **D30** — the ML service on a second free Render web service, without OSRM, replacing the Hugging Face Space of D25 ([ADR-0030](../adr/0030-ml-service-on-render-free.md)).
 - **D32** — staging's minute-level jobs are called by a scheduler on the Oracle VM, not cron-job.org, whose calls Render's edge turned away ([ADR-0032](../adr/0032-scheduled-jobs-from-the-oracle-vm.md)).
 - **D35** — the custom domain `gharbasket.co.in` on Cloudflare DNS: `api.` for the API, the bare name for the console, `app.` for the PWA ([ADR-0035](../adr/0035-custom-domain-gharbasket-co-in.md)).
+- **D36** — production is a second, complete copy that shares no data or secrets with staging, deployed by hand after approval; it takes the main names and staging moves to `staging-*` ([ADR-0036](../adr/0036-production-environment-for-the-pilot.md), §12.9). **D37** puts live Razorpay keys on staging first, behind `RAZORPAY_MODE` ([ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md)).
 - **Open:** paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before Phase 6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 11 — Engineering process](11-engineering-process.md) · [Chapter 13 — Security and compliance](13-security-and-compliance.md)
