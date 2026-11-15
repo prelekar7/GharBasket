@@ -7,6 +7,8 @@ webhook credits the wallet. Never the app: its "success" is only a hint to start
 - A payment that no longer fits under the cap (it arrived late) is refunded to its source.
 - Without Razorpay keys on a developer machine or in tests, top-ups are "dev" orders, paid by
   POST /v1/dev/razorpay/pay through the same processing as a real webhook.
+- A payment records the RAZORPAY_MODE it was made in (a dev one is always "test"), and only a
+  payment of the running mode is ever credited (spec §3.10).
 """
 
 import uuid
@@ -57,6 +59,7 @@ async def create_topup(
     razorpay: RazorpayClient | None,
     *,
     dev_orders: bool,
+    mode: str,
 ) -> Created:
     if amount_paise < MIN_PAISE or amount_paise % 100:
         raise ProblemError(422, "billing.topup_too_small", "Top up at least ₹100, in whole rupees.")
@@ -80,6 +83,7 @@ async def create_topup(
     payment = Payment(
         user_id=user_id,
         provider="razorpay" if razorpay else "dev",
+        mode=mode if razorpay else "test",
         amount_paise=amount_paise,
         status="created",
         expires_at=datetime.now(UTC) + HOLD,
@@ -115,9 +119,10 @@ async def by_order(session: AsyncSession, order_id: str) -> Payment | None:
 
 
 async def handle_event(
-    session: AsyncSession, event: dict[str, Any], razorpay: RazorpayClient | None
+    session: AsyncSession, event: dict[str, Any], razorpay: RazorpayClient | None, *, mode: str
 ) -> str:
-    """Apply one Razorpay event; returns what happened (stored with the webhook)."""
+    """Apply one Razorpay event; returns what happened (stored with the webhook). `mode` is the
+    running RAZORPAY_MODE: a payment of the other mode is left as it is (spec §3.10)."""
     kind = event.get("event")
     if kind not in ("payment.captured", "payment.failed"):
         return "ignored"
@@ -130,6 +135,9 @@ async def handle_event(
     payment = await by_order(session, order_id)
     if payment is None:
         return "unknown_order"
+    if payment.mode != mode:  # never credited; nor failed: it is the other account's
+        log.warning("billing.payment_mode_mismatch", topup_id=str(payment.id), mode=payment.mode)
+        return "ignored"
     if kind == "payment.failed":
         if payment.status == "created":
             payment.status = "failed"  # Checkout may still retry and capture on this order

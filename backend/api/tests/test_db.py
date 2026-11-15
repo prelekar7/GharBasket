@@ -145,7 +145,11 @@ def test_ready_with_database_and_valkey(database_url: str, valkey_url: str) -> N
         response = client.get("/v1/ready")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "checks": {"database": "ok", "valkey": "ok"}}
+    assert response.json() == {
+        "status": "ok",
+        "checks": {"database": "ok", "valkey": "ok"},
+        "payments_mode": "test",
+    }
 
 
 @pytest.mark.services

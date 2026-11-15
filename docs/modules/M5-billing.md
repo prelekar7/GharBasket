@@ -1,6 +1,6 @@
 # M5 — Billing & Ledger
 
-**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval, built (as built, below); §3.9 (revenue recognition on delivery) drafted 2026-11-11, frozen on approval. §3.10 (live mode and the cut-over, ADR-0037) drafted 2026-11-14, frozen on approval. §3.5's weekly payouts are built, and so is `partner_months`, the facade for M8's income certificate
+**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08; §3.3–§3.6 (refund to source, reconciliation, partner payouts, Kindness points) drafted 2026-10-09, frozen on approval; §3.7 mandates deferred (cut-able); §3.8 (order refunds list, served by M4) drafted 2026-10-25, frozen on approval, built (as built, below); §3.9 (revenue recognition on delivery) drafted 2026-11-11, frozen on approval. §3.10 (live mode and the cut-over, ADR-0037) drafted 2026-11-14, frozen on approval; its switch and the payment mode are built (as built, there), the cut-over jobs, the probe and the script guards not yet. §3.5's weekly payouts are built, and so is `partner_months`, the facade for M8's income certificate
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (wallet); UPI Autopay in the pilot phase (P6)
 **Postgres schema:** `billing` · **Python package:** `gharbasket.modules.billing`
@@ -638,6 +638,14 @@ The owner chose to test the whole app with real payments on staging before the l
 - the closing entry zeroes every INR account, sums to zero, leaves points untouched, and is idempotent;
 - the probe's two cases;
 - the script guards.
+
+*As built (2026-11-15): the switch and the payment mode.* Built: `RAZORPAY_MODE` and its start-up rules, `billing.payments.mode`, and the mode scoping of top-ups, refund to source and reconciliation. Not yet built: the cut-over jobs, the M3/M4 facades, the `equity` kind, the probe, the statement line and the script guards.
+- **Start-up log.** The API had no start-up log line, so one was added: `api_started { environment, version, payments_mode }`.
+- **The column's default.** `mode` keeps the server default `test`. The previous release, still running during a deploy, writes rows without it. The code always sets the mode itself.
+- **`payment.failed` too.** An event for another mode's payment changes nothing, `payment.failed` included: the payment is not marked failed, and the answer is `ignored`, with the log line.
+- **A stray payment.** Reconciliation sees a captured payment of the running account whose order belongs to a top-up of the other mode. It opens `unknown_payment`, as for an order that is not ours, and does not heal it.
+- **Open items.** An open `captured_not_credited` item is looked up again only when its top-up is of the running mode.
+- **`send_refunds` is scoped too.** It sends only the running mode's parts. A part still `pending` from test mode is never sent to the live account: it stays `pending`, and the prepare job reports it as a blocker (`refund_parts_in_flight`). The cut-over PR decides how such a part is cleared (for example, flushed in test mode before the switch).
 
 ## 4. Tables owned
 | Table | Key columns |
