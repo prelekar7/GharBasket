@@ -50,6 +50,21 @@ def _client_ip_source(value: Any) -> str:
     return source
 
 
+def _proxy_client_ip_source(value: Any) -> str | None:
+    """PROXY_CLIENT_IP_SOURCE, lower-cased (`header:<name>` or `xff:<n>`); unset is None. An error
+    names the variable, never the value."""
+    if value is None or value == "":
+        return None
+    source = value.lower() if isinstance(value, str) else ""
+    if (
+        not _CLIENT_IP_SOURCE.fullmatch(source)
+        or source == "peer"
+        or source.removeprefix("header:") in _NOT_AN_ADDRESS
+    ):
+        raise ValueError("PROXY_CLIENT_IP_SOURCE must be 'header:<name>' or 'xff:<1-9>'")
+    return source
+
+
 def _proxy_client_ip_header(value: Any) -> str:
     """PROXY_CLIENT_IP_HEADER, lower-cased; an error names the variable, never the value."""
     name = value.lower() if isinstance(value, str) else ""
@@ -153,6 +168,12 @@ class Settings(DatabaseSettings):
         SecretStr | None, AfterValidator(_header_secret("ORIGIN_SECRET_PREVIOUS"))
     ] = None
     proxy_client_ip_header: Annotated[str, BeforeValidator(_proxy_client_ip_header)] = "x-real-ip"
+    # Where our proxy's requests name the visitor, as `header:<name>` or `xff:<n>`; when set it
+    # replaces PROXY_CLIENT_IP_HEADER. Vercel adds the visitor to X-Forwarded-For and three hops
+    # append after it, so on Render `xff:4` is the entry Vercel wrote (measured, handbook 13
+    # §13.3); Vercel passes a visitor's own x-vercel-forwarded-for through, and x-real-ip does not
+    # arrive.
+    proxy_client_ip_source: Annotated[str | None, BeforeValidator(_proxy_client_ip_source)] = None
     # CLIENT_IP_DEBUG=true logs, once a minute per shape, how the address headers relate (never a
     # value; platform/client_ip.py `_debug`). Only while checking a proxy path (handbook 13 §13.3).
     client_ip_debug: bool = False
