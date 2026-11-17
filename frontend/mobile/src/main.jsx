@@ -35,11 +35,14 @@ import("@/lib/outbox.js").then(({ startOutbox }) => startOutbox());
 // outbox module is imported here, not at the top, so it can stay out of the entry chunk (#451).
 onSessionExpired(async () => {
   if (!useSession.getState().signedIn) return;
+  // Signed out first, so the 401s of the other requests that are still in flight are no-ops, and
+  // their queries stop before the cache is wiped.
+  useSession.getState().clear();
+  queryClient.cancelQueries();
   const lost = await import("@/lib/outbox.js")
     .then(({ summarizeOutbox }) => summarizeOutbox())
     .catch(() => []);
   await clearLocalData();
-  useSession.getState().clear();
   if (lost.length > 0) useLostActions.getState().show(lost);
   router.navigate({ to: "/login" });
 });
