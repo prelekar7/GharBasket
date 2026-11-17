@@ -29,7 +29,7 @@ vi.mock("@/features/notifications/pushToken.js", () => ({
 }));
 
 const toast = vi.fn();
-vi.mock("@gharbasket/ui", () => ({ toast: (/** @type {any[]} */ ...a) => toast(...a) }));
+vi.mock("@/lib/toast.js", () => ({ toast: (/** @type {any[]} */ ...a) => toast(...a) }));
 vi.mock("@/i18n.js", () => ({ default: { t: (/** @type {string} */ k) => k } }));
 
 /** A stand-in for the session store: just `signedIn`, `getState` and `subscribe`. */

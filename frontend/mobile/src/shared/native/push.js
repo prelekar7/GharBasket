@@ -8,11 +8,12 @@
 // token is handed over the same way. When the session ends the server's token is cleared first and
 // then the phone's token is deleted. A tap on a notification opens the screen named in
 // `data.link`, but only if it is one of our own routes.
-import { toast } from "@gharbasket/ui";
+
 import { clearPushToken, registerPushToken } from "@/features/notifications/pushToken.js";
 import i18n from "@/i18n.js";
 import { NATIVE } from "@/lib/env.js";
 import { useSession } from "@/lib/session.js";
+import { toast } from "@/lib/toast.js";
 import { withPlugin } from "./platform.js";
 
 /** The channel the manifest names as the default (`default_notification_channel_id`). */
