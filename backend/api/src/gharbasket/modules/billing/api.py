@@ -17,6 +17,8 @@ For M1's purge (M1 §3.5): `partner_payable_open` tells whether a partner is sti
 For M4's refunds list (spec §3.8): `order_refunds` reads the `refund` entries of a set of orders.
 For M4's revenue probe (spec §3.9): `held_paise` reads what each order holds in unearned_revenue.
 
+`billing.cutover_completed` (spec §3.10) is for M11 to tell every admin (no consumer yet).
+
 For M12 (M12 §3.1): `earning_facts` and `kindness_facts`, the ledger read back as fact rows.
 """
 
@@ -39,6 +41,7 @@ from gharbasket.modules.billing.earnings import (
     partner_week,
 )
 from gharbasket.modules.billing.events import (
+    CUTOVER_COMPLETED,
     PAYOUT_SENT,
     POINTS_CREDITED,
     POINTS_DONATED,
@@ -73,6 +76,7 @@ from gharbasket.modules.billing.wallet import (
 from gharbasket.platform.settings import Settings, get_settings
 
 __all__ = [
+    "CUTOVER_COMPLETED",
     "PAYOUT_SENT",
     "POINTS_CREDITED",
     "POINTS_DONATED",

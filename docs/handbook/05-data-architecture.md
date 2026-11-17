@@ -872,6 +872,7 @@ classDiagram
 | `unearned_revenue` | liability (boxes paid for, not yet delivered) | INR | platform |
 | `sales_revenue` | revenue | INR | platform |
 | `promo_expense`, `fulfilment_expense`, `kindness_expense` | expense | INR / PTS | platform |
+| `test_funds` | equity (the other side of the cut-over's `test_mode_closed` entry, M5 §3.10) | INR | platform |
 
 ### 5.7.2 Posting examples (amounts in paise)
 

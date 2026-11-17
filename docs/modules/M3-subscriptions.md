@@ -62,6 +62,8 @@ POST /v1/subscriptions             Idempotency-Key; { "plan": "autopilot", "paym
 GET /v1/subscriptions/current      200 Subscription | 404 "subscriptions.not_found"
 PATCH /v1/subscriptions/current    { "paused_until"?: "2026-11-01" | null, "auto_approve"?: true }   200 Subscription
                                    a pause skips cycles whose delivery date is before paused_until
+                                   (`paused` with no paused_until, set only by M5 §3.10's cut-over
+                                   for synthetic households, skips every cycle until resumed)
 
 DeliveryDay : { "weekday": 1, "slot": { "id", "label", "start", "end" } }          0 = Monday
 GET /v1/societies/{id}/delivery-days            200 { "items": [ DeliveryDay ] }

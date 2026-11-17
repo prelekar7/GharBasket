@@ -6038,7 +6038,8 @@
             "enum": [
               "earning",
               "payout",
-              "payout_reversed"
+              "payout_reversed",
+              "test_mode_closed"
             ],
             "title": "Kind",
             "type": "string"
@@ -6271,7 +6272,8 @@
               "adjustment",
               "refund_to_source",
               "refund_to_source_failed",
-              "unclaimed"
+              "unclaimed",
+              "test_mode_closed"
             ],
             "title": "Kind",
             "type": "string"
@@ -26760,7 +26762,8 @@
               "adjustment",
               "refund_to_source",
               "refund_to_source_failed",
-              "unclaimed"
+              "unclaimed",
+              "test_mode_closed"
             ],
             "title": "Kind",
             "type": "string"
@@ -55308,6 +55311,16 @@
               }
             },
             "description": "platform.job_unknown (problem+json)"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A job's own refusal, e.g. billing.cutover_blocked (problem+json)"
           },
           "422": {
             "content": {

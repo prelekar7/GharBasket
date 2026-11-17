@@ -190,7 +190,11 @@ async def update_subscription(
 
 
 def is_paused_on(subscription: Subscription, on: date) -> bool:
-    return subscription.paused_until is not None and on < subscription.paused_until
+    """Paused until a date, or `paused` with no end date (M5 §3.10's cut-over pauses synthetic
+    households so; only a resume ends it)."""
+    if subscription.paused_until is None:
+        return subscription.status == "paused"
+    return on < subscription.paused_until
 
 
 # --- delivery days ------------------------------------------------------------------------------

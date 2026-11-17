@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.subscriptions import service
+from gharbasket.modules.subscriptions import events, service
 from gharbasket.modules.subscriptions.models import (
     PRODUCT_ACTIONS,
     BoxLine,
@@ -22,6 +22,7 @@ from gharbasket.modules.subscriptions.models import (
     WeeklyCycle,
 )
 from gharbasket.platform.locale import Language, localised
+from gharbasket.platform.outbox import publish
 
 MAX_QTY = service.MAX_QTY  # steps a line may hold
 DailyUseShare = service.DailyUseShare
@@ -47,6 +48,7 @@ __all__ = [
     "edit_cycle_lines",
     "export_for_user",
     "mark_locked",
+    "pause_synthetic_households",
     "paused_households",
     "skip_cycle",
     "week_view",
@@ -435,3 +437,54 @@ async def paused_households(
         )
         paused.update(rows.scalars())
     return paused
+
+
+async def pause_synthetic_households(session: AsyncSession, *, reason: str) -> dict[str, int]:
+    """M5's cut-over (M5 §3.10): every `synthetic` household's subscription (ADR-0008) is
+    `paused` with no end date, so no weekly plan, approval or cut-off debit runs for it until it
+    is resumed; and each of its weeks that can still be skipped (awaiting approval or approved,
+    before the cut-off) is skipped, which cancels its unpaid order (M4). Idempotent: a second call
+    pauses and skips nothing more. A draft cannot be skipped; once the test money is closed it
+    would lock against an empty wallet (`payment_failed`), moving nothing."""
+    ids = [
+        h.household_id
+        for h in await identity_api.household_facts(session)
+        if h.data_source == "synthetic"
+    ]
+    paused = skipped = 0
+    for start in range(0, len(ids), PAUSED_BATCH):
+        batch = ids[start : start + PAUSED_BATCH]
+        subscriptions = await session.scalars(
+            select(Subscription)
+            .where(Subscription.household_id.in_(batch), Subscription.status != "ended")
+            .where(or_(Subscription.status != "paused", Subscription.paused_until.is_not(None)))
+            .with_for_update()
+        )
+        for subscription in list(subscriptions):
+            subscription.status, subscription.paused_until = "paused", None
+            paused += 1
+            await publish(
+                session,
+                events.SUBSCRIPTION_PAUSED,
+                {
+                    "subscription_id": str(subscription.id),
+                    "household_id": str(subscription.household_id),
+                    "paused_until": None,
+                    "reason": reason,
+                },
+            )
+        cycles = await session.scalars(
+            select(WeeklyCycle)
+            .where(
+                WeeklyCycle.household_id.in_(batch),
+                WeeklyCycle.status.in_(service.EDITABLE),
+                WeeklyCycle.cutoff_at > service.now(),
+            )
+            .order_by(WeeklyCycle.id)
+            .with_for_update()
+        )
+        for cycle in list(cycles):
+            await service.skip(session, cycle)
+            skipped += 1
+    await session.flush()
+    return {"paused": paused, "cycles_skipped": skipped}

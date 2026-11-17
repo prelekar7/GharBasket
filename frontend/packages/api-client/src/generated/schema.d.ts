@@ -7262,7 +7262,7 @@ export interface components {
              * @description Show a generic label for a kind the app doesn't know
              * @enum {string}
              */
-            kind: "earning" | "payout" | "payout_reversed";
+            kind: "earning" | "payout" | "payout_reversed" | "test_mode_closed";
             /** Ref */
             ref: (components["schemas"]["EarningOrderRef"] | components["schemas"]["PayoutRef"]) | null;
         };
@@ -7390,7 +7390,7 @@ export interface components {
              * @description Show a generic label for a kind the app doesn't know
              * @enum {string}
              */
-            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment" | "refund_to_source" | "refund_to_source_failed" | "unclaimed";
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment" | "refund_to_source" | "refund_to_source_failed" | "unclaimed" | "test_mode_closed";
             /** Ref */
             ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"] | components["schemas"]["RefundRef"]) | null;
         };
@@ -16163,7 +16163,7 @@ export interface components {
              * @description Show a generic label for a kind the app doesn't know
              * @enum {string}
              */
-            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment" | "refund_to_source" | "refund_to_source_failed" | "unclaimed";
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment" | "refund_to_source" | "refund_to_source_failed" | "unclaimed" | "test_mode_closed";
             /** Ref */
             ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"] | components["schemas"]["RefundRef"]) | null;
         };
@@ -30648,6 +30648,15 @@ export interface operations {
             };
             /** @description platform.job_unknown (problem+json) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description A job's own refusal, e.g. billing.cutover_blocked (problem+json) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

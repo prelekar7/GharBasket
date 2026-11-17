@@ -1,8 +1,8 @@
 """The ledger primitives of M5 (spec §4.1): accounts, posting an entry exactly once, balances.
 
 Postings are signed (debit +, credit -). The balance of an asset or expense account is the sum of
-its postings; of a liability or revenue account, minus that sum, so a wallet's balance is what
-we owe the customer and is positive.
+its postings; of a liability, revenue or equity account, minus that sum, so a wallet's balance is
+what we owe the customer and is positive.
 """
 
 import uuid
@@ -19,7 +19,7 @@ from gharbasket.modules.billing.models import JournalEntry, LedgerAccount, Posti
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
-CREDIT_NORMAL = ("liability", "revenue")
+CREDIT_NORMAL = ("liability", "revenue", "equity")
 
 
 def entry_conflict(key: str) -> ProblemError:

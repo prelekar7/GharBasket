@@ -192,6 +192,14 @@ jobs:
     runner: manual
     why: M5 §3.9 backfill by hand only (`just job recognise_delivered_revenue`), once after its deploy; idempotent
 
+  - name: billing_cutover_prepare
+    runner: manual
+    why: M5 §3.10 the cut-over to live money, by hand only, until no blockers (docs/runbooks/live-cutover.md); idempotent
+
+  - name: billing_cutover_live
+    runner: manual
+    why: M5 §3.10 closes the test money once, by hand only, after prepare reports no blockers; idempotent
+
   # --- M6 hub ops -------------------------------------------------------------------------
   - name: build_packing_tasks
     runner: vm
