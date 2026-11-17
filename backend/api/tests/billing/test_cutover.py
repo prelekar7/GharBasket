@@ -28,7 +28,7 @@ from gharbasket.modules.subscriptions.service import is_paused_on
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry, JobRun, OutboxEvent
 
-from ..conftest import make_settings
+from ..conftest import OPERATOR_TOKEN, make_settings
 from ..identity.conftest import ClientFactory
 from .paid import paid_topup
 from .test_live_mode import LIVE
@@ -350,7 +350,7 @@ async def test_the_close_zeroes_every_inr_account_once_and_leaves_points_alone(
     answer = await clients(**LIVE).post(
         "/v1/internal/jobs/billing_cutover_live",
         json={},
-        headers={"Authorization": "Bearer op-token"},
+        headers={"Authorization": f"Bearer {OPERATOR_TOKEN}"},
     )
     assert answer.status_code == 200, answer.text
     assert answer.json()["summary"]["entry_id"] == summary["entry_id"]

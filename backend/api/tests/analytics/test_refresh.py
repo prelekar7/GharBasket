@@ -311,6 +311,59 @@ async def test_the_nightly_run_refreshes_households_partner_weeks_and_every_view
     assert summary["removed"]["households"] == 1
 
 
+@pytest.mark.parametrize("closed", [False, True])
+async def test_after_the_cutover_partner_weeks_count_only_later_entries(
+    db_session: AsyncSession, source: Source, monkeypatch: pytest.MonkeyPatch, closed: bool
+) -> None:
+    """M5 §3.10: the money views count only entries after the `test_mode_closed` entry. M5 leaves
+    the earlier earnings out (`after_cutover`); a week wholly before the close's ISO week holds
+    none, so its rows go even outside the nightly window."""
+    cook = partners_api.PartnerFact(uuid.uuid4(), HUB, "kitchen", "active", "real")
+    source.partners = [cook]
+    asked: list[dict[str, Any]] = []
+
+    async def earnings(_session: AsyncSession, **kw: Any) -> list[Any]:
+        asked.append(kw)
+        return [billing_api.EarningFact(cook.partner_id, "2026-W45", "tiffin_portion", 2, 6_000)]
+
+    # Wednesday 19 Aug 2026, 23:00 IST: the week of Monday 17 Aug, before the window (28 Sep on).
+    closed_at = datetime(2026, 8, 19, 17, 30, tzinfo=UTC) if closed else None
+
+    async def cutover_at(_session: AsyncSession) -> datetime | None:
+        return closed_at
+
+    monkeypatch.setattr(billing_api, "earning_facts", earnings)
+    monkeypatch.setattr(billing_api, "cutover_at", cutover_at)
+    old = {
+        "partner_id": cook.partner_id,
+        "basis": "tiffin_portion",
+        "hub_id": HUB,
+        "kind": "kitchen",
+        "units": 1,
+        "amount_paise": 3_000,
+        "data_source": "real",
+    }
+    db_session.add_all(
+        [
+            FactPartnerWeek(iso_week=date(2026, 8, 3), **old),  # test money, long before
+            FactPartnerWeek(iso_week=date(2026, 8, 17), **old),  # the close's week: kept
+        ]
+    )
+    await db_session.flush()
+
+    await refresh.run(db_session, refresh.NIGHTLY, datetime.combine(TUESDAY, time(2, 40), IST))
+
+    assert [kw["after_cutover"] for kw in asked] == [True]
+    found = await db_session.execute(
+        select(FactPartnerWeek.iso_week, FactPartnerWeek.amount_paise)
+        .where(FactPartnerWeek.partner_id == cook.partner_id)
+        .order_by(FactPartnerWeek.iso_week)
+        .execution_options(populate_existing=True)
+    )
+    kept = [(date(2026, 8, 17), 3_000), (date(2026, 11, 2), 6_000)]
+    assert found.all() == (kept if closed else [(date(2026, 8, 3), 3_000), *kept])
+
+
 async def test_the_daily_view_adds_up_a_hub_day_per_data_source(
     db_session: AsyncSession, source: Source
 ) -> None:

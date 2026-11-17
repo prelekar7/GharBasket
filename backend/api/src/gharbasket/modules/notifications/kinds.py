@@ -93,6 +93,14 @@ KINDS: dict[str, Kind] = {
     "logistics.plan_needs_review": Kind(
         "logistics.plan_needs_review", ACCOUNT, "/routes", {"hub": "text", "day": "weekday"}
     ),
+    # The cut-over closed the test money (M5 §3.10, once): to every admin, opening the console's
+    # Reconciliation page, where the live money is checked from then on.
+    "billing.cutover_completed": Kind(
+        "billing.cutover_completed",
+        ACCOUNT,
+        "/reconciliation",
+        {"total": "money", "accounts": "number"},
+    ),
     # Partner messages are account messages: about the work itself, not a preference to turn
     # off. One text per partner kind, each opening that kind's home in the partner app.
     **{

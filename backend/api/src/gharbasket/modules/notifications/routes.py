@@ -168,6 +168,17 @@ async def reconciliation_mismatch(session: AsyncSession, payload: dict[str, Any]
     return Route(kind, admins, checked(kind, values), link=console_link(kind))
 
 
+async def cutover_completed(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """The cut-over closed the test money in one entry (M5 §3.10; published once, by the close
+    that posts it): to every admin, with the amount and how many accounts it zeroed."""
+    admins = await identity_api.users_with_role(session, "admin")
+    if not admins:
+        return None
+    kind = "billing.cutover_completed"
+    values = {"total": payload["total_paise"], "accounts": payload["accounts"]}
+    return Route(kind, admins, checked(kind, values), link=console_link(kind))
+
+
 async def plan_needs_review(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
     """A route plan was left `solved` because M7's check found problems (M7 §3.2): to the hub's
     managers and every admin, naming the hub and the delivery day. A hub that no longer exists
@@ -306,6 +317,7 @@ ROUTES: dict[str, RouteFn] = {
     "identity.data_export_ready": data_export_ready,
     "intel.drift_detected": drift_detected,
     "billing.reconciliation_mismatch": reconciliation_mismatch,
+    "billing.cutover_completed": cutover_completed,
     "logistics.plan_needs_review": plan_needs_review,
     "partners.verified": partner_verified,
     "community.captain_assigned": captain_assigned,

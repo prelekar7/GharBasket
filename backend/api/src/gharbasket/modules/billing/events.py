@@ -22,6 +22,6 @@ RECONCILIATION_MISMATCH = "billing.reconciliation_mismatch"
 PAYOUT_SENT = "billing.payout_sent"
 
 # { entry_id, accounts, total_paise }: the cut-over closed the test money in one entry (spec
-# §3.10); `accounts` is how many it zeroed, `total_paise` the sum of its debit legs. M11 is to tell
-# every admin (no consumer yet).
+# §3.10); `accounts` is how many it zeroed, `total_paise` the sum of its debit legs. M11 tells every
+# admin.
 CUTOVER_COMPLETED = "billing.cutover_completed"

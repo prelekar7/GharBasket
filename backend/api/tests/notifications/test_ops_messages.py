@@ -1,7 +1,8 @@
 """The staff messages of the ops alerts (ADR-0033, M11 §3.1 event map): a reconciliation run that
 opened items tells every admin (`billing.reconciliation_mismatch`, M5 §3.4), and a route plan left
-for review tells the hub's managers and every admin (`logistics.plan_needs_review`, M7 §3.2). Both
-are account messages, always pushed, opening the console (absolute when CONSOLE_URL is set)."""
+for review tells the hub's managers and every admin (`logistics.plan_needs_review`, M7 §3.2). The
+cut-over's close tells every admin too (`billing.cutover_completed`, M5 §3.10). All are account
+messages, always pushed, opening the console (absolute when CONSOLE_URL is set)."""
 
 import uuid
 from typing import Any
@@ -34,6 +35,7 @@ NEHA = "+919800001011"  # the seed's admin; en-IN
 VIKRAM = "+919800001008"  # the seed hub's manager
 CONSOLE = "https://console.example.app"
 MISMATCH, REVIEW = "billing.reconciliation_mismatch", "logistics.plan_needs_review"
+CUTOVER = "billing.cutover_completed"
 WEDNESDAY = "2026-11-11"
 
 
@@ -200,3 +202,58 @@ async def test_a_plan_at_a_hub_that_is_gone_is_logged_and_nobody_is_told(
         assert await deliver(db_session, REVIEW, review(hub_id=str(uuid.uuid4()))) == []
 
     assert [e["event"] for e in logs] == ["plan_hub_missing"]
+
+
+def closed(**more: Any) -> dict[str, Any]:
+    return {"entry_id": str(uuid.uuid4()), "accounts": 14, "total_paise": 860_000} | more
+
+
+async def test_the_cutover_tells_every_admin_in_their_language_and_nobody_else(
+    db_session: AsyncSession, homes: dict[str, Home]
+) -> None:
+    neha, meena = await user(db_session, NEHA), homes[MEENA].user_id  # Meena: hi-IN
+    await grant(db_session, meena, "admin")
+    assert (KINDS[CUTOVER].category, KINDS[CUTOVER].link) == (ACCOUNT, "/reconciliation")
+
+    messages = await deliver(db_session, CUTOVER, closed())
+
+    assert {m.user_id for m in messages} == {neha, meena}  # not Priya, not the hub manager
+    for message in messages:
+        assert (message.kind, message.category, message.link) == (
+            CUTOVER,
+            ACCOUNT,
+            "/reconciliation",
+        )
+        assert message.params == {"total": 860_000, "accounts": 14}  # never the entry id
+        pushes = await db_session.scalars(select(Delivery).where(Delivery.message_id == message.id))
+        assert [d.channel for d in pushes] == ["push"]
+    english, _, _ = await inbox(db_session, neha, "en", None, 10)
+    hindi, _, _ = await inbox(db_session, meena, "hi", None, 10)
+    marathi, _, _ = await inbox(db_session, meena, "mr", None, 10)
+    assert (english[0].title, english[0].body) == (
+        "Test money closed",
+        "The cut-over closed ₹8,600 of test money in 14 accounts. Every account starts at ₹0, "
+        "and payments are live now.",
+    )
+    assert hindi[0].title == "टेस्ट पैसा बंद हुआ"
+    assert hindi[0].body.startswith("कट-ओवर ने 14 खातों में ₹8,600 का टेस्ट पैसा")
+    assert marathi[0].title == "टेस्ट पैसे बंद झाले"
+    assert marathi[0].body.startswith("कट-ओव्हरने 14 खात्यांमधील ₹8,600 चे टेस्ट पैसे")
+
+
+async def test_the_cutover_links_to_the_consoles_absolute_url_when_it_is_set(
+    db_session: AsyncSession, homes: dict[str, Home], console_url: str
+) -> None:
+    messages = await deliver(db_session, CUTOVER, closed())
+
+    assert messages and {m.link for m in messages} == {f"{console_url}/reconciliation"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{"entry_id": "e", "accounts": 14}, closed(total_paise="lots"), closed(accounts=None)],
+)
+async def test_a_cutover_without_usable_values_is_dropped(
+    db_session: AsyncSession, homes: dict[str, Home], payload: dict[str, Any]
+) -> None:
+    assert await deliver(db_session, CUTOVER, payload) == []
