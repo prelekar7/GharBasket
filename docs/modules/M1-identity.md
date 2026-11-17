@@ -26,7 +26,7 @@ Who the user is and what household they belong to: phone-OTP login exchange, ses
 | POST | `/v1/auth/exchange` | Public (Firebase token) | Not required | Rate-limited per phone/IP |
 | POST | `/v1/auth/refresh` | Refresh token | — | Rotation with reuse detection |
 | POST | `/v1/auth/logout` | Authenticated | — | Revokes current device |
-| GET / PATCH | `/v1/me` | Authenticated | — | Name, locale, senior mode |
+| GET / PATCH | `/v1/me` | Authenticated | — | Name, locale, senior mode. A name is 2 to 40 characters once trimmed with inner spaces collapsed (the shared rule in `platform/names.py`, also M8's display name; #492); `name: null` clears it. Names saved before 2026-11-17 (up to 80) stay readable and are checked only when changed |
 | GET | `/v1/me/roles` | Authenticated | — | Roles with scope and status |
 | GET / DELETE | `/v1/me/devices`, `/v1/me/devices/{id}` | Authenticated | — | |
 | PUT | `/v1/me/push-token` | Authenticated | — | `{push_token: string \| null}` → 204: sets or clears the FCM token of the calling session; contract in M11 §3.1 |
@@ -132,6 +132,12 @@ Onboarding (screens Hf04 to Hf15) and the backend both build against these shape
 POST /v1/households           (customer; Idempotency-Key required)
   request : {
     "society_id": "<uuid>",                     must exist in community.societies (any status)
+    "owner_name": "Priya Sharma",               optional (added 2026-11-17, #492): the owner's own name,
+                                                2 to 40 characters once trimmed with inner spaces
+                                                collapsed (422 request.invalid otherwise). Saved as
+                                                identity.users.name only when that is null; never
+                                                overwrites a name. Not in HouseholdOut or the
+                                                household_created event
     "address": { "tower_id": "a", "flat": "A-1203",
                  "location": { "lat": 19.04, "lng": 73.07 } | null },   null when no pin was placed
     "diet": "veg" | "egg" | "nonveg",

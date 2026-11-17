@@ -8125,6 +8125,22 @@
             "title": "No Cook Days",
             "type": "array"
           },
+          "owner_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The owner's own name, 2 to 40 characters once trimmed with inner spaces collapsed. Saved as the profile name only when the profile has none; never overwrites one",
+            "examples": [
+              "Priya Sharma"
+            ],
+            "title": "Owner Name"
+          },
           "shortage_preference": {
             "default": "substitute",
             "description": "A short item: a similar one at the same price or cheaper, or never substitute and refund (§3.4)",
@@ -12928,14 +12944,14 @@
           "name": {
             "anyOf": [
               {
-                "maxLength": 80,
-                "minLength": 1,
+                "maxLength": 200,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
+            "description": "2 to 40 characters once trimmed, with inner spaces collapsed; null clears it",
             "title": "Name"
           },
           "senior_mode": {

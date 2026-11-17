@@ -112,7 +112,10 @@ POST /v1/partner-applications          customer; Idempotency-Key
         scope_id: optional. Captain: the caller's household's society (sending another society
         is 422 partners.captain_not_resident). Others: the household's hub (sending another hub
         is 422 partners.scope_invalid).
-        display_name defaults to the M1 name; 422 partners.display_name_invalid if neither exists.
+        display_name defaults to the M1 name (set at onboarding from `owner_name`, M1 §3.2, or
+        later in the profile); 422 partners.display_name_invalid if neither exists or the one
+        used is not 2 to 40 characters (the same rule as M1's name, platform/names.py, #492;
+        an M1 name saved before that rule can still be outside it).
 POST /v1/hubs/{id}/partner-applications     hub_manager (hub), admin; Idempotency-Key
   request : { "kind": "rider" | "packer", "phone_e164": "+919812345678", "display_name": "Ravi" }
   201 : Application                      status applied, scope the hub; for a rider or packer

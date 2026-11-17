@@ -8204,6 +8204,12 @@ export interface components {
              */
             no_cook_days?: number[];
             /**
+             * Owner Name
+             * @description The owner's own name, 2 to 40 characters once trimmed with inner spaces collapsed. Saved as the profile name only when the profile has none; never overwrites one
+             * @example Priya Sharma
+             */
+            owner_name?: string | null;
+            /**
              * Shortage Preference
              * @description A short item: a similar one at the same price or cheaper, or never substitute and refund (§3.4)
              * @default substitute
@@ -10314,7 +10320,10 @@ export interface components {
         MeUpdate: {
             /** Locale */
             locale?: ("en-IN" | "hi-IN" | "mr-IN") | null;
-            /** Name */
+            /**
+             * Name
+             * @description 2 to 40 characters once trimmed, with inner spaces collapsed; null clears it
+             */
             name?: string | null;
             /** Senior Mode */
             senior_mode?: boolean | null;

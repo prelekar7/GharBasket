@@ -28,6 +28,7 @@ from gharbasket.modules.partners.models import (
 )
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.names import is_valid_name, tidy_name
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
@@ -46,11 +47,13 @@ def _kind_invalid() -> ProblemError:
 def display_name_or_none(value: str | None) -> str | None:
     if value is None:
         return None
-    return " ".join(value.split()) or None
+    return tidy_name(value) or None
 
 
 def _check_display_name(value: str | None) -> str:
-    if value is None or not 2 <= len(value) <= 40:
+    # The same rule as M1's profile name (platform/names.py, #492). A profile name saved before
+    # that rule can still be outside it, so the fallback keeps this module's own 422.
+    if value is None or not is_valid_name(value):
         raise ProblemError(
             422,
             "partners.display_name_invalid",
