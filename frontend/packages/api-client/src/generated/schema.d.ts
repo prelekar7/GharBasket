@@ -13699,6 +13699,11 @@ export interface components {
                 [key: string]: "ok" | "failed" | "not_configured" | "skipped";
             };
             /**
+             * Payments Mode
+             * @enum {string}
+             */
+            payments_mode: "test" | "live";
+            /**
              * Status
              * @constant
              */

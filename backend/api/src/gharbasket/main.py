@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import httpx2
+import structlog
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -38,6 +39,7 @@ from gharbasket.platform.settings import Settings, get_settings, use_settings
 from gharbasket.platform.valkey import create_valkey
 
 API_PREFIX = "/v1"
+log = structlog.get_logger("gharbasket.main")
 
 # One router per business module, in M-number order (gharbasket.modules.MODULES).
 MODULE_ROUTERS = (
@@ -89,6 +91,13 @@ def _lifespan(settings: Settings):
             FirebaseTokenVerifier(settings.firebase_project_id, http)
             if settings.firebase_project_id
             else None
+        )
+        # Which money is in play (M5 §3.10): Razorpay's test account or the live one.
+        log.info(
+            "api_started",
+            environment=settings.app_env,
+            version=__version__,
+            payments_mode=settings.razorpay_mode,
         )
         try:
             yield

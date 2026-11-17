@@ -78,7 +78,13 @@ services:
         sync: false
       - key: KYC_RETIRED_PEPPERS
         sync: false
-      # Razorpay test mode (M5 top-ups): from Infisical `staging`. Without them, top-ups answer 503.
+      # Razorpay (M5 top-ups): from Infisical `staging`. Without them, top-ups answer 503.
+      # RAZORPAY_MODE `test` takes only rzp_test_ keys; `live` (real money, M5 §3.10, ADR-0037)
+      # only rzp_live_ keys with both secrets. Change the mode and the keys together.
+      # sync: false, not `value: test`: a Blueprint sync must never reset a live staging to test
+      # while live keys are set (the API would refuse to start). Unset is `test`.
+      - key: RAZORPAY_MODE
+        sync: false
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET

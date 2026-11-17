@@ -37,6 +37,7 @@ def _upper(value: Any) -> Any:
 CommaSeparated = Annotated[list[str], NoDecode, BeforeValidator(_split_comma)]
 _CLIENT_IP_SOURCE = re.compile(r"peer|header:[a-z0-9-]{1,64}|xff:[1-9]")
 _HEADER_NAME = re.compile(r"[a-z0-9-]{1,64}")
+_RAZORPAY_KEY_ID = {mode: re.compile(rf"rzp_{mode}_[A-Za-z0-9]+") for mode in ("test", "live")}
 # Never the one header naming the caller: X-Forwarded-For is a list the caller starts (only
 # `xff:<n>` reads it), and x-origin-secret holds ORIGIN_SECRET.
 _NOT_AN_ADDRESS = frozenset({"x-forwarded-for", "x-origin-secret"})
@@ -275,9 +276,12 @@ class Settings(DatabaseSettings):
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket.co.in,https://app.gharbasket.co.in" (ADR-0035).
     web_origins: CommaSeparated = []
-    # Razorpay (M5 top-ups), test mode only: live keys are refused, no real money moves in the
-    # prototype. Unset locally: top-ups use dev orders, paid with POST /v1/dev/razorpay/pay.
-    razorpay_key_id: str | None = Field(default=None, pattern=r"^rzp_test_[A-Za-z0-9]+$")
+    # Razorpay (M5 top-ups). RAZORPAY_MODE (M5 §3.10, ADR-0037) says which money is in play:
+    # `test` (the default) takes only rzp_test_ keys; `live` (real money) only rzp_live_ keys, with
+    # both secrets, and only on staging or prod. Every payment records the mode it was made in.
+    # Unset keys locally: top-ups use dev orders, paid with POST /v1/dev/razorpay/pay.
+    razorpay_mode: Literal["test", "live"] = "test"
+    razorpay_key_id: str | None = None
     razorpay_key_secret: SecretStr | None = None
     razorpay_webhook_secret: SecretStr | None = None
     # Refund to source (M5 §3.3): only top-ups captured this recently can take money back.
@@ -342,6 +346,7 @@ class Settings(DatabaseSettings):
             missing = [name for name, value in required.items() if value is None]
             if missing:
                 raise ValueError(f"{', '.join(missing)} required when APP_ENV={self.app_env}")
+        self._razorpay_mode_matches_its_keys()
         if self.payouts_provider == "razorpay_route":
             raise ValueError(
                 "PAYOUTS_PROVIDER=razorpay_route is not built in the prototype (M5 §3.5, pilot "
@@ -365,6 +370,30 @@ class Settings(DatabaseSettings):
             if secret is not None and len(secret.get_secret_value().encode()) < MIN_SECRET_BYTES:
                 raise ValueError(f"{name} must be at least {MIN_SECRET_BYTES} bytes")
         return self
+
+    def _razorpay_mode_matches_its_keys(self) -> None:
+        """M5 §3.10: each mode takes only its own keys. The errors name variables, never values."""
+        if self.razorpay_mode == "live":
+            if self.app_env not in ("staging", "prod"):
+                raise ValueError("RAZORPAY_MODE=live needs APP_ENV=staging or prod")
+            needed = {
+                "RAZORPAY_KEY_ID": self.razorpay_key_id,
+                "RAZORPAY_KEY_SECRET": self.razorpay_key_secret,
+                "RAZORPAY_WEBHOOK_SECRET": self.razorpay_webhook_secret,
+            }
+            missing = [
+                name
+                for name, value in needed.items()
+                if not (value.get_secret_value() if isinstance(value, SecretStr) else value)
+            ]  # an empty value is missing too
+            if missing:
+                raise ValueError(f"{', '.join(missing)} required when RAZORPAY_MODE=live")
+        key_id = self.razorpay_key_id
+        if key_id is not None and not _RAZORPAY_KEY_ID[self.razorpay_mode].fullmatch(key_id):
+            raise ValueError(
+                f"RAZORPAY_KEY_ID must be a {self.razorpay_mode} key (rzp_{self.razorpay_mode}_…) "
+                f"when RAZORPAY_MODE={self.razorpay_mode}"
+            )
 
     def _retired_pairs(self) -> list[tuple[str, SecretStr]]:
         if self.jwt_retired_keys is None:

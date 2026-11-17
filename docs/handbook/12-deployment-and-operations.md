@@ -142,6 +142,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
      3. Render: remove `ORIGIN_SECRET_PREVIOUS`.
 
      A PWA request whose secret matches neither value is counted by Vercel's address, one counter shared by every PWA user. It is logged as `client_ip_proxy_secret_mismatch` (at most once a minute, without the value).
+9. Which Razorpay money is in play (M5 §3.10, ADR-0037). `RAZORPAY_MODE` is `test` (the default; `render.yaml` sets it) or `live`. Set it in Infisical `staging` and on Render together, with the keys of that mode. The API refuses to start when they disagree: `test` takes only `rzp_test_` keys, and `live` takes only `rzp_live_` keys, needs `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`, and runs only with `APP_ENV` staging or prod. The start-up log line `api_started` and `/v1/ready` (operator token) report `payments_mode`; `/v1/health` does not. Each payment records its mode, and only the running mode's payments are credited, refunded to and reconciled. Don't switch to `live` before the cut-over of M5 §3.10 is built.
 
 ### Vercel projects (PWA and console)
 
@@ -300,7 +301,7 @@ Neon on the free plan keeps no history of a child branch, so the workflow `.gith
 | Errors and logs | structlog JSON logs (Render log view) | Errors. Every line inside a span carries `trace_id` and `span_id`. Sentry is not used |
 | Traces | OpenTelemetry (API and ML service) → Grafana Cloud free tier over OTLP/HTTP (M0 §6.2), on when `OTEL_EXPORTER_OTLP_ENDPOINT` is set on Render | Slow and failing requests (`<METHOD> <route template>`), database calls, outgoing calls (ML, Razorpay, FCM, Firebase, WhatsApp, R2) and job and consumer runs; one trace across the API and the ML service. Traces only: no OpenTelemetry metrics or logs |
 | Jobs | healthchecks.io (below); GitHub Actions run history; the VM scheduler's journal (`just jobs-vm status <ip> <key>`); `just job-runs` (the runs endpoint, M0 §3) | Scheduled job calls and training runs that failed or ran late |
-| Uptime | UptimeRobot | `/v1/health` every 5 minutes (also keeps the free API awake); `/v1/ready` (operator token) checks the database and Valkey. The ML service is not pinged (ADR-0030: a keep-alive would starve the API of the shared 750 free hours); the daily `Smoke ML` run (06:40 IST) checks `/health` and every endpoint |
+| Uptime | UptimeRobot | `/v1/health` every 5 minutes (also keeps the free API awake); `/v1/ready` (operator token) checks the database and Valkey and reports `payments_mode` (`test` or `live`, M5 §3.10). The ML service is not pinged (ADR-0030: a keep-alive would starve the API of the shared 750 free hours); the daily `Smoke ML` run (06:40 IST) checks `/health` and every endpoint |
 | Product | PostHog | Funnels (onboarding, approve week), feature flags, A/B experiments. No names or phone numbers in events |
 | AI health | Console "AI health" page | Forecast WAPE vs actual, plan acceptance, waste %, model versions |
 

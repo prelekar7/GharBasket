@@ -20980,6 +20980,14 @@
             "title": "Checks",
             "type": "object"
           },
+          "payments_mode": {
+            "enum": [
+              "test",
+              "live"
+            ],
+            "title": "Payments Mode",
+            "type": "string"
+          },
           "status": {
             "const": "ok",
             "title": "Status",
@@ -20988,7 +20996,8 @@
         },
         "required": [
           "status",
-          "checks"
+          "checks",
+          "payments_mode"
         ],
         "title": "Ready",
         "type": "object"
