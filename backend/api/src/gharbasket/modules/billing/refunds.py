@@ -3,7 +3,9 @@ came from.
 
 - The request posts the ledger at once, one `refund_to_source` entry per part (wallet →
   razorpay_clearing), and queues the parts. It never calls Razorpay: `send_refunds` does.
-- Parts are split over the user's paid top-ups, newest first, within Razorpay's refund window.
+- Parts are split over the user's paid top-ups, newest first, within Razorpay's refund window,
+  and only over top-ups of the running RAZORPAY_MODE (spec §3.10): another mode's share is what
+  no source can take.
 - A part in flight (pending or sent) holds its room under the ₹10,000 cap, so when Razorpay
   fails it the money goes back into the wallet (`refund_to_source_failed`); if an order refund
   to source has kept the balance up meanwhile and it no longer fits, the part is moved or
@@ -63,7 +65,8 @@ async def rooms(
     session: AsyncSession, user_id: uuid.UUID, settings: Settings, now: datetime
 ) -> list[Room]:
     """The top-ups that can still take money back, newest first. A top-up's `created_at` (its
-    order) is never later than its capture, so the window is never stretched."""
+    order) is never later than its capture, so the window is never stretched. Only the running
+    mode's: the other Razorpay account cannot refund a payment it never took (spec §3.10)."""
     taken = (
         select(RefundPart.payment_id, func.sum(RefundPart.amount_paise).label("paise"))
         .where(RefundPart.status != "failed")
@@ -78,6 +81,7 @@ async def rooms(
             Payment.user_id == user_id,
             Payment.status == "paid",
             Payment.provider.in_(providers),
+            Payment.mode == settings.razorpay_mode,
             Payment.provider_payment_id.is_not(None),
             Payment.created_at >= now - timedelta(days=settings.razorpay_refund_window_days),
         )

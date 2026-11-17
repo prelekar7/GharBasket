@@ -1,4 +1,6 @@
-import { ErrorState } from "@gharbasket/ui";
+// The subpath, not the barrel: this is in the entry chunk (main.jsx), and the barrel would bring
+// the whole UI kit into every first load.
+import { ErrorState } from "@gharbasket/ui/states";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";

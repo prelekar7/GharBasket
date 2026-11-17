@@ -942,7 +942,7 @@ GET /v1/hubs/{hub_id}/fairness?runs=28
 | `partners.ratings` | id, order_id (unique), partner_id, household_id, user_id, score smallint (1–5), comment null, created_at |
 | `partners.rate_cards` | id, hub_id, kind, basis, amount_paise BIGINT, valid_from, created_by; unique (hub_id, kind, basis, valid_from) |
 
-Foreign keys stay inside `partners`. `user_id`, `hub_id`, `order_id`, `slot_id`, `household_id` and society ids are plain UUIDs (ADR-0026 §5). Row-level security on `partners`, `assignments` and `kyc_documents` by `hub_id` (handbook 13). The draft's `partners.trainings` (per partner) becomes `training_attempts` (per user, because training starts before the partner exists), and `partners.earnings` is dropped (§3.6).
+Foreign keys stay inside `partners`. `user_id`, `hub_id`, `order_id`, `slot_id`, `household_id` and society ids are plain UUIDs (ADR-0026 §5). Row-level security on `partners`, `assignments` and `kyc_documents` was planned (handbook 13) but is not built; it waits until after the pilot (ADR-0038). Note that `kyc_documents` has `user_id` and no `hub_id`. The draft's `partners.trainings` (per partner) becomes `training_attempts` (per user, because training starts before the partner exists), and `partners.earnings` is dropped (§3.6).
 
 ## 5. Events
 **Published:**
