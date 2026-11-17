@@ -7,6 +7,8 @@
   and changes nothing.
 - A lost webhook is healed through the webhook's own code (`topups.handle_event`,
   `settlement.handle_event`), keyed by its cause, so a heal never credits or settles twice.
+- Our side of every check is the running RAZORPAY_MODE's payments and parts only (spec §3.10):
+  Razorpay's lists come from the running key's account, which never saw the other mode's.
 - Anything else opens one item per (kind, Razorpay ref). Seeing it again only moves
   `last_seen_at`. An admin resolves it with a note, and resolving moves no money (a correction
   is a manual, audited `adjustment` entry until the pilot).
@@ -41,7 +43,7 @@ CAPTURED = ("captured", "refunded")  # "refunded": captured, then refunded in fu
 Seen = dict[str, dict[str, Any]]  # Razorpay's entities by id
 
 
-async def _credited(session: AsyncSession, start: datetime) -> list[Payment]:
+async def _credited(session: AsyncSession, start: datetime, mode: str) -> list[Payment]:
     """Razorpay top-ups credited since `start`, and those an open item says are not captured."""
     recent = select(JournalEntry.ref_id).where(
         JournalEntry.kind == "topup", JournalEntry.created_at >= start
@@ -52,6 +54,7 @@ async def _credited(session: AsyncSession, start: datetime) -> list[Payment]:
     found = await session.execute(
         select(Payment).where(
             Payment.provider == "razorpay",
+            Payment.mode == mode,
             Payment.status == "paid",
             or_(Payment.id.in_(recent), Payment.provider_payment_id.in_(still_open)),
         )
@@ -60,16 +63,19 @@ async def _credited(session: AsyncSession, start: datetime) -> list[Payment]:
 
 
 async def _read(
-    session: AsyncSession, razorpay: RazorpayClient, start: datetime, end: datetime
+    session: AsyncSession, razorpay: RazorpayClient, start: datetime, end: datetime, mode: str
 ) -> tuple[Seen, Seen, list[Payment]]:
     """Everything Razorpay says that this run compares, before anything is written."""
     payments = {str(p["id"]): p for p in await razorpay.created_between("payments", start, end)}
     refunds = {str(r["id"]): r for r in await razorpay.created_between("refunds", start, end)}
-    credited = await _credited(session, start)
+    credited = await _credited(session, start, mode)
     retry = await session.execute(
-        select(ReconciliationItem.razorpay_ref).where(
+        select(ReconciliationItem.razorpay_ref)
+        .join(Payment, Payment.id == ReconciliationItem.topup_id)
+        .where(
             ReconciliationItem.status == "open",
             ReconciliationItem.kind == "captured_not_credited",
+            Payment.mode == mode,
         )
     )
     wanted = {p.provider_payment_id for p in credited} | set(retry.scalars())
@@ -80,7 +86,7 @@ async def _read(
     sent = await session.execute(
         select(RefundPart.provider_refund_id, Payment.provider_payment_id)
         .join(Payment, Payment.id == RefundPart.payment_id)
-        .where(RefundPart.status == "sent", Payment.provider == "razorpay")
+        .where(RefundPart.status == "sent", Payment.provider == "razorpay", Payment.mode == mode)
     )
     for payment_ref in sorted({str(p) for r, p in sent.all() if r not in refunds and p}):
         refunds.update({str(r["id"]): r for r in await razorpay.refunds(payment_ref)})
@@ -132,7 +138,7 @@ class _Run:
         ref, amount = str(found["id"]), int(found.get("amount") or 0)
         order = found.get("order_id")
         topup = await topups.by_order(self.session, str(order)) if order else None
-        if topup is None:
+        if topup is None or topup.mode != self.settings.razorpay_mode:  # not this account's
             return await self.flag("unknown_payment", ref, actual_paise=amount)
         about = {
             "topup_id": topup.id,
@@ -150,7 +156,9 @@ class _Run:
                 async with self.session.begin_nested():
                     # No client: a payment that no longer fits under the cap would need a
                     # refund, which this read-only job leaves to an admin (an open item).
-                    await topups.handle_event(self.session, event, None)
+                    await topups.handle_event(
+                        self.session, event, None, mode=self.settings.razorpay_mode
+                    )
             except ProblemError:
                 return await self.flag("captured_not_credited", ref, **about)
             return await self.flag("captured_not_credited", ref, healed=True, **about)
@@ -198,6 +206,7 @@ class _Run:
             .where(
                 RefundPart.status.in_(IN_FLIGHT),
                 Payment.provider == "razorpay",
+                Payment.mode == self.settings.razorpay_mode,
                 func.uuid_extract_timestamp(RefundPart.id) < now - STUCK_AFTER,  # uuidv7
             )
         )
@@ -233,7 +242,9 @@ class _Run:
                 )
         refs = {str(r.get("payment_id")) for r in refunds.values()}
         ours = await self.session.execute(
-            select(Payment).where(Payment.provider_payment_id.in_(refs))
+            select(Payment).where(
+                Payment.provider_payment_id.in_(refs), Payment.mode == self.settings.razorpay_mode
+            )
         )
         by_ref = {str(p.provider_payment_id): p for p in ours.scalars()}
         for found in refunds.values():
@@ -262,7 +273,9 @@ async def reconcile(
     credited: list[Payment] = []
     if razorpay is not None:
         try:
-            payments, refunds, credited = await _read(session, razorpay, run.window_from, now)
+            payments, refunds, credited = await _read(
+                session, razorpay, run.window_from, now, settings.razorpay_mode
+            )
             run.status = "ok"
         except ProblemError:
             run.status, run.error = "failed", "razorpay_unavailable"

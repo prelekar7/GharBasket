@@ -1,4 +1,4 @@
-import { toast } from "@gharbasket/ui";
+import { toast } from "@/lib/toast.js";
 import { openExternal } from "@/shared/native/links.js";
 import { shareContent } from "@/shared/native/share.js";
 

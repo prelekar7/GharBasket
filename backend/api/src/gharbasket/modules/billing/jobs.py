@@ -97,6 +97,10 @@ async def send_refunds(ctx: JobContext) -> dict[str, Any]:
                 .join(Payment, Payment.id == RefundPart.payment_id)
                 .where(
                     RefundPart.status == "pending",
+                    # Only the running RAZORPAY_MODE's parts (spec §3.10): the other account never
+                    # took that payment. Another mode's part stays pending, and the cut-over's
+                    # prepare job reports it as a blocker.
+                    Payment.mode == ctx.settings.razorpay_mode,
                     RefundPart.attempts < MAX_TRIES,
                     or_(RefundPart.next_attempt_at.is_(None), RefundPart.next_attempt_at <= now),
                     RefundPart.id.not_in(seen),
