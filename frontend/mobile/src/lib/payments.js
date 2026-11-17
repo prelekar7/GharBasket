@@ -3,6 +3,7 @@
 // until S-1 has run on a phone, mock mode replaces Checkout with a test-payment step.
 import { request } from "@/lib/api.js";
 import { MOCK, NATIVE } from "@/lib/env.js";
+import { withPlugin } from "@/shared/native/platform.js";
 
 export const PAYMENTS_MOCKED = MOCK;
 
@@ -39,36 +40,108 @@ const loadCheckout = () =>
   }));
 
 /**
+ * Calls `callback` each time the app comes back to the foreground: in the Android app after the
+ * person returns from GPay or PhonePe, on the web when the tab becomes visible again. Resolves with
+ * the function that stops listening; never rejects (a missing plugin just means no resume events).
+ * @param {() => void} callback
+ * @returns {Promise<() => void>}
+ */
+export function onAppResume(callback) {
+  return withPlugin(
+    () => import("@capacitor/app"),
+    async ({ App }) => {
+      const handle = await App.addListener("appStateChange", ({ isActive }) => {
+        if (isActive) callback();
+      });
+      return () => handle.remove();
+    },
+    () => {
+      const onVisible = () => document.visibilityState === "visible" && callback();
+      document.addEventListener("visibilitychange", onVisible);
+      return () => document.removeEventListener("visibilitychange", onVisible);
+    },
+  ).then(
+    (stop) => stop ?? (() => {}),
+    () => () => {},
+  );
+}
+
+/** The Checkout that is open now, so the back button handler can close it. @type {{ close: () => void } | null} */
+let open = null;
+
+/** Closes Razorpay Checkout if it is open (its `ondismiss` then runs and the top-up resets). @returns {boolean} whether one was open */
+export function closeCheckout() {
+  if (!open) return false;
+  open.close();
+  return true;
+}
+
+/**
  * Opens Razorpay Checkout for an order. Resolves when Razorpay reports success; the wallet is
- * credited by the webhook, not by this call (see waitForCredit). A failed attempt does not end
+ * credited by the webhook, not by this call (see pollTopUp). A failed attempt does not end
  * the payment: Razorpay keeps its modal open so the person can try again, so we only remember the
  * error and report it if they then close the modal.
+ *
+ * In the Android app a UPI app takes over the screen, and on the way back Razorpay's own callback
+ * can be missed while the WebView was paused. If `isPaid` is given, it is asked each time the app
+ * resumes with Checkout still open; when the top-up turns out paid, Checkout is closed and this
+ * resolves as if the callback had fired.
  * @param {TopUpOrder} order
- * @param {{ description: string, contact?: string }} details
+ * @param {{ description: string, contact?: string, isPaid?: () => Promise<boolean> }} details
  */
-export async function payWithRazorpay(order, { description, contact }) {
+export async function payWithRazorpay(order, { description, contact, isPaid }) {
   await loadCheckout();
   /** @type {string | null} */
   let lastFailure = null;
-  return new Promise((resolve, reject) => {
-    const rzp = new /** @type {any} */ (window).Razorpay({
-      key: order.key_id,
-      order_id: order.razorpay_order_id,
-      amount: order.amount_paise,
-      currency: order.currency,
-      name: "GharBasket",
-      description,
-      prefill: contact ? { contact } : undefined,
-      theme: { color: "#2F5D3A" },
-      webview_intent: NATIVE,
-      handler: (/** @type {unknown} */ response) => resolve(response),
-      modal: { ondismiss: () => reject(new PaymentError(lastFailure ?? "dismissed")) },
+  let finished = false;
+  /** @type {Promise<() => void>} */
+  let stopResume = Promise.resolve(() => {});
+  try {
+    return await new Promise((resolve, reject) => {
+      const Razorpay = /** @type {any} */ (window).Razorpay;
+      if (!Razorpay) return reject(new PaymentError("checkout_unavailable"));
+      const rzp = new Razorpay({
+        key: order.key_id,
+        order_id: order.razorpay_order_id,
+        amount: order.amount_paise,
+        currency: order.currency,
+        name: "GharBasket",
+        description,
+        prefill: contact ? { contact } : undefined,
+        theme: { color: "#2F5D3A" },
+        webview_intent: NATIVE,
+        handler: (/** @type {unknown} */ response) => {
+          finished = true;
+          resolve(response);
+        },
+        modal: { ondismiss: () => reject(new PaymentError(lastFailure ?? "dismissed")) },
+      });
+      rzp.on("payment.failed", (/** @type {any} */ r) => {
+        lastFailure = r?.error?.code ?? "failed";
+      });
+      if (NATIVE && isPaid) {
+        stopResume = onAppResume(() => {
+          isPaid()
+            .then((paid) => {
+              if (!paid || finished) return;
+              finished = true;
+              resolve({ recovered: true });
+              rzp.close();
+            })
+            .catch(() => {}); // the next resume, or Razorpay's own callback, will do
+        });
+      }
+      open = rzp;
+      try {
+        rzp.open();
+      } catch {
+        reject(new PaymentError("checkout_unavailable"));
+      }
     });
-    rzp.on("payment.failed", (/** @type {any} */ r) => {
-      lastFailure = r?.error?.code ?? "failed";
-    });
-    rzp.open();
-  });
+  } finally {
+    open = null;
+    stopResume.then((stop) => stop());
+  }
 }
 
 /**

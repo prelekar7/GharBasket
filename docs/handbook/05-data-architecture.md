@@ -19,7 +19,7 @@
 | Flexible attributes (nutrition, recipe steps, KYC metadata) | JSONB, indexed with GIN |
 | Hinglish search ("bhindi", "bhendi", "okra") | `pg_trgm` + full-text + synonym table |
 | Substitutes, similar recipes | pgvector HNSW on bge-m3 embeddings |
-| Franchise isolation | `hub_id` + Row-Level Security |
+| Franchise isolation | `hub_id`, checked in code; Row-Level Security after the pilot ([ADR-0038](../adr/0038-row-level-security-after-the-pilot.md), Proposed) |
 | Team collaboration | Schema + Alembic migrations act as a contract between four developers |
 
 MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6, [ADR-0006](../adr/0006-postgresql-centric-data-platform.md)). Supporting stores: **Valkey** (short-lived data only: rate-limit counters, the sign-out deny-list, cache, live rider positions; the free Render Key Value is not durable, so it never holds the only copy of anything), **S3-compatible object storage** (media, data lake, MLflow artifacts; Cloudflare R2 when deployed, SeaweedFS locally; code uses the S3 API only) and **DuckDB + Parquet** (ML training and heavy analytics).
@@ -928,7 +928,11 @@ Cut-off locks about 2,000 orders using batched `UPDATE … RETURNING` inside one
 
 ## 5.9 Multi-tenancy and security in data
 
-- Every hub-scoped table has `hub_id`. Row-Level Security policies compare it with `current_setting('app.hub_ids')`, which the API sets with `SET LOCAL` per transaction for hub managers and franchise owners.
+- Every hub-scoped table has `hub_id`, and the API checks it against the caller's grants (`Permit.ensure`, handbook 13 §13.4). **Row-Level Security is not built.** No table has a policy, and the API sets no `app.hub_ids`. [ADR-0038](../adr/0038-row-level-security-after-the-pilot.md) (Proposed) puts it off until after the pilot. Its design notes for later:
+  - the API must connect as a SQL-made role that is not the owner, because Neon's owner bypasses RLS;
+  - the variable is set per transaction with `set_config(…, true)`, because services commit more than once per request and PgBouncer runs in transaction mode;
+  - the outbox relay, the jobs and `gharbasket_ro` need a bypass or their own policy;
+  - materialized views cannot have RLS.
 - KYC numbers are encrypted with pgcrypto using a key kept in Infisical and passed to the API as a secret; only masked forms are returned.
 - No Aadhaar storage; health tags only with consent; `DELETE /me` hard-deletes personal data and keeps anonymised aggregates.
 - The lake's nightly snapshots (`snapshots/date=<day>/`, M10 §6) hold no names, contacts, addresses or users; quasi-identifiers are coarsened (no society, only the hub; the budget as a band). Partitions are deleted after 180 days (proposed: a bucket lifecycle rule). An erased household is left out of every later snapshot and feature run; older partitions lose its random id as they age out.
