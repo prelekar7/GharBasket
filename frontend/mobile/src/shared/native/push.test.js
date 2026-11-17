@@ -308,8 +308,22 @@ describe("taps", () => {
     expect(router.navigate.mock.calls.map((c) => c[0].to)).toEqual(push.LINKS);
   });
 
+  it("opens the society page a society_live notification links to", async () => {
+    const { router } = await load(true);
+    await vi.waitFor(() => expect(handlers.notificationActionPerformed).toBeTypeOf("function"));
+    router.render();
+    tap("/society/0199a000-0000-7000-8000-00000000b002");
+    expect(router.navigate).toHaveBeenCalledWith({
+      to: "/society/0199a000-0000-7000-8000-00000000b002",
+    });
+  });
+
   it.each([
     ["an unknown route", "/admin"],
+    ["a society that is not an id", "/society/green-valley"],
+    ["a path after the society", "/society/0199a000-0000-7000-8000-00000000b002/x"],
+    ["a path that climbs out", "/society/../admin"],
+    ["a console link", "/reconciliation"],
     ["another site", "https://evil.example/orders"],
     ["a protocol-relative link", "//evil.example"],
     ["a route with a query", "/orders?x=1"],

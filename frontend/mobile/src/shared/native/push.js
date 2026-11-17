@@ -20,12 +20,17 @@ import { withPlugin } from "./platform.js";
 export const CHANNEL_ID = "updates";
 /** localStorage flag: the person said no to the permission, so we do not ask again. */
 export const DENIED_KEY = "gb-push-denied";
-/** Routes a notification may open (M11 §3.1). Anything else in `data.link` is ignored. */
+/**
+ * Routes a notification may open (M11 §3.1), the links in `notifications/kinds.py`. Anything else
+ * in `data.link` is ignored; the console's links (`/ai-health`, `/reconciliation`, `/routes`)
+ * never reach the app.
+ */
 export const LINKS = [
   "/box",
   "/week",
   "/orders",
   "/wallet",
+  "/kindness",
   "/profile",
   "/kitchen",
   "/captain",
@@ -59,9 +64,13 @@ function setDenied(denied) {
   }
 }
 
+/** `community.society_live` opens the society that went live (`notifications/routes.py`). */
+const SOCIETY_LINK = /^\/society\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 /** @param {unknown} link @returns {string | null} the link when it is one of our routes */
 export function safeLink(link) {
-  return typeof link === "string" && LINKS.includes(link) ? link : null;
+  if (typeof link !== "string") return null;
+  return LINKS.includes(link) || SOCIETY_LINK.test(link) ? link : null;
 }
 
 /**
