@@ -30,6 +30,7 @@ from gharbasket.modules.partners.router import router as partners_router
 from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions.router import router as subscriptions_router
 from gharbasket.platform import files, health, jobs, openapi, outbox, tracing
+from gharbasket.platform.body_limit import BodyLimitMiddleware
 from gharbasket.platform.db import create_engine, create_sessionmaker
 from gharbasket.platform.errors import register_error_handlers
 from gharbasket.platform.idempotency import REPLAY_HEADER, register_idempotency
@@ -151,6 +152,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_idempotency(app)
     openapi.install(app)
 
+    # Inside CORS, so a refused body still carries the CORS headers the app needs to read it.
+    app.add_middleware(BodyLimitMiddleware)
     if settings.cors_allow_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -161,5 +164,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             expose_headers=["X-Request-ID", REPLAY_HEADER],
         )
     # Added last, so it wraps everything else (including CORS preflight responses).
-    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(RequestContextMiddleware, hsts=not settings.is_local)
     return app

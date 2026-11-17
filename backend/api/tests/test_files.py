@@ -47,6 +47,7 @@ BLANK = {
     + b"\x00\x00\x00\x00IHDR\x00\x00\x00\x00"
     + b"\x00\x00\x00\x00IEND\x00\x00\x00\x00",
     "image/webp": b"RIFF\x0c\x00\x00\x00WEBPVP8 \x00\x00\x00\x00",
+    "application/pdf": b"%PDF-1.7\n%%EOF\n",
 }
 
 
@@ -59,6 +60,7 @@ class FakeS3:
         self.puts: list[dict[str, Any]] = []
         self.bodies: dict[str, bytes] = {}
         self.metadata: dict[str, dict[str, str]] = {}
+        self.ranges: list[str | None] = []  # the Range of each get_object
         self.fail_head = False
 
     def head_object(self, Bucket: str, Key: str) -> dict[str, Any]:
@@ -73,10 +75,16 @@ class FakeS3:
             "Metadata": self.metadata.get(Key, {}),
         }
 
-    def get_object(self, Bucket: str, Key: str) -> dict[str, Any]:
+    def get_object(self, Bucket: str, Key: str, Range: str | None = None) -> dict[str, Any]:
         if Key not in self.objects:
             raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
         body = self.bodies.get(Key, BLANK.get(self.objects[Key][0], b""))
+        self.ranges.append(Range)
+        if Range is not None:  # only the form `bytes=<first>-<last>` is used
+            first, last = (int(part) for part in Range.removeprefix("bytes=").split("-"))
+            if not body:
+                raise ClientError({"Error": {"Code": "InvalidRange"}}, "GetObject")
+            body = body[first : last + 1]
         return {"Body": io.BytesIO(body)}
 
     def put_object(self, Bucket: str, Key: str, Body: bytes, **extra: Any) -> dict[str, Any]:
@@ -370,6 +378,29 @@ async def test_clean_rewrites_a_photo_without_its_location_and_keeps_the_signed_
     assert s3.bodies[document] == b"%PDF-1.7 Author: Lata Shinde"
     assert await store.clean(fake) is None  # refused, not stored as a photo
     assert await store.clean(photo + "x") is None
+
+
+async def test_clean_keeps_a_pdf_only_when_its_bytes_start_like_one(
+    store: ObjectStore, s3: FakeS3
+) -> None:
+    real, html, short, empty = (
+        f"kyc_document/{ME}/0199a1b2-0000-7000-8000-00000000001{n}.pdf" for n in range(4)
+    )
+    for key, body in (
+        (real, b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj"),
+        (html, b"<html><script>alert(1)</script></html>"),
+        (short, b"%PD"),
+        (empty, b""),
+    ):
+        s3.objects[key], s3.bodies[key] = ("application/pdf", max(len(body), 1)), body
+
+    assert await store.clean(real) == files.ObjectInfo("application/pdf", len(s3.bodies[real]))
+    assert s3.ranges == ["bytes=0-4"]  # only the first five bytes are read
+    assert s3.puts == []  # a PDF is never rewritten
+    assert await store.clean(html) is None
+    assert await store.clean(short) is None
+    assert await store.clean(empty) is None
+    assert await store.clean(real + "x") is None
 
 
 async def test_sweep_deletes_unclaimed_and_expired_uploads_once(

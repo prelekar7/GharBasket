@@ -220,6 +220,7 @@ Formal test plan and test-case documents (IEEE 829 style) for the report are wri
 - code + tests (unit + at least one integration);
 - OpenAPI updated and client regenerated;
 - handbook chapter / ADR updated;
+- no log call passes a person's name, address, phone number or e-mail, not even inside a message string. The scrubber masks known field names and patterns, not free text (handbook 13 §13.5);
 - works on the simulator seed;
 - screenshot or demo in the PR;
 - QA checklist passed (Rhythm Thakur / Manish Raje).

@@ -108,7 +108,8 @@ Hindi and Marathi names and the spellings people type. Try `GET /v1/search?q=bhe
   and prod it needs `Authorization: Bearer $JOBS_TOKEN`, so nobody can poll it to keep Neon awake.
 
 ## Safety rails (one Neon database is shared by the whole team)
-- Without `APP_ENV` the API assumes `prod`; staging and prod refuse to start without `JOBS_TOKEN`.
+- Without `APP_ENV` the API assumes `prod`; staging and prod refuse to start without `JOBS_TOKEN`, or with one
+  shorter than 32 bytes.
 - Tests refuse any `TEST_DATABASE_URL` that is not on this machine.
 - Migrations refuse a non-local database unless `GB_ALLOW_REMOTE_MIGRATIONS=1` (set only by the deploy
   workflow after merge), and downgrades on a shared database are always refused.

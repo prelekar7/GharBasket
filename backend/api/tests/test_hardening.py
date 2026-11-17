@@ -15,10 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
 from gharbasket.platform.db import SCHEMAS, is_local_database
-from gharbasket.platform.logging import configure_logging, scrub
+from gharbasket.platform.logging import configure_logging, scrub, scrub_sensitive
+from gharbasket.platform.operator import FAILED_PER_IP
 from gharbasket.platform.settings import Settings
+from gharbasket.platform.valkey import create_valkey
 
-from .conftest import DEPLOYED_SECRETS, alembic_config, make_settings
+from .conftest import DEPLOYED_SECRETS, OPERATOR_TOKEN, alembic_config, make_settings
 from .test_db import _schemas
 
 
@@ -58,6 +60,14 @@ def test_deployed_environments_refuse_a_short_ml_token() -> None:
     make_settings(ml_service_token="short")  # local development stays lax
 
 
+def test_deployed_environments_refuse_a_short_jobs_token() -> None:
+    for env in ("staging", "prod"):
+        with pytest.raises(ValidationError, match="JOBS_TOKEN must be at least 32 bytes"):
+            make_settings(**{**DEPLOYED_SECRETS, "jobs_token": "j" * 31}, app_env=env)
+        make_settings(**{**DEPLOYED_SECRETS, "jobs_token": "j" * 32}, app_env=env)
+    make_settings(jobs_token="op-token")  # local development stays lax
+
+
 def test_secrets_never_appear_in_the_settings_repr() -> None:
     settings = make_settings(
         database_url="postgresql://app:s3cr3t@db.example/gb", jobs_token="op-token-123"
@@ -85,13 +95,52 @@ def test_log_level_is_validated_and_case_insensitive() -> None:
             "postgresql://app:s3cr3t@ep-x.neon.tech/db",
             "postgresql://app:[redacted]@ep-x.neon.tech/db",
         ),
+        ("mail lata.shinde+gb@example.co.in failed", "mail [email] failed"),
+        ("from Asha.Patil9876543210@gmail.com", "from [email]"),
         # Not personal data: must stay readable.
         ("order 1234567890 total 98765432100 paise", "order 1234567890 total 98765432100 paise"),
         ("request a1b29876543210ff", "request a1b29876543210ff"),
+        ("postgresql://app@db.example/gb", "postgresql://app@db.example/gb"),  # a DSN's user
     ],
 )
 def test_scrub(raw: str, expected: str) -> None:
     assert scrub(raw) == expected
+
+
+def test_names_and_addresses_are_masked_by_field() -> None:
+    line = scrub_sensitive(
+        None,
+        "info",
+        {
+            "event": "member_added",
+            "name": "refresh_kpis",  # top level: chosen at the call site, names code
+            "display_name": "Lata tai",
+            "full_name": None,  # nothing to hide, and "not given" stays visible
+            "flat": "B-1204",
+            "email": "",
+            "details": {
+                "name": "Asha Patil",  # inside logged data: may be a person's
+                "Address": {"tower": "B", "flat": "1204"},
+                "members": [{"name": "Ravi", "age": 9}],
+                "hub_id": "kharghar",
+            },
+        },
+    )
+
+    assert line == {
+        "event": "member_added",
+        "name": "refresh_kpis",
+        "display_name": "[name]",
+        "full_name": None,
+        "flat": "[address]",
+        "email": "",
+        "details": {
+            "name": "[name]",
+            "Address": "[address]",
+            "members": [{"name": "[name]", "age": 9}],
+            "hub_id": "kharghar",
+        },
+    }
 
 
 def test_log_lines_and_tracebacks_are_scrubbed(capsys: pytest.CaptureFixture[str]) -> None:
@@ -117,7 +166,7 @@ def test_ready_needs_the_operator_token_when_deployed() -> None:
     with TestClient(create_app(settings)) as client:
         missing = client.get("/v1/ready")
         wrong = client.get("/v1/ready", headers={"Authorization": "Bearer nope"})
-        right = client.get("/v1/ready", headers={"Authorization": "Bearer op-token"})
+        right = client.get("/v1/ready", headers={"Authorization": f"Bearer {OPERATOR_TOKEN}"})
 
     assert missing.status_code == 401
     assert missing.json()["code"] == "platform.operator_token_required"
@@ -125,6 +174,49 @@ def test_ready_needs_the_operator_token_when_deployed() -> None:
     assert wrong.status_code == 401
     # Authorised; no database is configured here, so it is "not ready" rather than refused.
     assert right.status_code == 503
+
+
+@pytest.mark.anyio
+@pytest.mark.services
+async def test_failed_operator_tokens_are_rate_limited_per_address_but_the_right_one_never_is(
+    valkey_url: str,
+) -> None:
+    limit, window_s = FAILED_PER_IP
+    valkey = create_valkey(valkey_url)
+    await valkey.flushdb()
+    app = create_app(make_settings(app_env="staging", **DEPLOYED_SECRETS))
+    app.state.valkey = valkey
+    right = {"Authorization": f"Bearer {OPERATOR_TOKEN}"}
+
+    def client(address: str) -> httpx2.AsyncClient:
+        transport = httpx2.ASGITransport(app=app, client=(address, 4711))
+        return httpx2.AsyncClient(transport=transport, base_url="http://t")
+
+    try:
+        async with client("203.0.113.7") as guesser, client("198.51.100.9") as scheduler:
+            guesses = [
+                await guesser.get("/v1/internal/jobs", headers={"Authorization": f"Bearer g{n}"})
+                for n in range(limit)
+            ]
+            limited = await guesser.get("/v1/internal/jobs")  # no token at all counts too
+            still_right = await guesser.get("/v1/internal/jobs", headers=right)
+            elsewhere = await scheduler.get("/v1/internal/jobs", headers={"Authorization": "x"})
+            valid = [
+                await scheduler.get("/v1/internal/jobs", headers=right) for _ in range(limit + 10)
+            ]
+            # Had the right tokens been counted, this address would be over the limit by now.
+            after = await scheduler.get("/v1/internal/jobs", headers={"Authorization": "x"})
+    finally:
+        await valkey.aclose()
+
+    assert {answer.status_code for answer in guesses} == {401}
+    assert limited.status_code == 429
+    assert limited.json()["code"] == "platform.operator_rate_limited"
+    assert 0 < int(limited.headers["retry-after"]) <= window_s
+    assert still_right.status_code == 200  # a right token is never refused, not even here
+    assert elsewhere.status_code == 401  # another address has its own counter
+    assert {answer.status_code for answer in valid} == {200}
+    assert after.status_code == 401
 
 
 @pytest.mark.parametrize(

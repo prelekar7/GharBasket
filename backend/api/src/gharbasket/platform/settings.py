@@ -355,8 +355,13 @@ class Settings(DatabaseSettings):
         if self.fcm_service_account is not None:
             _ = self.fcm_credentials  # a broken key fails at start, not at the first push
         for name, secret in (
-            # The ML service is public on staging and prod: its shared token must be long too.
-            *((("ML_SERVICE_TOKEN", self.ml_service_token),) if not self.is_local else ()),
+            # The ML service and the operator endpoints are public on staging and prod: their
+            # shared tokens must be long too.
+            *(
+                (("ML_SERVICE_TOKEN", self.ml_service_token), ("JOBS_TOKEN", self.jobs_token))
+                if not self.is_local
+                else ()
+            ),
             ("JWT_SIGNING_KEY", self.jwt_signing_key),
             ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
             ("KYC_ENCRYPTION_KEY", self.kyc_encryption_key),
