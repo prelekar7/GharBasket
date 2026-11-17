@@ -123,15 +123,15 @@ async def test_cookie_requests_that_change_things_need_our_header_and_origin(
     api = clients()
     await _web_sign_in(api, google)
 
-    no_header = await api.patch("/v1/me", json={"name": "A"})
+    no_header = await api.patch("/v1/me", json={"name": "Asha"})
     other_site = await api.patch(
         "/v1/me",
-        json={"name": "A"},
+        json={"name": "Asha"},
         headers={"X-GB-Client": "web", "Origin": "https://evil.example"},
     )
-    ours = await api.patch("/v1/me", json={"name": "A"}, headers=WEB)
+    ours = await api.patch("/v1/me", json={"name": "Asha"}, headers=WEB)
     same_origin_without_origin_header = await api.patch(
-        "/v1/me", json={"name": "B"}, headers={"X-GB-Client": "web"}
+        "/v1/me", json={"name": "Bina"}, headers={"X-GB-Client": "web"}
     )
 
     assert no_header.status_code == other_site.status_code == 403
