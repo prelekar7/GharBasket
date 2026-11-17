@@ -11,6 +11,7 @@ import { useLostActions } from "@/lib/lostActions.js";
 import { persistOptions, queryClient } from "@/lib/queryClient.js";
 import { useSession } from "@/lib/session.js";
 import { startNative } from "@/shared/native/platform.js";
+import { startPush } from "@/shared/native/push.js";
 import { i18nReady } from "./i18n.js";
 import { startPwa } from "./pwa.js";
 import { routeTree } from "./routeTree.gen.js";
@@ -28,6 +29,7 @@ const router = createRouter({
 startPwa();
 // The offline outbox (Dexie, about 30 KB gzipped) loads as its own chunk and never blocks the first paint.
 import("@/lib/outbox.js").then(({ startOutbox }) => startOutbox());
+startPush(router, queryClient); // listeners now: a tap that opens the app must not be lost
 
 // The session ended while signed in: wipe the person's data from this device, as a sign-out
 // does, and show login. Actions still in the outbox cannot be sent any more, so what they were is
