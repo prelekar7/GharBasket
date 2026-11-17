@@ -29,7 +29,14 @@ console or Infisical; never committed). `mobile/.env.local` needs `VITE_API_BASE
 | `pnpm cap:sync` | native web build, then copy it and the plugins into `android/` |
 | `pnpm android:run` | sync, build and start on the running emulator or the USB phone |
 | `pnpm android:apk` | sync and build a debug APK: `android/app/build/outputs/apk/debug/app-debug.apk` (`adb install -r …`) |
+| `pnpm android:release-apk` | sync and build a signed release APK: `…/apk/release/app-release.apk` (needs the release keystore) |
+| `pnpm android:bundle` | sync and build the signed release AAB for Play: `…/bundle/release/app-release.aab` |
+| `pnpm android:assets` | regenerate the launcher icon and splash screens from `public/icon.svg` (sources in `assets/`) |
 | `pnpm android:open` | open `android/` in Android Studio |
+
+Release builds fail unless signing is configured: `android/keystore.properties` or the `GB_KEYSTORE_*` and
+`GB_KEY_*` environment variables, with the keystore from Infisical (handbook 12, "Android build"). The version
+comes from `mobile/package.json`; CI builds a debug APK per pull request (`.github/workflows/android.yml`).
 
 `android/` is committed except build output, the copied web assets and generated config (its `.gitignore`).
 Staging has no dev sign-in: on a phone, sign in with a real number or a Firebase test number.

@@ -1,5 +1,30 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
+// Version: versionName is "version" in frontend/mobile/package.json (the one place to bump it).
+// versionCode is major*10000 + minor*100 + patch (0.1.0 -> 100, 1.2.3 -> 10203), so it rises with
+// every release. CI can set GB_VERSION_CODE (for example the run number) to override it. Play
+// rejects an upload whose versionCode is not higher than the last one.
+def appVersion = new JsonSlurper().parse(new File(rootDir, '../package.json')).version
+def (vMajor, vMinor, vPatch) = appVersion.tokenize('-')[0].tokenize('.').collect { it as int }
+def appVersionCode = (System.getenv('GB_VERSION_CODE') ?: (vMajor * 10000 + vMinor * 100 + vPatch)) as int
+
+// Release signing: android/keystore.properties (gitignored) with storeFile, storePassword,
+// keyAlias, keyPassword; or else the env vars GB_KEYSTORE_PATH, GB_KEYSTORE_PASSWORD,
+// GB_KEY_ALIAS, GB_KEY_PASSWORD. The keystore and passwords live in Infisical, never in git.
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def signingValue = { String prop, String env -> keystoreProps.getProperty(prop) ?: System.getenv(env) }
+def releaseStoreFile = signingValue('storeFile', 'GB_KEYSTORE_PATH')
+def hasReleaseSigning = releaseStoreFile && rootProject.file(releaseStoreFile).exists() &&
+    signingValue('storePassword', 'GB_KEYSTORE_PASSWORD') &&
+    signingValue('keyAlias', 'GB_KEY_ALIAS') &&
+    signingValue('keyPassword', 'GB_KEY_PASSWORD')
+
 android {
     namespace = "in.gharbasket.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +32,8 @@ android {
         applicationId "in.gharbasket.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,11 +41,36 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword signingValue('storePassword', 'GB_KEYSTORE_PASSWORD')
+                keyAlias signingValue('keyAlias', 'GB_KEY_ALIAS')
+                keyPassword signingValue('keyPassword', 'GB_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
+            // R8 is off on purpose: Capacitor finds its plugins and their @PluginMethod methods by
+            // reflection, so shrinking needs keep rules we have not tested. Turn it on only with
+            // those rules and a release build exercised on a phone.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+// A release build must never fall back to the debug key (or ship unsigned): stop with a clear message.
+gradle.taskGraph.whenReady { graph ->
+    def building = graph.allTasks.any { it.project == project && it.name in ['assembleRelease', 'bundleRelease', 'packageRelease'] }
+    if (building && !hasReleaseSigning) {
+        throw new GradleException(
+            'Release signing is not configured. Create android/keystore.properties (storeFile, storePassword, ' +
+            'keyAlias, keyPassword) or set GB_KEYSTORE_PATH, GB_KEYSTORE_PASSWORD, GB_KEY_ALIAS and GB_KEY_PASSWORD, ' +
+            'and make sure the keystore file exists. See handbook 12, "Android build".')
     }
 }
 

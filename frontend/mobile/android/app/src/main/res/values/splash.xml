@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ system splash (Theme.SplashScreen): the app background behind the launcher
+         icon, the same cream as the web app (#FBF7F0, packages/ui tokens). values-night has the dark one. -->
+    <color name="splash_background">#FBF7F0</color>
+</resources>
