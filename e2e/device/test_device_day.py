@@ -146,6 +146,26 @@ def test_whatsapp_stays_off_even_with_its_settings_in_the_environment(
     assert not config().settings(quiet=True).whatsapp_enabled
 
 
+def test_traces_stay_off_even_with_their_settings_in_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # As under `infisical run --env=staging -- just device-day`.
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://otlp.example.grafana.net/otlp")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", "Authorization=Basic%20abc")
+    settings = config().settings(quiet=True)
+    assert settings.otel_exporter_otlp_endpoint is None
+    assert settings.otel_exporter_otlp_headers is None
+
+
+def test_main_switches_the_opentelemetry_sdk_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    # "false" (not unset) so monkeypatch puts the environment back as it was afterwards.
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "false")
+    monkeypatch.setenv("DEVICE_DATABASE_URL", f"{LOCAL}/gharbasket")
+    with pytest.raises(SystemExit, match="refusing database"):
+        device_day.main(["serve"])  # stopped by its own check, after the switch
+    assert os.environ["OTEL_SDK_DISABLED"] == "true"
+
+
 def test_a_busy_port_stops_the_build_before_anything_is_dropped() -> None:
     with socket.socket() as busy:
         busy.bind(("127.0.0.1", 0))

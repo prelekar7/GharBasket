@@ -4,10 +4,10 @@ import { invitedSociety, joinSearch } from "./join.js";
 
 describe("/join?s= (a neighbour's invite)", () => {
   it("keeps a valid slug, lowercased and trimmed", () => {
-    expect(joinSearch.parse({ s: "sunrise-towers-kharghar" })).toEqual({
+    expect(joinSearch({ s: "sunrise-towers-kharghar" })).toEqual({
       s: "sunrise-towers-kharghar",
     });
-    expect(joinSearch.parse({ s: "  Sunrise-Towers-Kharghar " }).s).toBe("sunrise-towers-kharghar");
+    expect(joinSearch({ s: "  Sunrise-Towers-Kharghar " }).s).toBe("sunrise-towers-kharghar");
   });
 
   it("drops anything that is not a slug", () => {
@@ -21,8 +21,8 @@ describe("/join?s= (a neighbour's invite)", () => {
       "a".repeat(81),
       42,
     ])
-      expect(joinSearch.parse({ s }).s).toBeUndefined();
-    expect(joinSearch.parse({}).s).toBeUndefined();
+      expect(joinSearch({ s }).s).toBeUndefined();
+    expect(joinSearch({}).s).toBeUndefined();
   });
 
   it("accepts only an exact slug", () => {
