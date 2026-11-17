@@ -111,7 +111,7 @@ class DeletionOut(BaseModel):
 
 
 class RefreshIn(BaseModel):
-    """Apps send the refresh token; browsers send `{}` and the `gb_rt` cookie carries it."""
+    """Apps send the refresh token; browsers send `{}`: the `__Secure-gb_rt` cookie carries it."""
 
     refresh_token: str | None = Field(default=None, min_length=1, max_length=256)
 

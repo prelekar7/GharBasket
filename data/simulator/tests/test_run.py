@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.models import Price, PriceList
 from gharbasket.modules.identity.models import Household, User
+from gharbasket.tools import live_guard
 from gharbasket.tools.seed import SEED_HUB_ID, seed_catalog, seed_societies
 
 from .conftest import json_catalog
@@ -155,6 +156,14 @@ def test_the_cli_refuses_a_shared_database(monkeypatch: pytest.MonkeyPatch) -> N
 NEON = "postgresql+asyncpg://u:secret@ep-x.neon.tech/gharbasket"
 
 
+@pytest.fixture(autouse=True)
+def _no_cutover_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The live-mode guard (ADR-0037 §4) never connects to a fake shared database here: no
+    RAZORPAY_MODE, and its lookup finds no cut-over entry unless a test says otherwise."""
+    monkeypatch.delenv("RAZORPAY_MODE", raising=False)
+    monkeypatch.setattr(live_guard, "cutover_recorded", lambda url: False)
+
+
 class Reached(Exception):
     """The CLI got past its guard and would have connected."""
 
@@ -199,6 +208,31 @@ def test_the_cli_writes_to_a_shared_database_with_both_confirmations(
         sim.main(["--weeks", "1", "--write-db", "--allow-remote"])
 
     assert "simulating into the shared database at ep-x.neon.tech" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("cutover", [False, True])
+def test_the_cli_refuses_a_shared_database_that_takes_real_money(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], cutover: bool
+) -> None:
+    """RAZORPAY_MODE=live, or the cut-over's entry when the variable is missing (M5 §3.10)."""
+    monkeypatch.setenv("DATABASE_URL_DIRECT", NEON)
+    monkeypatch.setenv("GB_ALLOW_REMOTE_SEED", "ep-x.neon.tech")
+    if cutover:
+        monkeypatch.setattr(live_guard, "cutover_recorded", lambda url: True)
+    else:
+        monkeypatch.setenv("RAZORPAY_MODE", "live")
+
+    async def connect(url: str, args: object) -> None:
+        raise Reached(url)
+
+    monkeypatch.setattr(sim, "run", connect)
+    with pytest.raises(SystemExit) as exited:
+        sim.main(["--weeks", "1", "--write-db", "--allow-remote"])
+
+    assert exited.value.code == 2
+    err = capsys.readouterr().err
+    assert "takes real money" in err
+    assert "secret" not in err
 
 
 def test_a_real_account_on_a_simulator_phone_is_a_one_line_refusal(

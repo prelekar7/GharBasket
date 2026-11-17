@@ -54,6 +54,8 @@ async def health(settings: Annotated[Settings, Depends(get_settings)]) -> Health
 class Ready(BaseModel):
     status: Literal["ok"]
     checks: dict[str, CheckResult]
+    # Which Razorpay account's money is in play (RAZORPAY_MODE, M5 §3.10); /v1/health never says.
+    payments_mode: Literal["test", "live"]
 
 
 async def _check_database(engine: AsyncEngine | None) -> CheckResult:
@@ -90,7 +92,7 @@ async def _check_valkey(valkey: Redis | None) -> CheckResult:
         503: {"description": "A dependency is not reachable (problem+json)"},
     },
 )
-async def ready(request: Request) -> Ready:
+async def ready(request: Request, settings: Annotated[Settings, Depends(get_settings)]) -> Ready:
     database, valkey = await asyncio.gather(
         _check_database(request.app.state.engine),
         _check_valkey(request.app.state.valkey),
@@ -104,4 +106,4 @@ async def ready(request: Request) -> Ready:
             f"Not ready: {', '.join(failing)}.",
             errors=[{"check": name, "result": checks[name]} for name in failing],
         )
-    return Ready(status="ok", checks=checks)
+    return Ready(status="ok", checks=checks, payments_mode=settings.razorpay_mode)

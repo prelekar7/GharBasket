@@ -9,11 +9,12 @@ const log = (label, data = "") => {
   console.log(line);
 };
 
-// Android emulator reaches the host machine at 10.0.2.2; a real phone needs the laptop's LAN IP.
-$("server").value =
-  localStorage.getItem("s1-server") ??
-  (Capacitor.getPlatform() === "android" ? "http://10.0.2.2:8787" : "http://localhost:8787");
+// `adb reverse tcp:8787 tcp:8787` (README) makes the laptop's server reachable as localhost on the
+// phone or emulator, over USB, with no LAN IP or firewall setting.
+$("server").value = localStorage.getItem("s1-server") ?? "http://localhost:8787";
 log("platform", { platform: Capacitor.getPlatform(), ua: navigator.userAgent });
+// Coming back from a UPI app shows here: "hidden" while GPay is in front, "visible" on return.
+document.addEventListener("visibilitychange", () => log("visibility", document.visibilityState));
 
 async function post(path, body) {
   const server = $("server").value.replace(/\/$/, "");

@@ -25,7 +25,9 @@ Only for the local Docker database. A shared database (staging on Neon) is refus
 `--allow-remote` is given and GB_ALLOW_REMOTE_SEED names its host (`scripts/staging-demo.sh`,
 handbook 12); there the seed only adds what is missing and keeps every existing row as it is (no
 refresh of the hub, societies, people or their roles, categories, prices, festivals or trainings,
-and never `--refresh`), so nothing edited in the console is overwritten.
+and never `--refresh`), so nothing edited in the console is overwritten. It is refused there too
+while the database takes real money (RAZORPAY_MODE=live, or its `test_mode_closed` entry:
+`gharbasket.tools.live_guard`, ADR-0037 §4).
 """
 
 import argparse
@@ -93,6 +95,7 @@ from gharbasket.platform.db import (
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.geo import LatLng
 from gharbasket.platform.settings import DatabaseSettings
+from gharbasket.tools.live_guard import LiveMoneyRefused, refuse_if_live
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 CATALOG_SEED = REPO_ROOT / "data" / "seeds" / "catalog"
@@ -774,6 +777,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     remote = not is_local_database(url)
     if remote and args.refresh:
         parser.error("--refresh rewrites catalog rows: never on a shared database")
+    try:
+        refuse_if_live("seed", url, os.environ)
+    except LiveMoneyRefused as refused:
+        parser.error(str(refused))
     if remote:
         print(f"seeding the shared database at {host}: adds only, existing rows are kept")
 

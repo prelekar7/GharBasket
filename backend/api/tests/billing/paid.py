@@ -11,15 +11,25 @@ from gharbasket.modules.billing import wallet
 from gharbasket.modules.billing.models import JournalEntry, Payment, Refund, RefundPart
 
 
-async def paid_topup(db: AsyncSession, user: uuid.UUID, amount: int, age_days: int = 0) -> Payment:
-    """A `paid` dev top-up created `age_days` ago, credited to the wallet."""
+async def paid_topup(
+    db: AsyncSession,
+    user: uuid.UUID,
+    amount: int,
+    age_days: int = 0,
+    *,
+    provider: str = "dev",
+    mode: str = "test",
+) -> Payment:
+    """A `paid` top-up (dev, unless `provider` says otherwise) of `mode`, created `age_days` ago,
+    credited to the wallet."""
     payment = Payment(
         user_id=user,
-        provider="dev",
+        provider=provider,
+        mode=mode,
         amount_paise=amount,
         status="paid",
-        provider_order_id=f"order_dev_{uuid.uuid4().hex}",
-        provider_payment_id=f"pay_dev_{uuid.uuid4().hex}",
+        provider_order_id=f"order_{provider}_{uuid.uuid4().hex}",
+        provider_payment_id=f"pay_{provider}_{uuid.uuid4().hex}",
         expires_at=datetime.now(UTC),
         created_at=datetime.now(UTC) - timedelta(days=age_days),
     )
