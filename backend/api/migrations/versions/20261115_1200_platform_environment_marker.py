@@ -6,7 +6,7 @@ deploy, `prod` from the production one. A `prod` mark is never replaced. The scr
 (`gharbasket.tools.live_guard`).
 
 Revision ID: 62fbbb57a10c
-Revises: 2b9e6c4d8f17
+Revises: 27eeef60dbc7
 Create Date: 2026-11-15 12:00:00.000000+00:00
 """
 
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "62fbbb57a10c"
-down_revision: str | Sequence[str] | None = "2b9e6c4d8f17"
+down_revision: str | Sequence[str] | None = "27eeef60dbc7"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
