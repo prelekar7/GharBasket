@@ -5,8 +5,9 @@
 
 Apps send `Authorization: Bearer <access token>`; browsers instead carry it in the httpOnly
 `__Host-gb_at` cookie (platform/web_session.py). A Bearer header always wins over a cookie.
-The token is checked without the database (signature, expiry, audience); a signed-out session is
-refused at once through the Valkey list in platform/revocations.py.
+The token is checked without the database (signature, expiry, audience); a signed-out session, or
+a token that still carries a revoked staff role, is refused at once through the Valkey lists in
+platform/revocations.py.
 """
 
 from typing import Annotated
@@ -14,7 +15,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from gharbasket.platform.revocations import is_revoked
+from gharbasket.platform.revocations import refusal
 from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.tokens import AccessClaims, invalid_token, verify_access_token
 from gharbasket.platform.web_session import ACCESS_COOKIE, SAFE_METHODS, check_web_request
@@ -40,8 +41,9 @@ async def require_access_token(
         if request.method not in SAFE_METHODS:
             check_web_request(request, settings)
     claims = verify_access_token(settings, token)
-    if await is_revoked(getattr(request.app.state, "valkey", None), claims.session_id):
-        raise invalid_token("You have signed out on this device.")
+    refused = await refusal(getattr(request.app.state, "valkey", None), claims)
+    if refused is not None:
+        raise invalid_token(refused)
     # Idempotency keys and logs are scoped to the caller from here on.
     request.state.principal_id = str(claims.user_id)
     return claims

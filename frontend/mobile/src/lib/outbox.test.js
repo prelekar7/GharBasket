@@ -13,8 +13,16 @@ vi.mock("@/lib/api.js", async (importOriginal) => {
 });
 
 const { ApiError } = await import("@/lib/api.js");
-const { db, dismissAllFailed, dismissFailed, dropStaleFailures, enqueue, flush, targetOf } =
-  await import("./outbox.js");
+const {
+  db,
+  dismissAllFailed,
+  dismissFailed,
+  dropStaleFailures,
+  enqueue,
+  flush,
+  summarizeOutbox,
+  targetOf,
+} = await import("./outbox.js");
 const rows = () => db.table("outbox").orderBy("createdAt").toArray();
 /** Saves while offline, so only the test's own flush() sends. */
 let online = true;
@@ -246,5 +254,21 @@ describe("outbox", () => {
     expect(targetOf("/v1/deliveries/abc/proof")).toBe("deliveries/abc");
     expect(targetOf("/v1/packing-tasks/t1/pick")).toBe("packing-tasks/t1");
     expect(targetOf("/v1/auth")).toBeUndefined();
+  });
+
+  it("sums up what is waiting or failed, by action name, before a session that ended is wiped", async () => {
+    request.mockRejectedValue(new ApiError({ status: 409, code: "logistics.bags_not_packed" }));
+    await save({ path: "/v1/routes/r1/start" });
+    await flush(); // refused: failed
+    await save({ path: "/v1/stops/s1/handover" });
+    await save({ path: "/v1/deliveries/d1/proof?retry=1" });
+    await save({ path: "/v1/stops/s2/handover" });
+    expect(await summarizeOutbox()).toEqual([
+      { action: "start", count: 1 },
+      { action: "handover", count: 2 },
+      { action: "proof", count: 1 },
+    ]);
+    await db.table("outbox").clear();
+    expect(await summarizeOutbox()).toEqual([]);
   });
 });
