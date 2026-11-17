@@ -149,6 +149,16 @@
     "expired": "This code has expired. Send a new one.",
     "tooMany": "Too many tries. Wait a few minutes and try again.",
     "region": "We can’t send SMS to this number yet.",
+    "keepTitle": "Keep my account?",
+    "keepBody": "This account is set to be deleted on {date}. Keep it and it stays, and you sign in. Cancel and nothing changes.",
+    "keepBodyNoDate": "This account is set to be deleted. Keep it and it stays, and you sign in. Cancel and nothing changes.",
+    "keepConfirm": "Keep my account",
+    "keepCancel": "Cancel",
+    "welcomeBack": "Welcome back. Your account is kept and won’t be deleted.",
+    "smsOff": "SMS sign-in isn’t switched on yet. Use a test number, or try again later.",
+    "badPhone": "That phone number doesn’t look right. Check it and try again.",
+    "network": "No internet connection. Check your network and try again.",
+    "notAuthorized": "This app version can’t verify phone numbers yet. Update the app or contact support.",
     "failed": "We couldn’t sign you in. Check your internet and try again."
   },
   "outbox": {
@@ -157,6 +167,11 @@
     "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}",
     "dismiss": "Dismiss",
     "dismissAll": "Dismiss all",
+    "lost": {
+      "title": "{count, plural, one {You were signed out before # action was sent} other {You were signed out before # actions were sent}}",
+      "times": "{name} ×{count}",
+      "redo": "{count, plural, one {It was cleared from this phone. Sign in and do it again.} other {They were cleared from this phone. Sign in and do them again.}}"
+    },
     "action": {
       "start": "Start",
       "complete": "Finish",
@@ -425,7 +440,11 @@
         "payment_refunded": "Your wallet was full when the payment arrived, so it was sent back to your bank."
       },
       "confirming": "Confirming your payment…",
-      "stillConfirming": "Razorpay is still confirming your payment. Your wallet updates in a minute."
+      "stillConfirming": "Razorpay is still confirming your payment. Your wallet updates in a minute.",
+      "waitingTitle": "Still waiting for your bank",
+      "waitingBody": "Your bank hasn’t confirmed the payment yet. This can take a minute. If money was taken, it will show in your wallet. You don’t need to pay again.",
+      "waitingRetry": "Check again",
+      "waitingClose": "Close"
     },
     "done": {
       "title": "You’re all set. First box on {day}.",
@@ -1084,6 +1103,7 @@
     "push": "On this phone",
     "whatsapp": "On WhatsApp",
     "whatsappNote": "Needs your WhatsApp consent (Profile › Privacy)",
+    "channelName": "Updates",
     "saved": "Saved",
     "cat": {
       "weekly_box": "Your weekly box",
@@ -1183,6 +1203,8 @@
       "allDone": "Every line is done. Close the bag.",
       "packed": "This bag is packed and in crate {crate}.",
       "wrong": "Wrong item: this is {item}",
+      "isBagLabel": "That’s a bag label. Scan an item.",
+      "isKitchenCode": "That’s a kitchen code. Scan an item.",
       "already": "{item} is already in the bag",
       "putBackTitle": "Put it back",
       "putBack": "This bag doesn’t need {item}. Return it to its shelf; nothing was added to the bag.",
@@ -1365,7 +1387,9 @@
       "scan": "Scan kitchen code",
       "scanned": "Collected",
       "queued": "Saved. It will be sent when you have signal.",
-      "noScanner": "This phone can’t scan yet. Try again after the next update.",
+      "noScanner": "Scan the kitchen code on the GharBasket phone app.",
+      "scannerUnavailable": "The scanner isn’t available on this phone. Update Google Play services and try again.",
+      "notKitchenCode": "That is not a kitchen pickup code. Scan the cook’s code.",
       "got": "Collected: {codes}",
       "already": "{n, plural, one {# tiffin was} other {# tiffins were}} collected earlier.",
       "notReady": "Not ready yet: {codes}. Scan again when the kitchen is done.",
@@ -1769,6 +1793,11 @@
     "backToWeek": "Back to the week",
     "since": "cooking with us since {since}"
   },
+  "scan": {
+    "preparing": "Getting the scanner ready…",
+    "unavailable": "The scanner isn’t available on this phone. Type the code instead.",
+    "interrupted": "The scan was interrupted. Scan again."
+  },
   "rate": {
     "when": "{day} · delivered",
     "title": "How was today?",
@@ -1846,6 +1875,12 @@
     "cancelFailed": "Couldn’t cancel UPI Autopay. Try again.",
     "on": "On",
     "walletLink": "Pay per box with UPI Autopay"
+  },
+  "photo": {
+    "take": "Take photo",
+    "gallery": "Choose from gallery",
+    "tooLarge": "That file is too big. The limit is {mb} MB.",
+    "failed": "Couldn’t get that photo. Try again."
   },
   "partnerDocs": {
     "step": "{kind, select, kitchen {Become a kitchen partner} captain {Become a Society Captain} rider {Become a rider} other {Become a packer}} · step 2 of 4",

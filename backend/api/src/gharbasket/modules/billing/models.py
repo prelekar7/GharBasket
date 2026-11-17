@@ -24,6 +24,7 @@ from sqlalchemy import (
     Integer,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
     func,
@@ -66,6 +67,8 @@ PROVIDERS = ("razorpay", "dev")
 PAYMENT_PURPOSES = ("topup",)
 # Stored states; "expired" is shown for a "created" top-up past `expires_at` (spec §3.1).
 PAYMENT_STATUSES = ("created", "paid", "failed", "refunded")
+# Which Razorpay account (RAZORPAY_MODE, spec §3.10) a payment was made in; a dev one is "test".
+PAYMENT_MODES = ("test", "live")
 REFUND_REASONS = ("customer", "account_deleted", "order")
 REFUND_STATUSES = ("pending", "processing", "processed", "partly_failed", "failed")
 OPEN_REFUND = "status IN ('pending', 'processing') AND reason = 'customer'"
@@ -166,6 +169,7 @@ class Payment(Base):
         CheckConstraint(_one_of("provider", PROVIDERS), name="provider"),
         CheckConstraint(_one_of("purpose", PAYMENT_PURPOSES), name="purpose"),
         CheckConstraint(_one_of("status", PAYMENT_STATUSES), name="status"),
+        CheckConstraint(_one_of("mode", PAYMENT_MODES), name="mode"),
         CheckConstraint("amount_paise > 0", name="amount_paise"),
         Index(None, "user_id", "status"),
         {"schema": SCHEMA},
@@ -177,6 +181,9 @@ class Payment(Base):
     purpose: Mapped[str] = mapped_column(String(16), server_default="topup")
     amount_paise: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(16), server_default="created")
+    # The code always sets it; the default only keeps an API of the previous release (during a
+    # deploy) writing what it ran in, `test`.
+    mode: Mapped[str] = mapped_column(Text, server_default="test")
     provider_order_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     provider_payment_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     provider_refund_id: Mapped[str | None] = mapped_column(String(64))

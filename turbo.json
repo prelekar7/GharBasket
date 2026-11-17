@@ -4,6 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["GB_*"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**", "storybook-static/**"]
     },
     "lint": {

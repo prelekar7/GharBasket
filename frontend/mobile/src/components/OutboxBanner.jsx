@@ -1,12 +1,15 @@
 import { Button, OfflineBanner } from "@gharbasket/ui";
 import { useTranslation } from "react-i18next";
+import { useLostActions } from "@/lib/lostActions.js";
 import {
+  actionOf,
   dismissAllFailed,
   dismissFailed,
   flush,
   useFailedItems,
   useOutboxCount,
 } from "@/lib/outbox.js";
+import { LostActionsNotice } from "./LostActionsNotice.jsx";
 
 /**
  * Shown in every role shell while the outbox is not empty: "3 actions waiting to sync", and
@@ -18,9 +21,11 @@ export function OutboxBanner() {
   const { t } = useTranslation();
   const waiting = useOutboxCount("waiting");
   const failed = useFailedItems();
-  if (waiting === 0 && failed.length === 0) return null;
+  const lost = useLostActions((s) => s.items.length);
+  if (waiting === 0 && failed.length === 0 && lost === 0) return null;
   return (
     <div className="flex flex-col gap-2 px-4 pt-2">
+      <LostActionsNotice />
       {waiting > 0 && (
         <OfflineBanner
           message={t("outbox.waiting", { count: waiting })}
@@ -70,8 +75,7 @@ export function OutboxBanner() {
 }
 
 /** "/v1/stops/<id>/handover" -> "Handover". @param {import("i18next").TFunction} t @param {string} path */
-const actionText = (t, path) =>
-  t([`outbox.action.${path.split("?")[0].split("/").pop()}`, "outbox.action.other"]);
+const actionText = (t, path) => t([`outbox.action.${actionOf(path)}`, "outbox.action.other"]);
 
 /** Why the server refused, from the problem `code` ("logistics.bags_not_packed" -> the last part). @param {import("i18next").TFunction} t @param {string} [code] */
 function reasonText(t, code) {

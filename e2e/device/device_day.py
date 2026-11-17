@@ -202,6 +202,9 @@ class DeviceConfig:
             whatsapp_phone_number_id=None,
             whatsapp_app_secret=None,
             whatsapp_verify_token=None,
+            # Nor traces: under `infisical run` they would go to staging's Grafana Cloud.
+            otel_exporter_otlp_endpoint=None,
+            otel_exporter_otlp_headers=None,
         )
 
     @property
@@ -1103,6 +1106,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--leave", type=int, default=0, help="pack: bags to leave in the queue")
     args = parser.parse_args(argv)
+    # No OpenTelemetry from this process or the ones it starts (settings() also leaves the OTLP
+    # endpoint out): a phone test day never shows up in staging's traces.
+    os.environ["OTEL_SDK_DISABLED"] = "true"
     config = DeviceConfig.from_env()
     config.check()  # first, before anything is dropped, flushed or written
 

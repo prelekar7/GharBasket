@@ -8,6 +8,7 @@ docstring). So there are only two ways back:
 
 1. **A `before-demo-*` restore point.** `just staging-demo` makes one before it loads data. It is a copy-on-write Neon
    branch with no compute. Rolling back to it is quick and complete, but it only goes back to that moment.
+   **Refused while staging takes real money** (ADR-0037 §4): see "Live money" below.
 2. **A dump in R2.** Once the backup workflow is merged (`backup-staging.yml`, handbook 12 §12.4), a weekly
    `pg_dump` is kept in the private bucket `gb-staging-backups`, at `staging/YYYY-MM-DD.dump`. It is restored into a
    new database, then compared with staging, not poured over it.
@@ -42,6 +43,7 @@ Until then this runbook is the drill, not the production procedure.
 | What happened | Go to |
 |---|---|
 | A demo load went wrong (`just staging-demo`) | Recovery A, from the restore point it printed |
+| Staging takes real money (`RAZORPAY_MODE=live`, or the cut-over's `test_mode_closed` entry) | "Live money" below, never Recovery A |
 | A bad migration or job damaged data, and a `before-demo-*` point is before it | Recovery A |
 | The damage is older than every restore point, or you need to look at old data | Recovery B (the dump), into a new database |
 | The Neon project is gone or suspended | Neon console first: a suspended compute comes back at the start of the month or on a paid plan. A deleted project is rebuilt from the latest dump (Recovery B into a new project, then a new `DATABASE_URL` in Infisical and Render) and `alembic upgrade head` |
@@ -64,6 +66,8 @@ Until then this runbook is the drill, not the production procedure.
    database's URL stays the same. The branch keeps the replaced state as `<branch>-with-demo-<UTC time>`, and the
    restore point becomes staging's parent. **Both stay for good** (Neon cannot delete a branch with children), so a
    rollback uses up branches of the free 10. The script refuses before it starts when there is no room.
+   It also refuses (exit 2, before Neon is called) while staging takes real money: `RAZORPAY_MODE=live` in the
+   environment, or a `test_mode_closed` entry in `billing.journal_entries`. Then go to "Live money".
 3. **Bring the code and schema in line.** If the restore point is older than the latest migration, run
    `alembic upgrade head` by redeploying: GitHub → Actions → Deploy staging → Run workflow on `main`. If it is not older,
    still redeploy once, so the API reconnects cleanly.
@@ -108,6 +112,16 @@ test users, so treat the file as personal data: download it to your own machine,
    scheduler talks to the API, not to the database.
 6. **Clean up.** Delete the downloaded dump from your machine. Delete the `restore-check-<date>` branch when you no longer
    need it (it counts against the 10 branches).
+
+### Live money: a restore while staging takes real money
+
+From the cut-over on (ADR-0037, M5 §3.10) staging's ledger holds money that really moved. Going back to an older copy
+would erase those rows, so `just staging-rollback`, `just staging-demo`, `just seed` and `just sim --allow-remote`
+refuse staging then. They check both `RAZORPAY_MODE=live` and the `test_mode_closed` entry, so unsetting the variable
+does not get round them.
+1. Restore the latest dump into a **separate** database (Recovery B, steps 1 to 4). Do not point staging at it.
+2. Rebuild what is wrong on staging with Razorpay's own record (the dashboard's payments, refunds and settlements),
+   forward only: money rows are added, never edited (handbook 05). Ask Prathamesh before anything is posted.
 
 ### Checking a dump without Neon
 
@@ -183,6 +197,8 @@ back half an entry. A count that is far below what you expect means you restored
 
 - Do not restore into the live staging branch from a dump. Restore into a new database and compare.
 - Do not roll back to a restore point while a demo load or a deploy is running.
+- Do not try to get round the live-mode guard while staging takes real money. It is there because a rollback erases
+  real money rows.
 - Do not delete `before-demo-*` branches that a rollback made the parent of. Neon refuses, and the 10-branch limit is real.
 - Do not paste a connection string, `NEON_API_KEY` or the backup token into chat, an issue or a PR. Use `infisical run`
   and `read -rs`.

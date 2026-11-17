@@ -23,6 +23,37 @@ describe("polling a top-up after Checkout", () => {
     expect(fetchStatus.mock.calls.length).toBeLessThanOrEqual(16);
   });
 
+  it("asks at once when the app resumes, and the 30 seconds start again", async () => {
+    /** @type {() => void} */
+    let resume = () => {};
+    const stop = vi.fn();
+    const subscribeResume = async (/** @type {() => void} */ fn) => {
+      resume = fn;
+      return stop;
+    };
+    let status = "created";
+    const fetchStatus = vi.fn(async () => ({ status }));
+    let finished = /** @type {string | null} */ (null);
+    pollTopUp("t1", { fetchStatus, subscribeResume }).then((s) => {
+      finished = s;
+    });
+    await vi.advanceTimersByTimeAsync(1000); // asked once at 0 s, the next ask is due at 2 s
+    expect(fetchStatus).toHaveBeenCalledTimes(1);
+    resume();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchStatus).toHaveBeenCalledTimes(2); // did not wait for the timer
+
+    await vi.advanceTimersByTimeAsync(25_000); // 26 s since the start of the wait
+    resume(); // back from a UPI app: the 30 s start again, so it must not give up at 30 s
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(finished).toBeNull();
+
+    status = "paid";
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(finished).toBe("paid");
+    expect(stop).toHaveBeenCalled();
+  });
+
   it("returns a failed or expired top-up at once, and keeps trying through a failed request", async () => {
     expect(await pollTopUp("t1", { fetchStatus: async () => ({ status: "expired" }) })).toBe(
       "expired",

@@ -1,4 +1,4 @@
-import { formatPaise } from "@gharbasket/ui";
+import { formatPaise } from "@gharbasket/ui/money";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";

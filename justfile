@@ -153,6 +153,11 @@ migrate-down steps="1":
 migration message:
     cd backend/api && uv run alembic revision --autogenerate -m "{{message}}"
 
+# k6 load test against the LOCAL API (infra/k6/README.md), e.g. `just load customer-reads -e GB_PROFILE=smoke`; never staging without the owner's go
+load script *args:
+    @command -v k6 >/dev/null || { echo "k6 is not installed: brew install k6"; exit 1; }
+    k6 run {{args}} infra/k6/{{script}}.js
+
 # Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://api.gharbasket.co.in`
 cloud url:
     scripts/smoke-staging.sh {{url}}
@@ -182,7 +187,7 @@ demo-ms-a *args:
 demo-ledger *args:
     cd backend/api && uv run --frozen python -m gharbasket.tools.demo_ledger {{args}}
 
-# Undo a demo load: restore staging from the restore point it printed, e.g. `GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-20261107T0758Z`
+# Undo a demo load (refused while staging takes real money, ADR-0037 §4): restore staging from the restore point it printed, e.g. `GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-20261107T0758Z`
 staging-rollback point:
     uv run --quiet python scripts/neon_restore_point.py rollback {{point}}
 

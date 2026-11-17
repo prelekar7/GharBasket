@@ -48,14 +48,14 @@ from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.permissions import Permit, require
-from gharbasket.platform.revocations import mark_revoked
+from gharbasket.platform.revocations import clear_grant_revoked, mark_revoked
 from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.tokens import invalid_token
 from gharbasket.platform.valkey import Valkey
 from gharbasket.platform.web_session import (
-    REFRESH_COOKIE,
     check_web_request,
     clear_session_cookies,
+    presented_refresh_token,
     set_session_cookies,
     wants_cookies,
 )
@@ -93,6 +93,7 @@ def _deliver(
     refresh_max_age = int((issued.session_expires_at - datetime.now(UTC)).total_seconds())
     set_session_cookies(
         response,
+        request,
         access_token=issued.access_token,
         access_max_age=issued.access_expires_in,
         refresh_token=issued.refresh_token,
@@ -215,7 +216,7 @@ async def refresh(
     if presented is None:
         # Browsers: the refresh token is the httpOnly cookie, sent only to /v1/auth/*.
         check_web_request(request, settings)
-        presented = request.cookies.get(REFRESH_COOKIE)
+        presented = presented_refresh_token(request)
         if presented is None:
             raise invalid_token("Sign in first.")
     await rate_limit.enforce(
@@ -437,6 +438,7 @@ async def grant_role(
     session: DbSession,
     response: Response,
     idem: Idempotent,
+    valkey: Valkey,
 ) -> RoleGrantOut | PendingGrant:
     granted = await service.grant_role_or_wait(
         session,
@@ -446,11 +448,16 @@ async def grant_role(
         granted_by=permit.principal.user_id,
     )
     result: RoleGrantOut | PendingGrant
+    given_back: tuple[uuid.UUID, str] | None = None
     if isinstance(granted, PendingRoleGrant):
         result = await staff_admin.pending_view_of(session, granted)
         response.status_code = status.HTTP_202_ACCEPTED
     else:
         result = RoleGrantOut.model_validate(granted)
+        given_back = (granted.user_id, granted.grant)
     await idem.save(response.status_code or status.HTTP_201_CREATED, result)
     await session.commit()
+    if given_back is not None:
+        # A grant revoked a moment ago and given back: its tokens must not be refused.
+        await clear_grant_revoked(valkey, *given_back)
     return result
