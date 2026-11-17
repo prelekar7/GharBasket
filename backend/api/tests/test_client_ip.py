@@ -245,6 +245,49 @@ def test_during_a_rotation_both_secrets_are_accepted() -> None:
     assert address(via_proxy(old), "header:true-client-ip", origin_secret=new) == VERCEL
 
 
+def test_client_ip_debug_logs_the_header_shape_once_a_minute_without_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [1000.0]
+    monkeypatch.setattr(client_ip.time, "monotonic", lambda: now[0])
+    client_ip._debug_logged_at.clear()  # pyright: ignore[reportPrivateUsage]
+    debug = {"origin_secret": SECRET, "client_ip_debug": True}
+    with structlog.testing.capture_logs() as logs:
+        address(via_proxy(SECRET), "header:true-client-ip", origin_secret=SECRET)  # off: silent
+        for _ in range(3):  # one shape, one line
+            address(via_proxy(SECRET), "header:true-client-ip", **debug)
+        # The proxy header overwritten with the proxy's own egress: the shape shows it.
+        overwritten = scope(
+            ("True-Client-IP", VERCEL),
+            ("X-Real-IP", VERCEL),
+            ("X-Forwarded-For", f"203.0.113.7, {VERCEL}"),
+            ("x-origin-secret", SECRET),
+        )
+        address(overwritten, "header:true-client-ip", **debug)
+        address(via_proxy(None), "header:true-client-ip", **debug)
+    client_ip._debug_logged_at.clear()  # pyright: ignore[reportPrivateUsage]
+
+    lines = [line for line in logs if line["event"] == "client_ip_debug"]
+    assert [
+        (
+            line["path"],
+            line["secret"],
+            line["proxy_header"],
+            line["proxy_header_is_true_client_ip"],
+            line["proxy_header_xff_from_right"],
+            line["xff_entries"],
+        )
+        for line in lines
+    ] == [
+        ("proxy", "match", "ip", False, None, 1),
+        ("proxy", "match", "ip", True, 1, 2),
+        ("source", "absent", "ip", False, None, 1),
+    ]
+    assert all(line["log_level"] == "info" for line in lines)
+    for value in (SECRET, "203.0.113.7", VERCEL, "6.6.6.6"):
+        assert value not in str(logs)
+
+
 # --- startup validation ------------------------------------------------------------------------
 
 
@@ -304,6 +347,82 @@ def test_a_secret_that_could_never_match_a_header_refuses_to_start(name: str, ba
     message = str(refused.value)
     assert f"{name.upper()} must be printable ASCII without spaces" in message
     assert SECRET[:20] not in message and SECRET[20:] not in message
+
+
+# Render as measured (handbook 13 §13.3): Vercel adds the visitor to X-Forwarded-For, then
+# Cloudflare, Cloudflare and Render's proxy each append one entry, so the visitor is 4th from the
+# right. Vercel passes a visitor's own x-vercel-forwarded-for through, and x-real-ip never arrives.
+HOPS = f"{VERCEL}, 172.70.1.2, 10.20.0.5"
+
+
+def via_vercel(*extra: tuple[str, str], xff: str = f"203.0.113.7, {HOPS}") -> dict[str, Any]:
+    return scope(("True-Client-IP", VERCEL), ("X-Forwarded-For", xff), *extra)
+
+
+def test_proxy_source_xff_reads_the_entry_our_proxy_wrote() -> None:
+    settings = {"origin_secret": SECRET, "proxy_client_ip_source": "xff:4"}
+    ours = ("x-origin-secret", SECRET)
+    assert address(via_vercel(ours), "header:true-client-ip", **settings) == "203.0.113.7"
+    # A visitor's own x-vercel-forwarded-for or x-real-ip changes nothing.
+    spoofed = via_vercel(ours, ("X-Vercel-Forwarded-For", "6.6.6.6"), ("X-Real-IP", "6.6.6.7"))
+    assert address(spoofed, "header:true-client-ip", **settings) == "203.0.113.7"
+    # Had Vercel appended to a visitor's X-Forwarded-For instead, the 4th from the right is still
+    # the entry it wrote.
+    appended = via_vercel(ours, xff=f"6.6.6.6, 6.6.6.8, 203.0.113.7, {HOPS}")
+    assert address(appended, "header:true-client-ip", **settings) == "203.0.113.7"
+    # Without the secret the list is never read: CLIENT_IP_SOURCE counts Vercel's address.
+    assert address(via_vercel(), "header:true-client-ip", **settings) == VERCEL
+
+
+def test_proxy_source_xff_with_too_few_entries_falls_back_and_logs() -> None:
+    settings = {"origin_secret": SECRET, "proxy_client_ip_source": "xff:4"}
+    short = via_vercel(("x-origin-secret", SECRET), xff=HOPS)
+    with structlog.testing.capture_logs() as logs:
+        assert address(short, "header:true-client-ip", **settings) == VERCEL
+    assert [(line["event"], line["source"], line["reason"]) for line in logs] == [
+        ("client_ip_fallback", "proxy:xff:4", "missing")
+    ]
+
+
+def test_proxy_source_replaces_the_proxy_header_and_is_validated() -> None:
+    assert make_settings().proxy_client_ip_source is None
+    assert make_settings(proxy_client_ip_source="").proxy_client_ip_source is None
+    assert make_settings(proxy_client_ip_source="XFF:4").proxy_client_ip_source == "xff:4"
+    header = make_settings(proxy_client_ip_source="header:X-Client")
+    assert header.proxy_client_ip_source == "header:x-client"
+    request = scope(
+        ("x-origin-secret", SECRET), ("X-Client", "203.0.113.8"), ("X-Real-IP", "1.1.1.1")
+    )
+    assert address(request, origin_secret=SECRET, proxy_client_ip_source="header:x-client") == (
+        "203.0.113.8"
+    )
+    for raw in (
+        "peer",
+        "xff:0",
+        "header:x-forwarded-for",
+        "header:x-origin-secret",
+        "secret-7f3a!",
+    ):
+        with pytest.raises(ValidationError) as refused:
+            make_settings(proxy_client_ip_source=raw)
+        assert "PROXY_CLIENT_IP_SOURCE must be" in str(refused.value)
+        assert "secret-7f3a" not in str(refused.value)
+
+
+def test_client_ip_debug_reads_the_proxy_source() -> None:
+    client_ip._debug_logged_at.clear()  # pyright: ignore[reportPrivateUsage]
+    settings = {"origin_secret": SECRET, "proxy_client_ip_source": "xff:4", "client_ip_debug": True}
+    with structlog.testing.capture_logs() as logs:
+        address(via_vercel(("x-origin-secret", SECRET)), "header:true-client-ip", **settings)
+    client_ip._debug_logged_at.clear()  # pyright: ignore[reportPrivateUsage]
+    (line,) = [line for line in logs if line["event"] == "client_ip_debug"]
+    assert (line["path"], line["proxy_header"], line["proxy_header_xff_from_right"]) == (
+        "proxy",
+        "ip",
+        4,
+    )
+    assert line["address_is_proxy_header"] is True
+    assert "203.0.113.7" not in str(logs)
 
 
 def test_the_proxy_header_setting() -> None:

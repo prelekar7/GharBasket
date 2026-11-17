@@ -1,4 +1,5 @@
-# Daily check of staging's Neon compute hours (handbook 12 §12.5, scripts/neon_usage_check.py).
+# Daily check of staging's and production's Neon compute hours (handbook 12 §12.5, §12.9,
+# scripts/neon_usage_check.py).
 #
 # Neon's free plan suspends a project's compute for the rest of the month once its compute-unit
 # hours run out, which takes staging down. This job asks Neon's console API (not the database) how
@@ -9,6 +10,7 @@
 #
 # Needs the repository secrets NEON_API_KEY and DATABASE_URL_DIRECT (both exist for
 # deploy-staging.yml); NEON_PROJECT_ID is optional. Until they exist the job skips with a notice.
+# The `prod` job checks production's own Neon project the same way (ADR-0036).
 name: Neon usage
 
 on:
@@ -71,3 +73,55 @@ jobs:
           body=$(cat "$RUNNER_TEMP/usage.txt" 2>/dev/null || echo "the check did not run")
           curl --silent --show-error --max-time 10 --retry 3 \
             --data-raw "$GITHUB_WORKFLOW: $body ($run_url)" "$HC_OPS_URL/fail" || true
+
+  # Production's own Neon project (ADR-0036): the same check with its own key and limit. The
+  # secrets live in the GitHub environment `production-ops` under PROD_* names (handbook 12 §12.9),
+  # so a missing one never falls back to staging's. The limit is a variable there: 100 on the free
+  # plan; on a paid plan set PROD_NEON_CU_HOURS_LIMIT to the hours the owner budgets.
+  prod:
+    name: Production compute hours against the limit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production-ops
+    env:
+      NEON_CU_HOURS_LIMIT: ${{ vars.PROD_NEON_CU_HOURS_LIMIT || '100' }}
+      NEON_CU_HOURS_WARN_PCT: "80"
+      HC_OPS_URL: ${{ secrets.PROD_HC_OPS_URL }}
+    steps:
+      - name: Check that the secrets exist
+        id: configured
+        env:
+          NEON_API_KEY: ${{ secrets.PROD_NEON_API_KEY }}
+          DATABASE_URL_DIRECT: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
+        run: |
+          if [ -z "$NEON_API_KEY" ] || [ -z "$DATABASE_URL_DIRECT" ]; then
+            echo "::notice::PROD_NEON_API_KEY or PROD_DATABASE_URL_DIRECT is not set. Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.ready == 'true'
+        with:
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Read the project's usage
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.PROD_NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.PROD_NEON_PROJECT_ID }}
+          DATABASE_URL_DIRECT: ${{ secrets.PROD_DATABASE_URL_DIRECT }}
+        run: |
+          set -o pipefail
+          python3 scripts/neon_usage_check.py 2>&1 | tee "$RUNNER_TEMP/usage.txt"
+
+      - name: Tell the ops alert
+        # healthchecks.io `prod-ops` check (ADR-0036); skipped while the secret is unset.
+        if: failure() && env.HC_OPS_URL != ''
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          body=$(cat "$RUNNER_TEMP/usage.txt" 2>/dev/null || echo "the check did not run")
+          curl --silent --show-error --max-time 10 --retry 3 \
+            --data-raw "$GITHUB_WORKFLOW (production): $body ($run_url)" "$HC_OPS_URL/fail" || true

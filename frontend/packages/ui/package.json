@@ -9,6 +9,8 @@
   ],
   "exports": {
     ".": "./src/index.js",
+    "./money": "./src/components/Money.jsx",
+    "./states": "./src/components/States.jsx",
     "./styles.css": "./src/styles.css",
     "./console": "./src/console/index.js"
   },
@@ -51,7 +53,7 @@
     "storybook": "10.6.1",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vite": "8.3.2",
+    "vite": "8.3.5",
     "vitest": "5.0.3"
   }
 }
