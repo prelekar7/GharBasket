@@ -38,6 +38,9 @@ NOT_IN_THE_DAY = {
     "build_data_export": "needs object storage (SeaweedFS, `just up-storage`); no export is "
     "requested in the day",
     "sweep_uploads": "needs object storage (SeaweedFS, `just up-storage`)",
+    "billing_cutover_prepare": "a one-off admin step before live mode (M5 §3.10), never scheduled",
+    "billing_cutover_live": "a one-off admin step that switches to live mode (M5 §3.10), never "
+    "scheduled",
 }
 # Open product bugs this suite found, by the invariant that shows them, with the bug as the reason;
 # each is xfail(strict=True), so fixing one turns the suite red until it is removed. (#280's two,
