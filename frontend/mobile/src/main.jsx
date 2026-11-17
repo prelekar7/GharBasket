@@ -10,6 +10,7 @@ import { clearLocalData } from "@/lib/localData.js";
 import { useLostActions } from "@/lib/lostActions.js";
 import { persistOptions, queryClient } from "@/lib/queryClient.js";
 import { useSession } from "@/lib/session.js";
+import { startNative } from "@/shared/native/platform.js";
 import { i18nReady } from "./i18n.js";
 import { startPwa } from "./pwa.js";
 import { routeTree } from "./routeTree.gen.js";
@@ -61,3 +62,5 @@ i18nReady.then(() =>
     </StrictMode>,
   ),
 );
+
+startNative(router);

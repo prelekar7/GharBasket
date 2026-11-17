@@ -295,7 +295,7 @@ flowchart LR
 | QR / labels | qrcode.react, @react-pdf/renderer | console |
 | Fonts | Fontsource (Fraunces variable, Mukta) | both |
 | i18n | i18next + react-i18next + ICU | both |
-| Native | Capacitor 8 + plugins (push, camera, geolocation, network, preferences, haptics; Capawesome barcode scanner and background geolocation) | mobile |
+| Native | Capacitor 8 + plugins (Firebase messaging and auth, camera, network, haptics, share, app-launcher, browser, splash, keyboard, SystemBars, secure storage; ML Kit barcode `scan()` and community background geolocation, ADR-0034) | mobile |
 | Offline / PWA | Dexie; vite-plugin-pwa | mobile |
 | Component workshop | Storybook 10 + addon-a11y | frontend/packages/ui |
 | Testing / monitoring | Vitest, Testing Library, Playwright; PostHog (no Sentry) | both |
