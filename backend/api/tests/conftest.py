@@ -62,8 +62,9 @@ LOCAL_TEST_VALKEY_URL = "redis://localhost:6380/15"
 
 
 # What staging and prod must have; used by tests that build a deployed configuration.
+OPERATOR_TOKEN = "test-deployed-operator-token-0123456789"
 DEPLOYED_SECRETS: dict[str, object] = {
-    "jobs_token": "op-token",
+    "jobs_token": OPERATOR_TOKEN,
     "jwt_signing_key": "test-deployed-jwt-signing-key-0123456789",
     "refresh_token_pepper": "test-deployed-refresh-pepper-0123456789",
     "firebase_project_id": "gharbasket-test",

@@ -26,6 +26,7 @@ _HTTP_CODES = {
     404: "http.not_found",
     405: "http.method_not_allowed",
     406: "http.not_acceptable",
+    413: "platform.payload_too_large",  # platform/body_limit.py
     415: "http.unsupported_media_type",
 }
 
@@ -158,11 +159,14 @@ async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
         path=request.url.path,
         **getattr(request.state, "trace_ids", {}),
     )
+    # Sent outside RequestContextMiddleware, so its security headers are added here.
+    defaults: tuple[tuple[bytes, bytes], ...] = getattr(request.state, "default_headers", ())
     return problem_response(
         request,
         status=500,
         code="server.error",
         detail="Something went wrong on our side. Please try again.",
+        headers={name.decode("latin-1"): value.decode("latin-1") for name, value in defaults},
     )
 
 

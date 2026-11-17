@@ -19,7 +19,7 @@ from gharbasket.platform.models import IdempotencyKey, JobRun, OutboxEvent
 from gharbasket.platform.outbox import publish, relay, subscribe
 from gharbasket.tools import run_job as run_job_tool
 
-from .conftest import DEPLOYED_SECRETS, make_settings
+from .conftest import DEPLOYED_SECRETS, OPERATOR_TOKEN, make_settings
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
 
@@ -49,7 +49,9 @@ def test_jobs_need_the_operator_token_when_deployed() -> None:
     settings = make_settings(app_env="staging", **DEPLOYED_SECRETS)
     with TestClient(create_app(settings)) as client:
         missing = client.post("/v1/internal/jobs/outbox_sweep", json={})
-        listed = client.get("/v1/internal/jobs", headers={"Authorization": "Bearer op-token"})
+        listed = client.get(
+            "/v1/internal/jobs", headers={"Authorization": f"Bearer {OPERATOR_TOKEN}"}
+        )
 
     assert missing.status_code == 401
     assert missing.json()["code"] == "platform.operator_token_required"

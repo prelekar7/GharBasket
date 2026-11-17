@@ -33,6 +33,7 @@ from gharbasket.platform.jobs import run_job
 from ..conftest import (
     DEPLOYED_SECRETS,
     LOCAL_TEST_DATABASE_URL,
+    OPERATOR_TOKEN,
     alembic_config,
     make_settings,
     run_on_server,
@@ -324,7 +325,7 @@ async def test_the_ready_check_reports_the_payments_mode_and_health_does_not(
     for settings, mode in ((make_settings(), "test"), (make_settings(**LIVE), "live")):
         app = create_app(settings.model_copy(update={"database_url": SecretStr(database_url)}))
         with structlog.testing.capture_logs() as logs, TestClient(app) as client:
-            ready = client.get("/v1/ready", headers={"Authorization": "Bearer op-token"})
+            ready = client.get("/v1/ready", headers={"Authorization": f"Bearer {OPERATOR_TOKEN}"})
             health = client.get("/v1/health")
         assert (ready.status_code, ready.json()["payments_mode"]) == (200, mode)
         assert "payments_mode" not in health.json()
