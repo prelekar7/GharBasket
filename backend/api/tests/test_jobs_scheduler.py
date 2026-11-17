@@ -1,6 +1,6 @@
-"""scripts/jobs_scheduler.py calls the `vm` entries of infra/jobs/schedule.yaml from the staging VM
-(ADR-0032); these tests cover which jobs a minute calls and how a call is retried, without the
-network."""
+"""scripts/jobs_scheduler.py calls the `vm` entries of infra/jobs/schedule.yaml from the Oracle VM
+(ADR-0032), for staging and, as a second instance, production (ADR-0036); these tests cover which
+jobs a minute calls, how a call is retried and what a target changes, without the network."""
 
 import importlib.util
 import io
@@ -234,3 +234,45 @@ def test_running_needs_the_api_url_and_token(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.delenv("API_URL", raising=False)
     monkeypatch.delenv("JOBS_TOKEN", raising=False)
     assert scheduler.main([]) == 2
+    assert scheduler.main(["--target", "prod"]) == 2
+
+
+# --- targets: staging and production on one VM (ADR-0036) --------------------------------------
+
+
+def test_staging_keeps_its_state_file_and_each_target_has_its_own() -> None:
+    files = {target: scheduler.state_file(target) for target in scheduler.TARGETS}
+    assert files["staging"] == scheduler.STATE
+    assert files["prod"].name == "jobs-last-minute-prod"
+    assert len(set(files.values())) == len(files)
+
+
+def test_the_targets_pull_at_different_minutes() -> None:
+    assert set(scheduler.PULL_AT) == set(scheduler.TARGETS)
+    assert scheduler.PULL_AT["staging"] == 7  # unchanged since ADR-0032
+    minutes = list(scheduler.PULL_AT.values())
+    assert len(set(minutes)) == len(minutes)
+    assert all(0 <= m < scheduler.PULL_EVERY_MIN for m in minutes)
+
+
+def test_an_unknown_target_is_refused() -> None:
+    with pytest.raises(SystemExit):
+        scheduler.main(["--target", "dev"])
+
+
+def test_the_target_reaches_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[str, str, str]] = []
+
+    def run(api_url: str, token: str, target: str) -> int:
+        seen.append((api_url, token, target))
+        return 0
+
+    monkeypatch.setattr(scheduler, "run", run)
+    monkeypatch.setenv("API_URL", "https://api.test/")
+    monkeypatch.setenv("JOBS_TOKEN", "t" * 40)
+    assert scheduler.main([]) == 0
+    assert scheduler.main(["--target", "prod"]) == 0
+    assert seen == [
+        ("https://api.test", "t" * 40, "staging"),
+        ("https://api.test", "t" * 40, "prod"),
+    ]

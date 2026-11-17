@@ -9,6 +9,12 @@ procurement, no routes, no refunds, no outbox sweep. The daily `actions` jobs on
 not replayed**: after a restart the scheduler starts from the current minute. The jobs that mattered in the gap have to
 be run by hand.
 
+**Production** (ADR-0036, handbook 12 §12.9) has its own instance on the same VM, the service `gharbasket-jobs-prod`
+with its own env file and its own checks (`prod-scheduler`, `prod-cutoff`, `prod-ops`). Every step below works for it:
+put `prod` after the command (`just jobs-vm status prod <ip> <key>`, `infisical run --env=prod -- just jobs-vm env prod
+<ip> <key>`), restart `gharbasket-jobs-prod`, and run `jobs-prod.yml` in place of `jobs-staging.yml`. The two services
+are not a "second scheduler" in the sense of the last section: each calls a different API.
+
 ## Symptoms
 
 - **healthchecks `scheduler` is down.** The scheduler pings it every full hour, with 15 minutes of grace, so the alert

@@ -1,7 +1,8 @@
 """infra/jobs/schedule.yaml is the one schedule of every job (ADR-0021).
 
 It must name every registered job exactly once, hold only crons that parse, and agree with the
-literal `on.schedule` lines of the GitHub workflow that runs the `actions` entries.
+literal `on.schedule` lines of the GitHub workflows that run the `actions` entries: staging's and
+production's (ADR-0036), which run the same entries.
 """
 
 from collections import Counter
@@ -16,7 +17,9 @@ from gharbasket.platform.jobs import JOBS
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEDULE = ROOT / "infra" / "jobs" / "schedule.yaml"
-WORKFLOW = ROOT / ".github" / "workflows" / "jobs-staging.yml"
+WORKFLOWS = [
+    ROOT / ".github" / "workflows" / f"jobs-{target}.yml" for target in ("staging", "prod")
+]
 RUNNERS = {"vm", "actions", "manual"}
 # (low, high) of the five cron fields; day-of-week 7 is Sunday too, as in most crons.
 FIELDS = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 7)]
@@ -64,9 +67,9 @@ def parse(cron: str) -> list[set[int]]:
     return [field_values(f, lo, hi) for f, (lo, hi) in zip(fields, FIELDS, strict=True)]
 
 
-def workflow_crons() -> list[str]:
+def workflow_crons(workflow: Path) -> list[str]:
     # PyYAML reads the key `on` as True (YAML 1.1).
-    parsed = yaml.safe_load(WORKFLOW.read_text())
+    parsed = yaml.safe_load(workflow.read_text())
     return [item["cron"] for item in parsed[True]["schedule"]]
 
 
@@ -95,12 +98,24 @@ def test_every_entry_has_a_runner_a_reason_and_crons_that_parse() -> None:
             assert entry.get("ist"), f"{name} needs `ist` for people"
 
 
-def test_the_actions_crons_and_the_workflow_schedule_agree() -> None:
+@pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda w: w.name)
+def test_the_actions_crons_and_the_workflow_schedule_agree(workflow: Path) -> None:
     wanted = {cron for e in entries() if e["runner"] == "actions" for cron in crons_of(e)}
-    literal = workflow_crons()
+    literal = workflow_crons(workflow)
     assert [c for c, count in Counter(literal).items() if count > 1] == []
     assert sorted(wanted - set(literal)) == [], "actions crons missing from on.schedule"
     assert sorted(set(literal) - wanted) == [], "on.schedule lines no actions entry uses"
+
+
+def test_production_runs_from_its_own_environment_and_secrets() -> None:
+    """jobs-prod.yml must not read staging's repository secrets: a missing production secret
+    would otherwise fall back to staging's (handbook 12 §12.9)."""
+    text = WORKFLOWS[1].read_text()
+    [job] = yaml.safe_load(text)["jobs"].values()
+    assert job["environment"] == "production-ops"
+    assert {"PROD_API_URL", "JOBS_TOKEN", "HC_OPS_URL"} <= set(job["env"])
+    for name in ("STAGING_API_URL", "secrets.JOBS_TOKEN", "secrets.HC_OPS_URL"):
+        assert name not in text, f"jobs-prod.yml reads {name}"
 
 
 def test_a_cron_has_one_spelling() -> None:

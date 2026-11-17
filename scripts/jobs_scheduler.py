@@ -1,9 +1,12 @@
-"""Call staging's scheduled jobs from the VM (ADR-0032): `vm` entries of infra/jobs/schedule.yaml.
+"""Call the scheduled jobs from the VM (ADR-0032): `vm` entries of infra/jobs/schedule.yaml.
 
 A small daemon for the Oracle VM in Mumbai (`scripts/jobs-on-vm.sh setup` installs it as the
-systemd service `gharbasket-jobs`). At the start of every minute it reads the schedule, and for
-each `vm` entry with a cron (IST) that names the minute it POSTs `{"scheduled_for": <the minute>}`
-to `<API_URL>/v1/internal/jobs/<name>` with JOBS_TOKEN. Each call runs in its own thread, so a slow
+systemd service `gharbasket-jobs`, which calls staging). Production is a second instance on the
+same VM (ADR-0036, `scripts/jobs-on-vm.sh setup prod`): the service `gharbasket-jobs-prod`,
+started with `--target prod` and its own env file; the two share the schedule and nothing else.
+At the start of every minute it reads the schedule, and for each `vm` entry with a cron (IST)
+that names the minute it POSTs `{"scheduled_for": <the minute>}` to
+`<API_URL>/v1/internal/jobs/<name>` with JOBS_TOKEN. Each call runs in its own thread, so a slow
 job never holds back the next minute.
 
 A call that did not reach the app (HTTP 429, 502, 503 or 504, a connection error, a timeout) is
@@ -11,12 +14,15 @@ tried again after 15 s, 45 s and 2 min with the same `scheduled_for`; the job's 
 its use of `scheduled_for` make a repeat harmless. The app's own answers (2xx, 401, 404, a 500
 `platform.job_failed`) are final: the job's next minute is the retry, as with any cron.
 
-The last minute it dispatched is kept in a state file, so a restart neither repeats a minute nor
-drops the current one. Every 15 minutes it pulls the checkout's branch; when this file changed, it
-exits once no call is in flight and systemd starts the new code. A schedule that no longer parses
-is logged and the last good one is kept.
+The last minute it dispatched is kept in a state file of its target, so a restart neither
+repeats a minute nor drops the current one. Every 15 minutes it pulls the checkout's branch (each
+target at its own minute, so two instances never pull at once); when this file changed, it exits
+once no call is in flight and systemd starts the new code. A schedule that no longer parses is
+logged and the last good one is kept.
 
-Alerts go to healthchecks.io (ADR-0033, M0 §6.1); an unset URL is skipped:
+Alerts go to healthchecks.io (ADR-0033, M0 §6.1); an unset URL is skipped. The variables are the
+same for every target; the env file of each holds its own checks' URLs (production's are
+`prod-scheduler`, `prod-cutoff` and `prod-ops`):
 - HC_PING_URL is pinged every hour while it runs (the `scheduler` check);
 - a call that ends `failed` or `gave_up` POSTs its job, minute, outcome and answer to
   HC_OPS_URL + `/fail` (the `ops` check);
@@ -24,6 +30,7 @@ Alerts go to healthchecks.io (ADR-0033, M0 §6.1); an unset URL is skipped:
   (`cutoff_lock` the `cutoff` check, `ops_check` the `ops` check).
 
     API_URL=... JOBS_TOKEN=... python3 scripts/jobs_scheduler.py      # run (the service does this)
+    API_URL=... JOBS_TOKEN=... python3 scripts/jobs_scheduler.py --target prod   # production's
     python3 scripts/jobs_scheduler.py --due 2026-11-05T21:00             # the jobs due then (IST)
 
 Standard library and PyYAML only: the VM runs it with Ubuntu's python3 and python3-yaml.
@@ -52,7 +59,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEDULE = ROOT / "infra" / "jobs" / "schedule.yaml"
-STATE = Path.home() / ".local" / "state" / "gharbasket" / "jobs-last-minute"
+STATE = Path.home() / ".local" / "state" / "gharbasket" / "jobs-last-minute"  # staging's
+TARGETS = ("staging", "prod")
+DEFAULT_TARGET = "staging"
 IST = ZoneInfo("Asia/Kolkata")
 RUNNER = "vm"
 # (low, high) of the five cron fields; day-of-week 7 is Sunday too.
@@ -61,6 +70,7 @@ RETRY_CODES = {429, 502, 503, 504}  # the host's edge answering, not the app
 RETRY_AFTER_S = (15, 45, 120)
 CALL_TIMEOUT_S = 300  # a cold start (~1 min) plus the longest job
 PULL_EVERY_MIN = 15
+PULL_AT = {"staging": 7, "prod": 11}  # the minute (of PULL_EVERY_MIN) each target pulls at
 LATE_START_S = 50  # a (re)start this far into a minute leaves the minute alone
 FAIL_BODY_CHARS = 1000  # of the answer, in the alert; healthchecks keeps the first 100 kB
 PING_TIMEOUT_S = 10
@@ -203,16 +213,21 @@ def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _last_dispatched() -> datetime | None:
+def state_file(target: str) -> Path:
+    """Where a target keeps its last minute; staging keeps the file it had before targets."""
+    return STATE if target == DEFAULT_TARGET else STATE.with_name(f"{STATE.name}-{target}")
+
+
+def _last_dispatched(state: Path) -> datetime | None:
     try:
-        return datetime.fromisoformat(STATE.read_text().strip())
+        return datetime.fromisoformat(state.read_text().strip())
     except (OSError, ValueError):
         return None
 
 
-def _remember(minute: datetime) -> None:
-    STATE.parent.mkdir(parents=True, exist_ok=True)
-    STATE.write_text(minute.isoformat())
+def _remember(state: Path, minute: datetime) -> None:
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(minute.isoformat())
 
 
 def ping(variable: str, suffix: str = "", body: str = "", *, opener: Opener = _open) -> None:
@@ -242,12 +257,13 @@ def _pull() -> None:
         log("pull_failed", pulled.stderr.strip()[:200])
 
 
-def run(api_url: str, token: str) -> int:
+def run(api_url: str, token: str, target: str = DEFAULT_TARGET) -> int:
     me = Path(__file__).resolve()
     started_as = _digest(me)
+    state = state_file(target)
     schedule = load()
-    log("started", f"{len(schedule)} vm jobs", api_url)
-    last = _last_dispatched()
+    log("started", target, f"{len(schedule)} vm jobs", api_url)
+    last = _last_dispatched(state)
     now = datetime.now(IST)
     minute = now.replace(second=0, microsecond=0)
     if (last is not None and last >= minute) or now.second >= LATE_START_S:
@@ -267,10 +283,10 @@ def run(api_url: str, token: str) -> int:
             threading.Thread(
                 target=dispatch, args=(api_url, token, name, minute, heartbeats[name]), daemon=True
             ).start()
-        _remember(minute)
+        _remember(state, minute)
         if minute.minute == 0:
             ping("HC_PING_URL")
-        if minute.minute % PULL_EVERY_MIN == 7:
+        if minute.minute % PULL_EVERY_MIN == PULL_AT[target]:
             _pull()
             restart = restart or _digest(me) != started_as
         minute += timedelta(minutes=1)
@@ -299,6 +315,12 @@ def dispatch(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Call the `vm` jobs of infra/jobs/schedule.yaml.")
     parser.add_argument("--due", help="list the jobs due at this IST minute, e.g. 2026-11-05T21:00")
+    parser.add_argument(
+        "--target",
+        choices=TARGETS,
+        default=DEFAULT_TARGET,
+        help="the deployment this instance calls (its state file and pull minute); default staging",
+    )
     args = parser.parse_args(argv)
     if args.due:
         minute = datetime.fromisoformat(args.due).replace(tzinfo=IST)
@@ -309,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
     if not api_url or not token:
         print("API_URL and JOBS_TOKEN are needed (scripts/jobs-on-vm.sh env)", file=sys.stderr)
         return 2
-    return run(api_url, token)
+    return run(api_url, token, args.target)
 
 
 if __name__ == "__main__":
