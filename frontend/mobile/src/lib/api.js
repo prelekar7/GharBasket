@@ -134,6 +134,8 @@ let epoch = 0;
 let refreshing = null;
 /** Whether the last refresh failed because the session is over (401), not because the server was busy. */
 let ended = false;
+/** Whether the last refresh failed only because the server was busy (429, a cold-start 503, a Cloudflare check). */
+let busy = false;
 
 /**
  * POST /v1/auth/refresh, single-flight: one refresh at a time in this tab, and on the web one at a
@@ -144,6 +146,7 @@ export function refresh() {
   refreshing ??= (async () => {
     const run = async () => {
       const started = epoch;
+      busy = false;
       const refreshToken = await tokens.refreshToken();
       ended = NATIVE && !refreshToken;
       if (ended) return false;
@@ -160,6 +163,7 @@ export function refresh() {
       // Only a 401 means the refresh token is dead. A 429 or a cold-start 503 keeps the
       // session, so a busy server never signs anyone out.
       ended = res.status === 401;
+      busy = !res.ok && !ended;
       if (ended) await tokens.clear();
       if (!res.ok) return false;
       await tokens.save(await res.json());
@@ -175,6 +179,20 @@ export function refresh() {
   })();
   return refreshing;
 }
+
+/**
+ * Whether an error from a call means "nobody is signed in": a 401 that a refresh could not fix
+ * because the session is over. A 401 left over because the refresh itself got a 429 or a 503 does
+ * not count, nor does any other error (a busy server, no network): they say nothing about the
+ * session, so the app must not show login for them.
+ * @param {unknown} e
+ */
+export function isSignedOut(e) {
+  return e instanceof ApiError && e.status === 401 && !busy;
+}
+
+/** Whether the last refresh failed only because the server was busy, not because the session is over. */
+export const refreshWasBusy = () => busy;
 
 /** True from the start of a sign-out until the next sign-in, see `setSigningOut`. */
 let signingOut = false;
