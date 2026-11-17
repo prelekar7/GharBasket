@@ -158,10 +158,14 @@ NEON = "postgresql+asyncpg://u:secret@ep-x.neon.tech/gharbasket"
 
 @pytest.fixture(autouse=True)
 def _no_cutover_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The live-mode guard (ADR-0037 §4) never connects to a fake shared database here: no
-    RAZORPAY_MODE, and its lookup finds no cut-over entry unless a test says otherwise."""
+    """The script guard (ADR-0036, ADR-0037 §4) never connects to a fake shared database here:
+    no RAZORPAY_MODE or APP_ENV, and its lookup finds staging's mark and no cut-over entry unless
+    a test says otherwise."""
     monkeypatch.delenv("RAZORPAY_MODE", raising=False)
-    monkeypatch.setattr(live_guard, "cutover_recorded", lambda url: False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setattr(
+        live_guard, "inspect_database", lambda url: live_guard.DatabaseFacts("staging", False)
+    )
 
 
 class Reached(Exception):
@@ -218,7 +222,9 @@ def test_the_cli_refuses_a_shared_database_that_takes_real_money(
     monkeypatch.setenv("DATABASE_URL_DIRECT", NEON)
     monkeypatch.setenv("GB_ALLOW_REMOTE_SEED", "ep-x.neon.tech")
     if cutover:
-        monkeypatch.setattr(live_guard, "cutover_recorded", lambda url: True)
+        monkeypatch.setattr(
+            live_guard, "inspect_database", lambda url: live_guard.DatabaseFacts("staging", True)
+        )
     else:
         monkeypatch.setenv("RAZORPAY_MODE", "live")
 
@@ -232,6 +238,33 @@ def test_the_cli_refuses_a_shared_database_that_takes_real_money(
     assert exited.value.code == 2
     err = capsys.readouterr().err
     assert "takes real money" in err
+    assert "secret" not in err
+
+
+@pytest.mark.parametrize("by", ["APP_ENV", "mark"])
+def test_the_cli_refuses_production(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], by: str
+) -> None:
+    """APP_ENV=prod, or the database's own `prod` mark (ADR-0036), even with both confirmations."""
+    monkeypatch.setenv("DATABASE_URL_DIRECT", NEON)
+    monkeypatch.setenv("GB_ALLOW_REMOTE_SEED", "ep-x.neon.tech")
+    if by == "APP_ENV":
+        monkeypatch.setenv("APP_ENV", "prod")
+    else:
+        monkeypatch.setattr(
+            live_guard, "inspect_database", lambda url: live_guard.DatabaseFacts("prod", False)
+        )
+
+    async def connect(url: str, args: object) -> None:
+        raise Reached(url)
+
+    monkeypatch.setattr(sim, "run", connect)
+    with pytest.raises(SystemExit) as exited:
+        sim.main(["--weeks", "1", "--write-db", "--allow-remote"])
+
+    assert exited.value.code == 2
+    err = capsys.readouterr().err
+    assert "is production" in err and "writes synthetic orders and money into it" in err
     assert "secret" not in err
 
 

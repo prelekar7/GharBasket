@@ -10,6 +10,8 @@ import pytest
 
 from gharbasket.tools import live_guard
 
+STAGING = live_guard.DatabaseFacts(environment="staging", cutover=False)
+
 ROOT = Path(__file__).resolve().parents[3]
 _spec = importlib.util.spec_from_file_location(
     "neon_restore_point", ROOT / "scripts" / "neon_restore_point.py"
@@ -243,7 +245,7 @@ def test_main_rolls_back_only_with_the_hosts_confirmation(
     fake.branches.append(point("br-point", "20261102T0530Z"))
     monkeypatch.setattr(neon, "http_call", lambda key: fake)
     monkeypatch.setattr(neon, "_sleep", lambda s: None)
-    monkeypatch.setattr(live_guard, "cutover_recorded", lambda url: False)  # test money only
+    monkeypatch.setattr(live_guard, "inspect_database", lambda url: STAGING)  # test money only
     environ = {"NEON_API_KEY": "napi_secret", "DATABASE_URL": POOLED}
     host = "ep-cool-name-a1b2-pooler.ap-southeast-1.aws.neon.tech"
 
@@ -266,7 +268,9 @@ def test_main_refuses_a_rollback_while_staging_takes_real_money(
     fake = FakeNeon()
     fake.branches.append(point("br-point", "20261102T0530Z"))
     monkeypatch.setattr(neon, "http_call", lambda key: fake)
-    monkeypatch.setattr(live_guard, "cutover_recorded", lambda url: cutover)
+    monkeypatch.setattr(
+        live_guard, "inspect_database", lambda url: live_guard.DatabaseFacts("staging", cutover)
+    )
     host = "ep-cool-name-a1b2-pooler.ap-southeast-1.aws.neon.tech"
     environ = {"NEON_API_KEY": "napi_secret", "DATABASE_URL": POOLED, "GB_ALLOW_REMOTE_SEED": host}
     if not cutover:
@@ -276,5 +280,31 @@ def test_main_refuses_a_rollback_while_staging_takes_real_money(
 
     err = capsys.readouterr().err
     assert "no rollback: refused" in err and "erasing rows of money" in err
+    assert "napi_secret" not in err and "secret-pw" not in err
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("by", ["APP_ENV", "mark"])
+def test_main_refuses_a_rollback_of_production(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], by: str
+) -> None:
+    """APP_ENV=prod, or the database's own `prod` mark (ADR-0036): refused before Neon is called,
+    even with the host confirmed."""
+    fake = FakeNeon()
+    fake.branches.append(point("br-point", "20261102T0530Z"))
+    monkeypatch.setattr(neon, "http_call", lambda key: fake)
+    mark = "prod" if by == "mark" else "staging"
+    monkeypatch.setattr(
+        live_guard, "inspect_database", lambda url: live_guard.DatabaseFacts(mark, cutover=False)
+    )
+    host = "ep-cool-name-a1b2-pooler.ap-southeast-1.aws.neon.tech"
+    environ = {"NEON_API_KEY": "napi_secret", "DATABASE_URL": POOLED, "GB_ALLOW_REMOTE_SEED": host}
+    if by == "APP_ENV":
+        environ["APP_ENV"] = "prod"
+
+    assert neon.main(["rollback", "br-point"], environ) == 2
+
+    err = capsys.readouterr().err
+    assert "no rollback: refused" in err and "is production" in err
     assert "napi_secret" not in err and "secret-pw" not in err
     assert fake.calls == []

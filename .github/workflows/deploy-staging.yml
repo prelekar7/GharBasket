@@ -69,6 +69,8 @@ jobs:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
           # migrations/env.py refuses any non-local database without this flag.
           GB_ALLOW_REMOTE_MIGRATIONS: "1"
+          # Written into platform.environment by the migrations (unset would mark it prod, ADR-0036).
+          APP_ENV: staging
         run: |
           uv sync --frozen --no-dev --package gharbasket-api
           uv run --no-sync alembic upgrade head

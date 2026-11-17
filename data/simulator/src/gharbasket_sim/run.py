@@ -12,9 +12,9 @@ the eval harness's derivation; `--no-uncommitted` leaves them out).
 
 Only for the local Docker database. A shared database (staging on Neon) is refused unless both
 `--allow-remote` is given and GB_ALLOW_REMOTE_SEED names its host: `scripts/staging-demo.sh`
-does that for staging's demo data (handbook 12). It is refused anyway while the database takes real
-money (RAZORPAY_MODE=live, or its `test_mode_closed` entry: `gharbasket.tools.live_guard`,
-ADR-0037 §4).
+does that for staging's demo data (handbook 12). It is refused anyway on production (APP_ENV=prod,
+or the database's `prod` mark, ADR-0036) and while the database takes real money
+(RAZORPAY_MODE=live, or its `test_mode_closed` entry, ADR-0037 §4): `gharbasket.tools.live_guard`.
 """
 
 import argparse

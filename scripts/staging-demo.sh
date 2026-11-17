@@ -14,8 +14,9 @@
 # deploy, with no merge or migration during the run: the simulator relays staging's whole outbox
 # with this checkout's code. On the local Docker database (no Infisical) it runs the same steps
 # without the confirmation, the commit check or the restore point. On a shared database it is
-# refused, before anything else, while that database takes real money: RAZORPAY_MODE=live in the
-# environment or its `test_mode_closed` journal entry (gharbasket.tools.live_guard, ADR-0037 §4).
+# refused, before anything else, when it is production (APP_ENV=prod, or its `prod` mark in
+# platform.environment, ADR-0036) or takes real money (RAZORPAY_MODE=live, or its
+# `test_mode_closed` journal entry, ADR-0037 §4): gharbasket.tools.live_guard.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -99,7 +100,7 @@ case "$host" in
 esac
 echo "database host: $host$([ "$shared" = 1 ] && echo ' (shared)' || echo ' (local Docker)')"
 if [ "$shared" = 1 ]; then
-  uv run --quiet python -m gharbasket.tools.live_guard staging-demo # exit 2 while live
+  uv run --quiet python -m gharbasket.tools.live_guard staging-demo # exit 2 on prod or live
 fi
 echo "before:"
 helper counts

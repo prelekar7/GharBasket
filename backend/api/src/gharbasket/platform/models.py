@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     Index,
@@ -133,3 +134,23 @@ class JobRun(Base):
     summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     error: Mapped[str | None] = mapped_column(Text)
     request_id: Mapped[str | None] = mapped_column(String(64))
+
+
+class DatabaseEnvironment(Base):
+    """Which deployment this database belongs to (ADR-0036): one row, written by migrations.
+
+    `alembic upgrade` writes APP_ENV here on every shared database it migrates, and a `prod` mark is
+    never replaced (`gharbasket.platform.environment`). The seed, the simulator, the demo loader and
+    the restore-point rollback read it and refuse production (`gharbasket.tools.live_guard`).
+    """
+
+    __tablename__ = "environment"
+    __table_args__ = (
+        CheckConstraint("singleton", name="singleton"),
+        CheckConstraint("name IN ('dev', 'test', 'staging', 'prod')", name="name"),
+        {"schema": SCHEMA},
+    )
+
+    singleton: Mapped[bool] = mapped_column(Boolean, primary_key=True, server_default=text("true"))
+    name: Mapped[str] = mapped_column(String(12))
+    marked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
