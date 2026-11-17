@@ -5,7 +5,16 @@ import {
   stopPushToken,
   syncPushToken,
 } from "@/features/notifications/pushToken.js";
-import { logout, logoutAll, me, refresh, setActiveRoleHeader, setSigningOut } from "@/lib/api.js";
+import {
+  isSignedOut,
+  logout,
+  logoutAll,
+  me,
+  refresh,
+  refreshWasBusy,
+  setActiveRoleHeader,
+  setSigningOut,
+} from "@/lib/api.js";
 import { NATIVE } from "@/lib/env.js";
 import { clearLocalData } from "@/lib/localData.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -25,7 +34,7 @@ import { tokens } from "@/lib/tokens.js";
  * @property {(profile: UserOut & { roles: RoleGrant[] }) => void} signIn
  * @property {(role: FieldRole) => void} setActiveRole
  * @property {(user: UserOut) => void} setUser After PATCH /v1/me (name, language, senior mode).
- * @property {() => Promise<boolean>} restore Restores the session from the API (cookie on web, stored refresh token on native).
+ * @property {() => Promise<boolean>} restore Restores the session from the API (cookie on web, stored refresh token on native). False only when nobody is signed in; rejects when the API could not tell (busy, unreachable), so the caller shows an error with Retry, not login.
  * @property {(options?: { everywhere?: boolean }) => Promise<void>} signOut
  * @property {() => void} clear Forget the session locally (after it expired).
  */
@@ -77,15 +86,26 @@ export const useSession = create(
               // Cold start of the app: no refresh token means nobody ever signed in here, so
               // answer at once instead of waiting for the API to say 401. With one, refresh first
               // rather than send GET /v1/me to a certain 401.
-              if (!(await tokens.refreshToken()) || !(await refresh())) return false;
+              if (!(await tokens.refreshToken().catch(() => null))) return false;
+              if (!(await refresh())) {
+                if (refreshWasBusy()) throw new Error("session.restore: the server was busy");
+                return false;
+              }
             }
-            get().signIn(await me());
-            return true;
-          })()
-            .catch(() => false)
-            .finally(() => {
-              restoring = null;
-            });
+            try {
+              get().signIn(await me());
+              return true;
+            } catch (e) {
+              // Only "the session is over" means signed out. A busy server (429, a cold-start
+              // 503), a Cloudflare check or no network says nothing about the session: the error
+              // reaches the route, whose error screen offers Retry, instead of showing login to
+              // someone who is signed in (2026-11-17: a 429 from Cloudflare did exactly that).
+              if (isSignedOut(e)) return false;
+              throw e;
+            }
+          })().finally(() => {
+            restoring = null;
+          });
           return restoring;
         },
         signOut: async ({ everywhere = false } = {}) => {

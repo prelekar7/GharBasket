@@ -45,9 +45,9 @@ let calls;
 /** Answers per path; a function can wait (a slow server). @type {Record<string, (req: Request, body: any) => Response | Promise<Response>>} */
 let routes;
 
-async function load() {
+async function load({ native = true } = {}) {
   vi.resetModules();
-  vi.doMock("@/lib/env.js", () => ({ NATIVE: true, MOCK: false, API_BASE: "https://api.test" }));
+  vi.doMock("@/lib/env.js", () => ({ NATIVE: native, MOCK: false, API_BASE: "https://api.test" }));
   vi.stubEnv("MODE", "native");
   const api = await import("@/lib/api.js");
   const { tokens } = await import("@/lib/tokens.js");
@@ -109,6 +109,58 @@ describe("restore on a cold start", () => {
     expect(await useSession.getState().restore()).toBe(false);
     expect(store.has("refresh_token")).toBe(false);
     expect(calls.map((c) => c.url)).toEqual(["/v1/auth/refresh"]);
+  });
+});
+
+describe("restore when the API cannot answer (it must not show login)", () => {
+  it("rejects on the phone when the refresh gets a 503, and keeps the refresh token", async () => {
+    store.set("refresh_token", "r1");
+    routes["/v1/auth/refresh"] = () => reply(503, { code: "http.503" });
+    const { useSession } = await load();
+    await expect(useSession.getState().restore()).rejects.toThrow();
+    expect(store.get("refresh_token")).toBe("r1");
+  });
+
+  it("rejects on the web when /v1/me gets a 429 from Cloudflare's check (an HTML page)", async () => {
+    routes["/v1/me"] = () =>
+      new Response("<!DOCTYPE html><title>Just a moment...</title>", {
+        status: 429,
+        headers: { "content-type": "text/html; charset=UTF-8" },
+      });
+    const { useSession } = await load({ native: false });
+    await expect(useSession.getState().restore()).rejects.toMatchObject({ status: 429 });
+    expect(useSession.getState().signedIn).toBe(false);
+  });
+
+  it("rejects on the web when /v1/me is a 401 but the refresh gets a 429", async () => {
+    routes["/v1/me"] = () => reply(401, { code: "auth.invalid_token" });
+    routes["/v1/auth/refresh"] = () => reply(429, { code: "platform.rate_limited" });
+    const { useSession } = await load({ native: false });
+    await expect(useSession.getState().restore()).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("rejects when the network is down", async () => {
+    routes["/v1/me"] = () => {
+      throw new TypeError("Failed to fetch");
+    };
+    const { useSession } = await load({ native: false });
+    await expect(useSession.getState().restore()).rejects.toThrow("Failed to fetch");
+  });
+
+  it("is false on the web when nobody is signed in (both /v1/me and the refresh say 401)", async () => {
+    routes["/v1/me"] = () => reply(401, { code: "auth.invalid_token" });
+    routes["/v1/auth/refresh"] = () => reply(401, { code: "auth.refresh_missing" });
+    const { useSession } = await load({ native: false });
+    expect(await useSession.getState().restore()).toBe(false);
+  });
+
+  it("succeeds on the next try once the API answers again", async () => {
+    let busy = true;
+    routes["/v1/me"] = () => (busy ? reply(503) : reply(200, PROFILE));
+    const { useSession } = await load({ native: false });
+    await expect(useSession.getState().restore()).rejects.toThrow();
+    busy = false;
+    expect(await useSession.getState().restore()).toBe(true);
   });
 });
 
