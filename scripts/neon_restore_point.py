@@ -11,6 +11,10 @@ URL's endpoint, and `GET /projects` without `org_id` does not list an organisati
 branch is named `<prefix>-<UTC timestamp>`, e.g. `before-demo-20261102T0530Z`. It never prints the
 key or the database URL.
 
+A rollback is refused while the database takes real money: RAZORPAY_MODE=live in the environment,
+or its `test_mode_closed` journal entry (`gharbasket.tools.live_guard`, ADR-0037 §4). A restore
+then follows the "live money" section of docs/runbooks/restore-from-backup.md.
+
 Neon's free plan allows 10 branches, and a branch with children cannot be deleted. Staging is not
 a root branch, so it has no point-in-time restore or snapshots; a rollback restores it from the
 restore point, which keeps the replaced state as a new branch and makes the restore point staging's
@@ -296,6 +300,14 @@ def main(argv: list[str] | None = None, environ: Mapping[str, str] = os.environ)
         )
     project_id = environ.get("NEON_PROJECT_ID")
     if args.command == "rollback":
+        # Imported here: neon_usage_check.py loads this file under plain python3, without the API.
+        from gharbasket.tools.live_guard import LiveMoneyRefused, refuse_if_live
+
+        try:
+            refuse_if_live("staging-rollback", url, environ)
+        except LiveMoneyRefused as refused:
+            print(f"no rollback: {refused}", file=sys.stderr)
+            return 2
         host = urllib.parse.urlsplit(url).hostname or ""
         if environ.get("GB_ALLOW_REMOTE_SEED") != host:
             print(

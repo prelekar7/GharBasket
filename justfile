@@ -182,7 +182,7 @@ demo-ms-a *args:
 demo-ledger *args:
     cd backend/api && uv run --frozen python -m gharbasket.tools.demo_ledger {{args}}
 
-# Undo a demo load: restore staging from the restore point it printed, e.g. `GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-20261107T0758Z`
+# Undo a demo load (refused while staging takes real money, ADR-0037 §4): restore staging from the restore point it printed, e.g. `GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback before-demo-20261107T0758Z`
 staging-rollback point:
     uv run --quiet python scripts/neon_restore_point.py rollback {{point}}
 

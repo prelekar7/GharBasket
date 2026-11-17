@@ -189,6 +189,7 @@ Both web names are already authorised in Firebase (Authentication → Settings �
   - migrations reach Neon only from the GitHub Actions deploy workflow after merge (`GB_ALLOW_REMOTE_MIGRATIONS=1`);
   - downgrades on a remote database are refused;
   - tests refuse any non-local database; `just seed` and `just sim` refuse one unless the run has both `--allow-remote` and `GB_ALLOW_REMOTE_SEED=<the database host>` (only `scripts/staging-demo.sh` does that, below);
+  - while staging takes real money, `just seed`, `just sim --allow-remote`, `just staging-demo` and `just staging-rollback` refuse it outright (exit 2, [ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md) §4, M5 §3.10). Each one checks two things: `RAZORPAY_MODE=live` in its environment (Infisical `staging`), and a `test_mode_closed` entry in `billing.journal_entries` (the cut-over). The second catches a forgotten or overridden variable, and a database that cannot be read is refused too. The local Docker database is never checked. The check is `gharbasket.tools.live_guard`, one helper for all four commands;
   - synthetic rows carry `data_source='synthetic'`.
 - **Latency:** Neon has no India region; it runs in Singapore, about 60 ms per round-trip from Mumbai. The API also runs in Singapore, so API-to-database calls are short; the user-to-API leg carries the distance. Mitigate by:
   - batching queries and avoiding N+1 ORM patterns;
@@ -226,6 +227,7 @@ What step 2 does, in order:
 
 **Safety.**
 - **Two confirmations.** `just seed` and `just sim` write to a non-local database only with both `--allow-remote` and `GB_ALLOW_REMOTE_SEED` equal to that database's host, so a URL pointing at the wrong database stops there. The tools print the host, never the URL or a password.
+- **Never while live.** On a shared database the script first runs the live-mode guard (§12.3 guardrails, ADR-0037 §4). It refuses before the dry run, the restore point or anything else when `RAZORPAY_MODE=live` or the cut-over's `test_mode_closed` entry is there. The seed and the simulator check again themselves.
 - **No double weeks.** A week the simulator already replayed (a locked, skipped or cancelled cycle of a +91 98001 household) is never simulated again. Such a window is refused, and `--add-weeks` simulates only the weeks after the latest one.
 - **No society unlock.** Simulated households count towards their society's unlock (M9 §3.6). If a run would take an `unlocking` society to its threshold, that society would go live for its real households too: `community.society_live` to their owners, and the end of their pre-live fee. Step 1 prints joined + new against the threshold for every `unlocking` society the run adds to, and the script refuses such a run (exit 5). It checks again after the seed. This is a check at one point in time: the simulated households stay in the count after the run, so a later threshold recompute (the weekly stop-cost job) or new real households can still tip the society live.
 - **No real account taken over.** On a shared database the simulator refuses a run in which a +91 98001 phone already belongs to a real account. That number may be a stranger's. The refusal comes before anything is committed.
@@ -258,6 +260,7 @@ GB_ALLOW_REMOTE_SEED=<host> infisical run --env=staging -- just staging-rollback
 ```
 
 It restores from the point's head, keeps the replaced state as `staging-with-demo-<UTC time>`, and waits until Neon has finished.
+- **Refused while live.** Once staging takes real money (`RAZORPAY_MODE=live`, or the `test_mode_closed` entry), a rollback would erase rows of money that really moved, so it is refused before Neon is called. The `before-demo-*` points stay for history. A restore then follows the "live money" section of `restore-from-backup.md`.
 - **Each rollback leaves two branches for good.** Staging is a child branch, so Neon gives it no point-in-time restore or snapshots (root branches only). A restore makes the restore point staging's parent, and the replaced state is the restore point's parent. Neon cannot delete a branch with children, so the chain grows by these two with every rollback.
 - **Keeping a load costs nothing.** Its restore point is a leaf, and the next load deletes it.
 - **Branch count, 7 Nov 2026:** 8 of 10, from the rollbacks of 2 and 6 Nov. The two archived dev branches can be deleted if nobody uses them.

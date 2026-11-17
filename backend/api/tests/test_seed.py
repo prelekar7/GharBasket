@@ -209,6 +209,9 @@ def staging_seed(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, bool, bool]
     monkeypatch.setenv("DATABASE_URL", neon)
     monkeypatch.setenv("DATABASE_URL_DIRECT", neon)
     monkeypatch.delenv(REMOTE_SEED_CONFIRMATION, raising=False)
+    monkeypatch.delenv("RAZORPAY_MODE", raising=False)
+    # The live-mode guard's database lookup (ADR-0037 §4): no cut-over entry, and no connection.
+    monkeypatch.setattr("gharbasket.tools.live_guard.cutover_recorded", lambda url: False)
     calls: list[tuple[str, bool, bool]] = []
 
     async def fake_run(url: str, *, refresh: bool = False, keep_existing: bool = False) -> Report:
@@ -259,6 +262,30 @@ def test_the_seed_command_only_adds_on_staging_with_both_confirmations(
     out = capsys.readouterr().out
     assert f"seeding the shared database at {NEON_HOST}: adds only" in out
     assert "pw@" not in out
+
+
+@pytest.mark.parametrize("cutover", [False, True])
+def test_the_seed_command_refuses_staging_while_it_takes_real_money(
+    staging_seed: list[tuple[str, bool, bool]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    cutover: bool,
+) -> None:
+    """RAZORPAY_MODE=live, or the cut-over's entry when the variable is missing (ADR-0037 §4)."""
+    monkeypatch.setenv(REMOTE_SEED_CONFIRMATION, NEON_HOST)
+    if cutover:
+        monkeypatch.setattr("gharbasket.tools.live_guard.cutover_recorded", lambda url: True)
+    else:
+        monkeypatch.setenv("RAZORPAY_MODE", "live")
+
+    with pytest.raises(SystemExit) as exited:
+        seed_command(["--allow-remote"])
+
+    assert exited.value.code == 2
+    assert staging_seed == []
+    err = capsys.readouterr().err
+    assert "takes real money" in err
+    assert "pw@" not in err
 
 
 async def test_keep_existing_never_gives_back_a_role_revoked_in_the_console(
