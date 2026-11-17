@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Smoke test a deployed API (staging): `just cloud <url>`, or the deploy workflow after a deploy.
-# Needs JOBS_TOKEN for /v1/ready (`infisical run --env=staging -- just cloud <url>`).
+# Smoke test a deployed API (staging or production): `just cloud <url>`, or deploy-staging.yml and
+# deploy-prod.yml after a deploy. Needs that environment's JOBS_TOKEN for /v1/ready
+# (`infisical run --env=staging -- just cloud <url>`; `--env=prod` for production).
 set -euo pipefail
 
 url="${1:?usage: smoke-staging.sh <api base url>}"
@@ -43,7 +44,12 @@ check "/v1/me needs sign-in" "auth.invalid_token" "$(field "$me" 'd["code"]')"
 problem_type=$(curl --silent --max-time 60 --output /dev/null --write-out '%{content_type}' "$url/v1/nope")
 check "errors are problem+json" "application/problem+json" "$problem_type"
 
-check "the API contract is published" "200" "$(status "$url/v1/openapi.json")"
+if [ "$(field "$health" 'd["environment"]')" = "prod" ]; then
+  # APP_ENV=prod hides /docs and the contract (Settings.docs_enabled).
+  check "the API contract is hidden in production" "404" "$(status "$url/v1/openapi.json")"
+else
+  check "the API contract is published" "200" "$(status "$url/v1/openapi.json")"
+fi
 
 if [ "$failures" -gt 0 ]; then
   echo "$failures check(s) failed"

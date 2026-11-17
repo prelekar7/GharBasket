@@ -257,3 +257,21 @@ export function useFailedItems() {
 
 /** Empties the outbox (sign-out). */
 export const clearOutbox = () => outbox.clear();
+
+/** An action's name from its path: "/v1/stops/<id>/handover?x=1" -> "handover". @param {string} path */
+export const actionOf = (path) => path.split("?")[0].split("/").pop() || "other";
+
+/**
+ * What is in the outbox, waiting or failed, as action names and how many of each, in the order
+ * they were first saved. Read just before a session that ended is wiped from the device, so the
+ * person is told what was not sent. Names only: no ids, nothing about a family or an order.
+ * @returns {Promise<{ action: string, count: number }[]>}
+ */
+export async function summarizeOutbox() {
+  const counts = new Map();
+  for (const { path } of await outbox.orderBy("createdAt").toArray()) {
+    const action = actionOf(path);
+    counts.set(action, (counts.get(action) ?? 0) + 1);
+  }
+  return [...counts].map(([action, count]) => ({ action, count }));
+}

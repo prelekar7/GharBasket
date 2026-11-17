@@ -87,6 +87,7 @@ D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided b
 | D32 | Staging's minute-level jobs are called by `scripts/jobs_scheduler.py` on the Oracle Cloud Always Free VM in Mumbai (the `vm` entries of `infra/jobs/schedule.yaml`, retried when the call does not reach the app), not by cron-job.org, whose calls Render's edge turned away with 503/429 on most evenings | [ADR-0032](../adr/0032-scheduled-jobs-from-the-oracle-vm.md) |
 | D33 | Ops alerts go through healthchecks.io (checks `scheduler`, `cutoff` and `ops`, to a team Telegram group and email) and UptimeRobot on `/v1/health`; an `ops_check` watchdog job runs the probes that modules register | [ADR-0033](../adr/0033-ops-alerts-healthchecks-and-uptimerobot.md) |
 | D35 | The custom domain `gharbasket.co.in` with its DNS on Cloudflare, every record DNS only: `api.` for the API, the bare name for the console, `app.` for the PWA; the platform addresses stay as fallbacks | [ADR-0035](../adr/0035-custom-domain-gharbasket-co-in.md) |
+| D38 | **Proposed:** no Postgres Row-Level Security before or during the pilot. Ownership and scope checks in code stay the control, enforced by a route inventory and a cross-tenant test matrix; the production API connects as a SQL-made non-owner role; RLS is decided again before a second hub goes live. Would supersede D6's "RLS for franchise isolation" in part | [ADR-0038](../adr/0038-row-level-security-after-the-pilot.md) |
 
 ### How decisions change
 

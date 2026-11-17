@@ -15,3 +15,8 @@ allowBuilds:
   # its CLI version; neither is needed by the app.
   "@firebase/util": false
   protobufjs: false
+
+# Security overrides (GHSA-587h-7wmj-h5pm): msw 3.0.1 resolves vite 8.3.2; 8.3.5 is patched.
+# Remove once msw's own range resolves a patched vite.
+overrides:
+  "msw>vite": 8.3.5
