@@ -19,6 +19,8 @@ from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.pagination import Cursor, Page
 from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.revocations import mark_grants_revoked
+from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["identity"])
 
@@ -112,8 +114,15 @@ async def admin_users(
 @router.delete(
     "/admin/user-roles/{grant_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Admin: revoke a staff grant or cancel a pending one (audit-logged; reaches the "
-    "person's token within 15 minutes)",
+    summary="Admin: revoke a staff grant or cancel a pending one (audit-logged; the person's "
+    "next request no longer has the role)",
+    description=(
+        "Roles travel in the 15-minute access token. After the revoke commits, the grant goes on "
+        "a Valkey list (platform/revocations.py) that refuses, with 401 auth.invalid_token, any "
+        "token issued before the revoke that still carries it. The app then refreshes, and the "
+        "new token is read from user_roles. If Valkey is unreachable the old token keeps the "
+        "role until it expires (at most 15 minutes), as before."
+    ),
     responses={
         401: _problem("auth.invalid_token"),
         403: _problem(
@@ -127,10 +136,16 @@ async def admin_users(
     },
 )
 async def revoke_role(
-    grant_id: uuid.UUID, permit: Annotated[Permit, require("roles:revoke")], session: DbSession
+    grant_id: uuid.UUID,
+    permit: Annotated[Permit, require("roles:revoke")],
+    session: DbSession,
+    valkey: Valkey,
 ) -> None:
-    await staff_admin.revoke_grant(session, grant_id, permit.principal.user_id)
+    revoked = await staff_admin.revoke_grant(session, grant_id, permit.principal.user_id)
     await session.commit()
+    if revoked is not None:
+        user_id, grant = revoked
+        await mark_grants_revoked(valkey, user_id, [grant])
 
 
 @router.get(

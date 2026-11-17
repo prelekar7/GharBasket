@@ -194,7 +194,7 @@ flowchart LR
 | Model quality gates | Metric thresholds on fixture datasets | Prathamesh Relekar |
 | End-to-end | Playwright: onboarding, approve box, cut-off, pack, deliver, donate | **Rhythm Thakur, Manish Raje** |
 | End-to-end (backend) | `just e2e-day` (`e2e/backend`): a fresh database, the seed and two simulated weeks, then one delivery day through every job at its IST time over HTTP with real commits, the outbox relay and a fake FCM, ending with reusable invariants (ledger, wallets, order state machine, outbox, messages, stock); product bugs it finds stay `xfail(strict=True)` until fixed | Prathamesh Relekar; Rhythm Thakur, Manish Raje |
-| Load | k6: cut-off with 2,000 orders; 200 concurrent box edits | Rhythm Thakur, Manish Raje |
+| Load | k6 (`infra/k6`, `just load <script>`, local stack by default): cut-off with 2,000 orders; 200 concurrent box edits; thresholds are the SLOs of handbook 12 §12.6 | Rhythm Thakur, Manish Raje |
 | Device / manual | Low-end Android checklist, accessibility audit (axe, TalkBack) | Rhythm Thakur, Manish Raje |
 | Security | OWASP ASVS L1 checklist, gitleaks, pip-audit, pnpm audit, Trivy image scan | All |
 

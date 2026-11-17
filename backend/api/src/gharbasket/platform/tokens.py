@@ -32,6 +32,8 @@ class AccessClaims:
     roles: tuple[str, ...]
     token_id: str
     expires_at: datetime
+    # Whole seconds (JWT `iat`): platform/revocations.py compares it with a role's revocation.
+    issued_at: datetime
 
 
 def invalid_token(detail: str = "Sign in again.") -> ProblemError:
@@ -89,6 +91,7 @@ def verify_access_token(settings: Settings, token: str) -> AccessClaims:
             roles=tuple(roles),  # pyright: ignore[reportUnknownArgumentType]
             token_id=str(claims["jti"]),
             expires_at=datetime.fromtimestamp(claims["exp"], UTC),
+            issued_at=datetime.fromtimestamp(int(claims["iat"]), UTC),
         )
     except jwt.ExpiredSignatureError as exc:
         raise invalid_token("The session has expired; refresh it.") from exc

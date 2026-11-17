@@ -1,5 +1,6 @@
-import { formatPaise, toast } from "@gharbasket/ui";
+import { formatPaise } from "@gharbasket/ui/money";
 import { ApiError } from "@/lib/api.js";
+import { toast } from "@/lib/toast.js";
 
 /**
  * Tells the person, in their language, why a Week or Box action didn't go through (M3 §3.1 error

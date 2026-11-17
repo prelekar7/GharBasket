@@ -1,8 +1,8 @@
-import { toast } from "@gharbasket/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@/lib/api.js";
+import { toast } from "@/lib/toast.js";
 import { nextStep, useOnboardingDraft } from "./draft.js";
 import { saveHouseholdEdits } from "./save.js";
 

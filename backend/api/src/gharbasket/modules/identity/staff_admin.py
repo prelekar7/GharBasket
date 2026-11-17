@@ -313,9 +313,14 @@ def _scope_json(scope_type: str | None, scope_id: uuid.UUID | None) -> dict[str,
     return {"scope_type": scope_type, "scope_id": str(scope_id) if scope_id else None}
 
 
-async def revoke_grant(session: AsyncSession, grant_id: uuid.UUID, admin_id: uuid.UUID) -> None:
+async def revoke_grant(
+    session: AsyncSession, grant_id: uuid.UUID, admin_id: uuid.UUID
+) -> tuple[uuid.UUID, str] | None:
     """Delete a staff grant, or cancel a pending one; audit-logged with the admin, who must still
-    be a verified admin in the database (403 `identity.not_admin`), not only in their token."""
+    be a verified admin in the database (403 `identity.not_admin`), not only in their token.
+
+    Returns the user and the grant as tokens carry it ("hub_manager:<hub id>"), for the caller to
+    hand to `revocations.mark_grants_revoked` after the commit; None for a pending grant."""
     role = (
         await session.execute(select(UserRole.role).where(UserRole.id == grant_id))
     ).scalar_one_or_none()
@@ -367,7 +372,7 @@ async def revoke_grant(session: AsyncSession, grant_id: uuid.UUID, admin_id: uui
             entity_id=str(grant_id),
             before={**before, "pending": True},
         )
-        return
+        return None
 
     if row.role not in STAFF_ROLES:
         raise ProblemError(
@@ -386,7 +391,7 @@ async def revoke_grant(session: AsyncSession, grant_id: uuid.UUID, admin_id: uui
         if row.status == "verified" and len(admins) <= 1:
             raise ProblemError(409, "identity.last_admin", "This is the last admin.")
     before = {"role": row.role, "status": row.status, **_scope_json(row.scope_type, row.scope_id)}
-    user_id = row.user_id
+    user_id, grant = row.user_id, row.grant
     await session.delete(row)
     await session.flush()
     await audit.record(
@@ -397,6 +402,7 @@ async def revoke_grant(session: AsyncSession, grant_id: uuid.UUID, admin_id: uui
         entity_id=str(user_id),
         before=before,
     )
+    return user_id, grant
 
 
 # --- the hub's staff ------------------------------------------------------------------------------

@@ -12,7 +12,9 @@ the eval harness's derivation; `--no-uncommitted` leaves them out).
 
 Only for the local Docker database. A shared database (staging on Neon) is refused unless both
 `--allow-remote` is given and GB_ALLOW_REMOTE_SEED names its host: `scripts/staging-demo.sh`
-does that for staging's demo data (handbook 12).
+does that for staging's demo data (handbook 12). It is refused anyway while the database takes real
+money (RAZORPAY_MODE=live, or its `test_mode_closed` entry: `gharbasket.tools.live_guard`,
+ADR-0037 §4).
 """
 
 import argparse
@@ -41,6 +43,7 @@ from gharbasket.platform.db import (
     synthetic_data_target,
 )
 from gharbasket.platform.settings import DatabaseSettings
+from gharbasket.tools.live_guard import LiveMoneyRefused, refuse_if_live
 from gharbasket.tools.seed import SEED_HUB_ID
 from gharbasket_sim import config as cohorts
 from gharbasket_sim import through_modules as through
@@ -411,6 +414,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         host = synthetic_data_target(url, allow_remote=args.allow_remote, environ=os.environ)
     except RemoteDatabaseRefused as refused:
         parser.error(f"the simulator writes only to the local Docker database: {refused}")
+    try:
+        refuse_if_live("sim", url, os.environ)
+    except LiveMoneyRefused as refused:
+        parser.error(str(refused))
     if not is_local_database(url):
         print(f"simulating into the shared database at {host} (data_source synthetic)")
 
