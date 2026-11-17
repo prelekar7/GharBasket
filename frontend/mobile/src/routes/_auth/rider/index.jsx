@@ -15,6 +15,7 @@ import { clock, dayLabel, nextStop, routeSlot, stopDone } from "@/features/logis
 import { useHub, useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { clockTime, istClock, timeRange, todayIst } from "@/features/subscriptions/format.js";
 import { useOutboxCount } from "@/lib/outbox.js";
+import { openExternal } from "@/shared/native/links.js";
 
 const RouteMap = lazy(() => import("@/features/logistics/RouteMap.jsx"));
 
@@ -160,7 +161,7 @@ function RiderRoute() {
               bags={tiffin ? undefined : s.bags}
               status={status}
               navigate={!!s.navigate_url}
-              onNavigate={() => window.open(s.navigate_url ?? "", "_blank")}
+              onNavigate={() => openExternal(s.navigate_url ?? "")}
               labels={{
                 stop: t("rider.card.stop", { n: s.seq }),
                 crate: t("rider.card.crates", { n: s.crates }),

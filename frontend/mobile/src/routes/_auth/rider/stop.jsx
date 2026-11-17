@@ -9,6 +9,7 @@ import { Doors } from "@/features/logistics/Doors.jsx";
 import { clock, nextStop, stopDone } from "@/features/logistics/format.js";
 import { useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { KitchenScan, TiffinList } from "@/features/logistics/Tiffins.jsx";
+import { openExternal } from "@/shared/native/links.js";
 
 const SKIP_REASONS = /** @type {const} */ ([
   "captain_absent",
@@ -102,7 +103,7 @@ function StopDetail({ route, stop }) {
       )}
       {stop.navigate_url && (
         <div className="flex flex-wrap gap-2">
-          <Button onPress={() => window.open(stop.navigate_url ?? "", "_blank")}>
+          <Button onPress={() => openExternal(stop.navigate_url ?? "")}>
             <NavigationArrowIcon aria-hidden size={20} />
             {t("rider.stop.navigate")}
           </Button>

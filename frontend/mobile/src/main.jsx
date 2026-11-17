@@ -12,6 +12,7 @@ import { persistOptions, queryClient } from "@/lib/queryClient.js";
 import { useSession } from "@/lib/session.js";
 import { startNative } from "@/shared/native/platform.js";
 import { startPush } from "@/shared/native/push.js";
+import { startShell } from "@/shared/native/shell.js";
 import { i18nReady } from "./i18n.js";
 import { startPwa } from "./pwa.js";
 import { routeTree } from "./routeTree.gen.js";
@@ -69,3 +70,4 @@ i18nReady.then(() =>
 );
 
 startNative(router);
+startShell(router);
