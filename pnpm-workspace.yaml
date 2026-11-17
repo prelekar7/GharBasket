@@ -32,3 +32,8 @@ audit:
     # It is Firestore's Node transport; the PWA's browser bundle uses WebChannel, not grpc-js.
     # Review by 2027-01-15 or when firebase moves off ~1.9.
     - GHSA-m9gg-hp2v-232j
+    # picomatch <= 4.0.7 (high, ReDoS through repeated extglobs): no patched version exists
+    # (checked 2026-11-18). It reaches production dependencies only as console > msw > vite
+    # (> tinyglobby, fdir): build-time file globbing with patterns written in our config, never
+    # a pattern from a request. Review by 2026-12-31 or when a patched picomatch is published.
+    - GHSA-fc5q-39xc-vjpf
