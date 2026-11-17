@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: lets the app reach a backend on the developer's Mac through
+     `adb reverse tcp:8000 tcp:8000` (plain http://localhost). Release builds keep Android's
+     default, which refuses cleartext traffic everywhere. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>
