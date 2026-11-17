@@ -475,7 +475,7 @@ It reads M10 only through `intel_gateway.api.model_health` and `ml_service_statu
 
 ### 3.9 Common rules, limits and errors
 - **Read-only and synchronous.** M12 publishes no event and consumes only `identity.user_deleted` (§4). Requests never call the ML service, except the admin-only AI health probe (§3.8: 3 s timeout, cached for 60 s, never fails the page).
-- **Scope.** Every hub-scoped endpoint checks the `hub_id` against the caller's grants. The `analytics` fact tables carry `hub_id` under the same Row-Level Security policy as other hub-scoped tables (handbook 05 §5.9), as defence in depth.
+- **Scope.** Every hub-scoped endpoint checks the `hub_id` against the caller's grants. The `analytics` fact tables carry `hub_id`. The Row-Level Security planned as defence in depth is not built for any table: it waits until after the pilot (ADR-0038, Proposed), and materialized views cannot have it at all.
 - **Performance.**
   - **Response times.** At pilot scale (5 hubs, 2 years), view-backed endpoints answer in p95 ≤ 300 ms, and the today board (live facade counts) in ≤ 800 ms.
   - **Statement timeout.** Analytics reads run with `SET LOCAL statement_timeout = '3s'`. A timeout is 503 `analytics.timeout`, and the console shows "try a shorter range".

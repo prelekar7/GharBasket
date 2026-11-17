@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from redis.asyncio import Redis
 
 from gharbasket.modules.identity import router as identity_router
+from gharbasket.platform import web_session
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.rate_limit import private_key
 from gharbasket.platform.valkey import create_valkey
@@ -37,6 +38,38 @@ async def _web_sign_in(
     return response
 
 
+def _cleared(response: httpx2.Response, name: str) -> bool:
+    """An expired Set-Cookie for `name` with the attributes the refresh cookie is set with."""
+    return any(
+        line.startswith(f"{name}=")
+        and "Max-Age=0" in line
+        and "Path=/v1/auth" in line
+        and "Secure" in line
+        and "HttpOnly" in line
+        and "SameSite=lax" in line
+        for line in response.headers.get_list("set-cookie")
+    )
+
+
+def _set_names(response: httpx2.Response) -> set[str]:
+    """The cookies a response sets (not those it clears)."""
+    return {
+        line.split("=", 1)[0]
+        for line in response.headers.get_list("set-cookie")
+        if "Max-Age=0" not in line
+    }
+
+
+async def _legacy_refresh(
+    api: httpx2.AsyncClient, token: str, headers: dict[str, str] = WEB
+) -> httpx2.Response:
+    """A refresh that carries only the old cookie: a browser signed in before the rename, or the
+    console's server, which sends `gb_rt=<value>` itself (frontend/console/lib/auth-api.js)."""
+    return await api.post(
+        "/v1/auth/refresh", json={}, headers={**headers, "Cookie": f"gb_rt={token}"}
+    )
+
+
 def _add_whoami(api: httpx2.AsyncClient) -> None:
     """A route that trusts only the access token (no database check), like most endpoints."""
     transport = api._transport  # pyright: ignore[reportPrivateUsage]
@@ -58,15 +91,18 @@ async def test_browsers_get_httponly_cookies_and_no_tokens_in_the_body(
     response = await _web_sign_in(clients(), google)
 
     access = _cookie_header(response, "__Host-gb_at").lower()
-    refresh = _cookie_header(response, "gb_rt").lower()
+    refresh = _cookie_header(response, "__Secure-gb_rt").lower()
+    # The old name too, with the same value, while the console reads only that (web_session.py).
+    legacy = _cookie_header(response, "gb_rt").lower()
     assert response.json()["access_token"] is None
     assert response.json()["refresh_token"] is None
     assert response.json()["access_expires_in"] == 900
-    for cookie in (access, refresh):
+    for cookie in (access, refresh, legacy):
         assert "httponly" in cookie and "secure" in cookie and "samesite=lax" in cookie
         assert "domain=" not in cookie
     assert "path=/;" in access and "max-age=900" in access
-    assert "path=/v1/auth" in refresh
+    assert "path=/v1/auth" in refresh and "path=/v1/auth" in legacy
+    assert response.cookies["gb_rt"] == response.cookies["__Secure-gb_rt"]
 
 
 async def test_a_browser_is_signed_in_by_its_cookie(
@@ -137,7 +173,7 @@ async def test_browser_refresh_rotates_the_cookie_and_replay_ends_the_session(
 ) -> None:
     api = clients()
     signed_in = await _web_sign_in(api, google)
-    first_refresh_cookie = signed_in.cookies["gb_rt"]
+    first_refresh_cookie = signed_in.cookies["__Secure-gb_rt"]
 
     refreshed = await api.post("/v1/auth/refresh", json={}, headers=WEB)
     # Use the new refresh cookie too; replaying the first one is then theft, not a lost response.
@@ -148,7 +184,7 @@ async def test_browser_refresh_rotates_the_cookie_and_replay_ends_the_session(
 
     assert refreshed.status_code == 200
     assert refreshed.json()["refresh_token"] is None
-    assert refreshed.cookies["gb_rt"] != first_refresh_cookie
+    assert refreshed.cookies["__Secure-gb_rt"] != first_refresh_cookie
     assert replay.status_code == 401
     assert replay.json()["code"] == "auth.refresh_reused"
 
@@ -178,8 +214,107 @@ async def test_browser_logout_clears_both_cookies(
     cleared = logout.headers.get_list("set-cookie")
     assert logout.status_code == 204
     assert any(c.startswith("__Host-gb_at=") and "Max-Age=0" in c for c in cleared)
-    assert any(c.startswith("gb_rt=") and "Max-Age=0" in c for c in cleared)
+    for name in ("__Secure-gb_rt", "gb_rt"):  # the refresh cookie under its new and old name
+        assert _cleared(logout, name)
     assert (await api.get("/v1/me")).status_code == 401
+
+
+async def test_a_session_from_before_the_rename_keeps_working_and_moves_to_the_new_name(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    old_token = (await _web_sign_in(clients(), google)).cookies["gb_rt"]
+
+    # Only the old name, as a browser signed in before the rename holds it.
+    moved = await _legacy_refresh(clients(), old_token)
+    # The browser now holds both names; its next refresh sends both, and the old one is cleared.
+    both = f"__Secure-gb_rt={moved.cookies['__Secure-gb_rt']}; gb_rt={moved.cookies['gb_rt']}"
+    settled = await clients().post("/v1/auth/refresh", json={}, headers={**WEB, "Cookie": both})
+    later = await clients().post(
+        "/v1/auth/refresh",
+        json={},
+        headers={**WEB, "Cookie": f"__Secure-gb_rt={settled.cookies['__Secure-gb_rt']}"},
+    )
+
+    assert moved.status_code == 200, moved.text
+    assert _set_names(moved) == {"__Host-gb_at", "__Secure-gb_rt", "gb_rt"}
+    assert moved.cookies["__Secure-gb_rt"] == moved.cookies["gb_rt"] != old_token
+    assert settled.status_code == 200, settled.text
+    assert _set_names(settled) == {"__Host-gb_at", "__Secure-gb_rt"}
+    assert _cleared(settled, "gb_rt")
+    assert later.status_code == 200, later.text
+    assert _set_names(later) == {"__Host-gb_at", "__Secure-gb_rt"}
+    assert not _cleared(later, "gb_rt")  # nothing left to clear
+
+
+async def test_the_consoles_server_can_keep_refreshing_with_the_old_name(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    """Until the console reads `__Secure-gb_rt`, every answer also carries `gb_rt` for it."""
+    token = (await _web_sign_in(clients(), google)).cookies["gb_rt"]
+
+    for _ in range(3):
+        refreshed = await _legacy_refresh(clients(), token, headers={"X-GB-Client": "web"})
+        assert refreshed.status_code == 200, refreshed.text
+        assert not _cleared(refreshed, "gb_rt")
+        token = refreshed.cookies["gb_rt"]
+
+
+async def test_the_new_name_wins_over_a_planted_old_cookie(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    real = (await _web_sign_in(clients(), google)).cookies["__Secure-gb_rt"]
+
+    planted = await clients().post(
+        "/v1/auth/refresh",
+        json={},
+        headers={**WEB, "Cookie": f"gb_rt=planted-by-someone; __Secure-gb_rt={real}"},
+    )
+    # A bad new cookie is not rescued by a good old one either: only the new name is read.
+    bad_new = await clients().post(
+        "/v1/auth/refresh",
+        json={},
+        headers={
+            **WEB,
+            "Cookie": f"__Secure-gb_rt=not-a-token; gb_rt={planted.cookies['__Secure-gb_rt']}",
+        },
+    )
+
+    assert planted.status_code == 200, planted.text
+    assert _cleared(planted, "gb_rt")
+    assert bad_new.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{}, {"X-GB-Client": "web", "Origin": "https://evil.example"}],
+    ids=["no-header", "other-site"],
+)
+async def test_a_refresh_with_the_old_cookie_is_still_checked_for_csrf(
+    clients: ClientFactory, google: FakeGoogle, headers: dict[str, str]
+) -> None:
+    token = (await _web_sign_in(clients(), google)).cookies["gb_rt"]
+
+    response = await _legacy_refresh(clients(), token, headers=headers)
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "auth.csrf_rejected"
+    assert "set-cookie" not in response.headers
+
+
+async def test_once_the_old_name_is_no_longer_written_it_is_cleared_when_read(
+    clients: ClientFactory, google: FakeGoogle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Step 3 of the rename (web_session.py), after the console reads the new name."""
+    token = (await _web_sign_in(clients(), google)).cookies["gb_rt"]  # signed in before step 3
+    monkeypatch.setattr(web_session, "WRITE_LEGACY_REFRESH_COOKIE", False)
+
+    signed_in = await _web_sign_in(clients(), google)
+    refreshed = await _legacy_refresh(clients(), token)
+
+    assert _set_names(signed_in) == {"__Host-gb_at", "__Secure-gb_rt"}
+    assert refreshed.status_code == 200, refreshed.text
+    assert _set_names(refreshed) == {"__Host-gb_at", "__Secure-gb_rt"}
+    assert _cleared(refreshed, "gb_rt")
 
 
 async def test_a_bearer_token_wins_over_a_cookie(

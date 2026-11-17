@@ -46,7 +46,7 @@ All values start in Infisical `staging` (people use `infisical run --env=staging
 | `DATABASE_URL_DIRECT` (Neon, direct) | Neon role password | Infisical; GitHub secret `DATABASE_URL_DIRECT` (used by `deploy-staging.yml`); `backup-staging.yml` once merged | As above, in the same step |
 | `DATABASE_URL_RO` (role `gharbasket_ro`) | `scripts/neon-ro-role.sh` | GitHub secret `DATABASE_URL_RO` (training jobs) | `infisical run --env=staging -- scripts/neon-ro-role.sh` makes a new password and sets the GitHub secret without printing it |
 | `NEON_API_KEY`, `NEON_PROJECT_ID` | Neon account settings | Infisical only | Make a new key in Neon, replace it in Infisical, delete the old key. Used by `just staging-demo` and `just staging-rollback` |
-| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` (test mode) | Razorpay dashboard | Infisical; Render `gharbasket-api` | See "Razorpay" |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` (of the running `RAZORPAY_MODE`) | Razorpay dashboard | Infisical; Render `gharbasket-api` | See "Razorpay" |
 | `RAZORPAY_WEBHOOK_SECRET` | Razorpay dashboard (the webhook) | Infisical; Render `gharbasket-api` | See "Razorpay" |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_ENDPOINT_URL` on the API | Cloudflare R2 API token | Infisical; Render `gharbasket-api` | See "R2 tokens" |
 | `ML_S3_ACCESS_KEY`, `ML_S3_SECRET_KEY` (entered on Render as `S3_ACCESS_KEY` / `S3_SECRET_KEY`) | Cloudflare R2 token, read only on `gb-staging-mlflow` | Infisical; Render `gharbasket-ml` | See "R2 tokens" |
@@ -173,7 +173,9 @@ Roles) breaks every user of the old one at once, so expect a few minutes of erro
 
 ### Razorpay
 
-Test mode only: live keys (`rzp_live_`) are refused at start. Make the new key pair in the dashboard, update Infisical and
+Each mode takes only its own keys (M5 §3.10): with `RAZORPAY_MODE=test` (the default) a live key (`rzp_live_`) is refused
+at start, and with `RAZORPAY_MODE=live` a test key is refused. Live mode also needs `RAZORPAY_WEBHOOK_SECRET` and runs
+only with `APP_ENV` staging or prod. Rotate within the running mode. Make the new key pair in the dashboard, update Infisical and
 Render, deploy, then disable the old pair. For the webhook secret, change it on the dashboard's webhook for
 `/v1/payments/webhook/razorpay` and on Render in the same minute. A webhook that arrives in between is refused and
 healed by `reconcile_payments` (`razorpay-down.md`). Top-ups answer 503 while the keys disagree.

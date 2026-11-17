@@ -9,7 +9,7 @@ import {
   TextField,
   toast,
 } from "@gharbasket/ui";
-import { ArrowLeftIcon, PlusIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, CameraIcon, PlusIcon } from "@phosphor-icons/react";
 import { createFileRoute, Navigate, useNavigate, useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +20,9 @@ import {
   useMyApplication,
 } from "@/features/partners/queries.js";
 import { ApiError } from "@/lib/api.js";
+import { NATIVE } from "@/lib/env.js";
+import { UploadTooLargeError } from "@/lib/upload.js";
+import { photoFile, takePhoto } from "@/shared/native/camera.js";
 
 /** @typedef {import("@/features/partners/queries.js").DocRequirement} DocRequirement */
 /** @typedef {import("@/features/partners/queries.js").KycDocument} KycDocument */
@@ -193,6 +196,15 @@ function AddDocument({ applicationId, doc, onClose }) {
   const type = doc.doc_type;
   const name = t(`partnerDocs.docs.${type}.name`);
   const [minFiles, maxFiles] = FILES[type] ?? [0, 2];
+  const isPhotos = type === "kitchen_photos";
+  /** The Android app's camera or gallery; a photo joins the files up to the limit. @param {"camera" | "gallery"} source */
+  const addPhoto = async (source) => {
+    const photo = await takePhoto({ source }).catch(() => {
+      toast(t("photo.failed"));
+      return null;
+    });
+    if (photo) setFiles((f) => [...f, photoFile(photo)].slice(0, maxFiles));
+  };
   const hasNumber = type !== "kitchen_photos";
   const numberOk = !hasNumber || FORMAT[type === "id_proof" ? idKind : type]?.test(number);
   const ifscOk = type !== "bank" || /^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc);
@@ -203,12 +215,14 @@ function AddDocument({ applicationId, doc, onClose }) {
   const ready = numberOk && ifscOk && holderOk && expiryOk && vehicleOk && files.length >= minFiles;
   /** What the server said, in words; Aadhaar and expiry have their own. @param {unknown} e */
   const why = (e) =>
-    t(
-      e instanceof ApiError && e.code.startsWith("partners.")
-        ? `partnerDocs.sheet.errors.${e.code.slice(9)}`
-        : "partnerDocs.sheet.failed",
-      { defaultValue: t("partnerDocs.sheet.failed") },
-    );
+    e instanceof UploadTooLargeError
+      ? t("photo.tooLarge", { mb: e.limitMb })
+      : t(
+          e instanceof ApiError && e.code.startsWith("partners.")
+            ? `partnerDocs.sheet.errors.${e.code.slice(9)}`
+            : "partnerDocs.sheet.failed",
+          { defaultValue: t("partnerDocs.sheet.failed") },
+        );
 
   return (
     <Sheet
@@ -340,9 +354,26 @@ function AddDocument({ applicationId, doc, onClose }) {
               hidden
               onChange={(e) => setFiles([...(e.target.files ?? [])].slice(0, maxFiles))}
             />
-            <Button variant="secondary" onPress={() => input.current?.click()}>
+            {/* In the Android app the camera plugin takes photos (it cannot pick a PDF); the file
+                picker stays for PDFs, and for kitchen photos the gallery replaces it. */}
+            {NATIVE && (
+              <Button variant="secondary" onPress={() => addPhoto("camera")}>
+                <CameraIcon aria-hidden size={20} />
+                {t("photo.take")}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              onPress={() => (NATIVE && isPhotos ? addPhoto("gallery") : input.current?.click())}
+            >
               <PlusIcon aria-hidden size={20} weight="bold" />
-              {t(type === "kitchen_photos" ? "partnerDocs.sheet.photos" : "partnerDocs.sheet.file")}
+              {t(
+                NATIVE && isPhotos
+                  ? "photo.gallery"
+                  : isPhotos
+                    ? "partnerDocs.sheet.photos"
+                    : "partnerDocs.sheet.file",
+              )}
             </Button>
             {files.length > 0 && (
               <span className="text-sm text-fg-secondary">

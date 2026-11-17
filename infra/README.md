@@ -8,6 +8,7 @@ Owner: Prathamesh Relekar. Local and deployment infrastructure.
 | `compose/` | Docker Compose for local development: `postgres` and `valkey` always; profile `storage` adds SeaweedFS (S3) and bucket creation; profile `ml` adds MLflow | done |
 | `mlflow/` | MLflow 3.16 tracking server and model registry image (Postgres backend, S3 artifacts, job runner disabled to save RAM) | done |
 | `osrm/` | Road-network routing data for the Mumbai Metropolitan Region | spike S-3 |
+| `k6/` | k6 load tests of the API (public pages, the customer's reads, box edits and approvals, the 21:00 cut-off); local by default, `just load <script>`. Read its README before any run against staging | done |
 
 Use the `justfile`, not raw `docker compose`: `just up`, `just up-storage`, `just up-all`, `just down`, `just reset`, `just infra-check`. Ports, credentials and RAM budget are in `docs/SETUP.md`.
 

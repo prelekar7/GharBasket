@@ -281,7 +281,12 @@ async def create_topup(
         detail="Too many top-ups started. Try again in an hour.",
     )
     created = await topups.create_topup(
-        session, user_id, body.amount_paise, razorpay, dev_orders=settings.is_local
+        session,
+        user_id,
+        body.amount_paise,
+        razorpay,
+        dev_orders=settings.is_local,
+        mode=settings.razorpay_mode,
     )
     out = _topup(created.payment, created.key_id)
     await idem.save(201, out)
@@ -355,7 +360,7 @@ async def razorpay_webhook(
     if str(event.get("event", "")).startswith("refund."):
         outcome = await settlement.handle_event(session, event, settings)
     else:
-        outcome = await topups.handle_event(session, event, razorpay)
+        outcome = await topups.handle_event(session, event, razorpay, mode=settings.razorpay_mode)
     webhook = await session.get(PaymentWebhook, stored)
     if webhook is not None:
         webhook.outcome = outcome
@@ -439,7 +444,7 @@ async def dev_pay(
     if payment is None or payment.user_id != permit.principal.user_id:
         raise topups.topup_not_found()
     event = topups.dev_capture(payment)
-    await topups.handle_event(session, event, razorpay)
+    await topups.handle_event(session, event, razorpay, mode=settings.razorpay_mode)
     await session.commit()
     return DevPayOut(
         razorpay_payment_id=event["payload"]["payment"]["entity"]["id"], status="captured"

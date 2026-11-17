@@ -32,6 +32,7 @@ just sim --weeks 4 --write-db                # v1b: the weeks go through M3, M4 
 ## Staging demo data
 The simulator writes only to the local Docker database. Staging gets its demo data through `scripts/staging-demo.sh` (`just staging-demo`, handbook 12 §12.3), which runs the seed and `--write-db --pause-after` against Neon. Its guards:
 - a shared database is refused unless the run has both `--allow-remote` and `GB_ALLOW_REMOTE_SEED=<the database host>`, typed out by the owner;
+- a shared database that takes real money is refused outright: `RAZORPAY_MODE=live` in the environment, or the cut-over's `test_mode_closed` journal entry (ADR-0037 §4, `gharbasket.tools.live_guard`);
 - a Neon restore-point branch (`before-demo-<UTC time>`) is made before anything is written;
 - the weeks are the last full weeks before this IST week, so every simulated delivery is in the past;
 - a week the simulator already replayed is never simulated twice (`--add-weeks` adds only the weeks after the latest one);

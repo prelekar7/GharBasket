@@ -2,7 +2,9 @@ import { Button, Sheet, Skeleton, StatusPill, TextField } from "@gharbasket/ui";
 import { CameraIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { uploadFile } from "@/lib/upload.js";
+import { NATIVE } from "@/lib/env.js";
+import { UploadTooLargeError, uploadFile } from "@/lib/upload.js";
+import { takePhoto } from "@/shared/native/camera.js";
 import { useDoorActions, useDoors } from "./queries.js";
 
 const FAILS = /** @type {const} */ (["not_home", "refused", "wrong_address", "damaged", "missing"]);
@@ -103,8 +105,18 @@ function ProofSheet({ door, onClose, onProof }) {
   const camera = useRef(/** @type {HTMLInputElement | null} */ (null));
   const [code, setCode] = useState("");
   const [photoKey, setPhotoKey] = useState(/** @type {string | null} */ (null));
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(/** @type {unknown} */ (null));
   const ready = /^\d{4}$/.test(code) || !!photoKey;
+  /** The photo goes to storage first; only its key waits in the outbox. @param {File | Blob} file */
+  const send = async (file) => {
+    setFailed(null);
+    setPhotoKey(
+      await uploadFile(file, "delivery_photo").catch((e) => {
+        setFailed(e);
+        return null;
+      }),
+    );
+  };
   return (
     <Sheet
       open
@@ -149,22 +161,32 @@ function ProofSheet({ door, onClose, onProof }) {
           accept="image/*"
           capture="environment"
           hidden
-          onChange={async (e) => {
+          onChange={(e) => {
             const file = e.target.files?.[0];
-            if (!file) return;
-            // The photo goes to storage first; only its key waits in the outbox.
-            const key = await uploadFile(file, "delivery_photo").catch(() => null);
-            setPhotoKey(key);
-            setFailed(!key);
+            if (file) send(file);
           }}
         />
         {photoKey && <span className="font-semibold">{t("rider.stop.photoAdded")}</span>}
-        {failed && (
+        {!!failed && (
           <p role="alert" className="text-sm font-semibold text-danger">
-            {t("rider.stop.photoFailed")}
+            {failed instanceof UploadTooLargeError
+              ? t("photo.tooLarge", { mb: failed.limitMb })
+              : t("rider.stop.photoFailed")}
           </p>
         )}
-        <Button block onPress={() => camera.current?.click()}>
+        <Button
+          block
+          onPress={async () => {
+            // In the Android app the camera plugin takes the proof photo (live, no gallery).
+            if (!NATIVE) return camera.current?.click();
+            setFailed(null);
+            const photo = await takePhoto().catch((e) => {
+              setFailed(e);
+              return null;
+            });
+            if (photo) await send(photo.blob);
+          }}
+        >
           <CameraIcon aria-hidden size={20} />
           {photoKey ? t("rider.stop.photoAgain") : t("rider.stop.photo")}
         </Button>

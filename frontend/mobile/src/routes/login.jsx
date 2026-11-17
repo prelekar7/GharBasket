@@ -5,8 +5,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { LostActionsNotice } from "@/components/LostActionsNotice.jsx";
 import { MOCK } from "@/lib/env.js";
-import { sendCode } from "@/lib/otp.js";
+import { otpErrorKey, sendCode } from "@/lib/otp.js";
 import { nextSearch } from "@/lib/search.js";
 
 // In-app Terms and Privacy notice (routes/legal.$doc.jsx).
@@ -38,8 +39,7 @@ function Login() {
       await sendCode(`+91${phone}`, "recaptcha");
       navigate({ to: "/otp", search: { next } });
     } catch (e) {
-      const region = /** @type {any} */ (e)?.code === "auth/operation-not-allowed";
-      setError("root", { message: t(region ? "otp.region" : "login.sendFailed") });
+      setError("root", { message: t(otpErrorKey(e, "login.sendFailed")) });
     }
   });
 
@@ -60,6 +60,7 @@ function Login() {
         </h1>
         <p className="text-fg-secondary">{t("login.sub")}</p>
       </div>
+      <LostActionsNotice />
       <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-5" noValidate>
         <Controller
           name="phone"
