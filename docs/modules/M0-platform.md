@@ -185,7 +185,10 @@ Provides the `require(permission, scope)` dependency and the permission registry
 
 ## 9. Tests required
 - Unit: error handler, idempotency middleware (same key/same body, same key/different body).
-- Integration: outbox write + after-commit relay + `outbox-sweep` job against local Docker Postgres; RLS session variable is set per transaction.
+- Integration: outbox write + after-commit relay + `outbox-sweep` job against local Docker Postgres.
+- Authorisation (replaces the planned "RLS session variable is set per transaction" test; RLS is not built, [ADR-0038](../adr/0038-row-level-security-after-the-pilot.md), Proposed). Both tests live in `tests/security/`:
+  - **route inventory:** every route with a path parameter is listed with its scope kind (`owner`, `hub`, `society`, `ngo`, `operator`, `public`, `self`), and a route that is not listed fails CI;
+  - **cross-tenant matrix:** with a two-hub, two-household fixture, each listed route called with the other tenant's ids answers 403 or 404 and changes nothing.
 - CI checks: import-linter, single Alembic head, upgrade/downgrade round trip, generated client up to date, agent-docs sync, gitleaks.
 
 ## 10. Dependencies

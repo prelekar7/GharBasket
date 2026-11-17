@@ -160,7 +160,7 @@ MemberOut    : MemberIn & { "id" }     health_tags is [] while health_personalis
 AddressOut   : { "id", "household_id", "society_id", "tower_id", "flat", "location": {lat,lng} | null }
 
 GET /v1/households/me         200 HouseholdOut (+ ETag) | 404 "identity.household_not_found"
-GET /v1/households/{id}       owner only (hub_manager read arrives with RLS); 404 for anyone else
+GET /v1/households/{id}       owner only (a hub_manager read was tied to RLS, which is not built: ADR-0038); 404 for anyone else
 PATCH /v1/households/{id}     If-Match: "<version>" required. Any of: diet, cuisine_tags,
                               weekday_cook_minutes, weekend_cook_minutes, no_cook_days, budget_paise,
                               autopilot_enabled, auto_approve. 200 HouseholdOut with the new version.
@@ -540,7 +540,7 @@ GET /v1/hubs/{hub_id}/staff?role=&cursor=&limit=     hub_manager, franchise_owne
 ## 9. Tests required
 - Unit: token issue/rotation/reuse detection; permission checks; consent gating of health tags.
 - Refresh rotation rules (implemented in `identity/service.py`): each refresh uses its token and issues a child; re-presenting a used token within 2 minutes while its child is unused (lost response, two tabs) revokes the child and issues a fresh one; any other reuse revokes the whole session (`auth.refresh_reused`).
-- Integration: exchange with a mocked Firebase verifier; household create publishes outbox event; RLS on hub-scoped reads.
+- Integration: exchange with a mocked Firebase verifier; household create publishes outbox event. (The planned "RLS on hub-scoped reads" test waits with RLS itself, ADR-0038; the cross-tenant matrix of M0 §9 covers households.)
 - Household contract (§3.2):
   - A failure part-way through `POST /v1/households` leaves no rows.
   - The same key replays; a different key gets 409 `identity.household_exists`.

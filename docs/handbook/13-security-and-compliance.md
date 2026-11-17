@@ -122,7 +122,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 - The mobile app's role switch sends `X-Active-Role`, which narrows a request to one of the caller's roles; it never adds a role. The server re-checks the role and scope on every request.
 - Each grant counts only within its own scope, with or without `X-Active-Role`: a hub or society role covers that one hub or society, `admin` covers every scope, and `customer` covers no scope at all, only the customer's own household, orders and wallet (checked by ownership). A person who is both a customer and staff of hub A therefore cannot read hub B's orders.
 - Partner roles stay inactive until status is `verified` (KYC gate, §13.7).
-- **Defence in depth — Postgres Row-Level Security** on hub-scoped tables (`orders`, `inventory_lots`, `partners`, `routes`). The API runs `SET LOCAL app.hub_ids = '…'` per transaction, so a missed check in application code still cannot leak another franchise's data.
+- **Defence in depth: not built.** Postgres Row-Level Security is **not** in place. No table has a policy, and the API sets no `app.hub_ids`. It was planned for the hub-scoped tables, but it would protect nothing with one pilot hub. On Neon the API's role (the owner, a `neon_superuser` member with `BYPASSRLS`) would skip it anyway. [ADR-0038](../adr/0038-row-level-security-after-the-pilot.md) (Proposed) puts it off until after the pilot. Until then the checks in code above are the control, and two tests enforce them: a route inventory that fails CI when a route with a path id has not declared its scope, and a cross-tenant matrix that calls each listed route with another hub's or household's ids. A least-privilege app role comes with the production database. RLS returns before a second hub goes live.
 
 ## 13.5 Data protection
 
@@ -199,7 +199,8 @@ In the prototype, KYC checks are **simulated** (no real document verification AP
 
 ## Decisions & open questions
 
-- Decided: closed-loop wallet with no customer KYC ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)); no Aadhaar storage; Firebase OTP then our own rotating tokens, cookies + CSRF checks for browsers ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)); secrets in Infisical ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md)); RLS as defence in depth.
+- Decided: closed-loop wallet with no customer KYC ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)); no Aadhaar storage; Firebase OTP then our own rotating tokens, cookies + CSRF checks for browsers ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)); secrets in Infisical ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md)).
+- Proposed: no Row-Level Security before or during the pilot. The checks in code are enforced by tests, and the production API gets a non-owner role ([ADR-0038](../adr/0038-row-level-security-after-the-pilot.md)).
 - Open: confirm with Prof. Kranti Bade (or a CA) the exact legal wording before any real-money pilot; decide whether the pilot database stays on Neon (Singapore) or moves to a paid Postgres in Mumbai (data-residency preference), before Phase P6.
 
 Related: [Chapter 10 — API and Integration](10-api-and-integration.md) · [Chapter 12 — Deployment and Operations](12-deployment-and-operations.md) · [ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md) · [ADR-0006](../adr/0006-postgresql-centric-data-platform.md)
