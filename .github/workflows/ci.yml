@@ -1,6 +1,7 @@
 # Continuous integration for every pull request and every push to main.
 # The Python job runs when backend/api exists; the JS hints job when an app has a jsconfig.json;
-# the simulated-day job when a pull request touches the backend (and on every push to main).
+# the simulated-day job when a pull request touches the backend (and on every push to main); the
+# dependency audit when uv.lock or pnpm-lock.yaml exists.
 name: CI
 
 on:
@@ -23,6 +24,8 @@ jobs:
       api: ${{ steps.check.outputs.api }}
       frontend: ${{ steps.check.outputs.frontend }}
       jsconfig: ${{ steps.check.outputs.jsconfig }}
+      uv_lock: ${{ steps.check.outputs.uv_lock }}
+      pnpm_lock: ${{ steps.check.outputs.pnpm_lock }}
       e2e_day: ${{ steps.e2e_day.outputs.run }}
     steps:
       - uses: actions/checkout@v7
@@ -30,13 +33,17 @@ jobs:
           fetch-depth: 0 # a pull request's changed files are diffed against its base
       - id: check
         run: |
-          echo "api=$([ -f backend/api/pyproject.toml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "frontend=$([ -f frontend/mobile/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          if ls frontend/*/jsconfig.json frontend/packages/*/jsconfig.json >/dev/null 2>&1; then
-            echo "jsconfig=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "jsconfig=false" >> "$GITHUB_OUTPUT"
-          fi
+          {
+            echo "api=$([ -f backend/api/pyproject.toml ] && echo true || echo false)"
+            echo "frontend=$([ -f frontend/mobile/package.json ] && echo true || echo false)"
+            echo "uv_lock=$([ -f uv.lock ] && echo true || echo false)"
+            echo "pnpm_lock=$([ -f pnpm-lock.yaml ] && echo true || echo false)"
+            if ls frontend/*/jsconfig.json frontend/packages/*/jsconfig.json >/dev/null 2>&1; then
+              echo "jsconfig=true"
+            else
+              echo "jsconfig=false"
+            fi
+          } >> "$GITHUB_OUTPUT"
 
       # The simulated day exercises the whole backend, its seed data and the simulator: it runs on every
       # push to main and on pull requests that change any of those, the lockfile, the database image or
@@ -96,6 +103,42 @@ jobs:
       - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Known vulnerabilities in the locked dependencies (handbook 13 §13.10). Blocking: any Python
+  # advisory (pip-audit has no severity levels) and high or critical JS advisories fail the job.
+  # Accepted advisories, each with a reason: .github/pip-audit-ignore.txt and audit.ignore in
+  # pnpm-workspace.yaml. dependency-audit.yml runs the same check weekly for advisories published
+  # after a merge.
+  audit:
+    name: Dependency audit (pip-audit, pnpm audit)
+    runs-on: ubuntu-latest
+    needs: detect
+    if: needs.detect.outputs.uv_lock == 'true' || needs.detect.outputs.pnpm_lock == 'true'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        if: needs.detect.outputs.uv_lock == 'true'
+        with:
+          enable-cache: true
+
+      - name: Python (uv.lock, runtime dependencies)
+        if: needs.detect.outputs.uv_lock == 'true'
+        run: ./scripts/dependency-audit.sh python
+
+      # pnpm audit reads pnpm-lock.yaml only, so nothing is installed.
+      - uses: pnpm/setup@v3
+        if: ${{ !cancelled() && needs.detect.outputs.pnpm_lock == 'true' }}
+        with:
+          install: false
+
+      # Runs even when the Python step failed, so one run lists both ecosystems' findings.
+      - name: JS (pnpm-lock.yaml, production dependencies)
+        if: ${{ !cancelled() && needs.detect.outputs.pnpm_lock == 'true' }}
+        run: ./scripts/dependency-audit.sh js
 
   python:
     name: Python API (types, boundaries, tests)

@@ -4,7 +4,7 @@
 > - **One monorepo**: apps, shared packages, Python services, simulator data, infra and docs.
 > - **Module boundaries are enforced by tools, not trust:** import-linter in CI, one Postgres schema per module, CODEOWNERS approvals, and the OpenAPI contract.
 > - **Trunk-based Git:** short-lived branches, squash merge into a protected `main`, Conventional Commits with module scope, PRs of about 400 hand-written lines.
-> - **CI/CD on GitHub Actions:** lint, Python types, tests, migration, OpenAPI and api-client drift checks, frontend builds, informational JS editor hints; on merge, migrations on Neon and the Render deploy hook (planned). The pilot production setup is decided before P6.
+> - **CI/CD on GitHub Actions:** lint, secret scan, dependency audit, Python types, tests, migration, OpenAPI and api-client drift checks, frontend builds, informational JS editor hints; on merge, migrations on Neon and the Render deploy hook (planned). The pilot production setup is decided before P6.
 > - **Clear Definitions of Ready and Done**, with testing ownership shared across all four members.
 
 ---
@@ -49,7 +49,8 @@ gharbasket/
 - JavaScript (D18): Node 24 LTS, pnpm 12, Turborepo, Biome; JSDoc + `jsconfig.json` (`checkJs`) for editor hints.
 - Python: 3.13, uv, Ruff, pyright.
 - Git hooks: lefthook (Biome, Ruff, gitleaks on staged files).
-- Dependency updates: Renovate (weekly, grouped).
+- Dependency updates: Renovate (`.github/renovate.json5`): weekly on Monday morning IST, minor and patch grouped per ecosystem (Python, JS, GitHub Actions, Docker), majors one pull request each, a weekly lock-file refresh, only releases at least 14 days old, nothing merged automatically, a Dependency Dashboard issue. Security fixes get a pull request at once. It runs only once the Renovate GitHub App is installed on the repository.
+- Dependency audit: `just audit` (`scripts/dependency-audit.sh`) checks `uv.lock` with pip-audit (runtime dependencies; any known vulnerability fails, pip-audit has no severity levels) and `pnpm-lock.yaml` with `pnpm audit --prod` (high and critical fail). An accepted advisory is listed with its reason and a review date in `.github/pip-audit-ignore.txt` or under `audit.ignore` in `pnpm-workspace.yaml`, in a reviewed pull request; the fix is still to upgrade.
 
 ## 11.2 Module boundaries
 
@@ -117,6 +118,7 @@ flowchart TD
     PR["Pull request opened / updated"] --> CI{"ci.yml"}
     CI -->|always| LINT["Lint job<br/>Biome, Ruff, agent-docs sync check"]
     CI -->|always| SEC["Secrets job<br/>gitleaks"]
+    CI -->|"uv.lock or pnpm-lock.yaml exists"| AUD["Dependency audit<br/>pip-audit (any advisory),<br/>pnpm audit --prod (high, critical)"]
     CI -->|"backend/api exists"| PY["Python job<br/>pyright, import-linter,<br/>pytest + coverage gate on real Postgres + Valkey,<br/>alembic check, OpenAPI drift check"]
     CI -->|"backend changed, or push to main"| E2E["Simulated-day job<br/>just e2e-day on real Postgres + Valkey"]
     CI -->|"frontend exists"| FE["Frontend job<br/>api-client drift check + tests,<br/>build mobile PWA, console, UI kit"]
@@ -124,6 +126,7 @@ flowchart TD
     PR --> VP["Vercel preview<br/>PWA + console"]
     LINT --> OK{"All green +<br/>CODEOWNER approval?"}
     SEC --> OK
+    AUD --> OK
     PY --> OK
     E2E --> OK
     FE --> OK
@@ -132,6 +135,7 @@ flowchart TD
     MG --> VD["Vercel deploys PWA + console"]
     SCH["jobs-staging.yml schedule<br/>+ the VM scheduler"] --> JOB["POST /v1/internal/jobs/{name}<br/>with JOBS_TOKEN"]
     TRN["training-jobs.yml schedule"] --> TRJ["backend/training on the runner<br/>R2 lake, then internal endpoints"]
+    WK["dependency-audit.yml<br/>Mondays 09:00 IST"] --> WKA["the same audit on main;<br/>a failure tells the ops alert"]
 ```
 
 *Figure 11.2 — CI/CD pipeline*
@@ -196,7 +200,7 @@ flowchart LR
 | End-to-end (backend) | `just e2e-day` (`e2e/backend`): a fresh database, the seed and two simulated weeks, then one delivery day through every job at its IST time over HTTP with real commits, the outbox relay and a fake FCM, ending with reusable invariants (ledger, wallets, order state machine, outbox, messages, stock); product bugs it finds stay `xfail(strict=True)` until fixed | Prathamesh Relekar; Rhythm Thakur, Manish Raje |
 | Load | k6 (`infra/k6`, `just load <script>`, local stack by default): cut-off with 2,000 orders; 200 concurrent box edits; thresholds are the SLOs of handbook 12 §12.6 | Rhythm Thakur, Manish Raje |
 | Device / manual | Low-end Android checklist, accessibility audit (axe, TalkBack) | Rhythm Thakur, Manish Raje |
-| Security | OWASP ASVS L1 checklist, gitleaks, pip-audit, pnpm audit, Trivy image scan | All |
+| Security | OWASP ASVS L1 checklist, gitleaks, pip-audit and pnpm audit (CI job "Dependency audit", weekly in `dependency-audit.yml`), Trivy image scan (planned) | All |
 
 **Parallel API tests.** `just test` and CI run the API suite with pytest-xdist (`-n 4`). Each worker gets a Postgres database of its own (`<TEST_DATABASE_URL's name>_gw0`, `_gw1` ..., created and migrated at the start, dropped at the end; `GB_KEEP_TEST_DBS=1` keeps them) and a Valkey database of its own (base index b becomes b + 16 * (n + 1), so Valkey needs `--databases 128`, which the compose file sets). The base database is not used under xdist: run `alembic upgrade head` on it before `alembic check`. A single file runs serially (`pytest tests/test_x.py`); add `-n 4` to a run of many files.
 

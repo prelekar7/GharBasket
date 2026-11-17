@@ -20,3 +20,15 @@ allowBuilds:
 # Remove once msw's own range resolves a patched vite.
 overrides:
   "msw>vite": 8.3.5
+
+# `pnpm audit` (CI job "Dependency audit", scripts/dependency-audit.sh): high and critical
+# advisories fail. An accepted advisory goes under `ignore` as its GHSA ID with a comment: the
+# package, why it does not affect us or cannot be upgraded yet, and a review date. The fix is
+# always to upgrade; an entry here needs a reviewer's approval in its pull request.
+audit:
+  level: high
+  ignore:
+    # @grpc/grpc-js (high): @firebase/firestore pins ~1.9 in every release, so no upgrade exists.
+    # It is Firestore's Node transport; the PWA's browser bundle uses WebChannel, not grpc-js.
+    # Review by 2027-01-15 or when firebase moves off ~1.9.
+    - GHSA-m9gg-hp2v-232j

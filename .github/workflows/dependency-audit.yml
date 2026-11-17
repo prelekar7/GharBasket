@@ -1,0 +1,53 @@
+# Weekly dependency audit (handbook 13 §13.10, scripts/dependency-audit.sh).
+#
+# CI's "Dependency audit" job checks the locked dependencies when a pull request or a push to main
+# runs it. Advisories are also published for versions we already locked, so this workflow runs the
+# same check on main every week; a failure tells the healthchecks `ops` alert (HC_OPS_URL,
+# ADR-0033) with the end of the report as the body. The fix is an upgrade (Renovate raises
+# security pull requests too), or an accepted advisory with its reason: see the script's header.
+name: Dependency audit
+
+on:
+  schedule:
+    - cron: "30 3 * * 1" # 09:00 IST on Mondays, after Renovate's weekly run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Locked dependencies against known advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HC_OPS_URL: ${{ secrets.HC_OPS_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.2.0
+
+      - uses: pnpm/setup@v3
+        with:
+          install: false
+
+      - name: Audit uv.lock and pnpm-lock.yaml
+        run: |
+          set -o pipefail
+          ./scripts/dependency-audit.sh 2>&1 | tee "$RUNNER_TEMP/audit.txt"
+
+      - name: Tell the ops alert
+        # healthchecks.io `ops` check (ADR-0033); skipped while the secret is unset.
+        if: failure() && env.HC_OPS_URL != ''
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          # The summary lines only, not pnpm's tables.
+          body=$(grep -Ev '^[│├┌└]' "$RUNNER_TEMP/audit.txt" 2>/dev/null | tail -n 30 || echo "the audit did not run")
+          curl --silent --show-error --max-time 10 --retry 3 \
+            --data-raw "$GITHUB_WORKFLOW: $body ($run_url)" "$HC_OPS_URL/fail" || true
