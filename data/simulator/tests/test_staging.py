@@ -4,12 +4,16 @@ argument handling and dry run on the local test database."""
 import asyncio
 import os
 import subprocess
+from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 from gharbasket_sim import staging
 from gharbasket_sim.staging import AlreadySimulated, NothingToAdd, Window, plan_window
+from sqlalchemy import text
+
+from gharbasket.platform.db import create_engine
 
 REPO = Path(__file__).resolve().parents[3]
 SCRIPT = REPO / "scripts" / "staging-demo.sh"
@@ -163,7 +167,31 @@ def test_the_script_dry_run_on_the_local_database_writes_nothing(database_url: s
     assert staging.counts(database_url) == before
 
 
+async def _set_mark(url: str, name: str | None) -> None:
+    engine = create_engine(url, pooled=False)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(text("DELETE FROM platform.environment"))
+            if name is not None:
+                await connection.execute(
+                    text("INSERT INTO platform.environment (singleton, name) VALUES (true, :n)"),
+                    {"n": name},
+                )
+    finally:
+        await engine.dispose()
+
+
+@pytest.fixture
+def marked_staging(database_url: str) -> Iterator[None]:
+    """The test database marked `staging` (ADR-0036), as the staging deploy marks Neon's; the
+    script guard refuses a shared database with no mark. The local database is never marked."""
+    asyncio.run(_set_mark(database_url, "staging"))
+    yield
+    asyncio.run(_set_mark(database_url, None))
+
+
 @pytest.mark.services
+@pytest.mark.usefixtures("marked_staging")
 def test_the_script_refuses_a_checkout_that_is_not_the_deployed_commit(database_url: str) -> None:
     # `localhost.` is the same server, but not a local host name: the shared-database path.
     shared = database_url.replace("@localhost:", "@localhost.:")
