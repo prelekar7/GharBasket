@@ -1,7 +1,9 @@
 import { ScanButton, StatusPill } from "@gharbasket/ui";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { scanCode } from "@/lib/scan.js";
+import { NATIVE } from "@/lib/env.js";
+import { parseScan, scanCode } from "@/lib/scan.js";
+import { ScannerUnavailableError } from "@/shared/native/scanner.js";
 import { problemText, useRiderActions } from "./queries.js";
 
 /** @type {Record<import("./queries.js").TiffinItem["status"], "planned" | "out" | "delivered" | "issue">} */
@@ -45,7 +47,7 @@ export function TiffinList({ items }) {
 
 /**
  * Scanning the cook's code at a kitchen stop: what is ready moves on, the rest waits for the next
- * scan (M7 §3.7). Without a scanner (the camera arrives with Capacitor) it says so.
+ * scan (M7 §3.7). The scanner is the phone app's; the web says to scan on the app.
  * @param {{ stop: import("./queries.js").Stop, open: boolean }} props `open`: a tiffin of the stop is still to collect
  */
 export function KitchenScan({ stop, open }) {
@@ -58,23 +60,39 @@ export function KitchenScan({ stop, open }) {
   );
   const codes = (/** @type {{ short_code: string }[]} */ list) =>
     list.map((x) => x.short_code).join(", ");
+  const [preparing, setPreparing] = useState(false);
+  const busy = useRef(false);
+  const fail = (/** @type {string} */ text) => {
+    setResult(null);
+    setMessage(text);
+    setState("error");
+    setTimeout(() => setState("idle"), 3000);
+  };
   const scan = async () => {
-    // On the mock API the scanner "reads" this kitchen's code, which is its stop's id here.
-    const code = await scanCode({ expected: `GB1A:${stop.id.replaceAll("-", "")}` });
+    if (busy.current) return;
+    busy.current = true;
     try {
-      if (!code) throw new Error("no scanner");
-      setResult(await actions.collect(stop, code));
+      // On the mock API the scanner "reads" this kitchen's code, which is its stop's id here.
+      const raw = await scanCode({
+        expected: `GB1A:${stop.id.replaceAll("-", "")}`,
+        onPreparing: setPreparing,
+      });
+      if (!raw) return NATIVE ? undefined : fail(t("rider.kitchen.noScanner")); // closed: not now
+      const pickup = parseScan(raw);
+      if (pickup?.kind !== "pickup") return fail(t("rider.kitchen.notKitchenCode"));
+      setResult(await actions.collect(stop, pickup.value));
       setState("success");
+      setTimeout(() => setState("idle"), 3000);
     } catch (e) {
-      setResult(null);
-      setMessage(
-        e instanceof Error && e.message === "no scanner"
-          ? t("rider.kitchen.noScanner")
+      fail(
+        e instanceof ScannerUnavailableError
+          ? t("rider.kitchen.scannerUnavailable")
           : problemText(t, e),
       );
-      setState("error");
+    } finally {
+      busy.current = false;
+      setPreparing(false);
     }
-    setTimeout(() => setState("idle"), 3000);
   };
   const out = result?.data;
   return (
@@ -82,7 +100,7 @@ export function KitchenScan({ stop, open }) {
       {(open || state !== "idle") && (
         <ScanButton
           state={state}
-          label={t("rider.kitchen.scan")}
+          label={preparing ? t("scan.preparing") : t("rider.kitchen.scan")}
           successLabel={t(result?.queued ? "rider.kitchen.queued" : "rider.kitchen.scanned")}
           errorLabel={message}
           onPress={scan}
