@@ -1,5 +1,7 @@
+import { formatPaise } from "@gharbasket/ui/money";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  budgetLockValue,
   clockTime,
   humanize,
   istClock,
@@ -127,5 +129,13 @@ describe("istDatesFrom", () => {
     vi.setSystemTime(new Date("2026-11-01T19:00:00Z")); // 00:30 on 2 Nov in India
     expect(istDatesFrom(3)).toEqual(["2026-11-02", "2026-11-03", "2026-11-04"]);
     expect(weekdayOf(istDatesFrom(1)[0])).toBe(0); // Monday
+  });
+});
+
+describe("budgetLockValue (#586)", () => {
+  it("shows the month's limit, Off when there is none, and nothing while loading", () => {
+    expect(budgetLockValue({ budget_paise: 400000 }, "Off")).toBe(formatPaise(400000));
+    expect(budgetLockValue({ budget_paise: null }, "Off")).toBe("Off");
+    expect(budgetLockValue(undefined, "Off")).toBeUndefined();
   });
 });

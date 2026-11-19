@@ -190,3 +190,18 @@ export function perUnit({ qty, unit }, pricePaise) {
     return { price_paise: Math.round(pricePaise / qty), unit: unit };
   return { price_paise: Math.round(pricePaise / qty), unit: unit === "bunch" ? "bunch" : "each" };
 }
+
+/**
+ * The Profile row's value for Budget Lock (#586): this month's limit from `GET /v1/budget-lock`, or
+ * `off` when there is none, the same answer as the Budget Lock screen. Not the household's
+ * onboarding budget (`households/me` `budget_paise`), which only feeds the "budget near" hint.
+ * @param {{ budget_paise: number | null } | undefined} lock `useBudgetLock().data`
+ * @param {string} off the "Off" label
+ * @returns {string | undefined} undefined while it loads
+ */
+export const budgetLockValue = (lock, off) =>
+  lock === undefined
+    ? undefined
+    : lock.budget_paise === null
+      ? off
+      : formatPaise(lock.budget_paise);
