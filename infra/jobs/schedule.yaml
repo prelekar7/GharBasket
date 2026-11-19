@@ -176,7 +176,7 @@ jobs:
     runner: actions
     cron: "0 1-4,7,9,13,15,16 * * *"
     ist: "06:30, 07:30, 08:30, 09:30, 12:30, 14:30, 18:30, 20:30, 21:30"
-    why: DEVIATION from M5 §3.4 (hourly at :17), to save Neon hours on staging, it runs on the wakes Neon has anyway, every half hour inside the windows and at 09:30, 12:30 and 14:30 by day (so every 2-3 hours by day), never overnight, when no payment is made. Restore the hourly cron at the pilot. GitHub may start a :00 cron late, which costs an extra wake
+    why: DEVIATION from M5 §3.4 (hourly at :17), to save Neon hours on staging, it runs on the wakes Neon has anyway, every half hour inside the windows and at 09:30, 12:30 and 14:30 by day (so every 2-3 hours by day), never overnight, when no payment is made. Kept for the team's real-money test on the free Neon plan (owner, 19 Nov 2026), since hourly would add 0.7-1.7 awake hours a day, over the 8.1 h budget. The signed webhook credits a payment at once, and this job is only the backstop for a missed one. Restore the hourly cron when the pilot moves to a paid database. GitHub may start a :00 cron late, which costs an extra wake
 
   - name: weekly_payouts
     runner: actions

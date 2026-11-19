@@ -68,6 +68,24 @@ def test_deployed_environments_refuse_a_short_jobs_token() -> None:
     make_settings(jobs_token="op-token")  # local development stays lax
 
 
+@pytest.mark.parametrize(
+    ("app_env", "database_url", "enabled"),
+    [
+        ("dev", None, True),
+        ("dev", "postgresql://gb:gb@localhost:5432/gharbasket", True),
+        ("dev", "postgresql://gb:gb@ep-x.ap-southeast-1.aws.neon.tech/neondb", False),
+        ("test", "postgresql://gb:gb@localhost:5432/gharbasket", False),
+    ],
+    ids=["dev-no-db", "dev-local", "dev-on-neon", "test-local"],
+)
+def test_dev_login_is_only_for_dev_on_a_local_database(
+    app_env: str, database_url: str | None, enabled: bool
+) -> None:
+    settings = make_settings(app_env=app_env, database_url=database_url)
+
+    assert settings.dev_login_enabled is enabled
+
+
 def test_secrets_never_appear_in_the_settings_repr() -> None:
     settings = make_settings(
         database_url="postgresql://app:s3cr3t@db.example/gb", jobs_token="op-token-123"

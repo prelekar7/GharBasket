@@ -67,7 +67,7 @@ sequenceDiagram
 - **CSRF:** a cookie-authenticated POST, PATCH, PUT or DELETE without `X-GB-Client: web`, or from an Origin outside `WEB_ORIGINS`, gets 403 `auth.csrf_rejected`.
 - **Instant sign-out:** logout, logout-all, device sign-out and refresh reuse put the session on a Valkey deny-list for the access token's remaining life. A refresh always checks the session in Postgres. A staff grant an admin revokes is refused at the person's next request in the same way (handbook 13 §13.3).
 - **Rate limits:** fixed windows in Valkey. Exchange: 30 per 10 minutes per address and 10 per 10 minutes per phone (keyed by a hash, never the number). Refresh: 300 per minute per address. If Valkey is down, requests are allowed.
-- **Dev login:** `dev_phone` signs in without OTP, only when `APP_ENV=dev`.
+- **Dev login:** `dev_phone` signs in without OTP, only when `APP_ENV=dev` and the database is local (`localhost`); against a shared database it answers 403 `auth.dev_login_disabled`.
 - **Roles with scopes:** `identity.user_roles(user_id, role, scope_type, scope_id, status)`.
 
 | Role | Scope | Status flow |
