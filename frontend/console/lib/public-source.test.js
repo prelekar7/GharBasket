@@ -36,3 +36,9 @@ test("isPublicMock follows the same switch, and needs no GB_API_URL", () => {
   assert.equal(isPublicMock({ GB_PUBLIC_API_MOCK: "false", GB_API_MOCK: "true" }), false);
   assert.equal(isPublicMock({ GB_PUBLIC_API_MOCK: "true", GB_API_MOCK: "false" }), true);
 });
+
+test("with neither switch set, Vercel's production deployment reads the real API", () => {
+  assert.equal(isPublicMock({ VERCEL_ENV: "production" }), false);
+  assert.equal(isPublicMock({ VERCEL_ENV: "preview" }), true);
+  assert.equal(isPublicMock({ VERCEL_ENV: "production", GB_PUBLIC_API_MOCK: "true" }), true);
+});

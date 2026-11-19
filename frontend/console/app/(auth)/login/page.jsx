@@ -2,15 +2,32 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { Wordmark } from "@/components/Wordmark.jsx";
 import { devLoginEnabled, isMockApi, MOCK_ROLES, ROLES } from "@/lib/session.js";
-import { LoginForm } from "./LoginForm.jsx";
+import { phoneSignInConfig } from "@/lib/sign-in.js";
+import { DevButtons, LoginForm } from "./LoginForm.jsx";
+import { PhoneSignIn } from "./PhoneSignIn.jsx";
 
 export const metadata = { title: "Sign in" };
 
-/** Decided per request, so one build can run with or without dev sign-in. */
-async function DevSignIn() {
+/**
+ * Decided per request, so one build can serve any setup: the real phone sign-in when the console
+ * talks to the real API and has a Firebase config (lib/sign-in.js), the dev stand-in while dev
+ * sign-in is on, and a plain refusal otherwise.
+ */
+async function SignIn() {
   await connection();
+  const firebase = phoneSignInConfig(process.env);
+  const roles = isMockApi() ? MOCK_ROLES : Object.entries(ROLES);
+  if (firebase)
+    return (
+      <div className="flex flex-col gap-5">
+        <PhoneSignIn firebase={firebase} />
+        {devLoginEnabled && (
+          <DevButtons roles={roles} note="Development only: skip the SMS (a dev API only)." />
+        )}
+      </div>
+    );
   return devLoginEnabled ? (
-    <LoginForm roles={isMockApi() ? MOCK_ROLES : Object.entries(ROLES)} />
+    <LoginForm roles={roles} />
   ) : (
     <p role="alert" className="font-semibold text-danger">
       Sign-in is not available on this server yet.
@@ -31,7 +48,7 @@ export default function LoginPage() {
           </p>
         </div>
         <Suspense>
-          <DevSignIn />
+          <SignIn />
         </Suspense>
         <p className="text-sm leading-5 text-fg-secondary">
           Same phone sign-in as the app. Signed in on a shared computer? Sign out when you leave:

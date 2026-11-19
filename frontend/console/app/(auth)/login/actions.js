@@ -22,6 +22,7 @@ import {
   ROLES,
   SESSION_COOKIE,
 } from "@/lib/session.js";
+import { looksLikeIdToken } from "@/lib/sign-in.js";
 
 /** The code every dev sign-in accepts, until Firebase phone auth is in the console. */
 const DEV_CODE = "123456";
@@ -90,6 +91,21 @@ export async function signIn(form) {
   if (isMockApi()) return startSession(role, next);
   await startRealSession({ dev_phone: `+91${ROLES[role].phone}` }, next);
   redirect("/login");
+}
+
+/**
+ * The real sign-in: the browser proved the phone with a Firebase SMS code (PhoneSignIn.jsx) and
+ * sends the Firebase ID token here, which goes to `POST /v1/auth/exchange` as `firebase_id_token`
+ * with `staff_only: true`. The API verifies the token; a number that is not staff goes to
+ * /not-staff. Real mode only: mock mode has no API to ask.
+ * @param {unknown} idToken
+ * @param {unknown} next
+ * @returns {Promise<{ error: string }>} only when sign-in failed; success redirects
+ */
+export async function signInWithFirebase(idToken, next) {
+  if (isMockApi()) redirect("/login");
+  if (!looksLikeIdToken(idToken)) return { error: "We could not sign you in. Try again." };
+  return startRealSession({ firebase_id_token: idToken }, typeof next === "string" ? next : "");
 }
 
 /**
