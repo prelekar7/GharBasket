@@ -114,7 +114,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
         run -H 'x-origin-secret: forged-{}' -H 'X-Forwarded-For: 198.51.100.{}'   # spoofed secret
         ```
      3. **Extra: a second network.** Right after a run that gave 429s, one request to the same `URL` from another network, such as a phone hotspot, should give 404: `curl -s -o /dev/null -w '%{http_code}\n' "$URL"`. A 429 means every caller on that path shares one counter. This check alone cannot tell Vercel's address from yours, so check 1 is the one that counts.
-8. Locally only (`APP_ENV=dev`), `dev_phone` signs in without an OTP.
+8. Locally only (`APP_ENV=dev` with the database on `localhost`), `dev_phone` signs in without an OTP. `APP_ENV=dev` pointed at Neon keeps it off.
 
 ## 13.4 Authorisation (roles with scopes)
 
@@ -137,7 +137,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 | Private files | KYC documents and delivery proofs in a private bucket; reads use signed URLs valid for 5 minutes. When a module accepts an uploaded photo, the API removes its location (GPS) and other EXIF/XMP metadata. An upload whose bytes are not the type it was signed as is refused: an image that does not parse, or a PDF that does not start with `%PDF-` (M0 §3.1) |
 | Payment card data | Never touches our servers (Razorpay hosted checkout) |
 | Logs | structlog with a PII scrubber, run last on every line (M0 §6.4). By pattern, anywhere in the text, including tracebacks: phone numbers, e-mail addresses, JWTs, bearer and basic credentials, and connection-string passwords. By field name, at any depth: names (`full_name`, `display_name` …) and addresses (`address`, `line1`, `flat`, `landmark` …). A bare `name` is masked inside logged data, but not as a top-level field, where it names code. Free-text names cannot be found by pattern, so code never passes people's names or addresses to a logger as text (handbook 11 §11.7). The access log has the path only, never the query string. Assistant messages scrubbed in the API (phones, e-mails, Aadhaar, PIN codes, addresses, the household's own names) before they are stored or sent to the ML service |
-| Backups | Staging is a Neon child branch with no point-in-time restore: `before-demo-*` restore points, and a weekly `pg_dump` to the private R2 bucket `gb-staging-backups` (handbook 12 §12.4). The dump holds personal data, so the bucket stays private and its token covers that bucket only |
+| Backups | Staging is a Neon child branch with no point-in-time restore: `before-demo-*` restore points, and a daily `pg_dump` (kept 30 days) to the private R2 bucket `gb-staging-backups` (handbook 12 §12.4). The dump holds personal data, so the bucket stays private and its token covers that bucket only |
 | Retention | GPS pings 90 days; webhook payloads 180 days; audit log 3 years; deleted accounts purged within 30 days |
 
 ## 13.6 Privacy — DPDP Act 2023 and DPDP Rules 2025

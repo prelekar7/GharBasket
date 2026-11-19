@@ -125,7 +125,7 @@ IST and is a no-op when every row is current. Rotating the key:
    `KycStatementError (SQLSTATE 39000)` reached a row whose configured key is wrong: the rows before it have moved (the
    `kyc.rekeyed` audit row says how many, with `failed: true`); fix the key and run again.
 5. Remove the retired key from Render (`KYC_RETIRED_KEYS` unset or without it). Keep it in Infisical for as long as the
-   weekly backups hold rows encrypted with it (8 weeks, handbook 12), then delete it there too.
+   daily backups hold rows encrypted with it (30 days, handbook 12), then delete it there too.
 
 The pepper follows the same steps with `KYC_HASH_PEPPER`, `KYC_PEPPER_VERSION` and `KYC_RETIRED_PEPPERS`; both may be
 rotated together and one run of the job does both. If a key or pepper leaked, the same steps apply, and the backups made
