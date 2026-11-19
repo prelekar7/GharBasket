@@ -31,7 +31,8 @@ import {
   useUpdateMe,
 } from "@/features/identity/profile.js";
 import { useInbox } from "@/features/notifications/queries.js";
-import { shortDate } from "@/features/subscriptions/format.js";
+import { budgetLockValue, shortDate } from "@/features/subscriptions/format.js";
+import { useBudgetLock } from "@/features/subscriptions/queries.js";
 import { LOCALES, setLocale } from "@/i18n.js";
 import { ApiError } from "@/lib/api.js";
 import { AUTOPAY } from "@/lib/features.js";
@@ -51,9 +52,9 @@ function Profile() {
   const lang = /** @type {keyof typeof LANGUAGE_NAMES} */ (i18n.resolvedLanguage ?? "en-IN");
   const { user, roles, signOut } = useSession();
   const household = useMyHousehold();
-  const hh = household.data;
   const { data: society } = useSociety(household.data?.society_id);
   const wallet = useWallet();
+  const budgetLock = useBudgetLock();
   const mandate = useMandate();
   const update = useUpdateMe();
   const inbox = useInbox(lang);
@@ -111,11 +112,8 @@ function Profile() {
     {
       key: "budget",
       label: t("budget.title"),
-      value: hh
-        ? hh.budget_paise
-          ? formatPaise(hh.budget_paise)
-          : t("profile.edit.off")
-        : undefined,
+      // This month's Budget Lock, as the Budget Lock screen shows it (#586).
+      value: budgetLockValue(budgetLock.data, t("profile.edit.off")),
       onPress: () => navigate({ to: "/budget" }),
     },
     ...(AUTOPAY
