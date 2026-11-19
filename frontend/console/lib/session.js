@@ -1,12 +1,14 @@
 /**
  * The console session. Which sections a role sees is UX only; the API enforces permissions.
  *
- * - Mock mode (the default): the `gb_session` cookie holds the role from the dev sign-in, and that is
+ * - Mock mode (the default, except on Vercel's production deployment): the `gb_session` cookie holds the role from the dev sign-in, and that is
  *   the whole session.
  * - Real mode (`GB_API_MOCK=false`): the API's own cookies are the session (`__Host-gb_at`, the
  *   access token, and `gb_rt`, the refresh token; see lib/auth-cookies.js) and `gb_session` only
  *   remembers which staff role this person works as (UX; the roles come from `GET /v1/me`).
  */
+
+import { isMockApiIn } from "./sign-in.js";
 
 export const SESSION_COOKIE = "gb_session";
 
@@ -23,10 +25,12 @@ export const REFRESH_COOKIE = "gb_rt";
 export const FRESH_COOKIE = "gb_fresh";
 
 /**
- * Whether the console answers API calls from the in-process mocks (the default) or calls the real
- * API at `GB_API_URL` (`GB_API_MOCK=false`). Read per call, so one build can serve either.
+ * Whether the console answers API calls from the in-process mocks or calls the real API at
+ * `GB_API_URL` (`GB_API_MOCK=false`). Unset, Vercel's production deployment uses the real API and
+ * everything else the mocks (lib/sign-in.js `isMockApiIn`). Read per call, so one build can serve
+ * either.
  */
-export const isMockApi = () => process.env.GB_API_MOCK !== "false";
+export const isMockApi = () => isMockApiIn(process.env);
 
 /** @typedef {"admin" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "catalog_editor"} ConsoleRole */
 
