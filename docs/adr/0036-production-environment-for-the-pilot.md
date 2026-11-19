@@ -43,7 +43,7 @@ Two facts limit the choices:
 - `app.gharbasket.co.in` serves the production PWA.
 - `gharbasket.co.in` serves the production console.
 
-Staging moves to `staging-api.gharbasket.co.in`, `staging-app.gharbasket.co.in` and `staging.gharbasket.co.in`. The change happens in one step, just before the pilot. Every place that names staging's address moves with it (handbook 12 §12.2): the VM scheduler, the mandi collector, the Capacitor staging build, UptimeRobot, the Razorpay test webhook, Firebase's authorised domains, `WEB_ORIGINS` and `STAGING_API_URL`.
+Staging moves to `staging-api.gharbasket.co.in`, `staging-app.gharbasket.co.in` and `staging.gharbasket.co.in`. The change happens in one step, just before the pilot. Every place that names staging's address moves with it (handbook 12 §12.9, "The domain move"): the VM scheduler, the mandi collector, the Capacitor staging build, UptimeRobot, the Razorpay test webhook, Firebase's authorised domains, `WEB_ORIGINS` and `STAGING_API_URL`.
 
 **Deploying to production.**
 - A workflow `deploy-prod.yml`, started by hand (`workflow_dispatch`), with the commit to deploy as its input.
@@ -76,7 +76,7 @@ Staging moves to `staging-api.gharbasket.co.in`, `staging-app.gharbasket.co.in` 
 - (+) Production deploys are deliberate and approved, and they only take a commit staging has already run.
 - (−) Production costs money. At least the API host (Render's free hours are used), the frontend host for commercial use, Firebase SMS, and likely the ML service. Prices are checked on the providers' own pages when the owner chooses, before the pilot.
 - (−) Two of everything to keep in step. Secrets, alerts, the scheduler and runbooks each get a production entry. Handbook 12 lists them in one table.
-- (−) The domain move touches every staging caller once. It is one checklist in handbook 12 §12.2, done in one sitting before the pilot.
+- (−) The domain move touches every staging caller once. It is one checklist in handbook 12 §12.9 ("The domain move"), done in one sitting before the pilot.
 - (−) Outside the code: Razorpay live mode needs business KYC, and WhatsApp needs Meta's business verification. Both need the legal and food registrations (GST, FSSAI/FoSCoS) that the team handles outside this repository.
 
 ## Order of work (each step a PR the owner approves)
