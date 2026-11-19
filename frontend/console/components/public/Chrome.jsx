@@ -38,7 +38,7 @@ export function PublicHeader({ children, wide = false }) {
 }
 
 /**
- * Footer of the public pages: privacy notice, optional language switch, and the staff sign-in
+ * Footer of the public pages: the legal pages (privacy, terms, refunds, contact), optional language switch, and the staff sign-in
  * (signed-out staff land here now that "/" no longer redirects to the sign-in).
  * @param {{ lang?: "en" | "hi", switchLang?: boolean, wide?: boolean, note?: string }} props
  */
@@ -73,6 +73,15 @@ export function PublicFooter({ lang = "en", switchLang = false, wide = false, no
         )}
         <Link href="/privacy" className="text-link">
           {hi ? "गोपनीयता नोटिस" : "Privacy notice"}
+        </Link>
+        <Link href="/terms" className="text-link">
+          {hi ? "शर्तें" : "Terms"}
+        </Link>
+        <Link href="/refund-policy" className="text-link">
+          {hi ? "रिफ़ंड नीति" : "Refunds"}
+        </Link>
+        <Link href="/contact" className="text-link">
+          {hi ? "संपर्क" : "Contact"}
         </Link>
         <Link href="/login" className="text-link">
           Staff sign in
