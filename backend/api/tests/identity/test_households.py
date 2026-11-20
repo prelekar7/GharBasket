@@ -68,7 +68,8 @@ async def test_the_created_event_has_no_sensitive_details(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    body = (await onboard(api, await customer(api, google))).json()
+    customer_auth = await customer(api, google)
+    body = (await onboard(api, customer_auth, onboarding(owner_name="Priya Sharma"))).json()
 
     event = (
         await db_session.execute(
@@ -271,6 +272,9 @@ async def test_a_society_without_a_boundary_accepts_any_pin_and_no_pin(
         {"consents": [ONBOARDING["consents"][0], ONBOARDING["consents"][0]]},
         {"shortage_preference": "never"},
         {"surprise": 1},
+        {"owner_name": "P"},
+        {"owner_name": "x" * 41},
+        {"owner_name": "   "},
     ],
 )
 async def test_invalid_onboarding_is_422(
@@ -282,6 +286,63 @@ async def test_invalid_onboarding_is_422(
 
     assert response.status_code == 422
     assert response.json()["code"] == "request.invalid"
+
+
+# --- the owner's name (#492) ------------------------------------------------------------------
+
+
+async def test_the_owner_name_becomes_the_profile_name(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+
+    response = await onboard(api, headers, onboarding(owner_name="  Priya   Sharma "))
+    me = await api.get("/v1/me", headers=headers)
+
+    assert response.status_code == 201, response.text
+    assert "owner_name" not in response.json()
+    assert me.json()["name"] == "Priya Sharma"
+
+
+async def test_without_an_owner_name_the_profile_name_stays_empty(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+
+    response = await onboard(api, headers)
+    me = await api.get("/v1/me", headers=headers)
+
+    assert response.status_code == 201
+    assert me.json()["name"] is None
+
+
+async def test_the_owner_name_never_overwrites_a_name_already_chosen(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+    await api.patch("/v1/me", json={"name": "Priya"}, headers=headers)
+
+    response = await onboard(api, headers, onboarding(owner_name="Someone Else"))
+    me = await api.get("/v1/me", headers=headers)
+
+    assert response.status_code == 201
+    assert me.json()["name"] == "Priya"
+
+
+async def test_a_two_letter_devanagari_owner_name_is_accepted(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+
+    response = await onboard(api, headers, onboarding(owner_name="सु"))
+    me = await api.get("/v1/me", headers=headers)
+
+    assert response.status_code == 201, response.text
+    assert me.json()["name"] == "सु"
 
 
 # --- reading ----------------------------------------------------------------------------------

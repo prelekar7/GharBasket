@@ -19,6 +19,7 @@ from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 from ..community.conftest import deliver
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
+from ..identity.onboarding import onboard, onboarding
 from .conftest import (
     ARJUN,
     LATA,
@@ -153,6 +154,21 @@ async def test_the_household_hub_kind_and_name_are_checked(
     assert code(short) == code(long) == (422, "partners.display_name_invalid")
     assert code(no_hub) == (422, "partners.no_hub")
     assert await _events(db_session, partners_api.APPLICATION_SUBMITTED) == []
+
+
+async def test_the_name_given_at_onboarding_is_the_display_name_when_none_is_sent(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    """#492: a new user who named herself while onboarding can apply without a display_name."""
+    api = clients()
+    kavita, _ = await as_user(api, google, "+919800004920")
+    onboarded = await onboard(api, kavita, onboarding(owner_name="  Kavita   More "))
+
+    application = await apply(api, kavita, kind="kitchen")
+
+    assert onboarded.status_code == 201, onboarded.text
+    assert application.status_code == 201, application.text
+    assert application.json()["display_name"] == "Kavita More"
 
 
 async def test_one_open_application_per_person_and_another_kind_after_verification(
