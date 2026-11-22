@@ -25,7 +25,9 @@ WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 async def page(session: AsyncSession, settings: Settings, slug: str) -> PublicSocietyOut | None:
     """The society's page, or None when it is unknown, a prospect or paused."""
-    society = await community_api.public_society(session, slug)
+    society = await community_api.public_society(
+        session, slug, hide_demo=settings.hides_demo_societies
+    )
     if society is None:
         return None
     giving = await community_api.society_impact(session, society.id, "all", with_hub=False)

@@ -179,13 +179,21 @@ def is_jain(member: HouseholdMember) -> bool:
 
 
 async def create_household(
-    session: AsyncSession, owner_id: uuid.UUID, body: HouseholdIn, *, data_source: str = "real"
+    session: AsyncSession,
+    owner_id: uuid.UUID,
+    body: HouseholdIn,
+    *,
+    data_source: str = "real",
+    hide_demo: bool = False,
 ) -> Household:
     existing = await household_of(session, owner_id)
     if existing is not None:
         raise _household_exists(existing.id)
 
     society = await community_api.get_society(session, body.society_id)
+    # Once money is real, a demo (synthetic) society cannot be joined; it is not offered either.
+    if society is not None and hide_demo and society.data_source != "real":
+        society = None
     if society is None:
         raise ProblemError(422, "identity.society_unknown", "No such society.")
     await check_address(

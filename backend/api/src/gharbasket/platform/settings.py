@@ -483,6 +483,12 @@ class Settings(DatabaseSettings):
         return self.app_env == "dev" and (url is None or is_local_database(url.get_secret_value()))
 
     @property
+    def hides_demo_societies(self) -> bool:
+        """Real money is in play (RAZORPAY_MODE=live, ADR-0037, ADR-0039): the synthetic (demo)
+        societies are no longer offered to anyone; until then the team's demos use them."""
+        return self.razorpay_mode == "live"
+
+    @property
     def razorpay_enabled(self) -> bool:
         return self.razorpay_key_id is not None and self.razorpay_key_secret is not None
 

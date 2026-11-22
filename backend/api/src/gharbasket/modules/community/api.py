@@ -99,6 +99,7 @@ class SocietyRef:
     tower_ids: frozenset[str]
     name: str
     live_at: datetime | None  # set once, when it first went live (§3.6, §3.8)
+    data_source: str  # real | synthetic (a demo society, never offered once money is real)
 
 
 async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRef | None:
@@ -112,6 +113,7 @@ async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRe
         tower_ids=frozenset(str(tower["id"]) for tower in society.towers),
         name=society.name,
         live_at=society.live_at,
+        data_source=society.data_source,
     )
 
 
@@ -458,12 +460,17 @@ class PublicSociety:
     live_at: datetime | None
 
 
-async def public_society(session: AsyncSession, slug: str) -> PublicSociety | None:
-    """The referral landing page's society (M12 §3.7): `unlocking` and `live` ones only."""
+async def public_society(
+    session: AsyncSession, slug: str, *, hide_demo: bool = False
+) -> PublicSociety | None:
+    """The referral landing page's society (M12 §3.7): `unlocking` and `live` ones only, and no
+    synthetic one with `hide_demo` (real money is in play, M9 §3.1)."""
     society = (
         await session.execute(select(Society).where(Society.slug == slug))
     ).scalar_one_or_none()
     if society is None or society.status not in ("unlocking", "live"):
+        return None
+    if hide_demo and society.data_source != "real":
         return None
     return PublicSociety(
         id=society.id,

@@ -100,6 +100,8 @@ POST /v1/society-requests     (customer; Idempotency-Key required)
 
 **Exact slug (added 2026-11-13).** The PWA's `/join?s=<slug>` route (the Join button on the console's `/s/<slug>` page: M12 §3.7's `join_url`) has a slug, not an id, and a name search can rank a similar society first. `slug=` returns that one society in the list shape, so the society picker keeps a single code path, and then `GET /v1/societies/{id}` loads it as usual. It shows nothing new: every search result already carries its `slug`, and `SocietySummary` has no captain data. It returns a society in any status, as search does (a prospect society is where joining starts); the public `/v1/public/societies/{slug}` page (M12) stays limited to `unlocking` and `live`. Slugs are always lowercase, so the given slug is lowercased and compared exactly; the `slug` column is unique, so the lookup uses its index; no migration.
 
+**Demo societies once money is real (added 2026-11-22, [ADR-0039](../adr/0039-staging-is-production.md)).** While the API runs `RAZORPAY_MODE=live` (after the cut-over, M5 §3.10), synthetic societies (`data_source = synthetic`: the seed and `just staging-demo`) are never offered: search, `slug=` and the public `/v1/public/societies/{slug}` page (404) leave them out, and `POST /v1/households` with one answers `422 identity.society_unknown`, as for an unknown id. In `test` mode nothing changes, so the team's demos keep using them. `GET /v1/societies/{id}` still answers for households already there. Real societies are added by the hub in the console.
+
 **Error codes**
 
 | Status | Code | When |
