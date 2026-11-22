@@ -82,7 +82,11 @@ def test_a_changed_payload_breaks_the_signature() -> None:
 
     with time_machine.travel(ISSUED, tick=False):
         _rejected(_settings(), f"{header}.{forged}.{signature}")
-        _rejected(_settings(), f"{header}.{payload}.{signature[:-2]}AA")
+        # Change the second-to-last character: all six of its bits are signature bits. (Replacing
+        # the last two with "AA" kept the same bytes about once in 1,000 runs, because the last
+        # base64url character of a 32-byte HMAC carries two padding bits.)
+        swapped = "B" if signature[-2] != "B" else "C"
+        _rejected(_settings(), f"{header}.{payload}.{signature[:-2]}{swapped}{signature[-1]}")
 
 
 def test_unsigned_and_unknown_key_tokens_are_refused() -> None:
