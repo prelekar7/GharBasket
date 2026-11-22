@@ -6,6 +6,33 @@ Once, by the owner, when staging moves from Razorpay's test account to the live 
 M5 §3.10). The two jobs are `billing_cutover_prepare` and `billing_cutover_live`. Both refuse with
 `409 billing.cutover_not_live` unless the API runs `RAZORPAY_MODE=live`, and both are safe to run again.
 
+## Go live on staging: the whole checklist (decided 19 November 2026)
+
+The owner chose to open GharBasket for real on the **current staging**, on the **free plans** for the team's
+real-money test (Render, Vercel Hobby, Neon free). A separate production (ADR-0036, handbook 12 §12.9) is decided after
+the test, before the pilot societies join. Work through these in order. Each line says who does it and how it is
+checked. The cut-over itself is "Steps" below.
+
+| # | Step | Who | Checked by |
+|---|---|---|---|
+| 1 | The repo PRs of the go-live plan are merged: daily backups and the dev-login guard (#587), this checklist, the console's real staff sign-in (#589), the public Terms, Refund policy and Contact pages (#590), the Budget Lock label (#586) and the console CSP | Prathamesh (merge), Yash (frontend reviews) | CI green on `main`; the staging deploy is green |
+| 2 | **Console (Vercel project `ghar-basket-12to`):** `GB_API_MOCK=false` and `GB_PUBLIC_API_MOCK=false` set, **`GB_DEV_LOGIN` deleted**, the staging Firebase project's web config added as `GB_FIREBASE_API_KEY`, `GB_FIREBASE_AUTH_DOMAIN`, `GB_FIREBASE_PROJECT_ID` and `GB_FIREBASE_APP_ID` (the PWA's `VITE_FIREBASE_*` values; #589), then a redeploy | Owner | The login page shows no "Development only" block and no "Continue as" buttons; an admin's phone signs in with an SMS code |
+| 3 | **Firebase (staging project):** the Blaze plan (real SMS is billed per message; there is no monthly fee); `gharbasket.co.in` and `app.gharbasket.co.in` are authorised domains (done 22 November 2026); the fictional test phone numbers **stay** for the backend engineers (owner, 22 November 2026), each one on a customer-only account with its own non-trivial code, kept in Infisical and never in the repo | Owner | A team member's own phone gets a real SMS code in the app and in the console; no test number belongs to a staff account |
+| 4 | **PWA (Vercel project `ghar-basket`):** `VITE_FIREBASE_TEST_MODE` unset, `ORIGIN_SECRET` equal to Render's, then a redeploy | Owner | The proxy spoof checks of handbook 13 §13.3 pass (spaced out: bursts trip Cloudflare's challenge) |
+| 5 | **Legal:** every placeholder in `docs/legal/` filled (business name, address, support contacts, grievance officer, FSSAI, GSTIN, dates), reviewed by Prof. Kranti Bade; then the copies in `frontend/console/content/legal/` are updated (the "Draft" banners go by themselves); the Terms, Refund policy and Contact URLs go into Razorpay's website settings | Owner, guide; Prathamesh (banner PR) | The pages at `gharbasket.co.in/terms`, `/refund-policy`, `/contact` and `/privacy` show no placeholder and no banner |
+| 6 | **Alerts:** the healthchecks.io checks (`ops`, `scheduler`, the heartbeats) and the Grafana 5xx alert exist and are green; `/v1/ready` answers with the operator token | Owner | A test ping reaches the owner's phone; `/v1/ready` is 200 |
+| 7 | **The cut-over** ("Steps" below): flush test refunds, switch the live keys and `RAZORPAY_MODE=live` together, prepare until no blockers, close, then the ₹100 test | Owner (keys), Prathamesh (jobs, each on the owner's word) | `/v1/ready` shows `payments_mode: live`; every wallet statement shows "Test balance closed"; the Razorpay dashboard matches the wallet after the ₹100 test |
+| 8 | **One team-only week of real orders**, then the pilot societies. Before they join: paid plans, and staging-as-production or the separate production (ADR-0037 §6) | Team; owner decides | The week's `ops_check` runs are clean and reconciliation has no open item |
+
+**Risks accepted for the team test (owner, 19 November 2026).**
+- **The API sleeps between the job windows** (free Render). The first person to open the app after a quiet spell waits 20 to 50 seconds.
+- **Vercel Hobby is for non-commercial use.** The PWA and the console take real payments through Razorpay while on it, so move them to Vercel Pro or another host before the pilot societies join.
+- **`reconcile_payments` runs every 2 to 3 hours by day**, not hourly as ADR-0037 §5 says. Hourly would push Neon past its free compute budget (`infra/jobs/schedule.yaml`). The signed webhook credits each payment at once; reconciliation is the backstop for a missed one.
+
+- **Firebase's fictional test numbers stay on the live project** (owner, 22 November 2026), so the backend engineers can sign in while coding. A test number signs in with a fixed code and no SMS, so anyone who learns a number and its code is that account. The conditions: no test number belongs to a staff account (the console's `staff_only` sign-in then refuses it), each has its own code (not `123456`), and the list lives only in Infisical. Any real top-up on a test number is real money.
+
+**Not part of this launch.** The Android app's Play release and the Razorpay-in-Capacitor test (spike S-1) are Yash's, after the PWA launch. Partner payouts stay `simulated`: the owner pays partners outside the app (ADR-0037 §5).
+
 ## Before: pick the day, and tell the team
 
 - Close on a day after the last test-paid delivery and before the next 21:00 cut-off. A delivered order blocks the
