@@ -37,7 +37,8 @@ Four pages for the public site (`gharbasket.co.in`, the console app), which Razo
 | `[REFUND TIME TO BANK, to be confirmed]` | refunds §7 |
 | `[TAX NOTE, …]` | terms §5 |
 | `[PARTNER PAYMENT TERMS, to be added]` | terms §10 |
-| `[LOCATION — to be confirmed]` (per provider) | privacy §4 |
+| `[R2 REGION — to be confirmed …]` (the bucket's Location in Cloudflare → R2 → bucket → Settings) | privacy §4 |
+| `[GRAFANA REGION — to be confirmed …]` (the zone in `OTEL_EXPORTER_OTLP_ENDPOINT`, e.g. `prod-ap-south-1`) | privacy §4 |
 | `[RETENTION PERIOD — to be confirmed]` (orders and money records: the period Indian tax and accounting law requires) | privacy §6 |
 
 ## Open questions (the specs are silent, or leave it to someone else)
@@ -56,7 +57,7 @@ Four pages for the public site (`gharbasket.co.in`, the console app), which Razo
 12. **Retention of orders and the ledger after deletion.** Kept "for legal record keeping" (handbook 13 §13.6) with no period. Choose one (tax law).
 13. **Chat retention.** M13 §11 proposes 30 days; nothing is decided, so the notice says "until you delete your account".
 14. **Backups and erasure.** ADR-0037 §5 keeps 30 daily dumps (built in #587); no spec says whether a purged account is removed from backups or rolls off.
-15. **Provider locations.** Only Render and Neon (Singapore) are documented. Confirm Firebase, Razorpay, R2 (region `auto`), Vercel, GitHub, Anthropic, Meta and Grafana Cloud.
+15. **Provider locations.** Checked on 22 Nov 2026 against each provider's own pages (sources at the end of privacy.md). Two remain: the R2 bucket's region (created with `auto`) and the Grafana Cloud stack's region. The staff console's Vercel functions run in Washington, D.C. (`iad1`, Vercel's default); moving them to Singapore (`sin1`, next to the API) would shorten every console request and take staff data out of the US. If that is changed, update privacy §4 and §5.
 16. **PostHog.** ADR-0020 and handbook 12 name it, but no PostHog code exists in `frontend/` or `backend/api`, so the notice leaves it out. Add it when it ships.
 17. **Tax invoices and GST.** M5 §1 lists "invoices", but only a JSON wallet statement exists (PDF later, M5 §3.2). Real sales may need tax invoices.
 18. **Translations.** Handbook 13 §13.6 promises the notice in English, Hindi and Marathi; only English is drafted.
