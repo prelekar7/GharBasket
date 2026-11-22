@@ -65,13 +65,17 @@ def _found(society: Society, distance: float | None) -> Found:
     return Found(society, None if distance is None else round(distance))
 
 
-async def by_slug(session: AsyncSession, slug: str, *, near: LatLng | None) -> list[Found]:
+async def by_slug(
+    session: AsyncSession, slug: str, *, near: LatLng | None, hide_demo: bool = False
+) -> list[Found]:
     """The society with this slug, in any status, as a list of 0 or 1 (spec §3.1).
 
     Slugs are always lowercase, so the given one is lowercased and compared exactly, which uses
-    the unique index on `slug`.
+    the unique index on `slug`. `hide_demo` leaves out synthetic societies (real money, §3.1).
     """
     stmt = select(Society, _distance(near)).where(Society.slug == slug.lower())
+    if hide_demo:
+        stmt = stmt.where(Society.data_source == "real")
     row = (await session.execute(stmt)).first()
     return [] if row is None else [_found(row[0], row[1])]
 
@@ -83,9 +87,12 @@ async def search(
     near: LatLng | None,
     cursor: str | None,
     limit: int,
+    hide_demo: bool = False,
 ) -> tuple[list[Found], str | None]:
     distance = _distance(near)
     stmt = select(Society, distance)
+    if hide_demo:  # real money is in play: synthetic societies are never offered (§3.1)
+        stmt = stmt.where(Society.data_source == "real")
     # The sort keys, each with the type its cursor value must have; the order kind goes into the
     # cursor too, so a cursor from one kind of search is refused by another.
     keys: list[ColumnElement[Any] | InstrumentedAttribute[Any]] = []

@@ -9,7 +9,7 @@ import uuid
 from dataclasses import asdict
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.community import jobs as _jobs  # noqa: F401 (registers the consumers)
@@ -43,6 +43,7 @@ from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.pagination import Cursor, Page
 from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["community"])
@@ -74,6 +75,9 @@ def _summary(society: Society, distance_m: int | None) -> SocietySummary:
     )
 
 
+AppSettings = Annotated[Settings, Depends(get_settings)]
+
+
 @router.get(
     "/societies",
     summary="Find societies by name or area, or the nearest ones",
@@ -88,6 +92,7 @@ def _summary(society: Society, distance_m: int | None) -> SocietySummary:
 async def search_societies(
     _principal: CurrentPrincipal,
     session: DbSession,
+    settings: AppSettings,
     q: Annotated[
         str | None,
         Query(max_length=80, description="Words of the name or area; typos and accents are fine"),
@@ -108,6 +113,7 @@ async def search_societies(
     cursor: Cursor = None,
     limit: Annotated[int, Query(ge=1, le=SEARCH_LIMIT, description="Items per page")] = 20,
 ) -> Page[SocietySummary]:
+    hide_demo = settings.hides_demo_societies
     words = " ".join(q.split()) if q else None
     point = service.parse_near(near) if near else None
     if slug is not None:
@@ -115,12 +121,12 @@ async def search_societies(
             raise ProblemError(
                 422, "request.invalid", "`slug` cannot be combined with `q` or `cursor`."
             )
-        found = await service.by_slug(session, slug, near=point)
+        found = await service.by_slug(session, slug, near=point, hide_demo=hide_demo)
         return Page(
             items=[_summary(hit.society, hit.distance_m) for hit in found], next_cursor=None
         )
     found, next_cursor = await service.search(
-        session, q=words, near=point, cursor=cursor, limit=limit
+        session, q=words, near=point, cursor=cursor, limit=limit, hide_demo=hide_demo
     )
     return Page(
         items=[_summary(hit.society, hit.distance_m) for hit in found], next_cursor=next_cursor

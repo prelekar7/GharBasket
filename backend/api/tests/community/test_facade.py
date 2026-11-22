@@ -26,6 +26,7 @@ async def test_get_society_gives_what_an_address_needs(db_session: AsyncSession)
         tower_ids=frozenset({"a", "b", "c"}),
         name="Sunrise Towers",
         live_at=society.live_at,
+        data_source="synthetic",  # every seed society is a demo one
     )
     unlocking = await api.get_society(db_session, GREEN_VALLEY)
     assert unlocking is not None and (unlocking.status, unlocking.live_at) == ("unlocking", None)
