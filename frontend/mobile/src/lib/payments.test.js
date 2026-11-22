@@ -86,6 +86,26 @@ describe("Razorpay Checkout", () => {
     await webDone;
   });
 
+  it("opens on UPI (apps on a phone, a QR on a laptop) and keeps the other methods below", async () => {
+    const web = await load(false);
+    const done = web.payWithRazorpay(order, { description: "Top up", contact: "+919800001001" });
+    await opened();
+    const { options } = checkouts[0];
+    expect(options.config.display.sequence).toEqual(["block.upi"]);
+    expect(options.config.display.blocks.upi.instruments).toEqual([
+      { method: "upi", flows: ["intent", "qr"] },
+    ]);
+    expect(options.config.display.preferences.show_default_blocks).toBe(true);
+    expect(options).toMatchObject({
+      key: order.key_id,
+      order_id: order.razorpay_order_id,
+      amount: order.amount_paise,
+      prefill: { contact: "+919800001001" },
+    });
+    options.handler({});
+    await done;
+  });
+
   it("rejects as dismissed when the person closes it, or with the failure they saw first", async () => {
     const { payWithRazorpay } = await load(true);
     const first = payWithRazorpay(order, { description: "Top up" });
