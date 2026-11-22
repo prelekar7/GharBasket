@@ -1,0 +1,10 @@
+{
+  "slug": "TODO: the hub's slug, 3-40 of a-z, 0-9 and -, e.g. kharghar; it never changes",
+  "name": "TODO: the hub's name as staff see it, e.g. Kharghar hub",
+  "address": "TODO: the hub's street address",
+  "location": {
+    "lat": "TODO: the hub's latitude",
+    "lng": "TODO: the hub's longitude"
+  },
+  "service_area": "TODO: at least 3 corners [{\"lat\": ..., \"lng\": ...}, ...] around every society the hub serves"
+}

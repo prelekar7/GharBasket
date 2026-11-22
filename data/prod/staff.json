@@ -1,0 +1,20 @@
+{
+  "staff": [
+    {
+      "phone": "TODO: the owner's mobile number, +91...",
+      "role": "admin",
+      "name": "TODO: their name"
+    },
+    {
+      "phone": "TODO: the hub manager's mobile number, +91...",
+      "role": "hub_manager",
+      "hub": "TODO: hub.json's slug",
+      "name": "TODO: their name"
+    },
+    {
+      "phone": "TODO: the catalog editor's mobile number, +91...",
+      "role": "catalog_editor",
+      "name": "TODO: their name"
+    }
+  ]
+}

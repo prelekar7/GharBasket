@@ -550,7 +550,14 @@ async def _kept(session: AsyncSession, model: Any, slug: str, refresh: bool) -> 
 
 
 async def seed_catalog(
-    session: AsyncSession, *, refresh: bool = False, keep_existing: bool = False
+    session: AsyncSession,
+    *,
+    refresh: bool = False,
+    keep_existing: bool = False,
+    folder: Path = CATALOG_SEED,
+    prices_file: Path | None = None,
+    hub_id: uuid.UUID = SEED_HUB_ID,
+    data_source: str = "synthetic",
 ) -> list[tuple[str, bool]]:
     """Add data/seeds/catalog: categories, products, the seed hub's price list, recipes and
     festival days.
@@ -558,11 +565,12 @@ async def seed_catalog(
     Products and recipes are only added (by slug); with `refresh` the seed files' values are
     re-applied to the rows nobody edited in the console (M2 §3.3). With `keep_existing` (a shared
     database) categories, the price list and festival days are only added too. Returns
-    (slug, created) for each product.
+    (slug, created) for each product. The production load (`prod_load`) passes its own folder,
+    price list, hub and `data_source='real'`.
     """
     if refresh and keep_existing:
         raise ValueError("refresh rewrites rows; keep_existing promises not to")
-    categories = json.loads((CATALOG_SEED / "categories.json").read_text())["categories"]
+    categories = json.loads((folder / "categories.json").read_text())["categories"]
     for category in categories:
         if keep_existing and await session.scalar(
             select(Category.id).where(Category.slug == category["slug"])
@@ -578,9 +586,9 @@ async def seed_catalog(
             "source": NUTRITION_SOURCES[row["source"]["name"]],
             "ref": {key: value for key, value in row["source"].items() if key != "name"},
         }
-        for row in json.loads((CATALOG_SEED / "nutrition.json").read_text())["items"]
+        for row in json.loads((folder / "nutrition.json").read_text())["items"]
     }
-    for item in json.loads((CATALOG_SEED / "products.json").read_text())["products"]:
+    for item in json.loads((folder / "products.json").read_text())["products"]:
         step = item.pop("step")
         data = ProductData(
             **{key: value for key, value in item.items() if key not in {"tags", "synonyms"}},
@@ -588,7 +596,7 @@ async def seed_catalog(
             step_unit=step["unit"],
             tags=tuple(item["tags"]),
             synonyms=tuple(item["synonyms"]),
-            data_source="synthetic",
+            data_source=data_source,
             nutrition=nutrition.get(item["slug"]),
         )
         if kept := await _kept(session, Product, data.slug, refresh):
@@ -599,17 +607,17 @@ async def seed_catalog(
         saved.append((product.slug, created))
         ids[product.slug] = product.id
 
-    prices = json.loads((CATALOG_SEED / "prices.json").read_text())
+    prices = json.loads((prices_file or folder / "prices.json").read_text())
     valid_from = date.fromisoformat(prices["valid_from"])
     kept_list = select(PriceList.id).where(
-        PriceList.hub_id == SEED_HUB_ID, PriceList.valid_from == valid_from
+        PriceList.hub_id == hub_id, PriceList.valid_from == valid_from
     )
     if not keep_existing:
         kept_list = kept_list.where(PriceList.updated_by.is_not(None))  # replaced in the console
     if not await session.scalar(kept_list):
         await save_price_list(
             session,
-            SEED_HUB_ID,
+            hub_id,
             valid_from,
             [
                 PriceItem(
@@ -620,10 +628,10 @@ async def seed_catalog(
                 for item in prices["items"]
             ],
             published_by=None,
-            data_source="synthetic",
+            data_source=data_source,
         )
 
-    recipes = json.loads((CATALOG_SEED / "recipes.json").read_text())["recipes"]
+    recipes = json.loads((folder / "recipes.json").read_text())["recipes"]
     for recipe in sorted(recipes, key=lambda r: not r.get("is_side", False)):  # sides first
         if await _kept(session, Recipe, recipe["slug"], refresh):
             continue
@@ -650,12 +658,12 @@ async def seed_catalog(
                     )
                     for i in recipe["ingredients"]
                 ),
-                data_source="synthetic",
+                data_source=data_source,
             ),
         )
     if refresh:  # refreshed tags may change the rules of recipes edited in the console
         await recompute_rules(session, list(ids.values()), None)
-    for festival in json.loads((CATALOG_SEED / "festivals.json").read_text())["festivals"]:
+    for festival in json.loads((folder / "festivals.json").read_text())["festivals"]:
         day = date.fromisoformat(festival["date"])
         if keep_existing and await session.get(
             Festival, (day, festival["code"], festival["region"])

@@ -1,0 +1,26 @@
+{
+  "societies": [
+    {
+      "slug": "TODO: society 1's slug, e.g. sunrise-towers-kharghar",
+      "name": "TODO: society 1's name",
+      "area": "TODO: its sector and node, e.g. Sector 20, Kharghar",
+      "hub": "TODO: hub.json's slug, or null",
+      "boundary": "TODO: at least 3 corners [{\"lat\": ..., \"lng\": ...}, ...] of its compound, or null",
+      "towers": "TODO: its wings [{\"id\": \"a\", \"label\": \"A wing\"}, ...], or []",
+      "flats": "TODO: number of flats, or null",
+      "unlock_threshold": 20,
+      "status": "prospect"
+    },
+    {
+      "slug": "TODO: society 2's slug, e.g. sunrise-towers-kharghar",
+      "name": "TODO: society 2's name",
+      "area": "TODO: its sector and node, e.g. Sector 20, Kharghar",
+      "hub": "TODO: hub.json's slug, or null",
+      "boundary": "TODO: at least 3 corners [{\"lat\": ..., \"lng\": ...}, ...] of its compound, or null",
+      "towers": "TODO: its wings [{\"id\": \"a\", \"label\": \"A wing\"}, ...], or []",
+      "flats": "TODO: number of flats, or null",
+      "unlock_threshold": 20,
+      "status": "prospect"
+    }
+  ]
+}

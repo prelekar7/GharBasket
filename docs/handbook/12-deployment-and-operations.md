@@ -471,7 +471,7 @@ Steps marked **[owner]** need an account and only Prathamesh Relekar does them. 
     - `just jobs-vm setup prod <ip> <key>`, then `infisical run --env=prod -- just jobs-vm env prod <ip> <key>`. Check `just jobs-vm status prod <ip> <key>` shows `started prod` and calls at the next window, and that `prod-scheduler` gets its first ping at the next full hour;
     - in `production-ops`, the secret `PROD_JOBS_TOKEN` and the variable `PROD_API_URL`. Run **Scheduled jobs (production)** once by hand with `ops_check` (it clears `prod-ops`).
 13. Run **Backup production** once by hand. Then Rhythm Thakur and Manish Raje do a restore drill into a separate database before the first real order.
-14. The reviewed load of the real hub, societies, catalog and price list, festival calendar and staff grants. No synthetic people, orders or weeks.
+14. The reviewed load (below): fill `data/prod/` in a reviewed PR (staff phones in a private copy), then `infisical run --env=prod -- just prod-load --folder <it>` (a dry run) and, once its report is what the PR says, the same with `--apply`. No synthetic people, orders or weeks.
 15. **Frontends** (Yash Salunkhe with the owner): the production PWA and console projects. The PWA gets production's `ORIGIN_SECRET` and `VITE_FIREBASE_*`, with `VITE_FIREBASE_TEST_MODE` unset. The console gets `GB_API_MOCK=false` and **no `GB_DEV_LOGIN`**.
 16. Before the first customer, check:
     - `/v1/docs` answers 404;
@@ -479,6 +479,16 @@ Steps marked **[owner]** need an account and only Prathamesh Relekar does them. 
     - Firebase `prod` has no test numbers;
     - `GB_DEV_LOGIN` is absent on the production console;
     - `PAYOUTS_PROVIDER` is unset.
+
+### The reviewed load (`just prod-load`)
+
+Production starts empty (ADR-0036). Its first rows come from the files in `data/prod/` (`data/prod/README.md` says what each holds and who fills it), loaded by `gharbasket.tools.prod_load`:
+- **What it loads:** the hub (`hub.json`), the societies with their boundaries and wings (`societies.json`), the catalog, recipes and festival calendar from the folder `catalog.json` names (today `data/seeds/catalog`, once reviewed), the hub's opening price list (`prices.json`), and the staff roles by phone (`staff.json`: admin, catalog editor, hub manager, franchise owner). A staff member who has not signed in yet gets their account now, so the role is there at their first sign-in. Every row is `data_source='real'` and goes through the module services, as `just seed` does. Vendors, slots, delivery days, NGOs and partners are added in the console afterwards.
+- **It only adds.** An existing hub, society, category, product, recipe, festival day or price list (same hub and date) is kept as it is, so nothing edited in the console is overwritten, and a second run changes nothing. A role revoked in the console is not given back. A newer price list is published in the console, not by editing `prices.json`.
+- **A dry run unless `--apply`.** The dry run does the same load in a transaction it rolls back, and prints what would be added and kept, per entity.
+- **It refuses** (exit 1) while any value in `data/prod/` starts with `TODO`, listing every one, or while a file does not validate. It refuses (exit 2) unless the database is marked `prod` in `platform.environment`, the reverse of the script guards, so real-looking rows never land in staging or a local database. Messages name the host, never the URL.
+
+The repository is public, so staff phone numbers and names never go into it. Fill everything else in a reviewed PR. To load, copy `data/prod/` to a private folder outside the repository, fill `staff.json` there, set `catalog.json`'s `folder` to the catalog's absolute path (it is read relative to the folder it is in), and pass `--folder <that folder>`.
 
 ### The domain move (one sitting, just before the pilot)
 
@@ -501,10 +511,9 @@ Production takes `api.`, `app.` and the bare `gharbasket.co.in`. Staging moves t
 
 ### Not built yet
 
-Each is its own PR, before the checklist above can finish. (Built since ADR-0036: the code guards, which refuse production by the database's `platform.environment` mark rather than by Neon project id, #567 and #574; and the Razorpay mode, #570 and #571.)
+Each is its own PR, before the checklist above can finish. (Built since ADR-0036: the code guards, which refuse production by the database's `platform.environment` mark rather than by Neon project id, #567 and #574; the Razorpay mode, #570 and #571; and the reviewed load, `just prod-load`.)
 - **Production rows in a Render blueprint**, if Render is chosen. They go in a separate file: rows in `render.yaml` could be created by staging's Blueprint sync on the next push.
 - **Production sections in the runbooks** `restore-from-backup.md` (Neon instant restore, then the daily dump), `deploy-rollback.md` and `rotate-secrets.md`.
-- **The reviewed load tool** for the real hub, societies and catalog.
 
 ## 12.10 Android build
 

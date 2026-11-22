@@ -141,6 +141,11 @@ grant-role *args:
 seed *args:
     uv run python -m gharbasket.tools.seed {{args}}
 
+# Load production's reviewed first rows from data/prod/ (hub, societies, catalog, prices, staff); a dry run unless `--apply`.
+# Only on a database marked `prod`: `infisical run --env=prod -- just prod-load --apply` (handbook 12 §12.9)
+prod-load *args:
+    uv run python -m gharbasket.tools.prod_load {{args}}
+
 # Regenerate backend/api/openapi.json, the contract the frontend client is built from
 openapi:
     uv run python -m gharbasket.tools.export_openapi
