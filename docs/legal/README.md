@@ -19,6 +19,8 @@ Four pages for the public site (`gharbasket.co.in`, the console app), which Razo
 
 ## Placeholders
 
+**Filled with the owner's defaults (22 Nov 2026):** referral points 250, kindness goal 500, pre-live box fee ₹30 (the config values), grievance replies acknowledged in 48 hours and resolved in 15 days, changes announced in the app (and by email if given) 7 days ahead, chats deleted 30 days after the account, daily backups kept 30 days (`backup-staging.yml`), and an interim liability clause (terms §14) that keeps every Consumer Protection Act right; the lawyer or guide may replace it. The rows below still need the owner's business details or a decision.
+
 | Placeholder | Where |
 |---|---|
 | `[LEGAL BUSINESS NAME]` | all four pages |
@@ -27,21 +29,16 @@ Four pages for the public site (`gharbasket.co.in`, the console app), which Razo
 | `[SUPPORT PHONE]` | all four pages |
 | `[SUPPORT HOURS]` | refunds §11, contact |
 | `[GRIEVANCE OFFICER NAME]` | privacy (top, §10), contact |
-| `[GRIEVANCE RESPONSE TIME — to be confirmed]` | privacy §10, contact |
 | `[GSTIN if registered]` | terms §17, contact |
 | `[FSSAI LICENCE/REGISTRATION NO.]` | terms §17, contact |
 | `[EFFECTIVE DATE]` | terms, privacy, refunds |
 | `[GOVERNING CITY for jurisdiction]` | terms §16 |
 | `[PILOT AREA, e.g. Panvel / Kharghar, Navi Mumbai]` | refunds §3 |
-| `[PRE-LIVE BOX FEE, default ₹30]` | refunds §3 |
 | `[REFUND TIME TO BANK, to be confirmed]` | refunds §7 |
 | `[TAX NOTE, …]` | terms §5 |
-| `[KINDNESS GOAL, default 500]`, `[REFERRAL POINTS, default 250]` | terms §7 (config values `KINDNESS_GOAL`, `REFERRAL_POINTS_*`) |
 | `[PARTNER PAYMENT TERMS, to be added]` | terms §10 |
-| `[HOW AND WHEN USERS ARE TOLD ABOUT CHANGES — to be confirmed]` | terms §15 |
-| `[LIABILITY AND WARRANTY CLAUSES …]` | terms §14 |
 | `[LOCATION — to be confirmed]` (per provider) | privacy §4 |
-| `[RETENTION PERIOD — to be confirmed]` (chats; orders and money records), `[BACKUP RETENTION — to be confirmed]` | privacy §6 |
+| `[RETENTION PERIOD — to be confirmed]` (orders and money records: the period Indian tax and accounting law requires) | privacy §6 |
 
 ## Open questions (the specs are silent, or leave it to someone else)
 

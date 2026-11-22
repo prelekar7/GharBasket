@@ -73,9 +73,9 @@ The wallet is a closed prepaid balance that you can use only on GharBasket.
 ## 7. Kindness points and referrals
 
 - **Kindness points are not money.** They have no cash value. They cannot be used to pay for boxes, added to the wallet, or transferred.
-- You can use points only to give a **donated meal** through our partner organisations. One meal takes [KINDNESS GOAL, default 500] points.
+- You can use points only to give a **donated meal** through our partner organisations. One meal takes 500 points.
 - Points expire **365 days** after you earn them.
-- **Referrals:** if a neighbour joins with your link and receives their first weekly box, you each earn [REFERRAL POINTS, default 250] points. A referrer earns points for at most 10 referrals in a calendar month.
+- **Referrals:** if a neighbour joins with your link and receives their first weekly box, you each earn 250 points. A referrer earns points for at most 10 referrals in a calendar month.
 - **Donations of items:** you earn points only for items our hub accepts and counts. Items the hub cannot use are not returned; they go to a recycler.
 
 ## 8. Deliveries, shortages and problems
@@ -117,11 +117,11 @@ You can delete your account in the app (**Profile → Delete my account**). What
 
 ## 14. Our responsibility
 
-[LIABILITY AND WARRANTY CLAUSES — to be written by the reviewing lawyer. Nothing here limits your rights under the Consumer Protection Act, 2019.]
+We take reasonable care that what you order arrives as described, safe to eat and on the day shown. If something goes wrong with an order, the remedies are those in our Refund policy, and you can always contact us. Nothing in these terms limits your rights under the Consumer Protection Act, 2019, or any other right the law does not allow us to exclude.
 
 ## 15. Changes to these terms
 
-We may update these terms. The date at the top shows the version in force. [HOW AND WHEN USERS ARE TOLD ABOUT CHANGES — to be confirmed]
+We may update these terms. The date at the top shows the version in force. When a change matters to you, we tell you in the app, and by email if you have given us one, at least 7 days before it takes effect.
 
 ## 16. Law and disputes
 

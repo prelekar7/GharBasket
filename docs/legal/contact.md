@@ -35,7 +35,7 @@ For complaints about our service or about your personal data:
 - **Phone:** [SUPPORT PHONE]
 - **Address:** [REGISTERED ADDRESS]
 
-We will reply within [GRIEVANCE RESPONSE TIME — to be confirmed]. If you are not satisfied with our answer about your personal data, you can complain to the Data Protection Board of India.
+We acknowledge your message within 48 hours and resolve it within 15 days. If you are not satisfied with our answer about your personal data, you can complain to the Data Protection Board of India.
 
 ## Business details
 

@@ -120,9 +120,9 @@ Our database and servers are in **Singapore** (Neon and Render). Some providers 
 | Your data export file | 7 days |
 | Security audit log (who did what, without personal details) | 3 years |
 | Kindness points | Expire 365 days after you earn them |
-| Chat assistant conversations | Until you delete your account [RETENTION PERIOD — to be confirmed] |
+| Chat assistant conversations | Until you delete your account, then deleted within 30 days |
 | Orders and money records (wallet, ledger, payments) | Kept after account deletion for accounting and legal record-keeping, but no longer linked to you (section 7) [RETENTION PERIOD — to be confirmed] |
-| Database backups | Older copies are replaced over time [BACKUP RETENTION — to be confirmed] |
+| Database backups | Older copies are replaced over time (daily backups are kept for 30 days, then deleted) |
 
 ## 7. Deleting your account
 
@@ -163,7 +163,7 @@ Under the DPDP Act you can:
 
 **Grievance Officer:** [GRIEVANCE OFFICER NAME]
 Email: [SUPPORT EMAIL] · Phone: [SUPPORT PHONE] · Address: [REGISTERED ADDRESS]
-We will reply within [GRIEVANCE RESPONSE TIME — to be confirmed].
+We acknowledge your message within 48 hours and resolve it within 15 days.
 
 <!-- Sources:
 Data collected: handbook 13 §13.1; M1 §1, US-1–US-7, §3.2 (household, members, consents, address rules), §3.4 (shortage preference), §3.3 (export contents list per module); M3 §3.1 (feedback taps); M4 §3.2 (issues, notes, photos); M7 §3.4–§3.5, Privacy (proofs, codes, photos, GPS only on route, 90 days); M8 US-9 (ratings); M5 §3.1–§3.3; M9 §3.3–§3.4; M11 §3.1–§3.2; M13 §3 data flow (scrub list, ML service gets no ids).
