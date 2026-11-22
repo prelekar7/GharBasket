@@ -1,0 +1,212 @@
+# Render Blueprint for PRODUCTION (ADR-0036, ADR-0039): the same shape as staging's render.yaml, in a
+# SEPARATE Render workspace, so production gets its own 750 free instance hours a month and its own
+# free Key Value (Render allows one per workspace). Free plans were chosen by the owner on
+# 22 Nov 2026; the risks accepted (spin-down after 15 minutes, hours shared by the API and the ML
+# service, Key Value data lost on a restart) are in ADR-0039. To move to a paid plan, change `plan`.
+#
+# Create it once, in the production workspace: Render → New → Blueprint → this repository, with the
+# Blueprint file path `render.prod.yaml` (never render.yaml, which is staging's).
+#
+# Nothing deploys on a push: both services have auto-deploy off, and production changes only
+# through .github/workflows/deploy-prod.yml (the owner approves; migrations first; handbook 12
+# §12.9). Values marked `sync: false` are entered in the Render dashboard from Infisical `prod`,
+# every one generated fresh, never copied from staging.
+
+services:
+  - type: web
+    name: gharbasket-api-prod
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /v1/health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: APP_ENV
+        value: prod
+      - key: LOG_JSON
+        value: "true"
+      - key: LOG_LEVEL
+        value: INFO
+      # The caller's address for the per-address rate limits (M0 §6.3, handbook 13 §13.3). The API
+      # refuses to start without CLIENT_IP_SOURCE and ORIGIN_SECRET. Set them and
+      # PROXY_CLIENT_IP_SOURCE in the dashboard before the change is deployed (handbook 12, one-time
+      # setup step 8): a Blueprint may not apply a changed value to an existing service.
+      # - CLIENT_IP_SOURCE, for direct callers: Render's proxy appends to X-Forwarded-For, so its
+      #   leftmost entry is whatever the caller sent; Cloudflare, in front of Render, sets
+      #   True-Client-IP to the address that connected to it (not documented by Render).
+      # - ORIGIN_SECRET, the same value and name as on the PWA's Vercel project: with it in
+      #   x-origin-secret, the visitor's address is PROXY_CLIENT_IP_SOURCE. Measured on 14-15 Nov
+      #   (handbook 13 §13.3): x-real-ip never arrives, and Vercel passes a visitor's own
+      #   x-vercel-forwarded-for through, so neither is usable; Vercel adds the visitor to
+      #   X-Forwarded-For and three hops (Cloudflare, Cloudflare, Render) append after it, so the
+      #   visitor is `xff:4`. PROXY_CLIENT_IP_HEADER is unused while it is set.
+      #   ORIGIN_SECRET_PREVIOUS only during a rotation (handbook 12, step 8).
+      # After any change here, at Render or at Vercel, run the checks of handbook 13 §13.3: both
+      # paths must count your own address, and spoofed headers must still get 429s.
+      - key: CLIENT_IP_SOURCE
+        value: header:true-client-ip
+      - key: PROXY_CLIENT_IP_SOURCE
+        value: xff:4
+      - key: ORIGIN_SECRET
+        sync: false
+      - key: ORIGIN_SECRET_PREVIOUS
+        sync: false
+      # Neon's pooled URL (the deploy workflow uses the direct one for migrations).
+      - key: DATABASE_URL
+        sync: false
+      - key: VALKEY_URL
+        fromService:
+          type: keyvalue
+          name: gharbasket-valkey-prod
+          property: connectionString
+      - key: JWT_SIGNING_KEY
+        sync: false
+      - key: REFRESH_TOKEN_PEPPER
+        sync: false
+      - key: JOBS_TOKEN
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      # KYC numbers (M8): the pgcrypto key and the duplicate-check pepper, from Infisical. The
+      # versions and the retired pairs ("1:<key>") only during a rotation (runbook rotate-secrets).
+      - key: KYC_ENCRYPTION_KEY
+        sync: false
+      - key: KYC_KEY_VERSION
+        sync: false
+      - key: KYC_RETIRED_KEYS
+        sync: false
+      - key: KYC_HASH_PEPPER
+        sync: false
+      - key: KYC_PEPPER_VERSION
+        sync: false
+      - key: KYC_RETIRED_PEPPERS
+        sync: false
+      # Razorpay (M5 top-ups): the LIVE account only (ADR-0039). Leave all four unset until Razorpay's
+      # live KYC is done: payments stay off (top-ups 503). Then set RAZORPAY_MODE=live with the
+      # rzp_live_ key pair and the live webhook's secret together; prod refuses anything else.
+      - key: RAZORPAY_MODE
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      # The ML service, the gharbasket-ml web service below (its public https URL); unset: the rule
+      # fallbacks answer. The same token goes into both services.
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: ML_SERVICE_TOKEN
+        sync: false
+      # Timeouts and the circuit breaker of the calls to it (handbook 08 §8.3). The defaults suit
+      # the free 0.1 CPU host: a job (the daily T-3 plan generation) waits 30 s, a customer 3 s, and
+      # three failed customer calls in a row pause calls to it for a minute. Shown for reference.
+      - key: ML_JOB_TIMEOUT_S
+        value: "30"
+      - key: ML_JOB_BUDGET_S
+        value: "20"
+      - key: ML_BREAKER_THRESHOLD
+        value: "3"
+      - key: ML_BREAKER_COOLDOWN_S
+        value: "60"
+      # Green slots (M10 §3.8, M3 §3.6): off until the owner turns them on for the pilot.
+      - key: GREEN_SLOTS_ENABLED
+        value: "false"
+      # The pantry twin (M10 §3.3): off for the pilot until the app says what "Wasted" means.
+      - key: PANTRY_TWIN_ENABLED
+        value: "false"
+      # Push (M11): the Firebase service account key file's JSON as one value, from Infisical.
+      # Unset: pushes are skipped and the in-app inbox still gets every message.
+      - key: FCM_SERVICE_ACCOUNT
+        sync: false
+      # Private uploads (M0 §3.1) on Cloudflare R2: from Infisical `prod`. Without them,
+      # POST /v1/files/presign answers 503 and sweep_uploads fails.
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_BUCKET_PRIVATE # gitleaks:allow (a bucket name, not a secret)
+        sync: false
+      # The production PWA and console origins: https://gharbasket.co.in,https://app.gharbasket.co.in (ADR-0035).
+      - key: WEB_ORIGINS
+        sync: false
+      # Only the Capacitor Android app calls the API cross-origin; browsers use the Vercel rewrite.
+      - key: CORS_ALLOW_ORIGINS
+        value: https://localhost
+      # Where the API's links point: referral links (PUBLIC_WEB_URL, the console's /s/<slug>) and
+      # a society page's join button (APP_WEB_URL, the PWA). Unset: the production domains.
+      - key: PUBLIC_WEB_URL
+        sync: false
+      - key: APP_WEB_URL
+        sync: false
+      # The console's Vercel URL (https://..., no trailing slash). An admin's drift message links
+      # to CONSOLE_URL/ai-health so the push opens in a browser; unset: the relative /ai-health.
+      - key: CONSOLE_URL
+        sync: false
+      # Traces (M0 §6.2) to Grafana Cloud's OTLP gateway, from Infisical: the base URL
+      # (https://otlp-gateway-<zone>.grafana.net/otlp, without /v1/traces) and the auth header,
+      # "Authorization=Basic%20<base64 of instance-id:token>" (a secret). Unset: nothing is exported.
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: OTEL_SERVICE_NAME
+        value: gharbasket-api-prod
+      # Parent-based sampling; everything while the pilot's volume is small. Lower it once measured.
+      - key: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
+
+  # The production ML service (backend/ml, M10), the same image as staging's, without OSRM. Its own
+  # token and its own model bucket: only models whose eval report allows it are copied there.
+  - type: web
+    name: gharbasket-ml-prod
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/ml/Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /health
+    # Deployed by deploy-prod.yml (`ml` ticked) through PROD_ML_DEPLOY_HOOK_URL, never on commit.
+    autoDeployTrigger: "off"
+    envVars:
+      - key: APP_ENV
+        value: prod
+      # The same value as gharbasket-api-prod's ML_SERVICE_TOKEN; from Infisical `prod`.
+      - key: ML_SERVICE_TOKEN
+        sync: false
+      # ANTHROPIC_API_KEY is deliberately absent: the assistant is off, so POST /assistant/turn
+      # answers 503.
+      # The model registry: a read-only R2 token on production's model bucket alone (e.g.
+      # gb-prod-mlflow). Without them the rule fallbacks answer.
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET_MLFLOW # gitleaks:allow (a bucket name, not a secret)
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        sync: false
+      - key: OTEL_SERVICE_NAME
+        value: gharbasket-ml-prod
+      - key: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
+
+  - type: keyvalue
+    name: gharbasket-valkey-prod
+    plan: free
+    region: singapore
+    # Empty list: reachable only from Render's private network (the API), never from outside.
+    ipAllowList: []
+    # Everything stored (rate-limit counters, the sign-out deny-list) expires on its own. On the free
+    # plan a restart loses it all (ADR-0039).
+    maxmemoryPolicy: volatile-ttl

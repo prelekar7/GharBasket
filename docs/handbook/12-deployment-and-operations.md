@@ -463,7 +463,7 @@ Steps marked **[owner]** need an account and only Prathamesh Relekar does them. 
 5. **[owner]** R2: create the private buckets (uploads and KYC, models, `gb-prod-backups`) with public access off. Make three tokens, each on its own bucket: the API's (read and write), the ML service's (read only) and the backup's (read and write).
 6. **[owner]** Firebase: a new project on the plan that sends real SMS, with phone sign-in on and **no test phone numbers**. Add `app.gharbasket.co.in` and `gharbasket.co.in` as authorised domains. Create the FCM service account.
 7. **[owner]** Razorpay: put the live keys in Infisical `prod`. Add a live webhook to `https://api.gharbasket.co.in/v1/payments/webhook/razorpay` and store its secret.
-8. **[owner]** Hosts: create the API service `gharbasket-api-prod` (`backend/api/Dockerfile`, health check `/v1/health`), its Valkey, and the ML service `gharbasket-ml-prod`. Turn auto-deploy off on both and enter the settings table. Copy the deploy hooks.
+8. **[owner]** Hosts: on Render, a **new workspace** for production (its own 750 free hours and free Key Value, ADR-0039), then New → Blueprint with the file path `render.prod.yaml`: it creates the API `gharbasket-api-prod` (`backend/api/Dockerfile`, health check `/v1/health`), its Valkey `gharbasket-valkey-prod` and the ML service `gharbasket-ml-prod`, all free and with auto-deploy off. Enter the settings table's values from Infisical `prod` (every `sync: false` row). Copy the deploy hooks.
 9. **[owner]** GitHub → Settings → Environments: create `production` and `production-ops` with the protection, secrets and variables above. Leave `PROD_JOBS_TOKEN` and `PROD_API_URL` out of `production-ops` until step 12, or `jobs-prod.yml` fails (and alerts) on an API that is not there yet.
 10. **[owner]** Alerts: the healthchecks.io checks `prod-cutoff` (cron `0 21 * * *`, Asia/Kolkata, 10 minutes of grace), `prod-scheduler` (period 1 hour, grace 15 minutes) and `prod-ops`, set up as staging's three (§12.5). Put their ping URLs in Infisical `prod` as `HC_CUTOFF_URL`, `HC_PING_URL` and `HC_OPS_URL`, and `prod-ops`'s also in `production-ops` as `PROD_HC_OPS_URL`. Then an UptimeRobot monitor on production's `/v1/health` and the Grafana 5xx rule for `gharbasket-api-prod`.
 11. The first deploy, as above, using a temporary `PROD_API_URL` (the host's own address) until the domain move. Put the same address in Infisical `prod` as `PROD_API_URL`.
@@ -502,7 +502,6 @@ Production takes `api.`, `app.` and the bare `gharbasket.co.in`. Staging moves t
 ### Not built yet
 
 Each is its own PR, before the checklist above can finish. (Built since ADR-0036: the code guards, which refuse production by the database's `platform.environment` mark rather than by Neon project id, #567 and #574; and the Razorpay mode, #570 and #571.)
-- **Production rows in a Render blueprint**, if Render is chosen. They go in a separate file: rows in `render.yaml` could be created by staging's Blueprint sync on the next push.
 - **Production sections in the runbooks** `restore-from-backup.md` (Neon instant restore, then the daily dump), `deploy-rollback.md` and `rotate-secrets.md`.
 - **The reviewed load tool** for the real hub, societies and catalog.
 
