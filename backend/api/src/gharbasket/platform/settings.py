@@ -276,9 +276,11 @@ class Settings(DatabaseSettings):
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket.co.in,https://app.gharbasket.co.in" (ADR-0035).
     web_origins: CommaSeparated = []
-    # Razorpay (M5 top-ups). RAZORPAY_MODE (M5 §3.10, ADR-0037) says which money is in play:
-    # `test` (the default) takes only rzp_test_ keys; `live` (real money) only rzp_live_ keys, with
-    # both secrets, and only on staging or prod. Every payment records the mode it was made in.
+    # Razorpay (M5 top-ups). RAZORPAY_MODE (M5 §3.10) says which money is in play: `test` (the
+    # default) takes only rzp_test_ keys; `live` (real money) only rzp_live_ keys, with both
+    # secrets. The mode follows the environment (ADR-0039): production is live-only and staging
+    # keeps test money for good, so `live` needs APP_ENV=prod, and prod with keys needs `live`.
+    # Prod without keys keeps payments off (top-ups 503). Every payment records its mode.
     # Unset keys locally: top-ups use dev orders, paid with POST /v1/dev/razorpay/pay.
     razorpay_mode: Literal["test", "live"] = "test"
     razorpay_key_id: str | None = None
@@ -377,10 +379,14 @@ class Settings(DatabaseSettings):
         return self
 
     def _razorpay_mode_matches_its_keys(self) -> None:
-        """M5 §3.10: each mode takes only its own keys. The errors name variables, never values."""
+        """M5 §3.10, ADR-0039: each mode takes only its own keys, and the mode follows the
+        environment: live money only in production, test money everywhere else. The errors name
+        variables, never values."""
         if self.razorpay_mode == "live":
-            if self.app_env not in ("staging", "prod"):
-                raise ValueError("RAZORPAY_MODE=live needs APP_ENV=staging or prod")
+            if self.app_env != "prod":
+                raise ValueError(
+                    "RAZORPAY_MODE=live needs APP_ENV=prod (ADR-0039: staging keeps test money)"
+                )
             needed = {
                 "RAZORPAY_KEY_ID": self.razorpay_key_id,
                 "RAZORPAY_KEY_SECRET": self.razorpay_key_secret,
@@ -393,6 +399,11 @@ class Settings(DatabaseSettings):
             ]  # an empty value is missing too
             if missing:
                 raise ValueError(f"{', '.join(missing)} required when RAZORPAY_MODE=live")
+        elif self.app_env == "prod" and self.razorpay_key_id is not None:
+            raise ValueError(
+                "APP_ENV=prod takes only live Razorpay keys: set RAZORPAY_MODE=live with them, or "
+                "leave RAZORPAY_KEY_ID unset to keep payments off (ADR-0039)"
+            )
         key_id = self.razorpay_key_id
         if key_id is not None and not _RAZORPAY_KEY_ID[self.razorpay_mode].fullmatch(key_id):
             raise ValueError(

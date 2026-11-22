@@ -48,7 +48,7 @@ from .test_topups import WEBHOOK_SECRET, FakeRazorpay, captured, customer, signe
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
 
 LIVE: dict[str, Any] = {
-    "app_env": "staging",
+    "app_env": "prod",
     **DEPLOYED_SECRETS,
     "razorpay_mode": "live",
     "razorpay_key_id": "rzp_live_fake",

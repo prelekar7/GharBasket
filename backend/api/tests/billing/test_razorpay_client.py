@@ -40,8 +40,8 @@ def test_test_mode_is_the_default_and_takes_only_test_keys() -> None:
     assert make_settings().razorpay_mode == "test"
     assert make_settings(razorpay_key_id="rzp_test_Abc123").razorpay_key_id == "rzp_test_Abc123"
     assert not make_settings(razorpay_key_id="rzp_test_Abc123").razorpay_enabled
-    for env in ("dev", "test", "staging", "prod"):
-        deployed = DEPLOYED_SECRETS if env in ("staging", "prod") else {}
+    for env in ("dev", "test", "staging"):
+        deployed = DEPLOYED_SECRETS if env == "staging" else {}
         for key in ("rzp_live_Abc123", "rzp_test_", "rzp_test_Abc 123", "key_Zz9"):
             message = refused(app_env=env, **deployed, razorpay_key_id=key)
             assert "RAZORPAY_KEY_ID must be a test key (rzp_test_…) when RAZORPAY_MODE=test" in (
@@ -49,8 +49,18 @@ def test_test_mode_is_the_default_and_takes_only_test_keys() -> None:
             )
 
 
-@pytest.mark.parametrize("env", ["staging", "prod"])
-def test_live_mode_needs_a_deployed_environment_live_keys_and_both_secrets(env: str) -> None:
+def test_production_is_live_only_and_starts_without_keys_with_payments_off() -> None:
+    """ADR-0039: production never takes test keys; before its live keys exist it runs without."""
+    off = make_settings(app_env="prod", **DEPLOYED_SECRETS)
+    assert (off.razorpay_mode, off.razorpay_enabled) == ("test", False)
+    for key in ("rzp_test_Abc123", "rzp_live_Abc123"):
+        for extra in ({}, {"razorpay_key_secret": "fake-7c1d"}):
+            message = refused(app_env="prod", **DEPLOYED_SECRETS, razorpay_key_id=key, **extra)
+            assert "APP_ENV=prod takes only live Razorpay keys" in message
+
+
+@pytest.mark.parametrize("env", ["prod"])
+def test_live_mode_needs_production_live_keys_and_both_secrets(env: str) -> None:
     live = make_settings(app_env=env, **DEPLOYED_SECRETS, razorpay_mode="live", **LIVE_KEYS)
     assert (live.razorpay_mode, live.razorpay_enabled) == ("live", True)
     for key in ("rzp_test_Abc123", "rzp_live_", "key_Zz9"):
@@ -77,14 +87,16 @@ def test_live_mode_needs_a_deployed_environment_live_keys_and_both_secrets(env: 
     ) in message
 
 
-@pytest.mark.parametrize("env", ["dev", "test"])
-def test_live_mode_is_refused_on_a_laptop_and_in_tests(env: str) -> None:
-    message = refused(app_env=env, razorpay_mode="live", **LIVE_KEYS)
-    assert "RAZORPAY_MODE=live needs APP_ENV=staging or prod" in message
+@pytest.mark.parametrize("env", ["dev", "test", "staging"])
+def test_live_mode_is_refused_outside_production(env: str) -> None:
+    """Staging keeps test money for good (ADR-0039), so the team can test payments any time."""
+    deployed = DEPLOYED_SECRETS if env == "staging" else {}
+    message = refused(app_env=env, **deployed, razorpay_mode="live", **LIVE_KEYS)
+    assert "RAZORPAY_MODE=live needs APP_ENV=prod" in message
 
 
 def test_an_unknown_mode_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RAZORPAY_MODE", "real")
     assert "razorpay_mode" in refused()
     monkeypatch.setenv("RAZORPAY_MODE", "live")
-    assert "RAZORPAY_MODE=live needs APP_ENV=staging or prod" in refused()
+    assert "RAZORPAY_MODE=live needs APP_ENV=prod" in refused()
