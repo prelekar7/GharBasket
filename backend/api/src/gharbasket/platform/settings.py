@@ -399,11 +399,23 @@ class Settings(DatabaseSettings):
             ]  # an empty value is missing too
             if missing:
                 raise ValueError(f"{', '.join(missing)} required when RAZORPAY_MODE=live")
-        elif self.app_env == "prod" and self.razorpay_key_id is not None:
-            raise ValueError(
-                "APP_ENV=prod takes only live Razorpay keys: set RAZORPAY_MODE=live with them, or "
-                "leave RAZORPAY_KEY_ID unset to keep payments off (ADR-0039)"
-            )
+        elif self.app_env == "prod":
+            # Payments off means no Razorpay value at all: a webhook secret alone would let the
+            # webhook accept (and store as `test`) events signed by whichever account it came from.
+            present = [
+                name
+                for name, value in (
+                    ("RAZORPAY_KEY_ID", self.razorpay_key_id),
+                    ("RAZORPAY_KEY_SECRET", self.razorpay_key_secret),
+                    ("RAZORPAY_WEBHOOK_SECRET", self.razorpay_webhook_secret),
+                )
+                if value is not None
+            ]
+            if present:
+                raise ValueError(
+                    f"APP_ENV=prod takes only live Razorpay keys: set RAZORPAY_MODE=live with "
+                    f"{', '.join(present)}, or unset them all to keep payments off (ADR-0039)"
+                )
         key_id = self.razorpay_key_id
         if key_id is not None and not _RAZORPAY_KEY_ID[self.razorpay_mode].fullmatch(key_id):
             raise ValueError(

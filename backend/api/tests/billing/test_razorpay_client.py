@@ -57,6 +57,13 @@ def test_production_is_live_only_and_starts_without_keys_with_payments_off() -> 
         for extra in ({}, {"razorpay_key_secret": "fake-7c1d"}):
             message = refused(app_env="prod", **DEPLOYED_SECRETS, razorpay_key_id=key, **extra)
             assert "APP_ENV=prod takes only live Razorpay keys" in message
+    for name, value in (
+        ("razorpay_key_secret", "fake-7c1d"),
+        ("razorpay_webhook_secret", "fake-9e2a"),
+    ):
+        message = refused(app_env="prod", **DEPLOYED_SECRETS, **{name: value})
+        assert "APP_ENV=prod takes only live Razorpay keys" in message
+        assert name.upper() in message
 
 
 @pytest.mark.parametrize("env", ["prod"])

@@ -572,7 +572,7 @@ The owner chose to test the whole app with real payments on staging before the l
 | `RAZORPAY_MODE` | `APP_ENV` | `RAZORPAY_KEY_ID` must match | Otherwise |
 |---|---|---|---|
 | `test` | `dev`, `test`, `staging` | `^rzp_test_` (as today) | The API refuses to start |
-| `test` | `prod` | no key at all: payments stay off (top-ups `503 billing.payments_unavailable`) until the live keys exist | The API refuses to start: production takes only live keys |
+| `test` | `prod` | no Razorpay value at all (key id, key secret and webhook secret all unset): payments stay off (top-ups `503 billing.payments_unavailable`) until the live keys exist. `payments_mode` then reads `test`, which on production means "off" | The API refuses to start: production takes only live keys |
 | `live` | `prod` only | `^rzp_live_`, with `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` set | The API refuses to start; `live` with `dev`, `test` or `staging` is refused too |
 
 **The mode follows the environment ([ADR-0039](../adr/0039-production-now-staging-keeps-test-money.md), 22 November 2026).** Production is live-only and staging keeps test money for good, so the team can test payments on staging any time. The cut-over below was built for live money on staging; it is kept but no longer used, since production starts live with an empty database.
