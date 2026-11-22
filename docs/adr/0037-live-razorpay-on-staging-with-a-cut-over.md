@@ -84,7 +84,7 @@ When the test ends:
 - either staging becomes the production environment of ADR-0036, with fresh secrets and a fresh database (the test's live data stays in a dump);
 - or the separate production environment of ADR-0036 is built.
 
-That choice is made at the end of the test. It is not part of this ADR.
+That choice is made at the end of the test. It is not part of this ADR. **Settled on 22 November 2026 by [ADR-0039](0039-staging-is-production.md): staging is the production environment.**
 
 ## Alternatives considered
 - **Switch the keys only.** Every failure in the context list happens. Rejected.
