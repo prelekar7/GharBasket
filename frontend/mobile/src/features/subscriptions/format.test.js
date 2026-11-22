@@ -1,4 +1,3 @@
-import { formatPaise } from "@gharbasket/ui/money";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   budgetLockValue,
@@ -134,8 +133,10 @@ describe("istDatesFrom", () => {
 
 describe("budgetLockValue (#586)", () => {
   it("shows the month's limit, Off when there is none, and nothing while loading", () => {
-    expect(budgetLockValue({ budget_paise: 400000 }, "Off")).toBe(formatPaise(400000));
+    expect(budgetLockValue({ budget_paise: 400000 }, "Off")).toBe("₹4,000");
     expect(budgetLockValue({ budget_paise: null }, "Off")).toBe("Off");
     expect(budgetLockValue(undefined, "Off")).toBeUndefined();
+    // A lock without the field reads as off, never ₹NaN.
+    expect(budgetLockValue(/** @type {any} */ ({}), "Off")).toBe("Off");
   });
 });

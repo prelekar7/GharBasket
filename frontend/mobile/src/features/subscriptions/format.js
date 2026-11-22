@@ -202,6 +202,6 @@ export function perUnit({ qty, unit }, pricePaise) {
 export const budgetLockValue = (lock, off) =>
   lock === undefined
     ? undefined
-    : lock.budget_paise === null
+    : lock.budget_paise == null // null when off; a missing field reads as off too, never ₹NaN
       ? off
       : formatPaise(lock.budget_paise);

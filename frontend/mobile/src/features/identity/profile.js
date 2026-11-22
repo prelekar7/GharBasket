@@ -1,6 +1,5 @@
-import { formatPaise } from "@gharbasket/ui/money";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { todayIst } from "@/features/subscriptions/format.js";
+import { budgetLockValue, todayIst } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";
 import { useSession } from "@/lib/session.js";
 import { flatLabel } from "./address.js";
@@ -243,10 +242,14 @@ export const HOUSEHOLD_STEPS_EDIT = [
  * diet plus Jain (on any member) and no onion-garlic on fast days.
  * @param {(key: string, options?: Record<string, unknown>) => string} t
  * @param {string} key one of HOUSEHOLD_STEPS_EDIT
+ * The Budget Lock row shows this month's lock, as Profile and the Budget Lock screen do (#586),
+ * not the household's onboarding `budget_paise`: undefined while it loads.
  * @param {Household} h
  * @param {boolean} healthConsent
+ * @param {{ budget_paise: number | null } | undefined} budgetLock `useBudgetLock().data`
+ * @returns {string | undefined}
  */
-export function householdValue(t, key, h, healthConsent) {
+export function householdValue(t, key, h, healthConsent, budgetLock) {
   if (key === "family") return t("profile.edit.familyOf", { n: h.size });
   if (key === "food")
     return [
@@ -259,7 +262,7 @@ export function householdValue(t, key, h, healthConsent) {
       .join(" · ");
   if (key === "health") return t(healthConsent ? "profile.edit.on" : "profile.edit.off");
   if (key === "cooking") return t("profile.edit.minutes", { n: h.weekday_cook_minutes });
-  return h.budget_paise ? formatPaise(h.budget_paise) : t("profile.edit.off");
+  return budgetLockValue(budgetLock, t("profile.edit.off"));
 }
 
 /** "YYYY-MM-DD", `weeks` weeks from today in India. @param {string | number} weeks */
