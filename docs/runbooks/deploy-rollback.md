@@ -72,6 +72,22 @@ on the newer schema.
    with [`cutoff-failed.md`](cutoff-failed.md).
 6. Add a line to this runbook if the cause was new.
 
+## Production
+
+Production deploys only through `deploy-prod.yml` (handbook 12 §12.9): auto-deploy is off on `gharbasket-api-prod` and
+`gharbasket-ml-prod`, and the workflow refuses a commit older than the one production runs. So a rollback happens on
+the host, and the fix goes through staging first.
+1. **Roll the code back** on the host: Render dashboard → `gharbasket-api-prod` → Events → the last good deploy →
+   Rollback (or the same on the host the owner chose). Migrations stay as they are; the previous code works on the newer
+   schema (expand-then-contract).
+2. **Check it:** `/v1/health` reports the old commit, then
+   `infisical run --env=prod -- just cloud <production API URL>` (exits 1 if a check fails).
+3. **Fix forward:** the revert or fix merges to `main`, staging deploys and passes, then **Deploy production** with that
+   commit and the owner's approval. A schema mistake gets a new migration, as on staging.
+4. **Catch up:** failed or missed jobs on production: `just jobs-vm status prod <ip> <key>`, then run them by hand with
+   their `scheduled_for` through `jobs-prod.yml`. If the outage covered 21:00 IST, start with [`cutoff-failed.md`](cutoff-failed.md).
+   If wrong rows were written, see [`restore-from-backup.md`](restore-from-backup.md), "Production".
+
 ## What not to do
 
 - Do not run `alembic downgrade` on Neon. It is refused, and bypassing the guard on a shared database is how data is lost.

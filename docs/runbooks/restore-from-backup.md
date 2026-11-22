@@ -15,7 +15,7 @@ docstring). So there are only two ways back:
 
 Anything that happened after the point you restore is gone. Staging holds synthetic and test data, so this is
 a nuisance, not a loss. The pilot database is a different case: its backups are decided with Q3 (handbook 12, "Open").
-Until then this runbook is the drill, not the production procedure.
+Production (ADR-0036, ADR-0039) is a different case and has its own section, "Production", below.
 
 ## Symptoms
 
@@ -207,6 +207,32 @@ back half an entry. A count that is far below what you expect means you restored
   and `read -rs`.
 - Do not keep a downloaded dump after the restore. It holds personal data.
 - Do not tell anyone staging has point-in-time restore. It does not.
+
+## Production
+
+Production is the root branch of its **own** Neon project (ADR-0036), so it has Neon's instant restore (point in time,
+within the history window of its plan: 6 hours on the free plan) as well as a daily `pg_dump` (`backup-prod.yml`, the
+newest 30, bucket `gb-prod-backups`, key `prod/YYYY-MM-DD.dump`). Its ledger holds money that really moved, so the rule
+is the one of "Live money" above: **never pour an older copy over production.** Every payment, refund and settlement
+after the restore point would vanish from our books while it stays real at Razorpay.
+
+1. **Stop the damage first.** If a bad deploy is writing wrong rows, roll the code back ([`deploy-rollback.md`](deploy-rollback.md),
+   "Production") and pause the scheduler (`sudo systemctl stop gharbasket-jobs-prod` on the VM). Tell the owner.
+2. **Look, don't restore.** In the Neon console of the production project, restore the root branch **to a new branch**
+   at a time before the damage (instant restore keeps the root branch as it is). Or restore the newest good dump into a
+   separate database, as Recovery B with production's values (`infisical run --env=prod -- ...`, the bucket
+   `gb-prod-backups`). Compare with "Verification queries".
+3. **Fix forward.** Write what is wrong back onto production with reviewed SQL or the module's own tools, adding rows,
+   never editing money rows (handbook 05). For money, Razorpay's dashboard (payments, refunds, settlements) is the
+   record; run `reconcile_payments` afterwards and resolve its items in the console.
+4. **Only when production's data is gone** (the database or its tables were dropped): restore the root branch in place
+   to the last good moment, or a dump into a new Neon project, with the owner's word. Then replay every Razorpay event
+   after that moment from the dashboard, run `reconcile_payments` and `ops_check`, and write the gap in "After a restore".
+5. Delete the side branch or database when done. A drill on production's dumps (into a separate database, never into
+   production) is done before the first real order (handbook 12 §12.9, checklist step 13) and logged below.
+
+`just staging-rollback`, `just staging-demo`, `just seed` and `just sim --allow-remote` refuse production
+(`gharbasket.tools.live_guard`: `APP_ENV=prod`, the database's `prod` mark, or real money).
 
 ## Drill log
 

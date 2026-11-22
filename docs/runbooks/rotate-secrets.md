@@ -175,7 +175,7 @@ Roles) breaks every user of the old one at once, so expect a few minutes of erro
 
 Each mode takes only its own keys (M5 §3.10): with `RAZORPAY_MODE=test` (the default) a live key (`rzp_live_`) is refused
 at start, and with `RAZORPAY_MODE=live` a test key is refused. Live mode also needs `RAZORPAY_WEBHOOK_SECRET` and runs
-only with `APP_ENV` staging or prod. Rotate within the running mode. Make the new key pair in the dashboard, update Infisical and
+only with `APP_ENV=prod` (ADR-0039: staging keeps test keys for good, production takes only live keys). Rotate within the running mode. Make the new key pair in the dashboard, update Infisical and
 Render, deploy, then disable the old pair. For the webhook secret, change it on the dashboard's webhook for
 `/v1/payments/webhook/razorpay` and on Render in the same minute. A webhook that arrives in between is refused and
 healed by `reconcile_payments` (`razorpay-down.md`). Top-ups answer 503 while the keys disagree.
@@ -187,6 +187,25 @@ token with the same permissions and buckets as the old one, put its key pair in 
 table (Render and redeploy; GitHub secrets; for the training token also `scripts/mandi-on-vm.sh env`), check, then delete
 the old token. Checks: `just cloud <url>` for uploads on the API, `just cloud-ml` for `registry_sync`, the next training or
 backup run for the others. Keep the backup token on `gb-staging-backups` alone.
+
+## Production
+
+Production has the same secrets with **its own values**, never copied from staging or to it (ADR-0036). The steps
+above apply with these homes:
+- **Infisical `prod`** instead of `staging`: `infisical run --env=prod -- ...`.
+- **The host** `gharbasket-api-prod` and `gharbasket-ml-prod` instead of `gharbasket-api` and `gharbasket-ml`.
+- **GitHub:** the environment secrets of `production` and `production-ops` (`PROD_DATABASE_URL_DIRECT`,
+  `PROD_DEPLOY_HOOK_URL`, `PROD_JOBS_TOKEN`, `PROD_BACKUP_S3_*`, `PROD_NEON_API_KEY`, `PROD_HC_OPS_URL`,
+  `PROD_ML_SERVICE_TOKEN`; handbook 12 §12.9), never repository secrets. Copy without printing:
+  `infisical run --env=prod -- sh -c 'printf %s "$JOBS_TOKEN" | gh secret set PROD_JOBS_TOKEN --env production'`, and
+  again with `--env production-ops`.
+- **The VM:** `~/.config/gharbasket/jobs-prod.env`, rewritten with `infisical run --env=prod -- just jobs-vm env prod <ip> <key>`.
+- **Razorpay:** the live keys and the live webhook's secret. A rotated live webhook secret goes to the dashboard and the
+  host in the same minute; events in between are refused and healed by `reconcile_payments`.
+- **Firebase:** production's own project and its FCM service account.
+- **Healthchecks:** `prod-scheduler`, `prod-cutoff`, `prod-ops`.
+
+After any production rotation, check `/v1/ready` with the operator token and one `ops_check` run (`jobs-prod.yml`).
 
 ## What not to do
 
