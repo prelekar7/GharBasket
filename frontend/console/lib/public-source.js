@@ -1,8 +1,10 @@
+import { isMockApiIn } from "./sign-in.js";
+
 /**
  * Where the (public) pages read from, kept apart from lib/public-api.js so it can be tested without
  * Next. `GB_PUBLIC_API_MOCK` switches the public pages on their own and defaults to `GB_API_MOCK`, so
- * a deploy can show real societies behind invite links while the staff screens stay on demo data
- * (the console's staff sign-in is not built yet, handbook 12 §12.2).
+ * a deploy can show real societies behind invite links while the staff screens stay on demo data.
+ * With neither set, Vercel's production deployment reads the real API (lib/sign-in.js).
  *
  * @param {Record<string, string | undefined>} env usually `process.env`
  * @returns {string | null} the API origin to call, or null to answer from the mocks
@@ -21,5 +23,6 @@ export function publicApiOrigin(env) {
  * @param {Record<string, string | undefined>} env usually `process.env`
  */
 export function isPublicMock(env) {
-  return (env.GB_PUBLIC_API_MOCK ?? env.GB_API_MOCK) !== "false";
+  if (env.GB_PUBLIC_API_MOCK !== undefined) return env.GB_PUBLIC_API_MOCK !== "false";
+  return isMockApiIn(env);
 }

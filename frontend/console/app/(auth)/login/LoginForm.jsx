@@ -28,9 +28,9 @@ function Submit({ label, variant }) {
 /**
  * The staff sign-in of Login.dc.html in two steps: the mobile number, then the 6-digit code ("Sent by
  * SMS to +91 98000 01011. Resend in 0:24.") with a live countdown, a Resend button once it ends and a
- * way back to change the number. Real phone OTP arrives with the identity module (M1, see
- * `requestCode` in actions.js); until then the dev form accepts the seed staff phones with the code
- * 123456, and the buttons below skip both steps for each role (only while dev sign-in is on).
+ * way back to change the number. This is the development stand-in: it accepts the seed staff phones
+ * with the code 123456, and the buttons below skip both steps for each role (only while dev sign-in
+ * is on). The real sign-in, with a Firebase SMS code, is PhoneSignIn.jsx.
  *
  * `roles` are the dev buttons: the mock sign-in's three, or every staff role against the real API.
  * @param {{ roles: [string, { label: string, person: string }][] }} props
@@ -118,18 +118,28 @@ export function LoginForm({ roles }) {
           <Submit label="Send code" variant="primary" />
         </form>
       )}
-      <div className="flex flex-col gap-2 border-t border-line pt-4">
-        <p className="text-sm leading-5 text-fg-secondary">
-          Development only: skip the code. While phone sign-in is not live, the code is 123456.
-        </p>
-        {roles.map(([role, { label, person }]) => (
-          <form key={role} action={signIn}>
-            <input type="hidden" name="role" value={role} />
-            <input type="hidden" name="next" value={next} />
-            <Submit label={`Continue as ${person}, ${label.toLowerCase()}`} variant="secondary" />
-          </form>
-        ))}
-      </div>
+      <DevButtons roles={roles} note="Development only: skip the code. The code above is 123456." />
+    </div>
+  );
+}
+
+/**
+ * The "Continue as" buttons, one per role: development only (`devLoginEnabled`), never on the live
+ * console. Beside the real phone sign-in they still work against a dev API (APP_ENV=dev, local DB).
+ * @param {{ roles: [string, { label: string, person: string }][], note: string }} props
+ */
+export function DevButtons({ roles, note }) {
+  const next = useSearchParams().get("next") ?? "";
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-4">
+      <p className="text-sm leading-5 text-fg-secondary">{note}</p>
+      {roles.map(([role, { label, person }]) => (
+        <form key={role} action={signIn}>
+          <input type="hidden" name="role" value={role} />
+          <input type="hidden" name="next" value={next} />
+          <Submit label={`Continue as ${person}, ${label.toLowerCase()}`} variant="secondary" />
+        </form>
+      ))}
     </div>
   );
 }
