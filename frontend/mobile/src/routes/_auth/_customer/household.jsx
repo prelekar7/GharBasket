@@ -15,6 +15,7 @@ import {
 } from "@/features/identity/profile.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { shortDate, weekdayOf } from "@/features/subscriptions/format.js";
+import { useBudgetLock } from "@/features/subscriptions/queries.js";
 
 /** Household and food: the six things that shape the plan, and Pause Autopilot (design HcHousehold, M1, M3). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -28,6 +29,7 @@ function Household() {
   const { data: hh, isPending, isError, refetch } = useMyHousehold();
   const { data: health = false } = useHealthConsent();
   const { data: subscription } = useSubscription();
+  const { data: budgetLock } = useBudgetLock();
   const pause = usePause();
   const startEdit = useOnboardingDraft((d) => d.startEdit);
   const [pausing, setPausing] = useState(false);
@@ -36,13 +38,13 @@ function Household() {
   const backOn = addWeeks(weeks);
   const pausedUntil = subscription?.paused_until ? shortDate(subscription.paused_until, lang) : "";
 
-  /** @type {{ key: string, label: string, value: string, onPress: () => void }[]} */
+  /** @type {{ key: string, label: string, value: string | undefined, onPress: () => void }[]} */
   const rows = hh
     ? [
         ...HOUSEHOLD_STEPS_EDIT.map(({ key, to }) => ({
           key,
           label: t(`profile.edit.${key}`),
-          value: householdValue(t, key, hh, health),
+          value: householdValue(t, key, hh, health, budgetLock),
           onPress: () => {
             if (key !== "budget") startEdit(hh, health);
             navigate({ to });
