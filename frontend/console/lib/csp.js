@@ -12,6 +12,10 @@
  *   worker from /maplibre/ (a `blob:` worker as a fallback).
  * - Images: delivery and issue photos come from short-lived storage links (R2), so any https image.
  *
+ * - Hand-off photos: the browser PUTs each one to the private upload link the API signs for R2
+ *   (`https://<account>.r2.cloudflarestorage.com/…`, handoffs/HandoffsView.jsx), so `connect-src`
+ *   allows R2's S3 hosts. The mock's upload route is the console's own (`'self'`).
+ *
  * The console's server calls the API; the browser never does (lib/auth-api.js), so `connect-src`
  * needs no API host. `frame-ancestors 'none'` stops other sites from framing the console.
  */
@@ -35,6 +39,7 @@ export const CSP_DIRECTIVES = /** @type {const} */ ([
     "https://securetoken.googleapis.com",
     "https://www.google.com",
     "https://tiles.openfreemap.org",
+    "https://*.r2.cloudflarestorage.com",
   ],
   ["frame-src", "https://www.google.com", "https://www.recaptcha.net", "https://*.firebaseapp.com"],
   ["worker-src", "'self'", "blob:"],
