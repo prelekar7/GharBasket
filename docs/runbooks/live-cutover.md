@@ -1,6 +1,6 @@
 # Runbook: switching staging to live money (the cut-over)
 
-Owner: Prathamesh Relekar. Last reviewed: 15 November 2026.
+Owner: Prathamesh Relekar. Last reviewed: 22 November 2026.
 
 Once, by the owner, when staging moves from Razorpay's test account to the live one ([ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md),
 M5 §3.10). The two jobs are `billing_cutover_prepare` and `billing_cutover_live`. Both refuse with
@@ -37,6 +37,9 @@ checked. The cut-over itself is "Steps" below.
 
 - Close on a day after the last test-paid delivery and before the next 21:00 cut-off. A delivered order blocks the
   close for 48 hours (its issue window, M4 §3.2), so in practice that is two days after the last delivery.
+- Do not run `just staging-demo` in the two days before the close. The simulator stamps its orders' deliveries
+  with the time of the load, not the simulated dates, so every demo order counts as `open_paid_orders` for 48 hours
+  after a load (seen in the dry run of 22 November 2026).
 - Tell the team not to top up, approve boxes or ask for refunds from the switch until the close. A real top-up
   made before the close is a blocker (`live_topups_open`): the close would zero it with the test money, so it waits
   until that top-up is refunded to its source.
@@ -72,7 +75,10 @@ checked. The cut-over itself is "Steps" below.
    `409 billing.cutover_blocked` with the same `blockers`, and posts nothing. Otherwise its summary has the `entry_id`
    of the one `test_mode_closed` entry, how many `accounts` it zeroed and `total_paise`. Running it again answers the
    same entry with `"already_done": true`. Every wallet now reads ₹0, and its statement shows "Test balance closed".
-   Every admin gets one inbox message and push, "Test money closed", with the amount and the number of accounts
+   Every admin gets one inbox message and push, "Test money closed", with the amount and the number of accounts.
+   The amount is one side of the closing entry: every test top-up that was not refunded (the Razorpay clearing
+   balance), most of it already spent on boxes, so it is much larger than what the wallets held at the end. The
+   accounts include the platform's own (clearing, revenue), not only the wallets
    (M11; it waits for quiet hours like every staff message).
 5. **The first real-money test, together** (ADR-0037, order of work 5): a ₹100 top-up from the owner's phone, a ₹1
    refund to source of part of it, a refund of the rest, then `reconcile_payments` by hand. After each step check the
@@ -92,6 +98,24 @@ checked. The cut-over itself is "Steps" below.
 - Do not switch the mode without the keys of that mode, or the keys without the mode.
 - Do not run `just staging-demo`, `just staging-rollback` or the simulator against staging while live (ADR-0037 §4).
 - Do not fix balances by hand: a correction is an `adjustment` entry (handbook 05).
+
+## Dry run (22 November 2026)
+
+Steps 1 to 4 and "Afterwards" were run on a local copy: a scratch database with the seed and two simulated weeks
+(13 synthetic households, 22 delivered orders, ₹2,400 left in 12 wallets), and a local API started as staging runs it
+(`APP_ENV=staging`, fake Razorpay keys). What happened:
+
+- `RAZORPAY_MODE=live` with a `rzp_test_…` key: the API refused to start.
+- In `test` mode, `send_refunds` sent nothing and `billing_cutover_prepare` answered `409 billing.cutover_not_live`.
+- In `live` mode, `/v1/ready` showed `payments_mode: live`. The first prepare paused the 13 households; the second
+  paused none. Both reported `open_paid_orders: 22` (the demo-load stamp above), and the close answered
+  `409 billing.cutover_blocked` and posted nothing.
+- Once the deliveries were older than 48 hours, prepare reported no blockers. The close zeroed 14 accounts in one
+  entry. Running it again returned the same entry with `already_done: true`. Every INR account read ₹0; one
+  "Test money closed" message reached the admin; `billing.live_mode_mixed` was clean; a demo society's public page
+  answered 404 (#601).
+- Not covered locally: anything that calls Razorpay (`reconcile_payments` fails on fake keys, and the ₹100 test of
+  step 5), and the live guard of `just staging-demo`, which never checks the local database (its tests cover it).
 
 ## Related
 
