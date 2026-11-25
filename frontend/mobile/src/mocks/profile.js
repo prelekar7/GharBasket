@@ -2,6 +2,7 @@
 // account deletion. The household, members, address and subscription mocks are in identity.js;
 // Budget Lock (M3) is in subscriptions.js. Shapes beyond the frozen ones are our proposal.
 import { HttpResponse, http } from "msw";
+import { isValidName, NAME_MAX, NAME_MIN, tidyName } from "@/features/identity/name.js";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { caller, PROFILE_KEY, rolesFor, userFor } from "./handlers.js";
 import { demoId } from "./householdStore.js";
@@ -78,12 +79,13 @@ export const profileHandlers = [
     if (bad) return fieldProblem(bad);
     /** @type {Record<string, unknown>} */ const patch = {};
     if (body.name !== undefined) {
-      const name = body.name === null ? null : String(body.name).trim();
-      if (name !== null && (name.length < 1 || name.length > 80))
+      // The shared name rule (platform/names.py, #492): tidied, then 2 to 40 characters.
+      const name = body.name === null ? null : tidyName(String(body.name));
+      if (name !== null && !isValidName(name))
         return fieldProblem({
           loc: ["name"],
-          message: "String should have 1 to 80 characters",
-          type: "string_too_long",
+          message: `Value error, a name is ${NAME_MIN} to ${NAME_MAX} characters`,
+          type: "value_error",
         });
       patch.name = name;
     }

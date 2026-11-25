@@ -1,4 +1,5 @@
 import { flatLabel } from "@/features/identity/address.js";
+import { tidyName } from "@/features/identity/name.js";
 import { request } from "@/lib/api.js";
 import { toMembers } from "./members.js";
 
@@ -29,8 +30,11 @@ export function consentsOf(h) {
  */
 export function householdBody(draft) {
   const h = draft.household;
+  // Sent only when the flat step asked for it (the profile had no name); the API never overwrites one.
+  const ownerName = tidyName(draft.ownerName ?? "");
   return {
     society_id: draft.societyId,
+    ...(ownerName ? { owner_name: ownerName } : {}),
     address: {
       tower_id: draft.towerId,
       flat: flatLabel(draft.towerId ?? "", draft.flat),

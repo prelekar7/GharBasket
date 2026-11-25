@@ -235,7 +235,10 @@
       "towerPh": "Choose your tower",
       "flat": "Flat number",
       "capTitle": "{name} is your Society Captain",
-      "capBody": "She receives your society’s delivery and brings your box to your door."
+      "capBody": "She receives your society’s delivery and brings your box to your door.",
+      "name": "Your name",
+      "nameHint": "Your Society Captain and neighbours see this name.",
+      "nameError": "Use {min} to {max} letters."
     },
     "unlock": {
       "count": "{joined} of {target} homes",

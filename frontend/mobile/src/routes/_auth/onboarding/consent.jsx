@@ -6,7 +6,8 @@ import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { submitOnboarding } from "@/features/onboarding/submit.js";
-import { ApiError } from "@/lib/api.js";
+import { ApiError, me } from "@/lib/api.js";
+import { useSession } from "@/lib/session.js";
 
 /** Errors with their own words; any other failure is the "check your internet" line. */
 const KNOWN = [
@@ -41,6 +42,11 @@ function Consent() {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["household", "me"] });
+      // The API may have saved the flat step's name as the profile name (owner_name, #492).
+      if (!useSession.getState().user?.name)
+        me()
+          .then(({ roles: _roles, ...user }) => useSession.getState().setUser(user))
+          .catch(() => {});
       navigate({ to: nextStep("/onboarding/consent") });
     },
   });

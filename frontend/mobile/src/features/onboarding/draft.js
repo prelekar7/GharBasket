@@ -125,11 +125,12 @@ const splitStorage = {
  * @property {string | null} societyId
  * @property {string | null} towerId
  * @property {string} flat
+ * @property {string} ownerName the owner's own name, sent as `owner_name` (#492); asked only while the profile has none
  * @property {string | null} inviteSlug the society a neighbour's invite named (`/join?s=`), until the society step
  * @property {number} reached index in ONBOARDING_STEPS of the furthest screen opened
  * @property {HouseholdDraft} household
  * @property {(path: string) => void} markReached
- * @property {(patch: Partial<Pick<OnboardingDraft, "societyId" | "towerId" | "flat" | "inviteSlug">>) => void} update
+ * @property {(patch: Partial<Pick<OnboardingDraft, "societyId" | "towerId" | "flat" | "ownerName" | "inviteSlug">>) => void} update
  * @property {(patch: Partial<HouseholdDraft>) => void} updateHousehold
  * @property {() => void} reset
  * @property {{ id: string, version: number } | null} editing set while Profile edits a saved household
@@ -144,6 +145,7 @@ export const useOnboardingDraft = create(
         societyId: null,
         towerId: null,
         flat: "",
+        ownerName: "",
         inviteSlug: null,
         reached: 0,
         household: EMPTY_HOUSEHOLD,
@@ -163,6 +165,7 @@ export const useOnboardingDraft = create(
             societyId: null,
             towerId: null,
             flat: "",
+            ownerName: "",
             inviteSlug: null,
             reached: 0,
             household: EMPTY_HOUSEHOLD,
