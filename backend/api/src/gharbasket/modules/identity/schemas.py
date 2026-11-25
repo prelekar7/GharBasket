@@ -14,6 +14,7 @@ import phonenumbers
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
 from gharbasket.platform.geo import LatLng
+from gharbasket.platform.names import check_name
 
 Locale = Literal["en-IN", "hi-IN", "mr-IN"]
 
@@ -147,19 +148,18 @@ class MeUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None, min_length=1, max_length=80)
+    name: str | None = Field(
+        default=None,
+        max_length=200,
+        description="2 to 40 characters once trimmed, with inner spaces collapsed; null clears it",
+    )
     locale: Locale | None = None
     senior_mode: bool | None = None
 
     @field_validator("name")
     @classmethod
     def _tidy_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        tidy = " ".join(value.split())
-        if not tidy:
-            raise ValueError("name cannot be blank")
-        return tidy
+        return None if value is None else check_name(value)
 
     @model_validator(mode="after")
     def _not_null_settings(self) -> Self:
@@ -337,9 +337,23 @@ class HouseholdIn(HouseholdSettings):
     """Onboarding in one call: household, members, address and consents together."""
 
     society_id: uuid.UUID
+    owner_name: str | None = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "The owner's own name, 2 to 40 characters once trimmed with inner spaces collapsed. "
+            "Saved as the profile name only when the profile has none; never overwrites one"
+        ),
+        examples=["Priya Sharma"],
+    )
     address: AddressIn
     members: list[MemberIn] = Field(min_length=1, max_length=12)
     consents: list[ConsentIn] = Field(max_length=5)
+
+    @field_validator("owner_name")
+    @classmethod
+    def _tidy_owner_name(cls, value: str | None) -> str | None:
+        return None if value is None else check_name(value)
 
     @field_validator("consents")
     @classmethod

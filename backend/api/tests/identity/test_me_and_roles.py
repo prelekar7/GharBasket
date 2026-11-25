@@ -52,12 +52,22 @@ async def test_patch_me_changes_only_the_fields_sent(
     "body",
     [
         {"name": "   "},
+        {"name": "P"},
+        {"name": "x" * 41},
         {"locale": "fr-FR"},
         {"locale": None},
         {"senior_mode": None},
         {"phone_e164": "x"},
     ],
-    ids=["blank-name", "unknown-locale", "null-locale", "null-senior", "read-only-field"],
+    ids=[
+        "blank-name",
+        "one-letter-name",
+        "41-letter-name",
+        "unknown-locale",
+        "null-locale",
+        "null-senior",
+        "read-only-field",
+    ],
 )
 async def test_invalid_profile_changes_are_422(
     clients: ClientFactory, google: FakeGoogle, body: dict[str, Any]
@@ -69,6 +79,19 @@ async def test_invalid_profile_changes_are_422(
 
     assert response.status_code == 422
     assert response.json()["code"] == "request.invalid"
+
+
+async def test_a_name_of_2_or_40_characters_is_accepted(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    api = clients()
+    auth = bearer((await sign_in(api, google))["access_token"])
+
+    short = await api.patch("/v1/me", json={"name": "सु"}, headers=auth)
+    long = await api.patch("/v1/me", json={"name": " " + "x" * 40 + " "}, headers=auth)
+
+    assert short.status_code == long.status_code == 200
+    assert long.json()["name"] == "x" * 40
 
 
 async def test_name_can_be_cleared(clients: ClientFactory, google: FakeGoogle) -> None:

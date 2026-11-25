@@ -27,6 +27,7 @@ from gharbasket.modules.identity.models import (
     Consent,
     Household,
     HouseholdMember,
+    User,
 )
 from gharbasket.modules.identity.schemas import (
     AddressOut,
@@ -233,6 +234,14 @@ async def create_household(
             raise
         raise _household_exists(other.id) from None
 
+    if body.owner_name is not None:
+        # Only fills an empty profile name (#492): a name the person already chose is theirs. One
+        # UPDATE with the condition, so a PATCH /v1/me running at the same time is never undone.
+        await session.execute(
+            update(User)
+            .where(User.id == owner_id, User.name.is_(None))
+            .values(name=body.owner_name)
+        )
     session.add_all(new_member(household.id, member) for member in body.members)
     location = body.address.location
     session.add(
