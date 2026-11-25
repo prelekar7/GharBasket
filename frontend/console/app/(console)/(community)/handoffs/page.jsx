@@ -34,7 +34,8 @@ export default async function Page({ searchParams }) {
     ),
     orNotShipped(apiGet("/v1/ngo/offers", { searchParams: { hub_id: hub.id, status: "open" } })),
   ]);
-  // M9 is not built yet: the whole screen needs all four reads.
+  // An API without one of the four reads answers 404 or 405 with an http.* code (orNotShipped,
+  // NOT_SHIPPED in lib/proposal.js): the screen needs all four.
   if (!list || !ready || !ngos || !offers)
     return <PageHead title="NGO hand-offs">{NOT_SHIPPED_MESSAGE}</PageHead>;
   return (

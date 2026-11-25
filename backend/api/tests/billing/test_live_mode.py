@@ -265,7 +265,9 @@ async def test_reconciliation_compares_only_the_running_modes_payments_and_parts
     )
     await db_session.flush()
     gateway = Recorder()  # the live account: it never saw a test payment, refund or order...
-    gateway.pay("order_test_unpaid", 50_000, "pay_live_stray")  # ...but for a stray on that order
+    # ...but for a stray on that order. Stamped with `now`, the run's window end: the fake's own
+    # clock could be a second later and fall outside the window (a flake on CI, 22 Nov 2026).
+    gateway.pay("order_test_unpaid", 50_000, "pay_live_stray", created_at=int(now.timestamp()))
 
     async def reconcile(settings: Any, at: datetime) -> dict[str, Any]:
         gateway.paths.clear()

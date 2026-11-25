@@ -3,7 +3,16 @@ import { canAccess, itemFor } from "./lib/nav.js";
 import { ACCESS_COOKIE, isMockApi, parseSession, ROLES, SESSION_COOKIE } from "./lib/session.js";
 
 /** Pages of the (public) route group and their crawler files: open to signed-out visitors. */
-const PUBLIC_EXACT = new Set(["/", "/privacy", "/robots.txt", "/sitemap.xml", "/not-staff"]);
+const PUBLIC_EXACT = new Set([
+  "/",
+  "/privacy",
+  "/terms",
+  "/refund-policy",
+  "/contact",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/not-staff",
+]);
 const PUBLIC_PREFIXES = ["/s/", "/cook/"];
 
 /** @param {string} pathname */

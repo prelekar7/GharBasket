@@ -9,8 +9,8 @@ docstring). So there are only two ways back:
 1. **A `before-demo-*` restore point.** `just staging-demo` makes one before it loads data. It is a copy-on-write Neon
    branch with no compute. Rolling back to it is quick and complete, but it only goes back to that moment.
    **Refused while staging takes real money** (ADR-0037 §4): see "Live money" below.
-2. **A dump in R2.** Once the backup workflow is merged (`backup-staging.yml`, handbook 12 §12.4), a weekly
-   `pg_dump` is kept in the private bucket `gb-staging-backups`, at `staging/YYYY-MM-DD.dump`. It is restored into a
+2. **A dump in R2.** Once the backup workflow is merged (`backup-staging.yml`, handbook 12 §12.4), a daily
+   `pg_dump` (the newest 30) is kept in the private bucket `gb-staging-backups`, at `staging/YYYY-MM-DD.dump`. It is restored into a
    new database, then compared with staging, not poured over it.
 
 Anything that happened after the point you restore is gone. Staging holds synthetic and test data, so this is

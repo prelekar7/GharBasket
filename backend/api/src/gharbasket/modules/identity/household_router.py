@@ -7,7 +7,7 @@ carry the household's new `ETag`.
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
 from gharbasket.modules.identity import household_edits, households
 from gharbasket.modules.identity.schemas import (
@@ -27,6 +27,7 @@ from gharbasket.platform.db import DbSession
 from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.settings import Settings, get_settings
 
 router = APIRouter(tags=["households"])
 
@@ -68,8 +69,11 @@ async def create_household(
     session: DbSession,
     idem: Idempotent,
     response: Response,
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> HouseholdOut:
-    household = await households.create_household(session, permit.principal.user_id, body)
+    household = await households.create_household(
+        session, permit.principal.user_id, body, hide_demo=settings.hides_demo_societies
+    )
     created = await households.view(session, household)
     await idem.save(201, created)
     await session.commit()

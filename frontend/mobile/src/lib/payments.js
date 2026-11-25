@@ -25,6 +25,41 @@ export class PaymentError extends Error {
   }
 }
 
+/**
+ * Checkout opens on UPI, then shows its usual methods (cards, netbanking, wallets) below. On a
+ * phone the UPI block lists the UPI apps (Google Pay, PhonePe, …) and opens the chosen one
+ * (intent); on a laptop, where intent is not supported, Razorpay shows a UPI QR code to scan
+ * instead. `collect` (typing a UPI ID) is left out: Razorpay deprecated it on 28 Feb 2026 for most
+ * merchants. Option names from Razorpay's "Configure payment methods" docs (checked 22 Nov 2026).
+ */
+export const UPI_FIRST = Object.freeze({
+  display: {
+    blocks: {
+      upi: { name: "Pay with UPI", instruments: [{ method: "upi", flows: ["intent", "qr"] }] },
+    },
+    sequence: ["block.upi"],
+    preferences: { show_default_blocks: true },
+  },
+});
+
+/**
+ * Razorpay Checkout's options for a top-up, without the callbacks.
+ * @param {TopUpOrder} order
+ * @param {{ description: string, contact?: string }} details
+ */
+export const checkoutOptions = (order, { description, contact }) => ({
+  key: order.key_id,
+  order_id: order.razorpay_order_id,
+  amount: order.amount_paise,
+  currency: order.currency,
+  name: "GharBasket",
+  description,
+  prefill: contact ? { contact } : undefined,
+  theme: { color: "#2F5D3A" },
+  config: UPI_FIRST,
+  webview_intent: NATIVE,
+});
+
 /** @type {Promise<void> | null} */
 let script = null;
 const loadCheckout = () =>
@@ -101,15 +136,7 @@ export async function payWithRazorpay(order, { description, contact, isPaid }) {
       const Razorpay = /** @type {any} */ (window).Razorpay;
       if (!Razorpay) return reject(new PaymentError("checkout_unavailable"));
       const rzp = new Razorpay({
-        key: order.key_id,
-        order_id: order.razorpay_order_id,
-        amount: order.amount_paise,
-        currency: order.currency,
-        name: "GharBasket",
-        description,
-        prefill: contact ? { contact } : undefined,
-        theme: { color: "#2F5D3A" },
-        webview_intent: NATIVE,
+        ...checkoutOptions(order, { description, contact }),
         handler: (/** @type {unknown} */ response) => {
           finished = true;
           resolve(response);

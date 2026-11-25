@@ -472,8 +472,21 @@ class Settings(DatabaseSettings):
 
     @property
     def dev_login_enabled(self) -> bool:
-        """Sign in with just a phone number, no OTP: only ever on a developer's own machine."""
-        return self.app_env == "dev"
+        """Sign in with just a phone number, no OTP: only ever on a developer's own machine.
+
+        APP_ENV=dev against a shared database (Neon) keeps it off, so a mis-set APP_ENV on a
+        deployed host, or a laptop pointed at staging, can never sign anyone in without an OTP.
+        """
+        from gharbasket.platform.db import is_local_database  # db imports settings via tracing
+
+        url = self.database_url
+        return self.app_env == "dev" and (url is None or is_local_database(url.get_secret_value()))
+
+    @property
+    def hides_demo_societies(self) -> bool:
+        """Real money is in play (RAZORPAY_MODE=live, ADR-0037, ADR-0039): the synthetic (demo)
+        societies are no longer offered to anyone; until then the team's demos use them."""
+        return self.razorpay_mode == "live"
 
     @property
     def razorpay_enabled(self) -> bool:

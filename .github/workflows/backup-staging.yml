@@ -1,4 +1,4 @@
-# Weekly backup of staging's Neon database to Cloudflare R2 (handbook 12 §12.4, runbook
+# Daily backup of staging's Neon database to Cloudflare R2 (handbook 12 §12.4, runbook
 # docs/runbooks/restore-from-backup.md).
 #
 # Staging is a Neon child branch, so it has no point-in-time restore. scripts/neon-backup.sh makes
@@ -6,9 +6,10 @@
 # to the private bucket `gb-staging-backups` as `staging/YYYY-MM-DD.dump` (IST date) and keeps the
 # newest KEEP dumps. backup-prod.yml runs the same script for production (ADR-0036).
 #
-# Sunday 03:43 IST (Saturday 22:13 UTC) is a minute the daily `purge_gps_pings` job already wakes
-# Neon (jobs-staging.yml), so the backup adds a few minutes to a wake that exists and does not
-# touch the compute-hours budget in infra/jobs/schedule.yaml.
+# 03:43 IST every day (22:13 UTC) is a minute the daily `purge_gps_pings` job already wakes Neon
+# (jobs-staging.yml), so the backup adds a few minutes to a wake that exists and does not touch the
+# compute-hours budget in infra/jobs/schedule.yaml. Daily, keeping 30, since staging takes real
+# money (ADR-0037).
 #
 # The dump holds personal data of every user on staging. The bucket must be private (no public
 # access, no custom domain, no r2.dev URL) and the R2 token below must cover only that bucket.
@@ -27,7 +28,7 @@ name: Backup staging
 
 on:
   schedule:
-    - cron: "13 22 * * 6" # 03:43 IST Sunday
+    - cron: "13 22 * * *" # 03:43 IST daily
   workflow_dispatch:
 
 permissions:
@@ -45,7 +46,7 @@ jobs:
     env:
       BACKUP_BUCKET: gb-staging-backups
       BACKUP_PREFIX: staging/
-      KEEP: "8" # the newest dumps kept; one a week is eight weeks
+      KEEP: "30" # the newest dumps kept; one a day is thirty days (ADR-0037)
       PG_IMAGE: postgres:18
       HC_OPS_URL: ${{ secrets.HC_OPS_URL }}
     steps:

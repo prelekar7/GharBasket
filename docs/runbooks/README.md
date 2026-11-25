@@ -34,7 +34,7 @@ These are for a decision or a drill, not an alert:
 | When | Runbook |
 |---|---|
 | A deploy broke staging, or code must go back | [`deploy-rollback.md`](deploy-rollback.md) |
-| Staging's data is wrong or lost (restore points, the weekly dump in R2) | [`restore-from-backup.md`](restore-from-backup.md) |
+| Staging's data is wrong or lost (restore points, the daily dump in R2) | [`restore-from-backup.md`](restore-from-backup.md) |
 | A secret leaked, someone left, or a planned rotation | [`rotate-secrets.md`](rotate-secrets.md) |
 | Switching staging from test money to live money, once (M5 §3.10) | [`live-cutover.md`](live-cutover.md) |
 | Personal data may have been seen by someone who should not have (DPDP Act 2023) | [`dpdp-breach.md`](dpdp-breach.md) |

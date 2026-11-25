@@ -114,7 +114,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
         run -H 'x-origin-secret: forged-{}' -H 'X-Forwarded-For: 198.51.100.{}'   # spoofed secret
         ```
      3. **Extra: a second network.** Right after a run that gave 429s, one request to the same `URL` from another network, such as a phone hotspot, should give 404: `curl -s -o /dev/null -w '%{http_code}\n' "$URL"`. A 429 means every caller on that path shares one counter. This check alone cannot tell Vercel's address from yours, so check 1 is the one that counts.
-8. Locally only (`APP_ENV=dev`), `dev_phone` signs in without an OTP.
+8. Locally only (`APP_ENV=dev` with the database on `localhost`), `dev_phone` signs in without an OTP. `APP_ENV=dev` pointed at Neon keeps it off.
 
 ## 13.4 Authorisation (roles with scopes)
 
@@ -137,7 +137,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 | Private files | KYC documents and delivery proofs in a private bucket; reads use signed URLs valid for 5 minutes. When a module accepts an uploaded photo, the API removes its location (GPS) and other EXIF/XMP metadata. An upload whose bytes are not the type it was signed as is refused: an image that does not parse, or a PDF that does not start with `%PDF-` (M0 §3.1) |
 | Payment card data | Never touches our servers (Razorpay hosted checkout) |
 | Logs | structlog with a PII scrubber, run last on every line (M0 §6.4). By pattern, anywhere in the text, including tracebacks: phone numbers, e-mail addresses, JWTs, bearer and basic credentials, and connection-string passwords. By field name, at any depth: names (`full_name`, `display_name` …) and addresses (`address`, `line1`, `flat`, `landmark` …). A bare `name` is masked inside logged data, but not as a top-level field, where it names code. Free-text names cannot be found by pattern, so code never passes people's names or addresses to a logger as text (handbook 11 §11.7). The access log has the path only, never the query string. Assistant messages scrubbed in the API (phones, e-mails, Aadhaar, PIN codes, addresses, the household's own names) before they are stored or sent to the ML service |
-| Backups | Staging is a Neon child branch with no point-in-time restore: `before-demo-*` restore points, and a weekly `pg_dump` to the private R2 bucket `gb-staging-backups` (handbook 12 §12.4). The dump holds personal data, so the bucket stays private and its token covers that bucket only |
+| Backups | Staging is a Neon child branch with no point-in-time restore: `before-demo-*` restore points, and a daily `pg_dump` (kept 30 days) to the private R2 bucket `gb-staging-backups` (handbook 12 §12.4). The dump holds personal data, so the bucket stays private and its token covers that bucket only |
 | Retention | GPS pings 90 days; webhook payloads 180 days; audit log 3 years; deleted accounts purged within 30 days |
 
 ## 13.6 Privacy — DPDP Act 2023 and DPDP Rules 2025
@@ -190,12 +190,12 @@ In the prototype, KYC checks are **simulated** (no real document verification AP
 | Input validation | Pydantic v2 on every request; zod on the client. Request bodies are capped at 1 MiB (8 MiB for the operator's `/v1/internal/*`), counted while they stream, with 413 `platform.payload_too_large` (M0 §6.4) |
 | SQL injection | SQLAlchemy parameterised queries only |
 | API headers | Every API response: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store` unless the route chose its own caching. Staging and prod also send HSTS (`max-age=31536000; includeSubDomains`) (M0 §6.4) |
-| Web | CSP and security headers on the console; Capacitor navigation locked to our origins |
+| Web | The API's security headers above; a Content-Security-Policy on the console is the go-live PR for ASVS finding F3 (not on `main` yet); Capacitor navigation locked to our origins |
 | Android WebView bridge | `android.useLegacyBridge: true` (needed by background geolocation) lets any frame call plugins, not only our page: the third-party frames are Razorpay Checkout and Firebase reCAPTCHA. Plugin results go only to the main frame. Accepted in ADR-0034; revisit when the plugin no longer needs it or a new third-party frame is added |
 | Secrets | In Infisical, synced to GitHub Actions secrets; never in the client bundle or the repo; gitleaks in CI and pre-commit |
 | Dependencies | CI job "Dependency audit" on every pull request and push to main, and weekly (`dependency-audit.yml`, a failure tells the `ops` alert): `pip-audit` over `uv.lock`'s runtime dependencies (any known vulnerability fails) and `pnpm audit --prod` over `pnpm-lock.yaml` (high and critical fail); accepted advisories only with a reason and review date, in `.github/pip-audit-ignore.txt` or `audit.ignore` in `pnpm-workspace.yaml`. Renovate (`.github/renovate.json5`, once its GitHub App is installed): weekly grouped updates of releases at least 14 days old, security fixes at once, the owner merges. Trivy image scan (planned) |
 | LLM | The assistant never calls our API and holds no token: the API sends it scrubbed text and a trimmed week (no household or user id, name or address), it returns intents, and the API resolves them for the caller's own household; every write is a proposal the user confirms; per-user daily token cap; no prices computed by the LLM (M13 §3) |
-| Standard | OWASP ASVS Level 1 checklist reviewed before the pilot (Rhythm Thakur and Manish Raje). First pass, by reading the API and edge config (15 Nov 2026): [`docs/security/asvs-l1-2026-11.md`](../security/asvs-l1-2026-11.md), with no critical or high findings and 3 medium gaps (RLS described but not built, no dependency audit in CI, no CSP on the console or PWA). The second pass is still due |
+| Standard | OWASP ASVS Level 1 checklist reviewed before the pilot (Rhythm Thakur and Manish Raje). First pass, by reading the API and edge config (15 Nov 2026): [`docs/security/asvs-l1-2026-11.md`](../security/asvs-l1-2026-11.md), with no critical or high findings and 3 medium gaps (RLS described but not built, decided in ADR-0038; no dependency audit in CI, since added as `dependency-audit.yml`; no CSP on the console or PWA, the console's in the go-live work). The second pass is still due |
 
 ## 13.11 Audit log
 

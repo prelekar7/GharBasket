@@ -4,7 +4,7 @@
 > - Staging is **live** at `https://api.gharbasket.co.in` (D35; `https://gharbasket-api.onrender.com` still works) and runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
 > - **PostgreSQL 18 is on Neon** (Singapore): one shared database for the Infisical `dev` and `staging` environments, with guardrails. There is no database branch per PR. Daily work uses local Docker Postgres.
 > - **Deploys:** every green CI run on `main` triggers `deploy-staging.yml`, which runs `alembic upgrade head` on Neon, calls the Render deploy hook and runs a smoke test. CI on `main` cancels a superseded run, so only the newest commit deploys. The repository is public, so Actions minutes are free. Scheduled jobs are internal endpoints called by a GitHub Actions schedule for daily and weekly jobs (D21) and by a scheduler on the staging **Oracle VM** for minute-level ones (D32). Training and data jobs run in GitHub Actions (`training-jobs.yml`, `backend/training`). Secrets live in **Infisical**.
-> - **Backups:** staging is a Neon child branch with no point-in-time restore. Its restore points are the `before-demo-*` branches of `just staging-demo`, and a weekly `pg_dump` to a private R2 bucket (`backup-staging.yml`, §12.4).
+> - **Backups:** staging is a Neon child branch with no point-in-time restore. Its restore points are the `before-demo-*` branches of `just staging-demo`, and a daily `pg_dump` to a private R2 bucket, kept 30 days (`backup-staging.yml`, §12.4).
 > - **Observability:** structlog JSON logs, UptimeRobot (which also keeps the free API awake), PostHog. Explicit SLOs; runbooks are planned and written before the pilot (S10).
 > - **ML runtime (D25, serving host amended by D30):** the ML service is a second free **Render web service** (`gharbasket-ml`) without OSRM (routing uses haversine; Hugging Face Docker Spaces now need a paid plan, [ADR-0030](../adr/0030-ml-service-on-render-free.md)); models and the data lake live on R2 with a `latest.json` pointer per model; MLflow stays local. No keep-alive pings: both free web services share the workspace's 750 instance hours a month.
 > - **Still open:** paid plans plus the pilot database location (Neon Singapore or a paid Mumbai Postgres), decided before P6.
@@ -142,7 +142,7 @@ Production for the pilot is not set up yet. Its plan is ADR-0036; the repository
      3. Render: remove `ORIGIN_SECRET_PREVIOUS`.
 
      A PWA request whose secret matches neither value is counted by Vercel's address, one counter shared by every PWA user. It is logged as `client_ip_proxy_secret_mismatch` (at most once a minute, without the value).
-9. Which Razorpay money is in play (M5 §3.10, ADR-0037). `RAZORPAY_MODE` is `test` (the default; `render.yaml` sets it) or `live`. Set it in Infisical `staging` and on Render together, with the keys of that mode. The API refuses to start when they disagree: `test` takes only `rzp_test_` keys, and `live` takes only `rzp_live_` keys, needs `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`, and runs only with `APP_ENV` staging or prod. The start-up log line `api_started` and `/v1/ready` (operator token) report `payments_mode`; `/v1/health` does not. Each payment records its mode, and only the running mode's payments are credited, refunded to and reconciled. Switch with the cut-over procedure, [`live-cutover.md`](../runbooks/live-cutover.md): flush test refunds, switch keys and mode together, run `billing_cutover_prepare` until it reports no blockers, then `billing_cutover_live`.
+9. Which Razorpay money is in play (M5 §3.10, ADR-0037). `RAZORPAY_MODE` is `test` (the default when unset; `render.yaml` lists it with `sync: false`, so Render keeps whatever value is set in its dashboard) or `live`. Set it in Infisical `staging` and on Render together, with the keys of that mode. The API refuses to start when they disagree: `test` takes only `rzp_test_` keys, and `live` takes only `rzp_live_` keys, needs `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`, and runs only with `APP_ENV` staging or prod. The start-up log line `api_started` and `/v1/ready` (operator token) report `payments_mode`; `/v1/health` does not. Each payment records its mode, and only the running mode's payments are credited, refunded to and reconciled. Switch with the cut-over procedure, [`live-cutover.md`](../runbooks/live-cutover.md): flush test refunds, switch keys and mode together, run `billing_cutover_prepare` until it reports no blockers, then `billing_cutover_live`.
 
 ### Vercel projects (PWA and console)
 
@@ -274,22 +274,22 @@ Delete old `before-demo-*` branches in the console; the free plan allows 10 bran
 
 | What | How | Retention | Restore test |
 |---|---|---|---|
-| Postgres | Staging is a Neon child branch, so it has **no point-in-time restore**. Two ways back: the `before-demo-*` restore points (`just staging-demo`, rolled back with `just staging-rollback`, §12.3), and a weekly `pg_dump` to R2 (`backup-staging.yml`, below) | The 8 newest weekly dumps (about two months); restore points until a rollback or the next demo load replaces them | One restore drill before the pilot (Rhythm Thakur / Manish Raje run the checklist in `docs/runbooks/restore-from-backup.md` (written with the second part of the runbooks)) |
+| Postgres | Staging is a Neon child branch, so it has **no point-in-time restore**. Two ways back: the `before-demo-*` restore points (`just staging-demo`, rolled back with `just staging-rollback`, §12.3), and a daily `pg_dump` to R2 (`backup-staging.yml`, below) | The 30 newest daily dumps (30 days); restore points until a rollback or the next demo load replaces them | One restore drill before the pilot (Rhythm Thakur / Manish Raje run the checklist in `docs/runbooks/restore-from-backup.md` (written with the second part of the runbooks)) |
 | Valkey | Not backed up | — | Nothing to restore: it only holds rate-limit counters and the sign-out deny-list |
 | R2 files | Staging holds test files only | — | Strategy decided with the pilot plans before P6 |
 | Models, lake | R2 (`gb-mlflow`, `gb-lake`); MLflow runs stay local | Every promoted model version is kept | Point `latest.json` back at the previous version |
 | OSRM | Baked into the full ML image (`backend/ml/Dockerfile`, local runs and a paid host); not on staging (ADR-0030) | — | Rebuilt from `infra/osrm/prepare.sh` |
 | Config | Dockerfile, Compose files and workflows in git; secrets in Infisical | git history | Redeploy-from-scratch drill once before the pilot |
 
-### Weekly staging dump (`backup-staging.yml`)
+### Daily staging dump (`backup-staging.yml`)
 
 Neon on the free plan keeps no history of a child branch, so the workflow `.github/workflows/backup-staging.yml` takes one. Its steps are `scripts/neon-backup.sh`, which production's daily `backup-prod.yml` runs too (§12.9):
-- **When:** Sunday 03:43 IST (cron `13 22 * * 6`, UTC) and by hand (`workflow_dispatch`). That is a minute the daily `purge_gps_pings` job already wakes Neon, so it adds a few minutes to an existing wake and keeps the compute-hours budget of `infra/jobs/schedule.yaml`.
+- **When:** daily at 03:43 IST (cron `13 22 * * *`, UTC; weekly until staging took real money, ADR-0037) and by hand (`workflow_dispatch`). That is a minute the daily `purge_gps_pings` job already wakes Neon, so it adds a few minutes to an existing wake and keeps the compute-hours budget of `infra/jobs/schedule.yaml`.
 - **What:** `pg_dump --format=custom --no-owner --no-acl` of the whole database through `DATABASE_URL_DIRECT` (the direct URL, as for migrations). The client is the official `postgres:18` image, so its major version matches Neon's Postgres 18; move the tag when Neon moves. The workflow checks that `pg_restore --list` reads the dump and finds `identity.users` before it uploads anything.
-- **Where:** the R2 bucket `gb-staging-backups`, key `staging/YYYY-MM-DD.dump` (the IST date), uploaded with the S3 API. It keeps the newest 8 and deletes older keys of that form. Nothing else in the bucket is touched.
+- **Where:** the R2 bucket `gb-staging-backups`, key `staging/YYYY-MM-DD.dump` (the IST date), uploaded with the S3 API. It keeps the newest 30 and deletes older keys of that form. Nothing else in the bucket is touched.
 - **Secrets** (GitHub Actions, and Infisical `staging` for the restore): `BACKUP_S3_ENDPOINT_URL`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`, plus the existing `DATABASE_URL_DIRECT`. They are separate from the training jobs' `S3_*` secrets so that the token covers this bucket alone. Until they exist, the workflow skips with a notice. When it fails, it pings the healthchecks `ops` alert (`HC_OPS_URL`, ADR-0033).
 - **Privacy.** The dump holds the personal data of every staging user (handbook 13 §13.1). So the bucket must be **private**: no public access, no custom domain, no `r2.dev` URL. The token is Object Read & Write on that bucket only, and the access is limited to Prathamesh Relekar, with Rhythm Thakur and Manish Raje for the restore drill. Encryption at rest is R2's (handbook 13 §13.5). A downloaded dump is deleted after use.
-- **Limits.** One dump a week means up to a week of data can be lost. Staging holds synthetic and test data, so that is accepted; the pilot database's backups are decided with Q3.
+- **Limits.** One dump a day means up to a day of data can be lost; the ledger of real payments can also be rebuilt from Razorpay's dashboard (`reconcile_payments`). The pilot database's backups are decided with Q3.
 
 **One-time setup (owner: Prathamesh Relekar):**
 1. Cloudflare → R2 → create the bucket `gb-staging-backups`. Leave public access off.
@@ -370,7 +370,7 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 | [`restore-from-backup.md`](../runbooks/restore-from-backup.md) (written) | The honest version: staging is a Neon child branch with no point-in-time restore. Roll back to a `before-demo-*` restore point with `just staging-rollback`, or restore the weekly dump from R2 into a new database (never into the live branch); what to redo afterwards (sessions, erasures, the day's jobs, reconciliation); verification queries |
 | [`rotate-secrets.md`](../runbooks/rotate-secrets.md) (written) | Every secret, where it lives and how to rotate it. The JWT key rotates without sign-outs (`JWT_RETIRED_KEYS`); `JOBS_TOKEN` and `ML_SERVICE_TOKEN` have several homes; `KYC_ENCRYPTION_KEY` and `KYC_HASH_PEPPER` are never rotated until re-encryption exists; `REFRESH_TOKEN_PEPPER` only on a leak (everyone signs in again) |
 | [`deploy-rollback.md`](../runbooks/deploy-rollback.md) (written) | Roll back to the previous Render deploy (code only); downgrades are refused on Neon, so schema mistakes are fixed forward with a new migration; never re-run the deploy workflow on an older ref; smoke test with `just cloud <url>` |
-| [`live-cutover.md`](../runbooks/live-cutover.md) (written) | Switching staging to live money once (M5 §3.10, ADR-0037): flush test refunds in test mode, set the live keys and `RAZORPAY_MODE=live` together, run `billing_cutover_prepare` until no blockers, run `billing_cutover_live`, then the ₹100 top-up and refund test |
+| [`live-cutover.md`](../runbooks/live-cutover.md) (written) | **Going live on staging:** the whole go-live checklist and the risks accepted for the team test (19 Nov 2026), then switching staging to live money once (M5 §3.10, ADR-0037): flush test refunds in test mode, set the live keys and `RAZORPAY_MODE=live` together, run `billing_cutover_prepare` until no blockers, run `billing_cutover_live`, then the ₹100 top-up and refund test |
 | [`dpdp-breach.md`](../runbooks/dpdp-breach.md) (written) | The breach process of handbook 13 §13.6: contain, assess, notify the Data Protection Board and the affected people as the current DPDP Rules require; it states no deadline |
 
 ## 12.8 Ownership
@@ -383,7 +383,7 @@ Start at [`docs/runbooks/README.md`](../runbooks/README.md): which runbook goes 
 
 ## 12.9 Production for the pilot (ADR-0036)
 
-**State:** not set up. The repository side is built and inert until its secrets exist: `deploy-prod.yml`, `backup-prod.yml`, `jobs-prod.yml`, the `prod` jobs of `neon-usage.yml` and `smoke-ml.yml`, and the `prod` target of the VM scheduler (`scripts/jobs-on-vm.sh`). Everything that needs an account is an owner step below. [ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md) runs the real-money test on staging first; this section is for the launch after it, if the owner chooses a separate production then (ADR-0037 §6).
+**State:** not built, and not planned: staging is the production environment ([ADR-0039](../adr/0039-staging-is-production.md), 22 Nov 2026). This section stays as the record of ADR-0036's design. not set up. The repository side is built and inert until its secrets exist: `deploy-prod.yml`, `backup-prod.yml`, `jobs-prod.yml`, the `prod` jobs of `neon-usage.yml` and `smoke-ml.yml`, and the `prod` target of the VM scheduler (`scripts/jobs-on-vm.sh`). Everything that needs an account is an owner step below. [ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md) runs the real-money test on staging first; this section is for the launch after it, if the owner chooses a separate production then (ADR-0037 §6).
 
 Production is a second copy of staging's deployment that shares nothing holding data or secrets: its own Infisical `prod` values (all generated fresh), Neon project, API, Valkey, ML service, R2 buckets, Firebase project, Razorpay live keys and alerts. **The hosts of the API, the ML service and the frontends are decided at pilot time** (owner; with Yash Salunkhe for the frontends). Render's free hours are used by staging, and Vercel Hobby is non-commercial. So nothing here assumes a plan. Values marked *TODO (owner)* are set once the hosts are chosen.
 
@@ -399,7 +399,7 @@ The API and the ML service take the same variables as `gharbasket-api` and `ghar
 | `DATABASE_URL` | The production Neon project's pooled URL. The direct one is `PROD_DATABASE_URL_DIRECT` for the workflows |
 | `VALKEY_URL` | Production's own instance |
 | `FIREBASE_PROJECT_ID`, `FCM_SERVICE_ACCOUNT` | The production Firebase project |
-| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Live keys and the live webhook's secret. Today's API refuses a key that is not `rzp_test_`; `RAZORPAY_MODE=live` comes with ADR-0037's code PR |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Live keys and the live webhook's secret, with `RAZORPAY_MODE=live` (M5 §3.10; the API refuses a key of the other mode at start) |
 | `S3_*`, `S3_BUCKET_PRIVATE` | Production's private bucket (*TODO (owner)*: name, e.g. `gb-prod-private`) and its own R2 token |
 | `ML_SERVICE_URL` | Production's ML service. On that service: `S3_BUCKET_MLFLOW` = production's model bucket (*TODO (owner)*: name, e.g. `gb-prod-mlflow`) with a read-only token on it alone. Only models whose eval report allows it are copied there (ADR-0036) |
 | `WEB_ORIGINS` | `https://gharbasket.co.in,https://app.gharbasket.co.in` |
@@ -501,9 +501,7 @@ Production takes `api.`, `app.` and the bare `gharbasket.co.in`. Staging moves t
 
 ### Not built yet
 
-Each is its own PR, before the checklist above can finish:
-- **Code guards** (ADR-0036 step 2). `just seed`, `just staging-demo`, the simulator's `--allow-remote` and `staging-rollback` must refuse production by Neon project id and `APP_ENV=prod`.
-- **The Razorpay mode** (ADR-0037, a money PR).
+Each is its own PR, before the checklist above can finish. (Built since ADR-0036: the code guards, which refuse production by the database's `platform.environment` mark rather than by Neon project id, #567 and #574; and the Razorpay mode, #570 and #571.)
 - **Production rows in a Render blueprint**, if Render is chosen. They go in a separate file: rows in `render.yaml` could be created by staging's Blueprint sync on the next push.
 - **Production sections in the runbooks** `restore-from-backup.md` (Neon instant restore, then the daily dump), `deploy-rollback.md` and `rotate-secrets.md`.
 - **The reviewed load tool** for the real hub, societies and catalog.
@@ -551,6 +549,8 @@ Check a release APK with `apksigner verify --print-certs app-release.apk` (from 
 - **D32** — staging's minute-level jobs are called by a scheduler on the Oracle VM, not cron-job.org, whose calls Render's edge turned away ([ADR-0032](../adr/0032-scheduled-jobs-from-the-oracle-vm.md)).
 - **D35** — the custom domain `gharbasket.co.in` on Cloudflare DNS: `api.` for the API, the bare name for the console, `app.` for the PWA ([ADR-0035](../adr/0035-custom-domain-gharbasket-co-in.md)).
 - **D36** — production is a second, complete copy that shares no data or secrets with staging, deployed by hand after approval; it takes the main names and staging moves to `staging-*` ([ADR-0036](../adr/0036-production-environment-for-the-pilot.md), §12.9). **D37** puts live Razorpay keys on staging first, behind `RAZORPAY_MODE` ([ADR-0037](../adr/0037-live-razorpay-on-staging-with-a-cut-over.md)).
-- **Open:** paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before Phase 6).
+- **Staging is production (22 Nov 2026, owner, [ADR-0039](../adr/0039-staging-is-production.md)):** no separate production and no domain move; real money through the cut-over below.
+- **Go-live (19 Nov 2026, owner):** the team's real-money test runs on the current staging on the free plans; the risks this accepts (cold starts, Vercel Hobby's non-commercial terms, reconciliation every 2 to 3 hours) and the checklist are in [`live-cutover.md`](../runbooks/live-cutover.md).
+- **Open:** paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before the pilot societies join).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 11 — Engineering process](11-engineering-process.md) · [Chapter 13 — Security and compliance](13-security-and-compliance.md)
