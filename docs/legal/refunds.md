@@ -47,7 +47,7 @@ All times are Indian Standard Time (IST). "Delivery day" means the day your box 
 - At the door the bag is checked by its QR code. A rider, or anyone delivering a tiffin, asks for your **delivery code** (shown in your app) or takes a photo of the bag at your door.
 
 **Delivery charges**
-- If your society is not yet "live" on GharBasket, each weekly box carries a delivery fee of **[PRE-LIVE BOX FEE, default ₹30]**. The app shows it before you approve.
+- If your society is not yet "live" on GharBasket, each weekly box carries a delivery fee of **₹30**. The app shows it before you approve.
 - Once enough households in your society join, the society goes live and boxes are delivered free. If it goes live before your box is paid, the fee is removed.
 - Add-ons and tiffins have no delivery fee.
 

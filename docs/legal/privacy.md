@@ -88,16 +88,16 @@ We also use data to keep the service secure, to prevent misuse and fraud, to kee
 
 | Provider | What they do | Where |
 |---|---|---|
-| Google Firebase | Sends sign-in OTPs; sends push notifications | [LOCATION — to be confirmed] |
-| Razorpay | Handles top-ups and refunds | [LOCATION — to be confirmed] |
+| Google Firebase | Sends sign-in OTPs; sends push notifications | Sign-in: United States (Firebase sign-in runs only in Google's US data centres). Push notifications: Google's data centres worldwide |
+| Razorpay | Handles top-ups and refunds | India (Indian rules require payment data to be stored in India) |
 | Render | Runs our servers (API and machine-learning service) | Singapore |
 | Neon | Hosts our database | Singapore |
-| Cloudflare (R2) | Stores photos, documents, data exports and database backups, in private storage | [LOCATION — to be confirmed] |
-| Vercel | Hosts our website and web app | [LOCATION — to be confirmed] |
-| GitHub | Runs scheduled tasks and makes the database backup copy | [LOCATION — to be confirmed] |
-| Anthropic (Claude) | Reads chat assistant messages (after personal details are removed) to understand what you asked | [LOCATION — to be confirmed] |
-| Meta (WhatsApp Business) | Sends WhatsApp messages, only if you turn them on | [LOCATION — to be confirmed] |
-| Grafana Cloud | Error and performance records (no names, phone numbers, addresses or account IDs) | [LOCATION — to be confirmed] |
+| Cloudflare (R2) | Stores photos, documents, data exports and database backups, in private storage | [R2 REGION — to be confirmed in the Cloudflare dashboard] |
+| Vercel | Hosts our website and web app | Pages are served from Mumbai, India for visitors in India. The staff console's server runs in Washington, D.C., United States |
+| GitHub | Runs scheduled tasks and makes the database backup copy | United States and other countries |
+| Anthropic (Claude) | Reads chat assistant messages (after personal details are removed) to understand what you asked | Stored in the United States; may be processed in the United States, Europe, Asia or Australia |
+| Meta (WhatsApp Business) | Sends WhatsApp messages, only if you turn them on | Meta's data centres in several countries |
+| Grafana Cloud | Error and performance records (no names, phone numbers, addresses or account IDs) | [GRAFANA REGION — to be confirmed in the Grafana Cloud stack] |
 
 We share personal data only with the people and providers listed here, or when the law requires it.
 
@@ -105,7 +105,10 @@ The machine-learning service that plans meals and routes does not receive your n
 
 ## 5. Where your data is stored
 
-Our database and servers are in **Singapore** (Neon and Render). Some providers above may process data in other countries. We take care that transfers follow the DPDP Act.
+- Our database and servers are in **Singapore** (Neon and Render).
+- Payment data stays in **India** (Razorpay).
+- Some providers in section 4 process data in other countries, mainly the **United States**: sign-in OTPs (Google Firebase), the staff console's server (Vercel), scheduled tasks and the backup copy (GitHub), and the chat assistant (Anthropic, after personal details are removed).
+- The DPDP Act allows personal data to be processed outside India, except in countries the Government of India restricts. We do not send personal data to a restricted country, and we will update this section if the Government restricts one we use.
 
 ## 6. How long we keep it
 
@@ -120,9 +123,9 @@ Our database and servers are in **Singapore** (Neon and Render). Some providers 
 | Your data export file | 7 days |
 | Security audit log (who did what, without personal details) | 3 years |
 | Kindness points | Expire 365 days after you earn them |
-| Chat assistant conversations | Until you delete your account [RETENTION PERIOD — to be confirmed] |
+| Chat assistant conversations | Until you delete your account, then deleted within 30 days |
 | Orders and money records (wallet, ledger, payments) | Kept after account deletion for accounting and legal record-keeping, but no longer linked to you (section 7) [RETENTION PERIOD — to be confirmed] |
-| Database backups | Older copies are replaced over time [BACKUP RETENTION — to be confirmed] |
+| Database backups | Older copies are replaced over time (daily backups are kept for 30 days, then deleted) |
 
 ## 7. Deleting your account
 
@@ -163,7 +166,7 @@ Under the DPDP Act you can:
 
 **Grievance Officer:** [GRIEVANCE OFFICER NAME]
 Email: [SUPPORT EMAIL] · Phone: [SUPPORT PHONE] · Address: [REGISTERED ADDRESS]
-We will reply within [GRIEVANCE RESPONSE TIME — to be confirmed].
+We acknowledge your message within 48 hours and resolve it within 15 days.
 
 <!-- Sources:
 Data collected: handbook 13 §13.1; M1 §1, US-1–US-7, §3.2 (household, members, consents, address rules), §3.4 (shortage preference), §3.3 (export contents list per module); M3 §3.1 (feedback taps); M4 §3.2 (issues, notes, photos); M7 §3.4–§3.5, Privacy (proofs, codes, photos, GPS only on route, 90 days); M8 US-9 (ratings); M5 §3.1–§3.3; M9 §3.3–§3.4; M11 §3.1–§3.2; M13 §3 data flow (scrub list, ML service gets no ids).
@@ -176,6 +179,7 @@ Consent versioned, health revoke erases tags, WhatsApp stops at once, new versio
 Who sees: M7 Privacy (captains); M9 §3.1 (captain phone/flat never returned); M4 §3.6 (contact for callback, audit-logged).
 Processors: handbook 12 (Render Singapore, Neon Singapore, R2, Vercel, GitHub Actions jobs and backup-staging.yml), handbook 13 §13.2 (Firebase Auth/FCM, Razorpay, WhatsApp Cloud API, Claude API), M0 tracing (Grafana Cloud), M13 §3 (Anthropic via ML service, Singapore), M11 §1 (WhatsApp off until set up). PostHog (ADR-0020) left out: not found in the code (README).
 Storage location Singapore: handbook 12 summary; handbook 13 "Decisions & open questions" (Mumbai later).
+Provider locations (checked 2026-11-22 on each provider's own pages): Firebase https://firebase.google.com/support/privacy (Authentication runs only from US data centres; FCM is a global service); Razorpay: RBI directive "Storage of Payment System Data" (DPSS.CO.OD No.2785/06.08.005/2017-18, 6 Apr 2018), as Razorpay's privacy policy states no location; Vercel: response header x-vercel-id shows bom1 (Mumbai) at the edge and iad1 (Washington, D.C.) for the console's functions, regions per https://vercel.com/docs/regions; GitHub general privacy statement ("a variety of locations", the US and others); Anthropic https://privacy.claude.com/en/articles/7996890 (stored in the US; traffic may be routed to the US, Europe, Asia and Australia); Meta: the Cloud API stores data in its own data centres unless local storage (India is available) is turned on per number; R2 bucket region (automatic, chosen nearest to whoever created the bucket) and the Grafana stack region are not visible from the repo. Transfers: DPDP Act s.16.
 Retention: handbook 13 §13.5 (GPS 90 d, webhooks 180 d, audit 3 y); M0 §3.1 file table (photos 90 d); M11 §3.1, §3.2 (180 d); M1 §3.3 (export 7 d, 24 h, 5-min link, once a day); M5 §3.6 (365 d); M13 §11 (chat retention open); ADR-0037 §5 (30 daily backups, Proposed).
 Deletion: M1 §3.5 (fresh OTP, sign-out, M3 ends subscription, wallet close, M11 stops, 30-day grace, keep account, purge preconditions, what is kept, webhook redaction); handbook 13 §13.6.
 Rights: handbook 13 §13.6; DPDP Act ss. 11–14 (nomination, Board) — legal text for the reviewer, nomination handling not specified.
