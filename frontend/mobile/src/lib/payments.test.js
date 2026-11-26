@@ -96,6 +96,8 @@ describe("Razorpay Checkout", () => {
       { method: "upi", flows: ["intent", "qr"] },
     ]);
     expect(options.config.display.preferences.show_default_blocks).toBe(true);
+    // The default blocks lose UPI (and with it collect, typing a UPI ID); our block keeps intent and QR.
+    expect(options.config.display.hide).toEqual([{ method: "upi" }]);
     expect(options).toMatchObject({
       key: order.key_id,
       order_id: order.razorpay_order_id,

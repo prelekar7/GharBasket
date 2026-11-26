@@ -30,7 +30,10 @@ export class PaymentError extends Error {
  * phone the UPI block lists the UPI apps (Google Pay, PhonePe, …) and opens the chosen one
  * (intent); on a laptop, where intent is not supported, Razorpay shows a UPI QR code to scan
  * instead. `collect` (typing a UPI ID) is left out: Razorpay deprecated it on 28 Feb 2026 for most
- * merchants. Option names from Razorpay's "Configure payment methods" docs (checked 22 Nov 2026).
+ * merchants. Our block leaves it out, and `hide` drops UPI from Checkout's default blocks, where
+ * collect would still be offered; `hide` does not touch an instrument in our own blocks. Razorpay
+ * documents `hide` per method only, not per flow, so it hides the whole default UPI entry. Option
+ * names from Razorpay's "Configure payment methods" docs (checked 22 and 26 Nov 2026).
  */
 export const UPI_FIRST = Object.freeze({
   display: {
@@ -38,6 +41,7 @@ export const UPI_FIRST = Object.freeze({
       upi: { name: "Pay with UPI", instruments: [{ method: "upi", flows: ["intent", "qr"] }] },
     },
     sequence: ["block.upi"],
+    hide: [{ method: "upi" }],
     preferences: { show_default_blocks: true },
   },
 });
