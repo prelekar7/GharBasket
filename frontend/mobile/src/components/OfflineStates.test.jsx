@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@/i18n.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { ApiError } from "@/lib/api.js";
+import { PaymentError } from "@/lib/payments.js";
 import en from "@/locales/en-IN.json";
 import { OutboxBanner } from "./OutboxBanner.jsx";
 import { RoutePending } from "./RouteFallback.jsx";
@@ -84,6 +85,15 @@ describe("top-up error without a connection", () => {
     setOnline(false);
     await act(async () => topUp?.fail(new TypeError("Failed to fetch")));
     expect(host.textContent).toBe(en.onboarding.payment.errors.offline);
+  });
+
+  it("never says no money was taken once Checkout has opened, even offline", async () => {
+    await render(<Harness />);
+    setOnline(false);
+    // Paid in GPay, back with no signal, Checkout reports a failure and is closed.
+    await act(async () => topUp?.fail(new PaymentError("BAD_REQUEST_ERROR")));
+    expect(host.textContent).not.toBe(en.onboarding.payment.errors.offline);
+    expect(host.textContent).toBe(en.onboarding.payment.errors.generic);
   });
 
   it("keeps the API's own message when the server answered", async () => {
