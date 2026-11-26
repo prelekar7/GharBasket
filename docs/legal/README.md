@@ -55,7 +55,7 @@ Four pages for the public site (`gharbasket.co.in`, the console app), which Razo
 10. **Revoking a required consent** (`service_delivery`, `personalisation`): M1 does not say what happens. The notice points to account deletion.
 11. **Nomination right** (DPDP s.14) and **grievance response time** (DPDP Rules 2025, and the Consumer Protection (E-Commerce) Rules 2020, which as far as we know expect a grievance officer, acknowledgement within 48 hours and redress within a month): no process in the specs. The reviewer should confirm the timelines.
 12. **Retention of orders and the ledger after deletion.** Kept "for legal record keeping" (handbook 13 §13.6) with no period. Choose one (tax law).
-13. **Chat retention.** M13 §11 proposes 30 days; nothing is decided, so the notice says "until you delete your account".
+13. ~~**Chat retention.**~~ Decided (owner, 22 Nov 2026): chats are kept until the account is deleted, then deleted within 30 days (privacy §6). M13 §11's 30-day proposal for chats on a live account is not adopted.
 14. **Backups and erasure.** ADR-0037 §5 keeps 30 daily dumps (built in #587); no spec says whether a purged account is removed from backups or rolls off.
 15. **Provider locations.** Checked on 22 Nov 2026 against each provider's own pages (sources at the end of privacy.md). Two remain: the R2 bucket's region (created with `auto`) and the Grafana Cloud stack's region. The staff console's Vercel functions run in Washington, D.C. (`iad1`, Vercel's default); moving them to Singapore (`sin1`, next to the API) would shorten every console request and take staff data out of the US. If that is changed, update privacy §4 and §5.
 16. **PostHog.** ADR-0020 and handbook 12 name it, but no PostHog code exists in `frontend/` or `backend/api`, so the notice leaves it out. Add it when it ships.
@@ -64,6 +64,7 @@ Four pages for the public site (`gharbasket.co.in`, the console app), which Razo
 19. **Partners in the test.** KYC checks are simulated (handbook 13 §13.8, M8 §1) and payouts are simulated in the app, paid by the owner outside it (ADR-0037 §5). TDS and labour-code duties are still open (M5 §11, handbook 13 §13.8). Partner payment terms are a placeholder.
 20. **"We will never ask for your OTP"** (contact page) is a safety promise, not a spec rule. Confirm the hub team's call-back script never asks for one.
 21. **Anonymised research use** of real pilot data (handbook 05 `data_source = pilot`): confirm the wording with the guide.
+22. **"Safe to eat"** (terms §14). The interim liability clause says we take reasonable care that orders arrive "as described, safe to eat and on the day shown". It is a duty of care, not a guarantee, but "safe to eat" may read as a warranty about food that partner kitchens and vendors prepare. Ask Prof. Bade (or the lawyer) whether to keep it, narrow it (e.g. "handled and stored as food safety rules require"), or name the FSSAI duties of each party.
 
 ## Contradictions found in the specs
 
