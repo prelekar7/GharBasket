@@ -75,11 +75,11 @@ checked. The cut-over itself is "Steps" below.
    `409 billing.cutover_blocked` with the same `blockers`, and posts nothing. Otherwise its summary has the `entry_id`
    of the one `test_mode_closed` entry, how many `accounts` it zeroed and `total_paise`. Running it again answers the
    same entry with `"already_done": true`. Every wallet now reads ₹0, and its statement shows "Test balance closed".
-   Every admin gets one inbox message and push, "Test money closed", with the amount and the number of accounts.
+   Every admin gets one inbox message and push, "Test money closed", with the amount and the number of accounts
+   (M11; the push waits for quiet hours like every staff message).
    The amount is one side of the closing entry: every test top-up that was not refunded (the Razorpay clearing
    balance), most of it already spent on boxes, so it is much larger than what the wallets held at the end. The
-   accounts include the platform's own (clearing, revenue), not only the wallets
-   (M11; it waits for quiet hours like every staff message).
+   accounts include the platform's own (clearing, revenue), not only the wallets.
 5. **The first real-money test, together** (ADR-0037, order of work 5): a ₹100 top-up from the owner's phone, a ₹1
    refund to source of part of it, a refund of the rest, then `reconcile_payments` by hand. After each step check the
    wallet, the Razorpay dashboard, and `ops_check`.
