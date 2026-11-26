@@ -12,8 +12,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
-import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLabel } from "@/features/kitchen/format.js";
+import { KitchenError } from "@/features/kitchen/KitchenError.jsx";
 import {
   CHECKLIST,
   dishes,
@@ -45,7 +45,8 @@ function KitchenPrep() {
   const [ticked, setTicked] = useState(/** @type {string[]} */ ([]));
 
   if (assignments.isPending) return <Skeleton lines={10} />;
-  if (assignments.isError) return <ScreenError onRetry={() => assignments.refetch()} />;
+  if (assignments.isError)
+    return <KitchenError errors={[assignments.error]} onRetry={() => assignments.refetch()} />;
   const a = assignments.data.items.find((x) =>
     ["accepted", "preparing", "ready", "completed"].includes(x.status),
   );

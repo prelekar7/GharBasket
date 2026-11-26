@@ -31,6 +31,9 @@ import { tokens } from "@/lib/tokens.js";
  * @property {RoleGrant[]} grants Verified field-role grants from GET /v1/me (applied, kyc_pending and suspended ones are not selectable, M1 US-5).
  * @property {FieldRole[]} roles The same, as role names.
  * @property {FieldRole | null} activeRole Last choice is remembered (handbook ch. 03 §2); sent as X-Active-Role.
+ * @property {string | null} roleOwner The user whose choice `activeRole` is. A shared phone must not hand one
+ *   person's mode to the next one who signs in: a packer once landed in customer onboarding because the
+ *   person before her had chosen "customer" (phone test, 26 Nov).
  * @property {(profile: UserOut & { roles: RoleGrant[] }) => void} signIn
  * @property {(role: FieldRole) => void} setActiveRole
  * @property {(user: UserOut) => void} setUser After PATCH /v1/me (name, language, senior mode).
@@ -60,10 +63,11 @@ export const useSession = create(
         grants: [],
         roles: [],
         activeRole: null,
+        roleOwner: null,
         signIn: ({ roles: all, ...user }) => {
           const grants = all.filter((g) => g.status === "verified" && FIELD_ROLES.includes(g.role));
           const roles = /** @type {FieldRole[]} */ (grants.map((g) => g.role));
-          const remembered = get().activeRole;
+          const remembered = get().roleOwner === user.id ? get().activeRole : null;
           const activeRole =
             remembered && roles.includes(remembered)
               ? remembered
@@ -71,13 +75,13 @@ export const useSession = create(
                 ? roles[0]
                 : null;
           setActiveRoleHeader(headerFor(grants, activeRole));
-          set({ signedIn: true, user, grants, roles, activeRole });
+          set({ signedIn: true, user, grants, roles, activeRole, roleOwner: user.id });
           syncPushToken();
         },
         setUser: (user) => set({ user }),
         setActiveRole: (activeRole) => {
           setActiveRoleHeader(headerFor(get().grants, activeRole));
-          set({ activeRole });
+          set({ activeRole, roleOwner: get().user?.id ?? null });
         },
         restore: () => {
           if (get().signedIn) return Promise.resolve(true);
@@ -130,7 +134,10 @@ export const useSession = create(
           set({ signedIn: false, user: null, grants: [], roles: [] });
         },
       }),
-      { name: "gb-session", partialize: (s) => ({ activeRole: s.activeRole }) },
+      {
+        name: "gb-session",
+        partialize: (s) => ({ activeRole: s.activeRole, roleOwner: s.roleOwner }),
+      },
     )
   ),
 );
