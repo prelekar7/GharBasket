@@ -3,8 +3,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
-import { ScreenError } from "@/components/ScreenError.jsx";
 import { clock, dateLabel, dayLabel } from "@/features/kitchen/format.js";
+import { KitchenError } from "@/features/kitchen/KitchenError.jsx";
 import {
   dishes,
   useAssignments,
@@ -33,7 +33,8 @@ function KitchenToday() {
   if (me.isPending || assignments.isPending) return <Skeleton lines={8} />;
   if (me.isError || assignments.isError) {
     return (
-      <ScreenError
+      <KitchenError
+        errors={[me.error, assignments.error]}
         onRetry={() => {
           me.refetch();
           assignments.refetch();

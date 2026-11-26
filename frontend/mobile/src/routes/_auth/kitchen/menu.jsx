@@ -4,8 +4,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
-import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLabel } from "@/features/kitchen/format.js";
+import { KitchenError } from "@/features/kitchen/KitchenError.jsx";
 import { useCapacity, useKitchenWrite, usePartnerMe } from "@/features/kitchen/queries.js";
 import { Muted, Row } from "@/features/kitchen/ui.jsx";
 import { request } from "@/lib/api.js";
@@ -30,7 +30,8 @@ function KitchenMenu() {
   if (me.isPending || capacity.isPending) return <Skeleton lines={10} />;
   if (me.isError || capacity.isError) {
     return (
-      <ScreenError
+      <KitchenError
+        errors={[me.error, capacity.error]}
         onRetry={() => {
           me.refetch();
           capacity.refetch();

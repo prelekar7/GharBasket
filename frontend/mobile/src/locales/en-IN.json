@@ -1734,6 +1734,10 @@
       "payout": "Paid every Monday to your bank, from the same ledger as every rupee in GharBasket.",
       "cert": "Download income certificate (PDF)",
       "certFailed": "Couldn’t get the certificate. Check your internet and try again."
+    },
+    "notSetUp": {
+      "title": "Your kitchen isn’t set up yet",
+      "body": "The hub adds your kitchen after approving you. If it has been more than a day, ask Help."
     }
   },
   "product": {

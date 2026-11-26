@@ -70,4 +70,38 @@ describe("signIn", () => {
     expect(useSession.getState().roles).toEqual(["kitchen_partner"]);
     expect(useSession.getState().activeRole).toBe("kitchen_partner");
   });
+
+  it("remembers the chosen role for the same person only, not the next one on the phone", () => {
+    const two = (/** @type {string} */ id, /** @type {string} */ field) =>
+      /** @type {any} */ ({
+        ...user,
+        id,
+        roles: [grant("customer", "verified"), grant(field, "verified")],
+      });
+    // Arjun (customer and rider) chooses customer, then signs out.
+    useSession.setState({ activeRole: null, roleOwner: null });
+    useSession.getState().signIn(two("arjun", "rider"));
+    expect(useSession.getState().activeRole).toBeNull(); // two roles: the chooser asks
+    useSession.getState().setActiveRole("customer");
+    useSession.getState().clear();
+    // Kavita (customer and packer) signs in on the same phone: she is asked, not put in customer.
+    useSession.getState().signIn(two("kavita", "packer"));
+    expect(useSession.getState().activeRole).toBeNull();
+    useSession.getState().setActiveRole("packer");
+    useSession.getState().clear();
+    // Kavita again: her own choice comes back (handbook ch. 03 §2).
+    useSession.getState().signIn(two("kavita", "packer"));
+    expect(useSession.getState().activeRole).toBe("packer");
+  });
+
+  it("does not reuse a role saved before the owner was recorded", () => {
+    useSession.setState({ activeRole: "customer", roleOwner: null });
+    useSession.getState().signIn(
+      /** @type {any} */ ({
+        ...user,
+        roles: [grant("customer", "verified"), grant("packer", "verified")],
+      }),
+    );
+    expect(useSession.getState().activeRole).toBeNull();
+  });
 });

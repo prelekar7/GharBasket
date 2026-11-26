@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ProfileActions } from "@/components/ProfileActions.jsx";
-import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLabel } from "@/features/kitchen/format.js";
+import { KitchenError } from "@/features/kitchen/KitchenError.jsx";
 import { useEarnings, usePartnerMe } from "@/features/kitchen/queries.js";
 import { Muted, Row } from "@/features/kitchen/ui.jsx";
 import { openCertificate } from "@/features/partners/certificate.js";
@@ -24,7 +24,8 @@ function KitchenEarnings() {
   if (me.isPending || earnings.isPending) return <Skeleton lines={8} />;
   if (me.isError || earnings.isError) {
     return (
-      <ScreenError
+      <KitchenError
+        errors={[me.error, earnings.error]}
         onRetry={() => {
           me.refetch();
           earnings.refetch();

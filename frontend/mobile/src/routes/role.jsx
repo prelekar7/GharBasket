@@ -15,7 +15,7 @@ export const Route = createFileRoute("/role")({
 function RoleChooser() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { roles, setActiveRole } = useSession();
+  const { roles, setActiveRole, signOut } = useSession();
   return (
     <main className="mx-auto flex min-h-dvh max-w-[480px] flex-col gap-4 px-5 pt-[calc(48px+env(safe-area-inset-top))]">
       <h1 className="font-display text-[28px] leading-[34px] font-semibold">{t("role.title")}</h1>
@@ -32,6 +32,17 @@ function RoleChooser() {
           {t(`role.${role}`)}
         </Button>
       ))}
+      {/* A way out from here too: a field shell that cannot load may have no other (phone test, 26 Nov). */}
+      <Button
+        variant="quiet"
+        block
+        onPress={async () => {
+          await signOut();
+          navigate({ to: "/login" });
+        }}
+      >
+        {t("profile.signOut")}
+      </Button>
     </main>
   );
 }
