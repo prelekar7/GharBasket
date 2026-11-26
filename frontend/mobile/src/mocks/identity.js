@@ -1,7 +1,8 @@
 // M1 household and consent mocks (docs/modules/M1-identity.md §3.2), the real shapes: onboarding
 // is ONE call (POST /v1/households) with the members, the address and the consents inside it.
 import { HttpResponse, http } from "msw";
-import { caller, HOUSEHOLDS_KEY, isNewUser } from "./handlers.js";
+import { isValidName, NAME_MAX, NAME_MIN, tidyName } from "@/features/identity/name.js";
+import { caller, HOUSEHOLDS_KEY, isNewUser, PROFILE_KEY, userFor } from "./handlers.js";
 import {
   accountOf,
   CONSENT_VERSION,
@@ -103,6 +104,7 @@ const createdByKey = () => JSON.parse(localStorage.getItem(KEYS) ?? "{}");
 
 const HOUSEHOLD_KEYS = [
   "society_id",
+  "owner_name",
   "address",
   "diet",
   "cuisine_tags",
@@ -131,6 +133,12 @@ function householdError(b) {
   if (bad) return bad;
   const address = shapeError(b.address, ADDRESS_KEYS, ADDRESS_KEYS, ["address"]);
   if (address) return address;
+  if (b.owner_name != null && (typeof b.owner_name !== "string" || !isValidName(b.owner_name)))
+    return {
+      loc: ["owner_name"],
+      message: `Value error, a name is ${NAME_MIN} to ${NAME_MAX} characters`,
+      type: "value_error",
+    };
   if (!Array.isArray(b.members) || b.members.length < 1 || b.members.length > 12)
     return { loc: ["members"], message: "Members must have 1 to 12 items", type: "too_short" };
   for (const [i, m] of b.members.entries()) {
@@ -258,6 +266,12 @@ export const identityHandlers = [
       created_at: new Date().toISOString(),
     };
     saveAccount(phone, { household, subscription: null, consents: consentsFor(granted) });
+    // owner_name fills an empty profile name only; it never overwrites one (M1 §3.2, #492).
+    if (body.owner_name != null && !userFor(phone).name) {
+      const profiles = JSON.parse(localStorage.getItem(PROFILE_KEY) ?? "{}");
+      profiles[phone] = { ...profiles[phone], name: tidyName(body.owner_name) };
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
+    }
     // From now on this number signs in as an existing household (…00005 stays new for demos).
     const known = JSON.parse(localStorage.getItem(HOUSEHOLDS_KEY) ?? "[]");
     if (phone !== "+919800000005" && !known.includes(phone))

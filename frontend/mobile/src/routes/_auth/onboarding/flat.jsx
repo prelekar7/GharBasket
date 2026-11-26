@@ -5,9 +5,15 @@ import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { useSociety, useSocietyUnlock } from "@/features/community/queries.js";
+import { isValidName, NAME_MAX, NAME_MIN } from "@/features/identity/name.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useSession } from "@/lib/session.js";
 
-/** Tower and flat in the chosen society, and who its captain is (design Hf06). */
+/**
+ * Tower and flat in the chosen society, and who its captain is (design Hf06). While the profile has
+ * no name, it also asks for the owner's own name (#492): the API saves `owner_name` only into an
+ * empty profile name, so asking someone who already has one would quietly drop the answer.
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/onboarding/flat")({
   beforeLoad: () => {
@@ -19,11 +25,13 @@ export const Route = createFileRoute("/_auth/onboarding/flat")({
 function FlatStep() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { societyId, towerId, flat, update } = useOnboardingDraft();
+  const { societyId, towerId, flat, ownerName, update } = useOnboardingDraft();
+  const askName = !useSession((s) => s.user?.name);
   const { data: society, isPending, isError, refetch } = useSociety(societyId ?? undefined);
   const captain = society?.captain;
   const { data: unlock } = useSocietyUnlock(society && !captain ? society.id : undefined);
-  const valid = !!towerId && /^[A-Za-z0-9-]{1,8}$/.test(flat.trim());
+  const nameOk = !askName || isValidName(ownerName);
+  const valid = !!towerId && /^[A-Za-z0-9-]{1,8}$/.test(flat.trim()) && nameOk;
 
   return (
     <OnboardingFrame
@@ -68,6 +76,17 @@ function FlatStep() {
             value={flat}
             onChange={(v) => update({ flat: v.toUpperCase() })}
           />
+          {askName && (
+            <TextField
+              label={t("onboarding.flat.name")}
+              description={t("onboarding.flat.nameHint")}
+              autoComplete="name"
+              value={ownerName}
+              onChange={(v) => update({ ownerName: v })}
+              isInvalid={ownerName.trim() !== "" && !nameOk}
+              errorMessage={t("onboarding.flat.nameError", { min: NAME_MIN, max: NAME_MAX })}
+            />
+          )}
           {captain ? (
             <section className="flex items-start gap-3.5 rounded-md bg-surface p-4">
               <div className="grid size-13 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-fg">

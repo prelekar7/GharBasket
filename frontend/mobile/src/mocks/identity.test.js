@@ -150,6 +150,44 @@ describe("POST /v1/households (onboarding in one call, M1)", () => {
     ]);
     expect((await create(b)).status).toBe(201);
   });
+
+  it("saves owner_name as an empty profile name, tidied (#492)", async () => {
+    await signIn(NEW_PHONE);
+    expect((await (await call("GET", "/v1/me")).json()).name).toBeNull();
+    expect((await create(body({ owner_name: "  Priya   Sharma " }))).status).toBe(201);
+    expect((await (await call("GET", "/v1/me")).json()).name).toBe("Priya Sharma");
+  });
+
+  it("never overwrites a profile name with owner_name", async () => {
+    await signIn(NEW_PHONE);
+    expect((await call("PATCH", "/v1/me", { name: "Priya" })).status).toBe(200);
+    expect((await create(body({ owner_name: "Someone Else" }))).status).toBe(201);
+    expect((await (await call("GET", "/v1/me")).json()).name).toBe("Priya");
+  });
+
+  it("refuses an owner_name outside 2 to 40 characters", async () => {
+    await signIn(NEW_PHONE);
+    for (const [i, name] of ["P", "   ", "a".repeat(41)].entries()) {
+      const res = await create(body({ owner_name: name }), `bad-${i}`);
+      expect(await res.json()).toMatchObject({
+        code: "request.invalid",
+        errors: [{ loc: ["body", "owner_name"] }],
+      });
+    }
+  });
+
+  it("sends the flat step's name as owner_name, and leaves it out when none was asked", () => {
+    const draft = /** @type {any} */ ({
+      societyId: "s",
+      towerId: "b",
+      flat: "402",
+      ownerName: "  Priya  Sharma ",
+      household: { members: { adults: 1, seniors: 0, children: 0, little: 0 }, fasting: [] },
+    });
+    expect(householdBody(draft).owner_name).toBe("Priya Sharma");
+    expect(householdBody({ ...draft, ownerName: "" })).not.toHaveProperty("owner_name");
+    expect(householdBody({ ...draft, ownerName: undefined })).not.toHaveProperty("owner_name");
+  });
 });
 
 describe("household edits (M1)", () => {
