@@ -13,6 +13,8 @@ from gharbasket.modules.community.models import Captain, Society
 from gharbasket.modules.hub_ops.models import Hub
 from gharbasket.modules.identity.models import ROLES, Household, HouseholdMember, User, UserRole
 from gharbasket.modules.identity.service import find_or_create_user
+from gharbasket.modules.partners import kitchens
+from gharbasket.modules.partners import service as partners_service
 from gharbasket.modules.partners.models import Partner, TrainingModule
 from gharbasket.platform.db import REMOTE_SEED_CONFIRMATION, create_engine
 from gharbasket.platform.models import AuditEntry, OutboxEvent
@@ -23,6 +25,7 @@ from gharbasket.tools.live_guard import DatabaseFacts
 from gharbasket.tools.seed import (
     CAPTAINS,
     HOUSEHOLDS,
+    KITCHENS,
     PEOPLE,
     SEED_HUB_ID,
     SEED_SOCIETY_ID,
@@ -32,6 +35,7 @@ from gharbasket.tools.seed import (
     seed_catalog,
     seed_households,
     seed_hubs,
+    seed_kitchen_partners,
     seed_partners,
     seed_societies,
     seed_trainings,
@@ -185,6 +189,7 @@ def test_the_seed_command_fills_the_database(
     assert f"{len(SOCIETIES)} synthetic societies" in out
     assert f"{len(HOUSEHOLDS)} synthetic households" in out
     assert f"{len(CAPTAINS)} synthetic captain partners" in out
+    assert f"{len(KITCHENS)} synthetic kitchen partners" in out
     assert "6 partner training modules (placeholders)" in out
     # It committed: the rows are there for a new connection.
     assert asyncio.run(_count_seed_rows(seeded_database)) == (len(PEOPLE), len(SOCIETIES))
@@ -457,3 +462,50 @@ async def test_seed_captains_are_appointed_and_get_the_captain_role(
     assert {(c.user_id, c.society_id, c.appointed_by) for c in appointed} == {
         (users[phone], society, "auto") for phone, society, _ in CAPTAINS
     }
+
+
+async def test_seed_kitchen_partners_have_a_kitchen_her_screens_can_read(
+    db_session: AsyncSession,
+) -> None:
+    """Without the partner record and kitchen, every kitchen screen answered 404
+    `partners.kitchen_not_found` although she had the role (staging, 26 Nov 2026)."""
+    await seed(db_session)
+    await seed_societies(db_session)
+    await seed_households(db_session)
+    first = await seed_kitchen_partners(db_session)
+    again = await seed_kitchen_partners(db_session)
+    users = {user.phone_e164: user.id for user in await _seed_users(db_session)}
+
+    assert [created for _, created in first] == [True] * len(KITCHENS)
+    assert not any(created for _, created in again)
+    for data in KITCHENS:
+        partner, kitchen = await kitchens.own(db_session, users[data.phone])
+        assert partner.display_name == data.display_name
+        assert kitchen.area == data.area
+        assert (kitchen.lat, kitchen.lng) == pytest.approx((data.location.lat, data.location.lng))
+        assert kitchen.default_portions == kitchens.zero_week()
+
+
+async def test_seed_kitchen_partners_gives_an_existing_kitchen_partner_her_missing_kitchen(
+    db_session: AsyncSession,
+) -> None:
+    """Staging's state before this fix: a kitchen partner record (or only the role), no kitchen."""
+    await seed(db_session)
+    await seed_societies(db_session)
+    await seed_households(db_session)
+    data = KITCHENS[0]
+    user, _ = await find_or_create_user(db_session, data.phone)
+    await partners_service.verify(
+        db_session,
+        user_id=user.id,
+        kind="kitchen",
+        hub_id=SEED_HUB_ID,
+        display_name=data.display_name,
+        data_source="synthetic",
+    )
+
+    added = dict(await seed_kitchen_partners(db_session))
+
+    assert added[data.phone] is True
+    _, kitchen = await kitchens.own(db_session, user.id)
+    assert kitchen.area == data.area

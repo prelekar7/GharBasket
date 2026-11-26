@@ -80,9 +80,10 @@ from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user, grant_role
 from gharbasket.modules.orders import service as orders_service
 from gharbasket.modules.partners import api as partners_api
+from gharbasket.modules.partners import kitchens as partners_kitchens
 from gharbasket.modules.partners import service as partners_service
 from gharbasket.modules.partners import training as partners_training
-from gharbasket.modules.partners.models import TrainingModule
+from gharbasket.modules.partners.models import Kitchen, Partner, TrainingModule
 from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions import service as subscriptions_service
 from gharbasket.platform import outbox
@@ -94,7 +95,7 @@ from gharbasket.platform.db import (
     synthetic_data_target,
 )
 from gharbasket.platform.errors import ProblemError
-from gharbasket.platform.geo import LatLng
+from gharbasket.platform.geo import LatLng, point
 from gharbasket.platform.settings import DatabaseSettings
 from gharbasket.tools.live_guard import LiveMoneyRefused, refuse_if_live
 
@@ -379,6 +380,24 @@ CAPTAINS = (
 
 
 @dataclass(frozen=True)
+class SeedKitchen:
+    phone: str
+    display_name: str
+    area: str
+    location: LatLng
+
+
+# Kitchen partners (M8 §3.5): the `kitchen_partner` role alone is not enough, every kitchen screen
+# reads her partner record and kitchen (404 `partners.kitchen_not_found` without them). Her weekly
+# portions start at 0, as for a newly verified kitchen; she sets them in the app.
+KITCHENS = (
+    SeedKitchen(
+        "+919800001005", "Lata tai", "Sector 20, Kharghar", LatLng(lat=19.0352, lng=73.0318)
+    ),
+)
+
+
+@dataclass(frozen=True)
 class Seeded:
     phone: str
     name: str
@@ -524,6 +543,40 @@ async def seed_partners(session: AsyncSession) -> list[tuple[str, bool]]:
             )
         done.append((phone, created))
     return done
+
+
+async def seed_kitchen_partners(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Verify the seeded kitchen partners (M8) and give each her kitchen: (phone, created) each.
+    Only `just seed` runs this, not the tests' shared seed, whose tests make their own kitchens.
+    A partner record without a kitchen (a database seeded before this step) gets the kitchen."""
+    return [(data.phone, await _seed_kitchen(session, data)) for data in KITCHENS]
+
+
+async def _seed_kitchen(session: AsyncSession, data: SeedKitchen) -> bool:
+    """One seeded kitchen partner and her kitchen; True if either was missing."""
+    user, _ = await find_or_create_user(session, data.phone)
+    partner = (
+        await session.execute(
+            select(Partner).where(Partner.user_id == user.id, Partner.kind == "kitchen")
+        )
+    ).scalar_one_or_none()
+    created = partner is None
+    if partner is None:
+        partner = await partners_service.verify(
+            session,
+            user_id=user.id,
+            kind="kitchen",
+            hub_id=SEED_HUB_ID,
+            display_name=data.display_name,
+            data_source="synthetic",
+        )
+    if await session.get(Kitchen, partner.id) is not None:
+        return created
+    kitchen = await partners_kitchens.create_for(session, partner)
+    kitchen.area = data.area
+    kitchen.location = point(data.location.lat, data.location.lng)
+    await session.flush()
+    return True
 
 
 async def seed_trainings(
@@ -722,6 +775,7 @@ class Report:
     ngos: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
     delivery: tuple[uuid.UUID, int] | None = None
     hubs: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
+    kitchens: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
 
 
 async def run(database_url: str, *, refresh: bool = False, keep_existing: bool = False) -> Report:
@@ -741,6 +795,7 @@ async def run(database_url: str, *, refresh: bool = False, keep_existing: bool =
                 societies=await seed_societies(session, keep_existing=keep),
                 households=await seed_households(session),
                 partners=await seed_partners(session),
+                kitchens=await seed_kitchen_partners(session),
                 products=await seed_catalog(session, refresh=refresh, keep_existing=keep),
                 trainings=await seed_trainings(session, keep_existing=keep),
                 delivery=await seed_delivery(session),
@@ -804,6 +859,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for phone, created in report.partners:
         print(f"{phone}  captain partner {'new' if created else 'kept'}")
     print(f"{len(report.partners)} synthetic captain partners")
+    print(f"{len(report.kitchens)} synthetic kitchen partners")
     new = sum(created for _, created in report.products)
     print(f"{len(report.products)} synthetic products ({new} new)")
     print(f"{len(report.trainings)} partner training modules (placeholders)")
