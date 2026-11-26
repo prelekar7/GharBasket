@@ -44,6 +44,11 @@ export function useTopUp({ onPaid }) {
   const fail = (/** @type {unknown} */ e) => {
     setBusy(false);
     if (e instanceof PaymentError && e.code === "dismissed") return;
+    // No connection: fetch fails with a TypeError, before any problem body exists.
+    if (!navigator.onLine || e instanceof TypeError) {
+      setError(errors("offline"));
+      return;
+    }
     const code =
       e instanceof ApiError ? e.code : e instanceof PaymentError ? `payment.${e.code}` : "";
     const key = code.replace(/\./g, "_");

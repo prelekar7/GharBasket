@@ -9,23 +9,27 @@ import {
   useFailedItems,
   useOutboxCount,
 } from "@/lib/outbox.js";
+import { useOnline } from "@/shared/native/useOnline.js";
 import { LostActionsNotice } from "./LostActionsNotice.jsx";
 
 /**
  * Shown in every role shell while the outbox is not empty: "3 actions waiting to sync", and
  * "1 couldn't be sent" for actions the server refused, each with the reason in words and a
  * Dismiss button, so none is ever lost without a word. "Try now" only sends what is waiting:
- * a refused action would be refused again.
+ * a refused action would be refused again. With nothing waiting, it still says "You're offline" while
+ * the phone has no connection, so a screen showing saved data is not mistaken for a fresh one.
  */
 export function OutboxBanner() {
   const { t } = useTranslation();
   const waiting = useOutboxCount("waiting");
   const failed = useFailedItems();
   const lost = useLostActions((s) => s.items.length);
-  if (waiting === 0 && failed.length === 0 && lost === 0) return null;
+  const online = useOnline();
+  if (online && waiting === 0 && failed.length === 0 && lost === 0) return null;
   return (
     <div className="flex flex-col gap-2 px-4 pt-2">
       <LostActionsNotice />
+      {!online && waiting === 0 && <OfflineBanner message={t("outbox.offline")} />}
       {waiting > 0 && (
         <OfflineBanner
           message={t("outbox.waiting", { count: waiting })}

@@ -1,6 +1,6 @@
 // The subpath, not the barrel: this is in the entry chunk (main.jsx), and the barrel would bring
 // the whole UI kit into every first load.
-import { ErrorState } from "@gharbasket/ui/states";
+import { ErrorState, Skeleton } from "@gharbasket/ui/states";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -60,6 +60,24 @@ export function RouteNotFound() {
           </Link>
         }
       />
+    </Page>
+  );
+}
+
+/**
+ * Router `defaultPendingComponent`: shown once a route has waited `defaultPendingMs` (1 s), most
+ * often at start-up while `/_auth` restores the session (a refresh against an API that may be
+ * waking up). Without it the WebView stayed blank and dark for as long as that took.
+ */
+export function RoutePending() {
+  const { t } = useTranslation();
+  return (
+    <Page>
+      <div role="status" aria-busy="true" className="flex flex-col gap-4">
+        <span className="sr-only">{t("router.loading")}</span>
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton lines={4} />
+      </div>
     </Page>
   );
 }
