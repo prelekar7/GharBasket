@@ -35,6 +35,7 @@ from gharbasket.tools.seed import (
     seed_catalog,
     seed_households,
     seed_hubs,
+    seed_kitchen_partners,
     seed_partners,
     seed_societies,
     seed_trainings,
@@ -188,6 +189,7 @@ def test_the_seed_command_fills_the_database(
     assert f"{len(SOCIETIES)} synthetic societies" in out
     assert f"{len(HOUSEHOLDS)} synthetic households" in out
     assert f"{len(CAPTAINS)} synthetic captain partners" in out
+    assert f"{len(KITCHENS)} synthetic kitchen partners" in out
     assert "6 partner training modules (placeholders)" in out
     # It committed: the rows are there for a new connection.
     assert asyncio.run(_count_seed_rows(seeded_database)) == (len(PEOPLE), len(SOCIETIES))
@@ -408,12 +410,11 @@ async def test_seed_captains_are_verified_partners_where_they_live(
     first = await seed_partners(db_session)
     again = await seed_partners(db_session)
 
-    assert [created for _, created in first] == [True] * (len(CAPTAINS) + len(KITCHENS))
+    assert [created for _, created in first] == [True] * len(CAPTAINS)
     assert not any(created for _, created in again)
     partners = list((await db_session.execute(select(Partner))).scalars())
     assert {(p.kind, p.status, p.data_source, p.hub_id) for p in partners} == {
-        ("captain", "active", "synthetic", SEED_HUB_ID),
-        ("kitchen", "active", "synthetic", SEED_HUB_ID),
+        ("captain", "active", "synthetic", SEED_HUB_ID)
     }
     users = {user.phone_e164: user.id for user in await _seed_users(db_session)}
     homes = {
@@ -428,10 +429,7 @@ async def test_seed_captains_are_verified_partners_where_they_live(
     verified = (
         (
             await db_session.execute(
-                select(OutboxEvent).where(
-                    OutboxEvent.event_type == "partners.verified",
-                    OutboxEvent.payload["kind"].astext == "captain",
-                )
+                select(OutboxEvent).where(OutboxEvent.event_type == "partners.verified")
             )
         )
         .scalars()
@@ -474,9 +472,12 @@ async def test_seed_kitchen_partners_have_a_kitchen_her_screens_can_read(
     await seed(db_session)
     await seed_societies(db_session)
     await seed_households(db_session)
-    await seed_partners(db_session)
+    first = await seed_kitchen_partners(db_session)
+    again = await seed_kitchen_partners(db_session)
     users = {user.phone_e164: user.id for user in await _seed_users(db_session)}
 
+    assert [created for _, created in first] == [True] * len(KITCHENS)
+    assert not any(created for _, created in again)
     for data in KITCHENS:
         partner, kitchen = await kitchens.own(db_session, users[data.phone])
         assert partner.display_name == data.display_name
@@ -485,7 +486,7 @@ async def test_seed_kitchen_partners_have_a_kitchen_her_screens_can_read(
         assert kitchen.default_portions == kitchens.zero_week()
 
 
-async def test_seed_partners_gives_an_existing_kitchen_partner_her_missing_kitchen(
+async def test_seed_kitchen_partners_gives_an_existing_kitchen_partner_her_missing_kitchen(
     db_session: AsyncSession,
 ) -> None:
     """Staging's state before this fix: a kitchen partner record (or only the role), no kitchen."""
@@ -503,7 +504,7 @@ async def test_seed_partners_gives_an_existing_kitchen_partner_her_missing_kitch
         data_source="synthetic",
     )
 
-    added = dict(await seed_partners(db_session))
+    added = dict(await seed_kitchen_partners(db_session))
 
     assert added[data.phone] is True
     _, kitchen = await kitchens.own(db_session, user.id)

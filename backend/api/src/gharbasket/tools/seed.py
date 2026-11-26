@@ -522,9 +522,8 @@ async def seed_households(session: AsyncSession) -> list[tuple[str, bool]]:
 
 async def seed_partners(session: AsyncSession) -> list[tuple[str, bool]]:
     """Verify the seeded captains (M8), publishing `partners.verified` with the society each
-    lives in, so M9 appoints her, then the seeded kitchen partners with their kitchens:
-    (phone, created) each. Needs the people, societies and households first. An existing partner
-    record is kept as it is; a kitchen partner without a kitchen gets one."""
+    lives in, so M9 appoints her: (phone, created) each. Needs the people, societies and
+    households first. An existing partner record is kept as it is."""
     hubs = {society.id: society.hub_id for society in SOCIETIES}
     done: list[tuple[str, bool]] = []
     for phone, society_id, display_name in CAPTAINS:
@@ -543,9 +542,14 @@ async def seed_partners(session: AsyncSession) -> list[tuple[str, bool]]:
                 data_source="synthetic",
             )
         done.append((phone, created))
-    for seed_kitchen in KITCHENS:
-        done.append((seed_kitchen.phone, await _seed_kitchen(session, seed_kitchen)))
     return done
+
+
+async def seed_kitchen_partners(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Verify the seeded kitchen partners (M8) and give each her kitchen: (phone, created) each.
+    Only `just seed` runs this, not the tests' shared seed, whose tests make their own kitchens.
+    A partner record without a kitchen (a database seeded before this step) gets the kitchen."""
+    return [(data.phone, await _seed_kitchen(session, data)) for data in KITCHENS]
 
 
 async def _seed_kitchen(session: AsyncSession, data: SeedKitchen) -> bool:
@@ -771,6 +775,7 @@ class Report:
     ngos: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
     delivery: tuple[uuid.UUID, int] | None = None
     hubs: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
+    kitchens: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
 
 
 async def run(database_url: str, *, refresh: bool = False, keep_existing: bool = False) -> Report:
@@ -790,6 +795,7 @@ async def run(database_url: str, *, refresh: bool = False, keep_existing: bool =
                 societies=await seed_societies(session, keep_existing=keep),
                 households=await seed_households(session),
                 partners=await seed_partners(session),
+                kitchens=await seed_kitchen_partners(session),
                 products=await seed_catalog(session, refresh=refresh, keep_existing=keep),
                 trainings=await seed_trainings(session, keep_existing=keep),
                 delivery=await seed_delivery(session),
@@ -853,6 +859,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for phone, created in report.partners:
         print(f"{phone}  captain partner {'new' if created else 'kept'}")
     print(f"{len(report.partners)} synthetic captain partners")
+    print(f"{len(report.kitchens)} synthetic kitchen partners")
     new = sum(created for _, created in report.products)
     print(f"{len(report.products)} synthetic products ({new} new)")
     print(f"{len(report.trainings)} partner training modules (placeholders)")

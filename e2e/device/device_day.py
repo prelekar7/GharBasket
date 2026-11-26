@@ -50,7 +50,7 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import SecretStr
 from redis.asyncio import Redis
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,6 +62,7 @@ import gharbasket.modules.subscriptions.service as subs_service
 from gharbasket.main import create_app
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.modules.partners import service as partners_service
+from gharbasket.modules.partners.models import Kitchen, Partner
 from gharbasket.modules.registry import load_modules
 from gharbasket.platform import outbox
 from gharbasket.platform.db import create_engine, is_local_database
@@ -525,7 +526,13 @@ async def kitchen_setup(config: DeviceConfig, api: Api, day: Day, clock: Clock) 
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
             user, _ = await find_or_create_user(session, KITCHEN)
-            partner = await partners_service.verify(
+            # `just seed` now verifies Lata and makes her kitchen (seed_kitchen_partners); an
+            # older seed left only the role.
+            partner = (
+                await session.execute(
+                    select(Partner).where(Partner.user_id == user.id, Partner.kind == "kitchen")
+                )
+            ).scalar_one_or_none() or await partners_service.verify(
                 session,
                 user_id=user.id,
                 kind="kitchen",
@@ -533,7 +540,9 @@ async def kitchen_setup(config: DeviceConfig, api: Api, day: Day, clock: Clock) 
                 display_name="Lata tai",
                 data_source="synthetic",
             )
-            kitchen = await kitchens.create_for(session, partner)
+            kitchen = await session.get(Kitchen, partner.id) or await kitchens.create_for(
+                session, partner
+            )
             kitchen.hygiene_grade, kitchen.inspected_on = "A", day.t - timedelta(days=30)
             await session.commit()
             partner_id = partner.id
