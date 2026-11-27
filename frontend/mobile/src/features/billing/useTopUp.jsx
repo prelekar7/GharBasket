@@ -44,6 +44,14 @@ export function useTopUp({ onPaid }) {
   const fail = (/** @type {unknown} */ e) => {
     setBusy(false);
     if (e instanceof PaymentError && e.code === "dismissed") return;
+    // No connection before Checkout opened: fetch fails with a TypeError, before any problem body
+    // exists, so no money can have moved. A PaymentError comes from Checkout itself: the person may
+    // have paid in a UPI app before the connection dropped, so "no money was taken" could be false
+    // there, and the payment's own message (or the "still waiting" dialog) stays.
+    if (!(e instanceof PaymentError) && (!navigator.onLine || e instanceof TypeError)) {
+      setError(errors("offline"));
+      return;
+    }
     const code =
       e instanceof ApiError ? e.code : e instanceof PaymentError ? `payment.${e.code}` : "";
     const key = code.replace(/\./g, "_");

@@ -3,7 +3,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./app.css";
-import { RouteError, RouteNotFound } from "@/components/RouteFallback.jsx";
+import { RouteError, RouteNotFound, RoutePending } from "@/components/RouteFallback.jsx";
 import { onSessionExpired } from "@/lib/api.js";
 import { MOCK } from "@/lib/env.js";
 import { clearLocalData } from "@/lib/localData.js";
@@ -25,6 +25,7 @@ const router = createRouter({
   // of the status bar, instead of the router's plain "Something went wrong! Show Error".
   defaultErrorComponent: RouteError,
   defaultNotFoundComponent: RouteNotFound,
+  defaultPendingComponent: RoutePending,
 });
 
 startPwa();
