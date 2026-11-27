@@ -152,6 +152,33 @@ describe("Razorpay Checkout", () => {
     });
   });
 
+  it("gives up on a Checkout script that never loads, and the next Pay tries again", async () => {
+    const { payWithRazorpay, CHECKOUT_LOAD_MS } = await load(true);
+    vi.useFakeTimers();
+    try {
+      // A stalled connection: neither onload nor onerror ever fires (28 Nov, Razorpay's CDN).
+      const appended = /** @type {HTMLScriptElement[]} */ ([]);
+      vi.mocked(document.head.appendChild).mockImplementation((el) => {
+        appended.push(/** @type {HTMLScriptElement} */ (el));
+        return el;
+      });
+      const paying = payWithRazorpay(order, { description: "Top up" });
+      const failed = expect(paying).rejects.toMatchObject({ code: "checkout_unavailable" });
+      await vi.advanceTimersByTimeAsync(CHECKOUT_LOAD_MS);
+      await failed;
+      expect(checkouts).toHaveLength(0);
+
+      const again = payWithRazorpay(order, { description: "Top up" });
+      expect(appended).toHaveLength(2); // a fresh load, not the stalled one
+      /** @type {any} */ (appended[1]).onload();
+      await vi.waitFor(() => expect(checkouts).toHaveLength(1));
+      checkouts[0].options.handler({ razorpay_payment_id: "pay_1" });
+      await expect(again).resolves.toEqual({ razorpay_payment_id: "pay_1" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("closes Checkout and carries on when the app resumes and the top-up turns out paid", async () => {
     const { payWithRazorpay } = await load(true);
     const isPaid = vi.fn(async () => false);
