@@ -9,6 +9,14 @@ const addListener = vi.fn(async (/** @type {string} */ _event, /** @type {() => 
   return { remove };
 });
 vi.mock("@capacitor/app", () => ({ App: { addListener, minimizeApp } }));
+const checkout = vi.hoisted(() => ({ open: false }));
+vi.mock("@/lib/payments.js", () => ({
+  closeCheckout: () => {
+    const was = checkout.open;
+    checkout.open = false;
+    return was;
+  },
+}));
 
 /** @param {boolean} native */
 async function load(native) {
@@ -71,6 +79,18 @@ describe("handleBack", () => {
     await handleBack(router, { minimizeApp });
     expect(minimizeApp).toHaveBeenCalled();
     expect(router.history.back).not.toHaveBeenCalled();
+  });
+
+  it("closes an open Razorpay Checkout first, and does nothing else", async () => {
+    const { handleBack } = await load(true);
+    checkout.open = true;
+    const router = fakeRouter("/wallet", true);
+    await handleBack(router, { minimizeApp });
+    expect(checkout.open).toBe(false);
+    expect(router.history.back).not.toHaveBeenCalled();
+    expect(minimizeApp).not.toHaveBeenCalled();
+    await handleBack(router, { minimizeApp }); // the next press goes back as usual
+    expect(router.history.back).toHaveBeenCalled();
   });
 
   it("closes an open sheet with Escape instead of going back", async () => {
