@@ -91,11 +91,18 @@ describe("Razorpay Checkout", () => {
     const done = web.payWithRazorpay(order, { description: "Top up", contact: "+919800001001" });
     await opened();
     const { options } = checkouts[0];
-    expect(options.config.display.sequence).toEqual(["block.upi"]);
+    expect(options.config.display.sequence).toEqual(["block.upi", "block.other"]);
     expect(options.config.display.blocks.upi.instruments).toEqual([
       { method: "upi", flows: ["intent", "qr"] },
     ]);
-    expect(options.config.display.preferences.show_default_blocks).toBe(true);
+    // No UPI in the other block, and Checkout's default blocks (where collect, typing a UPI ID,
+    // would still be offered) are off; `hide` is not used, since it also removed our UPI block.
+    const others = options.config.display.blocks.other.instruments.map(
+      (/** @type {{ method: string }} */ i) => i.method,
+    );
+    expect(others).toEqual(["card", "netbanking", "wallet", "emi", "paylater"]);
+    expect(options.config.display.preferences.show_default_blocks).toBe(false);
+    expect(options.config.display).not.toHaveProperty("hide");
     expect(options).toMatchObject({
       key: order.key_id,
       order_id: order.razorpay_order_id,
