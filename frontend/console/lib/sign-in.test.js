@@ -4,8 +4,10 @@ import {
   firebaseConfigOf,
   isMockApiIn,
   looksLikeIdToken,
+  NEW_CODE_NEEDED,
   phoneErrorMessage,
   phoneSignInConfig,
+  spentCodeMessage,
 } from "./sign-in.js";
 
 const FIREBASE = {
@@ -65,4 +67,12 @@ test("Firebase errors become sentences, the hidden billing reason included", () 
   );
   assert.match(phoneErrorMessage(new Error("boom")), /could not send or check/);
   assert.match(phoneErrorMessage(null), /could not send or check/);
+});
+
+test("a refusal after the code was accepted asks for a new code, not the same one again", () => {
+  const message = spentCodeMessage("Too many attempts. Wait a few minutes.");
+  assert.match(message, /^Too many attempts\. Wait a few minutes\. That code is used up now\./);
+  assert.ok(message.endsWith(NEW_CODE_NEEDED));
+  assert.match(NEW_CODE_NEEDED, /Resend code/); // the button's label on the code form
+  assert.doesNotMatch(message, /not right/);
 });

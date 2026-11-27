@@ -86,6 +86,19 @@ const MESSAGES = /** @type {Record<string, string>} */ ({
     "This address is not allowed to send codes (Firebase authorised domains).",
 });
 
+/** On the code form when no unused code is in hand (it was used, or never sent). */
+export const NEW_CODE_NEEDED = 'Press "Resend code" for a new code.';
+
+/**
+ * The sentence when Firebase accepted the SMS code but signing in failed after it (the API refused,
+ * a 429 or 5xx, or the request failed). Firebase takes a code once, so retrying it would only say
+ * "That code is not right": the person needs a new one.
+ * @param {string} reason
+ */
+export function spentCodeMessage(reason) {
+  return `${reason} That code is used up now. ${NEW_CODE_NEEDED}`;
+}
+
 /**
  * The sentence for a failed send or check. A generic `auth/internal-error` hides the real reason
  * in its message (for example `BILLING_NOT_ENABLED`), so the message is read too.

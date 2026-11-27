@@ -3,7 +3,7 @@
 import { Button, TextField } from "@gharbasket/ui";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { phoneErrorMessage } from "@/lib/sign-in.js";
+import { NEW_CODE_NEEDED, phoneErrorMessage, spentCodeMessage } from "@/lib/sign-in.js";
 import { signInWithFirebase } from "./actions.js";
 
 /** Seconds before "Resend" is offered: Firebase refuses a new SMS to the same number sooner. */
@@ -102,18 +102,29 @@ export function PhoneSignIn({ firebase: config }) {
   function verify(code) {
     setError(null);
     startVerify(async () => {
+      const pending = confirmation.current;
+      if (!pending) {
+        setError(NEW_CODE_NEEDED);
+        return;
+      }
+      let user;
       try {
-        const pending = confirmation.current;
-        if (!pending) throw new Error("no code sent");
-        const { user } = await pending.confirm(code);
+        ({ user } = await pending.confirm(code));
+      } catch (e) {
+        setError(phoneErrorMessage(e)); // a wrong code may be typed again
+        return;
+      }
+      // Firebase takes a code once: from here, a failure needs a new code.
+      confirmation.current = null;
+      try {
         const idToken = await user.getIdToken();
         const { auth, sdk } = await firebaseAuth(config);
         await sdk.signOut(auth);
         // Success redirects; only a refusal comes back.
         const refused = await signInWithFirebase(idToken, next);
-        if (refused?.error) setError(refused.error);
-      } catch (e) {
-        setError(phoneErrorMessage(e));
+        if (refused?.error) setError(spentCodeMessage(refused.error));
+      } catch {
+        setError(spentCodeMessage("We could not sign you in."));
       }
     });
   }
