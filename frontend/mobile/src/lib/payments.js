@@ -26,23 +26,34 @@ export class PaymentError extends Error {
 }
 
 /**
- * Checkout opens on UPI, then shows its usual methods (cards, netbanking, wallets) below. On a
- * phone the UPI block lists the UPI apps (Google Pay, PhonePe, …) and opens the chosen one
- * (intent); on a laptop, where intent is not supported, Razorpay shows a UPI QR code to scan
+ * Checkout opens on UPI, then shows the other methods (cards, netbanking, wallets, EMI, pay later)
+ * below. On a phone the UPI block lists the UPI apps (Google Pay, PhonePe, …) and opens the chosen
+ * one (intent); on a laptop, where intent is not supported, Razorpay shows a UPI QR code to scan
  * instead. `collect` (typing a UPI ID) is left out: Razorpay deprecated it on 28 Feb 2026 for most
- * merchants. Our block leaves it out, and `hide` drops UPI from Checkout's default blocks, where
- * collect would still be offered; `hide` does not touch an instrument in our own blocks. Razorpay
- * documents `hide` per method only, not per flow, so it hides the whole default UPI entry. Option
- * names from Razorpay's "Configure payment methods" docs (checked 22 and 26 Nov 2026).
+ * merchants. Checkout's own default blocks would still offer it, so they are off
+ * (`show_default_blocks: false`, "Checkout will only show the sequence of the payment methods
+ * configured by you") and our second block lists the other methods instead. `hide` is not used:
+ * `hide: [{ method: "upi" }]` also removed our own UPI block on a real phone (Yash, #610), and
+ * Razorpay documents no way to hide one UPI flow. Option names from Razorpay's "Configure payment
+ * methods" docs (checked 22, 26 and 27 Nov 2026).
  */
 export const UPI_FIRST = Object.freeze({
   display: {
     blocks: {
       upi: { name: "Pay with UPI", instruments: [{ method: "upi", flows: ["intent", "qr"] }] },
+      other: {
+        name: "Other ways to pay",
+        instruments: [
+          { method: "card" },
+          { method: "netbanking" },
+          { method: "wallet" },
+          { method: "emi" },
+          { method: "paylater" },
+        ],
+      },
     },
-    sequence: ["block.upi"],
-    hide: [{ method: "upi" }],
-    preferences: { show_default_blocks: true },
+    sequence: ["block.upi", "block.other"],
+    preferences: { show_default_blocks: false },
   },
 });
 
