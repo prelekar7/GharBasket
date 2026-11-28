@@ -113,6 +113,19 @@ describe("Razorpay Checkout", () => {
     await done;
   });
 
+  it("offers UPI only in the Android app, where Razorpay blocks the card and netbanking pop-ups", async () => {
+    const native = await load(true);
+    const done = native.payWithRazorpay(order, { description: "Top up" });
+    await opened();
+    const { display } = checkouts[0].options.config;
+    expect(display.sequence).toEqual(["block.upi"]);
+    expect(Object.keys(display.blocks)).toEqual(["upi"]);
+    expect(display.blocks.upi.instruments).toEqual([{ method: "upi", flows: ["intent", "qr"] }]);
+    expect(display.preferences.show_default_blocks).toBe(false);
+    checkouts[0].options.handler({});
+    await done;
+  });
+
   it("rejects as dismissed when the person closes it, or with the failure they saw first", async () => {
     const { payWithRazorpay } = await load(true);
     const first = payWithRazorpay(order, { description: "Top up" });

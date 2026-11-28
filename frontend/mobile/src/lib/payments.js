@@ -37,7 +37,7 @@ export class PaymentError extends Error {
  * Razorpay documents no way to hide one UPI flow. Option names from Razorpay's "Configure payment
  * methods" docs (checked 22, 26 and 27 Nov 2026).
  */
-export const UPI_FIRST = Object.freeze({
+const UPI_FIRST = Object.freeze({
   display: {
     blocks: {
       upi: { name: "Pay with UPI", instruments: [{ method: "upi", flows: ["intent", "qr"] }] },
@@ -58,6 +58,21 @@ export const UPI_FIRST = Object.freeze({
 });
 
 /**
+ * The Android app offers UPI only, for the pilot (Prathamesh, 28 Nov 2026). Cards and netbanking
+ * open their bank page in a pop-up window, and Razorpay turns pop-up flows off inside a WebView
+ * ("Payment could not be completed" before any request is sent, even with pop-ups allowed
+ * natively). Its fix is redirect mode (`redirect: true` and a `callback_url` on the API), after
+ * launch. The web app keeps every method.
+ */
+const UPI_ONLY = Object.freeze({
+  display: {
+    blocks: { upi: UPI_FIRST.display.blocks.upi },
+    sequence: ["block.upi"],
+    preferences: { show_default_blocks: false },
+  },
+});
+
+/**
  * Razorpay Checkout's options for a top-up, without the callbacks.
  * @param {TopUpOrder} order
  * @param {{ description: string, contact?: string }} details
@@ -71,7 +86,7 @@ export const checkoutOptions = (order, { description, contact }) => ({
   description,
   prefill: contact ? { contact } : undefined,
   theme: { color: "#2F5D3A" },
-  config: UPI_FIRST,
+  config: NATIVE ? UPI_ONLY : UPI_FIRST,
   webview_intent: NATIVE,
 });
 
