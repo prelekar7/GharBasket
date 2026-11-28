@@ -4,7 +4,7 @@
  * - Mock mode (the default, except on Vercel's production deployment): the `gb_session` cookie holds the role from the dev sign-in, and that is
  *   the whole session.
  * - Real mode (`GB_API_MOCK=false`): the API's own cookies are the session (`__Host-gb_at`, the
- *   access token, and `gb_rt`, the refresh token; see lib/auth-cookies.js) and `gb_session` only
+ *   access token, and `__Secure-gb_rt`, the refresh token; see lib/auth-api.js) and `gb_session` only
  *   remembers which staff role this person works as (UX; the roles come from `GET /v1/me`).
  */
 
@@ -19,7 +19,13 @@ export const HUB_COOKIE = "gb_hub";
 export const ACCESS_COOKIE = "__Host-gb_at";
 
 /** The API's refresh-token cookie (Path=/v1/auth, so only /v1/auth/* requests carry it), real mode only. */
-export const REFRESH_COOKIE = "gb_rt";
+export const REFRESH_COOKIE = "__Secure-gb_rt";
+
+/**
+ * The refresh cookie's name until 2026-11 (ASVS F8). Still read, so a session that started before
+ * the rename keeps working; it goes on 2026-12-31 with the API's own fallback (handbook 13 §13.3).
+ */
+export const LEGACY_REFRESH_COOKIE = "gb_rt";
 
 /** Set for 10 seconds by `/v1/auth/session` after a refresh, so a 401 right after it does not refresh in a loop. */
 export const FRESH_COOKIE = "gb_fresh";
