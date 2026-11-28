@@ -1,10 +1,8 @@
-<!-- DRAFT for review (see docs/legal/README.md). Not legal advice. Replace every [PLACEHOLDER] before publishing. -->
-
 # Terms of Service
 
-**Effective date:** [EFFECTIVE DATE]
+**Effective date:** 1 December 2026
 
-These terms are an agreement between you and **[LEGAL BUSINESS NAME]** ("GharBasket", "we", "us"), [REGISTERED ADDRESS]. They apply when you use the GharBasket app, the website gharbasket.co.in, or our deliveries.
+These terms are an agreement between you and **United Brothers Global** ("GharBasket", "we", "us"), Near Janta High School, At/Post Ajivali, Panvel, Raigad, Maharashtra 410221. They apply when you use the GharBasket app, the website gharbasket.co.in, or our deliveries.
 
 Please also read our [Privacy Notice](privacy.md) and our [Refund, Cancellation and Delivery Policy](refunds.md). They are part of these terms.
 
@@ -51,7 +49,7 @@ All times are Indian Standard Time (IST). "T" is your delivery day.
 
 ## 5. Prices and payment
 
-- Prices are in Indian rupees and include [TAX NOTE, e.g. "all applicable taxes" — to be confirmed].
+- Prices are in Indian rupees and include all applicable taxes, including GST.
 - The price of each box item is fixed when you approve the box. An add-on is priced when you add it. If you edit an approved box before the cut-off, the edited items take the price at that time.
 - Your box total includes the delivery fee, if one applies (see the [Refund, Cancellation and Delivery Policy](refunds.md)).
 - Your order is paid from your wallet at the cut-off. If your wallet is short, you have until 11:00 pm that night to top up; otherwise the order is cancelled and nothing is charged.
@@ -93,7 +91,7 @@ Delivery days, time windows, what happens if you are not home, out-of-stock item
 If you work with us as a partner:
 - You are an independent partner, not an employee.
 - You must complete verification (KYC) and training before your partner role is active. We never store Aadhaar numbers or images.
-- **During the test phase, payouts are made by [LEGAL BUSINESS NAME] outside the app.** The earnings and payout records shown in the app are a record of what you earned; they are not themselves a bank transfer. [PARTNER PAYMENT TERMS, to be added]
+- **During the test phase, payouts are made by United Brothers Global outside the app.** The earnings and payout records shown in the app are a record of what you earned; they are not themselves a bank transfer. We pay what you have earned once a week (on Monday, for the week before) by bank transfer or UPI to the account you verified during KYC.
 
 ## 11. The chat assistant
 
@@ -125,17 +123,16 @@ We may update these terms. The date at the top shows the version in force. When 
 
 ## 16. Law and disputes
 
-These terms are governed by the laws of India. Courts at [GOVERNING CITY for jurisdiction] have jurisdiction, subject to your rights as a consumer.
+These terms are governed by the laws of India. Courts at Panvel, Maharashtra have jurisdiction, subject to your rights as a consumer.
 
 Please contact us first so we can try to fix the problem: see [Contact Us](contact.md).
 
 ## 17. Business details
 
-- Business name: [LEGAL BUSINESS NAME]
-- Registered address: [REGISTERED ADDRESS]
-- GSTIN: [GSTIN if registered]
-- FSSAI licence/registration: [FSSAI LICENCE/REGISTRATION NO.]
-- Contact: [SUPPORT EMAIL], [SUPPORT PHONE]
+- Business name: United Brothers Global
+- Registered address: Near Janta High School, At/Post Ajivali, Panvel, Raigad, Maharashtra 410221
+- GSTIN: 27DZJPR1089F1ZY
+- Contact: info@ubglobal.in, +91 78877 99370 / +91 93700 30733
 
 <!-- Sources:
 Test phase, real payments, partner payouts outside the app (payouts simulated): ADR-0037 (status Proposed) Context, §5, Consequences; M5 §3.5 (simulated provider only).

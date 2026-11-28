@@ -79,11 +79,16 @@ test("blocks: headings with anchors, nested lists, tables, comments dropped", ()
   assert.equal(plainText(table.rows[0][1]), "Wallet");
 });
 
-test("placeholders are found anywhere, and every draft has some today", () => {
+test("placeholders are found anywhere, and no published page has one left", () => {
   assert.equal(hasPlaceholders(parseMarkdown("All filled in.")), false);
   assert.equal(hasPlaceholders(parseMarkdown("| a |\n|---|\n| **[SUPPORT EMAIL]** |")), true);
-  for (const file of FILES)
-    assert.equal(hasPlaceholders(parseMarkdown(readFileSync(join(CONTENT, file), "utf8"))), true);
+  for (const file of FILES) {
+    const source = readFileSync(join(CONTENT, file), "utf8");
+    assert.equal(hasPlaceholders(parseMarkdown(source)), false, file);
+    // Also a blank the banner's pattern misses, such as `[R2 REGION …]`: any `[` + capital or
+    // digit that is not a link's text.
+    assert.deepEqual(source.match(/\[[A-Z0-9][^\]]*\](?!\()/g) ?? [], [], file);
+  }
 });
 
 test("every legal file parses into a title and sections", () => {

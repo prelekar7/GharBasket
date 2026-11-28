@@ -19,32 +19,24 @@ Four pages for the public site (`gharbasket.co.in`, the console app), which Razo
 
 ## Placeholders
 
-**Filled with the owner's defaults (22 Nov 2026):** referral points 250, kindness goal 500, pre-live box fee ₹30 (the config values), grievance replies acknowledged in 48 hours and resolved in 15 days, changes announced in the app (and by email if given) 7 days ahead, chats deleted 30 days after the account, daily backups kept 30 days (`backup-staging.yml`), and an interim liability clause (terms §14) that keeps every Consumer Protection Act right; the lawyer or guide may replace it. The rows below still need the owner's business details or a decision.
+**Filled with the owner's defaults (22 Nov 2026):** referral points 250, kindness goal 500, pre-live box fee ₹30 (the config values), grievance replies acknowledged in 48 hours and resolved in 15 days, changes announced in the app (and by email if given) 7 days ahead, chats deleted 30 days after the account, daily backups kept 30 days (`backup-staging.yml`), and an interim liability clause (terms §14) that keeps every Consumer Protection Act right; the lawyer or guide may replace it. **Filled with the owner's business details (28 Nov 2026):** United Brothers Global, the registered address in Ajivali, Panvel, support email, phones and hours, Grievance Officer Yash Salunkhe, GSTIN 27DZJPR1089F1ZY, courts at Panvel, effective date 1 December 2026. There is no FSSAI number yet, so the FSSAI line is left out of terms §17 and the contact page; add it back when the licence is issued (handbook 13 §13.9, a pre-pilot gate).
 
-| Placeholder | Where |
-|---|---|
-| `[LEGAL BUSINESS NAME]` | all four pages |
-| `[REGISTERED ADDRESS]` | all four pages |
-| `[SUPPORT EMAIL]` | all four pages |
-| `[SUPPORT PHONE]` | all four pages |
-| `[SUPPORT HOURS]` | refunds §11, contact |
-| `[GRIEVANCE OFFICER NAME]` | privacy (top, §10), contact |
-| `[GSTIN if registered]` | terms §17, contact |
-| `[FSSAI LICENCE/REGISTRATION NO.]` | terms §17, contact |
-| `[EFFECTIVE DATE]` | terms, privacy, refunds |
-| `[GOVERNING CITY for jurisdiction]` | terms §16 |
-| `[PILOT AREA, e.g. Panvel / Kharghar, Navi Mumbai]` | refunds §3 |
-| `[REFUND TIME TO BANK, to be confirmed]` | refunds §7 |
-| `[TAX NOTE, …]` | terms §5 |
-| `[PARTNER PAYMENT TERMS, to be added]` | terms §10 |
-| `[R2 REGION — to be confirmed …]` (the bucket's Location in Cloudflare → R2 → bucket → Settings) | privacy §4 |
-| `[GRAFANA REGION — to be confirmed …]` (the zone in `OTEL_EXPORTER_OTLP_ENDPOINT`, e.g. `prod-ap-south-1`) | privacy §4 |
-| `[RETENTION PERIOD — to be confirmed]` (orders and money records: the period Indian tax and accounting law requires) | privacy §6 |
+**Defaults proposed on 28 Nov 2026, for the reviewer to confirm or change:**
+
+| Where | Text now | Why |
+|---|---|---|
+| terms §5 | Prices include "all applicable taxes, including GST" | The business is GST-registered and the app adds nothing on top of the shown price. A CA should confirm. |
+| terms §10 | Partners are paid once a week (Monday, for the week before) by bank transfer or UPI to the KYC-verified account | M8 §3.7 and M5's `weekly_payouts` (Monday 10:00 IST); during the test phase the owner pays outside the app (ADR-0037 §5) |
+| refunds §3 | Pilot area: Panvel (Raigad district, Maharashtra) | The pilot plan (1–2 Panvel societies) |
+| refunds §7 | Razorpay states that a normal refund usually reaches you within 5 to 7 working days | Razorpay's published time for normal refunds (M5 §3.3 uses `speed: "normal"`) |
+| privacy §6 | Orders and money records kept 8 years after the end of their financial year | Covers the GST (72 months from the annual return's due date) and income-tax record periods. A CA should confirm. |
+
+**Provider regions (owner, 28 Nov 2026):** the R2 buckets are in Cloudflare's APAC region and the Grafana Cloud stack in AWS ap-south-1 (Mumbai) (privacy §4).
 
 ## Open questions (the specs are silent, or leave it to someone else)
 
-1. **Legal identity.** Who is the merchant on the Razorpay account and the data fiduciary: an individual, a firm, or United Brothers Global (handbook 00: "role and IP terms to be confirmed")? Who is the Grievance Officer?
-2. **Refund time to the bank.** M5 §3.3 sends refunds at Razorpay's `speed: "normal"` but states no timeline. The page says only "decided by Razorpay and your bank". Confirm a number (Razorpay's published normal-refund time) before stating one.
+1. ~~**Legal identity.**~~ Decided (owner, 28 Nov 2026): United Brothers Global is the merchant and the data fiduciary; Yash Salunkhe is the Grievance Officer. Was: Who is the merchant on the Razorpay account and the data fiduciary: an individual, a firm, or United Brothers Global (handbook 00: "role and IP terms to be confirmed")? Who is the Grievance Officer?
+2. **Refund time to the bank.** Proposed on 28 Nov 2026: Razorpay's 5 to 7 working days (refunds §7); confirm. M5 §3.3 sends refunds at Razorpay's `speed: "normal"` but states no timeline. The page says only "decided by Razorpay and your bank". Confirm a number (Razorpay's published normal-refund time) before stating one.
 3. **Unclaimed wallet money.** M5 §3.3 / §11: money that cannot go back to a source goes to `unclaimed_balances` and "support pays it out on request", but *how* (which method, what proof) is not specified, and Prof. Bade has still to confirm the rule against RBI's closed-system PPI rules.
 4. **Balance older than 180 days on a live account.** For a customer who is not deleting, the specs only allow refunds from top-ups within 180 days; the rest can only be spent. Is that acceptable, and may support pay it out as for deletion?
 5. **Wallet expiry / dormancy.** No spec says whether wallet money ever expires. The pages say nothing either way.
@@ -54,10 +46,10 @@ Four pages for the public site (`gharbasket.co.in`, the console app), which Razo
 9. **Minimum age 18.** Not in any spec; added as the conservative choice (DPDP treats under-18s as children needing verifiable parental consent).
 10. **Revoking a required consent** (`service_delivery`, `personalisation`): M1 does not say what happens. The notice points to account deletion.
 11. **Nomination right** (DPDP s.14) and **grievance response time** (DPDP Rules 2025, and the Consumer Protection (E-Commerce) Rules 2020, which as far as we know expect a grievance officer, acknowledgement within 48 hours and redress within a month): no process in the specs. The reviewer should confirm the timelines.
-12. **Retention of orders and the ledger after deletion.** Kept "for legal record keeping" (handbook 13 §13.6) with no period. Choose one (tax law).
+12. **Retention of orders and the ledger after deletion.** Proposed on 28 Nov 2026: 8 years after the financial year (privacy §6); a CA should confirm. Kept "for legal record keeping" (handbook 13 §13.6) with no period. Choose one (tax law).
 13. ~~**Chat retention.**~~ Decided (owner, 22 Nov 2026): chats are kept until the account is deleted, then deleted within 30 days (privacy §6). M13 §11's 30-day proposal for chats on a live account is not adopted.
 14. **Backups and erasure.** ADR-0037 §5 keeps 30 daily dumps (built in #587); no spec says whether a purged account is removed from backups or rolls off.
-15. **Provider locations.** Checked on 22 Nov 2026 against each provider's own pages (sources at the end of privacy.md). Two remain: the R2 bucket's region (created with `auto`) and the Grafana Cloud stack's region. The staff console's Vercel functions run in Washington, D.C. (`iad1`, Vercel's default); moving them to Singapore (`sin1`, next to the API) would shorten every console request and take staff data out of the US. If that is changed, update privacy §4 and §5.
+15. **Provider locations.** Checked on 22 Nov 2026 against each provider's own pages (sources at the end of privacy.md); the last two, R2 (APAC) and Grafana Cloud (ap-south-1, Mumbai), were confirmed by the owner on 28 Nov 2026. The staff console's Vercel functions run in Washington, D.C. (`iad1`, Vercel's default); moving them to Singapore (`sin1`, next to the API) would shorten every console request and take staff data out of the US. If that is changed, update privacy §4 and §5.
 16. **PostHog.** ADR-0020 and handbook 12 name it, but no PostHog code exists in `frontend/` or `backend/api`, so the notice leaves it out. Add it when it ships.
 17. **Tax invoices and GST.** M5 §1 lists "invoices", but only a JSON wallet statement exists (PDF later, M5 §3.2). Real sales may need tax invoices.
 18. **Translations.** Handbook 13 §13.6 promises the notice in English, Hindi and Marathi; only English is drafted.

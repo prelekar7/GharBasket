@@ -1,10 +1,8 @@
-<!-- DRAFT for review (see docs/legal/README.md). Not legal advice. Replace every [PLACEHOLDER] before publishing. -->
-
 # Refund, Cancellation and Delivery Policy
 
-**Effective date:** [EFFECTIVE DATE]
+**Effective date:** 1 December 2026
 
-This policy explains when you can cancel, how deliveries work, and how and when you get money back. It is part of our [Terms of Service](terms.md). GharBasket is run by [LEGAL BUSINESS NAME].
+This policy explains when you can cancel, how deliveries work, and how and when you get money back. It is part of our [Terms of Service](terms.md). GharBasket is run by United Brothers Global.
 
 All times are Indian Standard Time (IST). "Delivery day" means the day your box or tiffin is due to reach you.
 
@@ -34,7 +32,7 @@ All times are Indian Standard Time (IST). "Delivery day" means the day your box 
 ## 3. Delivery
 
 **Where we deliver**
-- We deliver only to housing societies that our hub serves, currently in [PILOT AREA, e.g. Panvel / Kharghar, Navi Mumbai].
+- We deliver only to housing societies that our hub serves, currently in Panvel (Raigad district, Maharashtra).
 - Your address must be in one of these societies.
 
 **When we deliver**
@@ -107,16 +105,16 @@ We do not take back delivered food. Report a problem instead.
 
 **How long it takes**
 - We send each refund request to Razorpay, usually within minutes.
-- How long the money then takes to reach your bank account or card is decided by Razorpay and your bank. [REFUND TIME TO BANK, to be confirmed]
+- How long the money then takes to reach your bank account or card is decided by Razorpay and your bank. Razorpay states that a normal refund usually reaches you within 5 to 7 working days.
 - The app shows the status of each refund. If a refund fails, the money comes back to your wallet.
 
 **If you delete your account**
 - Your refundable wallet balance is sent back to the UPI account or card you paid with.
-- Any part that cannot be sent back (for example, top-ups older than 180 days) is kept safely for you. You can claim it by writing to [SUPPORT EMAIL].
+- Any part that cannot be sent back (for example, top-ups older than 180 days) is kept safely for you. You can claim it by writing to info@ubglobal.in.
 
 ## 8. Payment problems
 
-- **Money left your account but your wallet was not credited:** we check our records against Razorpay every hour and credit missing top-ups automatically. If one still does not show after a few hours, write to [SUPPORT EMAIL] with the payment time and amount.
+- **Money left your account but your wallet was not credited:** we check our records against Razorpay every hour and credit missing top-ups automatically. If one still does not show after a few hours, write to info@ubglobal.in with the payment time and amount.
 - **A payment that arrives late** (after the top-up screen timed out) is still credited if it fits under the ₹10,000 limit. If it does not fit, it is refunded to where it came from.
 - **Paid twice by mistake:** our hourly check flags it for our team. Please also write to us.
 
@@ -130,7 +128,7 @@ GharBasket is in an early test with a few housing societies. **Payments are real
 
 ## 11. Contact
 
-Questions about a refund or a delivery: [SUPPORT EMAIL], [SUPPORT PHONE], [SUPPORT HOURS]. See [Contact Us](contact.md).
+Questions about a refund or a delivery: info@ubglobal.in, +91 78877 99370 / +91 93700 30733, Monday to Saturday, 9:00 am to 7:00 pm IST. See [Contact Us](contact.md).
 
 <!-- Sources:
 Pay at cut-off 21:00 IST T-1, wallet only: M4 §3.1 (Money and time; Cut-off handshake), M5 §3 note and §3.1, M5 §3.7 (Autopay not in this phase), M3 §3.1 (payment_mode autopay refused), ADR-0037 §5 (payouts simulated; wallet only).
