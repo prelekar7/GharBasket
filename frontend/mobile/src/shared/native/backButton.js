@@ -1,5 +1,6 @@
 // The Android back button. Listening for it switches off the system's own behaviour (Capacitor
 // App docs), so this file decides everything: close what is open, go back, or leave the app.
+import { closeCheckout } from "@/lib/payments.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 import { withPlugin } from "./platform.js";
 
@@ -65,14 +66,18 @@ const historyIndex = (router) =>
   );
 
 /**
- * What one press of back does: close an overlay; on a root screen minimise the app (so the next
- * launch finds the person where they were); otherwise go back, or minimise when there is no
- * history (a screen opened from a link).
+ * What one press of back does: close Razorpay Checkout or an overlay; on a root screen minimise
+ * the app (so the next launch finds the person where they were); otherwise go back, or minimise
+ * when there is no history (a screen opened from a link). Checkout comes first: it is Razorpay's
+ * own iframe, not one of our dialogs, and without this back minimised the app with Checkout still
+ * open (phone test, 28 Nov). Razorpay's current Checkout ignores close() (it only posts "close" to
+ * its iframe), so in practice back stays on Checkout and its own ← asks "exit?"; were close() to
+ * work again, back would close it.
  * @param {BackRouter} router
  * @param {{ minimizeApp: () => Promise<void> }} app
  */
 export async function handleBack(router, app) {
-  if (closeOverlay()) return;
+  if (closeCheckout() || closeOverlay()) return;
   if (
     !isRootPath(router.state.location.pathname) &&
     router.history.canGoBack() &&
