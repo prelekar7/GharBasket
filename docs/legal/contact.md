@@ -1,15 +1,13 @@
-<!-- DRAFT for review (see docs/legal/README.md). Replace every [PLACEHOLDER] before publishing. -->
-
 # Contact Us
 
-GharBasket is run by **[LEGAL BUSINESS NAME]**.
+GharBasket is run by **United Brothers Global**.
 
 ## Customer support
 
-- **Email:** [SUPPORT EMAIL]
-- **Phone:** [SUPPORT PHONE]
-- **Hours:** [SUPPORT HOURS]
-- **Address:** [REGISTERED ADDRESS]
+- **Email:** info@ubglobal.in
+- **Phone:** +91 78877 99370 / +91 93700 30733
+- **Hours:** Monday to Saturday, 9:00 am to 7:00 pm IST
+- **Address:** Near Janta High School, At/Post Ajivali, Panvel, Raigad, Maharashtra 410221
 
 When you write about a payment or refund, please include the date, the amount and your registered mobile number. **Never send us your card number, UPI PIN or OTP.** We will never ask for them.
 
@@ -30,19 +28,18 @@ When you write about a payment or refund, please include the date, the amount an
 
 For complaints about our service or about your personal data:
 
-- **Name:** [GRIEVANCE OFFICER NAME]
-- **Email:** [SUPPORT EMAIL]
-- **Phone:** [SUPPORT PHONE]
-- **Address:** [REGISTERED ADDRESS]
+- **Name:** Yash Salunkhe
+- **Email:** info@ubglobal.in
+- **Phone:** +91 93700 30733
+- **Address:** Near Janta High School, At/Post Ajivali, Panvel, Raigad, Maharashtra 410221
 
 We acknowledge your message within 48 hours and resolve it within 15 days. If you are not satisfied with our answer about your personal data, you can complain to the Data Protection Board of India.
 
 ## Business details
 
-- **Legal name:** [LEGAL BUSINESS NAME]
-- **Registered address:** [REGISTERED ADDRESS]
-- **GSTIN:** [GSTIN if registered]
-- **FSSAI licence/registration no.:** [FSSAI LICENCE/REGISTRATION NO.]
+- **Legal name:** United Brothers Global
+- **Registered address:** Near Janta High School, At/Post Ajivali, Panvel, Raigad, Maharashtra 410221
+- **GSTIN:** 27DZJPR1089F1ZY
 - **Website:** gharbasket.co.in
 
 See also: [Terms of Service](terms.md) · [Privacy Notice](privacy.md) · [Refund, Cancellation and Delivery Policy](refunds.md)

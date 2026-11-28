@@ -1,13 +1,11 @@
-<!-- DRAFT for review (see docs/legal/README.md). Not legal advice. Replace every [PLACEHOLDER] before publishing. -->
-
 # Privacy Notice
 
-**Effective date:** [EFFECTIVE DATE] · **Notice version:** v1
+**Effective date:** 1 December 2026 · **Notice version:** v1
 
 This notice explains what personal data GharBasket collects, why, who we share it with, how long we keep it, and your rights under India's **Digital Personal Data Protection Act, 2023** (DPDP Act).
 
-**Who is responsible for your data (Data Fiduciary):** [LEGAL BUSINESS NAME], [REGISTERED ADDRESS].
-**Grievance Officer:** [GRIEVANCE OFFICER NAME], [SUPPORT EMAIL], [SUPPORT PHONE].
+**Who is responsible for your data (Data Fiduciary):** United Brothers Global, Near Janta High School, At/Post Ajivali, Panvel, Raigad, Maharashtra 410221.
+**Grievance Officer:** Yash Salunkhe, info@ubglobal.in, +91 93700 30733.
 
 GharBasket is in an early test with a few housing societies. Payments are real, and this notice applies in full.
 
@@ -124,7 +122,7 @@ The machine-learning service that plans meals and routes does not receive your n
 | Security audit log (who did what, without personal details) | 3 years |
 | Kindness points | Expire 365 days after you earn them |
 | Chat assistant conversations | Until you delete your account, then deleted within 30 days |
-| Orders and money records (wallet, ledger, payments) | Kept after account deletion for accounting and legal record-keeping, but no longer linked to you (section 7) [RETENTION PERIOD — to be confirmed] |
+| Orders and money records (wallet, ledger, payments) | Kept for 8 years after the end of the financial year they belong to (the longest period Indian tax and accounting law can require), also after account deletion, but no longer linked to you (section 7) |
 | Database backups | Older copies are replaced over time (daily backups are kept for 30 days, then deleted) |
 
 ## 7. Deleting your account
@@ -134,7 +132,7 @@ You can delete your account in the app (**Profile → Delete my account**). For 
 When you ask:
 1. You are signed out on every device at once.
 2. Your subscription ends. Weeks not yet past the cut-off are skipped. Boxes already paid are still delivered.
-3. Your refundable wallet balance is sent back to the UPI account or card you paid with. Any part that cannot be sent back is kept for you to claim through [SUPPORT EMAIL].
+3. Your refundable wallet balance is sent back to the UPI account or card you paid with. Any part that cannot be sent back is kept for you to claim through info@ubglobal.in.
 4. We stop sending you messages.
 
 You then have **30 days** to change your mind: sign in again and choose **"Keep my account"**. Your subscription stays ended, and you can restart it.
@@ -164,8 +162,8 @@ Under the DPDP Act you can:
 
 ## 10. Contact and grievances
 
-**Grievance Officer:** [GRIEVANCE OFFICER NAME]
-Email: [SUPPORT EMAIL] · Phone: [SUPPORT PHONE] · Address: [REGISTERED ADDRESS]
+**Grievance Officer:** Yash Salunkhe
+Email: info@ubglobal.in · Phone: +91 93700 30733 · Address: Near Janta High School, At/Post Ajivali, Panvel, Raigad, Maharashtra 410221
 We acknowledge your message within 48 hours and resolve it within 15 days.
 
 <!-- Sources:
