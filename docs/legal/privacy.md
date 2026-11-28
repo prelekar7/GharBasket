@@ -90,12 +90,12 @@ We also use data to keep the service secure, to prevent misuse and fraud, to kee
 | Razorpay | Handles top-ups and refunds | India (Indian rules require payment data to be stored in India) |
 | Render | Runs our servers (API and machine-learning service) | Singapore |
 | Neon | Hosts our database | Singapore |
-| Cloudflare (R2) | Stores photos, documents, data exports and database backups, in private storage | [R2 REGION — to be confirmed in the Cloudflare dashboard] |
+| Cloudflare (R2) | Stores photos, documents, data exports and database backups, in private storage | Asia-Pacific (Cloudflare's APAC region) |
 | Vercel | Hosts our website and web app | Pages are served from Mumbai, India for visitors in India. The staff console's server runs in Washington, D.C., United States |
 | GitHub | Runs scheduled tasks and makes the database backup copy | United States and other countries |
 | Anthropic (Claude) | Reads chat assistant messages (after personal details are removed) to understand what you asked | Stored in the United States; may be processed in the United States, Europe, Asia or Australia |
 | Meta (WhatsApp Business) | Sends WhatsApp messages, only if you turn them on | Meta's data centres in several countries |
-| Grafana Cloud | Error and performance records (no names, phone numbers, addresses or account IDs) | [GRAFANA REGION — to be confirmed in the Grafana Cloud stack] |
+| Grafana Cloud | Error and performance records (no names, phone numbers, addresses or account IDs) | Mumbai, India (AWS ap-south-1) |
 
 We share personal data only with the people and providers listed here, or when the law requires it.
 
