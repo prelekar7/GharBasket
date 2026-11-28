@@ -152,7 +152,7 @@ async function dispatch(
  * The API refused the session (401): the access cookie expired, or was revoked. Send the browser
  * through `/v1/auth/session`, the one place that can read the refresh cookie (its Path is
  * /v1/auth), which refreshes and comes back to the page. A transparent retry here is not possible:
- * this request never carried `gb_rt`. If we were just sent back from a refresh (`gb_fresh`) and
+ * this request never carried the refresh cookie. If we were just sent back from a refresh (`gb_fresh`) and
  * still get 401, refreshing again would loop, so end the session instead.
  * @returns {Promise<never>}
  */

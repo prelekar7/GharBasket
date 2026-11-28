@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cookieValue, exchangeBody, parseSetCookie, signInRefusal } from "./auth-api.js";
+import {
+  clearSessionCookies,
+  cookieValue,
+  exchangeBody,
+  parseSetCookie,
+  refreshTokenIn,
+  signInRefusal,
+} from "./auth-api.js";
 import { staffRoleOf } from "./session.js";
 
 // The lines the dev API (8010) sends on POST /v1/auth/exchange.
 const ACCESS = "__Host-gb_at=aaa.bbb.ccc; HttpOnly; Max-Age=900; Path=/; SameSite=lax; Secure";
-const REFRESH = "gb_rt=ZXzb-Mr_Jk1; HttpOnly; Max-Age=2591999; Path=/v1/auth; SameSite=lax; Secure";
+const REFRESH =
+  "__Secure-gb_rt=ZXzb-Mr_Jk1; HttpOnly; Max-Age=2591999; Path=/v1/auth; SameSite=lax; Secure";
 
 test("Set-Cookie lines keep their name, value and attributes", () => {
   assert.deepEqual(parseSetCookie(ACCESS), {
@@ -14,8 +22,36 @@ test("Set-Cookie lines keep their name, value and attributes", () => {
     options: { httpOnly: true, maxAge: 900, path: "/", sameSite: "lax", secure: true },
   });
   assert.equal(parseSetCookie(REFRESH).options.path, "/v1/auth");
-  assert.equal(cookieValue([ACCESS, REFRESH], "gb_rt"), "ZXzb-Mr_Jk1");
-  assert.equal(cookieValue([ACCESS], "gb_rt"), null);
+  assert.equal(cookieValue([ACCESS, REFRESH], "__Secure-gb_rt"), "ZXzb-Mr_Jk1");
+  assert.equal(cookieValue([ACCESS], "__Secure-gb_rt"), null);
+});
+
+/** A cookie jar as `await cookies()` reads it. @param {Record<string, string>} values */
+const jar = (values) => ({
+  get: (/** @type {string} */ name) => (name in values ? { value: values[name] } : undefined),
+});
+
+test("the refresh token is read from __Secure-gb_rt first, else from the old gb_rt (ASVS F8)", () => {
+  assert.equal(refreshTokenIn(jar({ "__Secure-gb_rt": "new", gb_rt: "old" })), "new");
+  assert.equal(refreshTokenIn(jar({ gb_rt: "old" })), "old");
+  assert.equal(refreshTokenIn(jar({ "__Secure-gb_rt": "", gb_rt: "old" })), "old");
+  assert.equal(refreshTokenIn(jar({})), undefined);
+});
+
+test("signing out clears the access cookie and both refresh cookie names", () => {
+  /** @type {Array<[string, string, any]>} */
+  const set = [];
+  clearSessionCookies({
+    set: (name, value, options) => set.push([name, value, options]),
+    delete: () => {},
+  });
+  const cleared = Object.fromEntries(set.map(([name, value, o]) => [name, { value, ...o }]));
+  const gone = { value: "", maxAge: 0, httpOnly: true, secure: true, sameSite: "lax" };
+  assert.deepEqual(cleared, {
+    "__Host-gb_at": { ...gone, path: "/" },
+    "__Secure-gb_rt": { ...gone, path: "/v1/auth" },
+    gb_rt: { ...gone, path: "/v1/auth" },
+  });
 });
 
 test("the staff role is the preferred one if held, else the best, and only verified grants count", () => {

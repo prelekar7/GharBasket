@@ -1,4 +1,4 @@
-import { ACCESS_COOKIE, REFRESH_COOKIE, staffRoleOf } from "./session.js";
+import { ACCESS_COOKIE, LEGACY_REFRESH_COOKIE, REFRESH_COOKIE, staffRoleOf } from "./session.js";
 
 /**
  * Server-side calls to the API's auth endpoints (`/v1/auth/*`) and the relay of the cookies they set.
@@ -8,7 +8,7 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, staffRoleOf } from "./session.js";
  * How cookies flow (real mode, `GB_API_MOCK=false`):
  *
  * The browser only ever talks to the console; the console's server talks to the API. The API
- * answers sign-in and refresh with `Set-Cookie: __Host-gb_at` (Path=/) and `gb_rt` (Path=/v1/auth),
+ * answers sign-in and refresh with `Set-Cookie: __Host-gb_at` (Path=/) and `__Secure-gb_rt` (Path=/v1/auth),
  * both httpOnly, Secure, SameSite=Lax (M1 §3.1, ADR-0024). We copy those lines onto the console's own
  * response with `relayCookies`, attribute for attribute, so the browser stores them for the
  * console's origin, and later page requests carry `__Host-gb_at`, which lib/api.js forwards to
@@ -18,7 +18,7 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, staffRoleOf } from "./session.js";
  * browser code that calls the API, so a rewrite would only publish the whole API on the console's
  * origin. Server Actions and one Route Handler copy cookies instead, and nothing else is exposed.
  *
- * `gb_rt` keeps `Path=/v1/auth`, so the browser sends it only to `/v1/auth/*` on the console, and
+ * `__Secure-gb_rt` keeps `Path=/v1/auth`, so the browser sends it only to `/v1/auth/*` on the console, and
  * the Route Handler that lives there is the one place that can refresh. That is why a refresh is a
  * redirect round trip (proxy.js and lib/api.js send the browser to `/v1/auth/session?next=…`, which
  * refreshes and sends it back) and not a transparent retry inside the failing request.
@@ -31,6 +31,16 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, staffRoleOf } from "./session.js";
  * What `await cookies()` is in a Server Action or Route Handler.
  * @typedef {{ set: (name: string, value: string, options?: object) => unknown, delete: (name: string) => unknown }} CookieStore
  */
+
+/**
+ * The refresh token the browser sent: `__Secure-gb_rt`, else the old `gb_rt` of a session that
+ * started before the rename. Either way `refreshSession` sends it to the API under the new name,
+ * so the API clears `gb_rt` in its answer and stops writing it (platform/web_session.py).
+ * @param {{ get: (name: string) => { value: string } | undefined }} jar `await cookies()`
+ * @returns {string | undefined}
+ */
+export const refreshTokenIn = (jar) =>
+  jar.get(REFRESH_COOKIE)?.value || jar.get(LEGACY_REFRESH_COOKIE)?.value || undefined;
 
 /** The API's base URL with no trailing slash. */
 export function apiBase() {
@@ -250,12 +260,14 @@ export async function resolveStaffRole(accessToken, preferred) {
 }
 
 /**
- * Clears the API's two session cookies on the browser, with the attributes they were set with (a
- * `__Host-` cookie can only be replaced by one that is Secure with Path=/).
+ * Clears the API's session cookies on the browser, the old refresh cookie name too, with the
+ * attributes they were set with (a `__Host-` cookie can only be replaced by one that is Secure with
+ * Path=/, a `__Secure-` one only by one that is Secure).
  * @param {CookieStore} store `await cookies()`
  */
 export function clearSessionCookies(store) {
   const same = { maxAge: 0, httpOnly: true, secure: true, sameSite: "lax" };
   store.set(ACCESS_COOKIE, "", { ...same, path: "/" });
   store.set(REFRESH_COOKIE, "", { ...same, path: "/v1/auth" });
+  store.set(LEGACY_REFRESH_COOKIE, "", { ...same, path: "/v1/auth" });
 }

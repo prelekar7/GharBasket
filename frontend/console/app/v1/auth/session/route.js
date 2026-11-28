@@ -4,6 +4,7 @@ import {
   clearSessionCookies,
   logout,
   refreshSession,
+  refreshTokenIn,
   relayCookies,
   resolveStaffRole,
 } from "@/lib/auth-api.js";
@@ -12,13 +13,12 @@ import {
   FRESH_COOKIE,
   HUB_COOKIE,
   isMockApi,
-  REFRESH_COOKIE,
   SESSION_COOKIE,
 } from "@/lib/session.js";
 
 /**
  * Refreshes the session. It lives at `/v1/auth/session` on purpose: the API's refresh cookie
- * `gb_rt` has `Path=/v1/auth`, so the browser sends it to this URL and to no page (see
+ * `__Secure-gb_rt` (or `gb_rt`, its old name) has `Path=/v1/auth`, so the browser sends it to this URL and to no page (see
  * lib/auth-api.js). Real mode only; in mock mode there is no session to refresh.
  *
  * - `GET ?next=/orders`: a navigation. proxy.js sends the browser here when the access cookie is gone
@@ -62,7 +62,7 @@ export async function GET(request) {
     redirect("/login");
   }
 
-  const refreshToken = jar.get(REFRESH_COOKIE)?.value;
+  const refreshToken = refreshTokenIn(jar);
   const refreshed = refreshToken ? await refreshSession(refreshToken) : null;
   if (!refreshed?.ok || !refreshed.accessToken) {
     endSession(jar);
@@ -99,7 +99,7 @@ export async function POST(request) {
   if (isMockApi() || request.headers.get("x-gb-client") !== "web")
     return new Response(null, { status: 403 });
   const jar = await cookies();
-  const refreshToken = jar.get(REFRESH_COOKIE)?.value;
+  const refreshToken = refreshTokenIn(jar);
   const refreshed = refreshToken ? await refreshSession(refreshToken) : null;
   if (!refreshed?.ok) return new Response(null, { status: 401 });
   relayCookies(jar, refreshed.setCookies);

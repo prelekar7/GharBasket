@@ -17,7 +17,7 @@ screens stay on mocks (`lib/public-source.js`). The mock cooks (`mocks/public.js
 allows that origin, any other port must be in the API's `WEB_ORIGINS`). Sign in with the dev buttons (they call `POST /v1/auth/exchange`
 with `dev_phone`, so the API needs `APP_ENV=dev`) or the phone form with the code 123456.
 
-- **Session:** the API's cookies `__Host-gb_at` (access, 15 min, Path=/) and `gb_rt` (refresh, Path=/v1/auth) are relayed to the
+- **Session:** the API's cookies `__Host-gb_at` (access, 15 min, Path=/) and `__Secure-gb_rt` (refresh, Path=/v1/auth; `gb_rt` until 2026-11) are relayed to the
   browser by the sign-in Server Action and by `app/v1/auth/session/route.js`; `gb_session` remembers which staff role
   (admin, hub_manager, franchise_owner, ngo_coordinator) they work as. Details: `lib/auth-api.js`.
 - **Refresh:** when the access cookie is gone, `proxy.js` redirects a page navigation to `/v1/auth/session?next=…`, which
