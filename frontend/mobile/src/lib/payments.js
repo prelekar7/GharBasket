@@ -75,17 +75,33 @@ export const checkoutOptions = (order, { description, contact }) => ({
   webview_intent: NATIVE,
 });
 
+/**
+ * How long Checkout's script may take to load. A stalled connection never fires `onerror`: on
+ * 28 Nov some of Razorpay's CDN addresses were unreachable from one Wi-Fi, the request hung, and
+ * Pay did nothing until the app was restarted. After this the person sees "check your internet"
+ * and the next Pay starts a fresh load.
+ */
+export const CHECKOUT_LOAD_MS = 15_000;
+
 /** @type {Promise<void> | null} */
 let script = null;
 const loadCheckout = () =>
   (script ??= new Promise((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = "https://checkout.razorpay.com/v1/checkout.js";
-    s.onload = () => resolve();
-    s.onerror = () => {
+    const fail = () => {
+      clearTimeout(timer);
+      s.onload = s.onerror = null;
+      s.remove();
       script = null;
       reject(new PaymentError("checkout_unavailable"));
     };
+    const timer = setTimeout(fail, CHECKOUT_LOAD_MS);
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    s.onerror = fail;
     document.head.appendChild(s);
   }));
 
