@@ -5,8 +5,10 @@ import hashlib
 import io
 import json
 import re
+import time
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -425,7 +427,13 @@ async def test_the_11th_partner_call_and_the_61st_staff_call_in_an_hour_are_429(
     s3: FakeS3,
     db_session: AsyncSession,
     valkey: Redis,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The limits count per clock hour, and the ten certificates take about 20 s to render, so a run
+    # that crossed a full hour started a new window and the 11th call was let through. The limiter
+    # reads a clock fixed in the middle of the current hour (only its own `time`, nothing else's).
+    middle = int(time.time()) // 3600 * 3600 + 1800
+    monkeypatch.setattr(rate_limit, "time", SimpleNamespace(time=lambda: middle))
     await record(db_session, LATA, "kitchen")
     api = clients(storage=store_for(s3), valkey=valkey)
     meena, _ = await as_user(api, google, LATA)
